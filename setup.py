@@ -9,7 +9,7 @@ if os.path.exists(build_file):
 else:
     version_num = "dev"
 
-setup(name='firexkit',
+setup(name='firexapp',
       version='0.1.' + version_num,
       description='Core firex application libraries',
       url='https://wwwin-github.cisco.com/firex/firexapp.git',
