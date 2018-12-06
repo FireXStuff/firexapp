@@ -19,4 +19,5 @@ setup(name='firexapp',
       packages=['firexapp', ],
       zip_safe=True,
       install_requires=[
+          "distlib",
       ],)
