@@ -34,8 +34,7 @@ def discover_package_modules(current_path, root_path=None) -> []:
     if os.path.isfile(current_path):
         basename, ext = os.path.splitext(current_path)
         if ext.lower() == ".py":
-            if root_path:
-                basename = basename.replace(root_path, "")
+            basename = basename.replace(root_path, "")
             return [basename.replace(os.path.sep, ".").strip(".")]
         else:
             return []
