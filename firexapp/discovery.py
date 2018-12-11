@@ -4,7 +4,7 @@ import logging
 from distlib.database import DistributionPath
 
 
-def get_firex_dependant_package_locations()-> []:
+def _get_firex_dependant_package_locations()-> []:
     distributions = DistributionPath(include_egg=True).get_distributions()
 
     # some packages (such as any tree) might cause exceptions in logging
@@ -53,6 +53,6 @@ def discover_package_modules(current_path, root_path=None) -> []:
 
 def find_firex_task_bundles()->[]:
     bundles = []
-    for location in get_firex_dependant_package_locations():
+    for location in _get_firex_dependant_package_locations():
         bundles += discover_package_modules(location)
     return bundles

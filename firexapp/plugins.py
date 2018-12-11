@@ -58,11 +58,11 @@ def get_plugin_modules(external_files):
 # noinspection PyUnusedLocal
 @worker_init.connect()
 def _worker_init_signal(*args, **kwargs):
-    unregister_duplicate_tasks()
-    mark_plugin_module_tasks()
+    _unregister_duplicate_tasks()
+    _mark_plugin_module_tasks()
 
 
-def mark_plugin_module_tasks():
+def _mark_plugin_module_tasks():
     from celery import current_app
     ext_mods = get_plugin_module_list()
     for ext_mod in ext_mods:
@@ -73,7 +73,7 @@ def mark_plugin_module_tasks():
 
 # there is no way of copying the signals without coupling with the internals of celery signals
 # noinspection PyProtectedMember
-def get_signals_with_connections():
+def _get_signals_with_connections():
     from celery.utils.dispatch.signal import Signal, NONE_ID
     import celery.signals as sigs
     # get all official signals
@@ -133,8 +133,8 @@ def create_replacement_task(original, name_postfix, sigs):
     return new_task
 
 
-def unregister_duplicate_tasks():
-    sigs = get_signals_with_connections()
+def _unregister_duplicate_tasks():
+    sigs = _get_signals_with_connections()
     from celery import current_app
     becomes = identify_duplicate_tasks(current_app.tasks, get_plugin_module_list())
     for substitutions in becomes:
@@ -199,7 +199,7 @@ def load_plugin_modules(external_files=None):
                              "A module with the same name was already imported from %s" % (module_name, module_source))
         else:
             logger.error("External module %s was NOT imported." % module_name)
-    unregister_duplicate_tasks()
+    _unregister_duplicate_tasks()
 
 
 def set_plugins_env(external_files):
