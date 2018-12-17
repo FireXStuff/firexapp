@@ -16,7 +16,7 @@ setup(name='firexapp',
       author='Core FireX Team',
       author_email='firex-dev@gmail.com',
       license='TBD',
-      packages=['firexapp', ],
+      packages=['firexapp', 'firexapp.engine'],
       zip_safe=True,
       install_requires=[
           "distlib",
