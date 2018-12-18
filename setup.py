@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 import os
 
 # Determine the build number
@@ -16,7 +16,7 @@ setup(name='firexapp',
       author='Core FireX Team',
       author_email='firex-dev@gmail.com',
       license='TBD',
-      packages=['firexapp', 'firexapp.engine'],
+      packages=find_packages(),
       zip_safe=True,
       install_requires=[
           "distlib",
