@@ -12,7 +12,7 @@ else:
 setup(name='firexapp',
       version='0.1.' + version_num,
       description='Core firex application libraries',
-      url='https://wwwin-github.cisco.com/firex/firexapp.git',
+      url='https://github.com/FireXStuff/firexapp',
       author='Core FireX Team',
       author_email='firex-dev@gmail.com',
       license='BSD-3-Clause',
