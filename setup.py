@@ -20,4 +20,10 @@ setup(name='firexapp',
       zip_safe=True,
       install_requires=[
           "distlib",
+          "firexkit"
+      ],
+      classifiers=[
+        "Programming Language :: Python :: 3",
+        "Operating System :: OS Independent",
+        "License :: OSI Approved :: BSD License",
       ],)
