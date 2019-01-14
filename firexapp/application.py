@@ -1,3 +1,4 @@
+import sys
 import os
 
 from argparse import ArgumentParser, Action, RawTextHelpFormatter
@@ -30,6 +31,24 @@ def import_microservices(plugins_files)->[]:
     return app.tasks
 
 
+def get_app_task(task_short_name, all_tasks):
+
+    # Search for an exact match first
+    for key, value in all_tasks.items():
+        if key.split('.')[-1] == task_short_name:
+            return value
+
+    # Let's do a case-insensitive search
+    task_name_lower = task_short_name.lower()
+    for key, value in all_tasks.items():
+        if key.split('.')[-1].lower() == task_name_lower:
+            return value
+
+    # Can't find a match
+    from celery.exceptions import NotRegistered
+    raise NotRegistered(task_short_name)
+
+
 def create_arg_parser(description=None)->ArgumentParser:
     if not description:
         description = """
@@ -41,6 +60,7 @@ and testing processes.
     sub_parser = main_parser.add_subparsers()
 
     create_list_sub_parser(sub_parser)
+    create_info_sub_parser(sub_parser)
 
     return main_parser
 
@@ -91,3 +111,19 @@ def pick_list_func(args):
         print_available_microservices(args.plugins)
     elif args.arguments:
         print_argument_used(args.plugins)
+
+
+def create_info_sub_parser(sub_parser):
+    info_parser = sub_parser.add_parser("info", help="Lists detailed information about a microservice",
+                                        parents=[create_plugin_arg_parser()])
+    info_parser.add_argument("entity", help="The short or long name of the microservice to be detailed, or a "
+                                            "microservice argument")
+
+    info_parser.set_defaults(func=get_info_func)
+    return info_parser
+
+
+def get_info_func(args):
+    from firexapp.info import print_details
+    print_details(args.entity, args.plugins)
+    sys.exit(0)
