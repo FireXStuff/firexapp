@@ -23,11 +23,11 @@ setup(name='firexapp',
           "firexkit"
       ],
       classifiers=[
-        "Programming Language :: Python :: 3",
-        "Operating System :: OS Independent",
-        "License :: OSI Approved :: BSD License",
+          "Programming Language :: Python :: 3",
+          "Operating System :: OS Independent",
+          "License :: OSI Approved :: BSD License",
       ],
       entry_points={
-        'console_scripts': ['firexapp = firexapp.application:main',]
+          'console_scripts': ['firexapp = firexapp.application:main', ]
       },
-     )
+      )
