@@ -45,6 +45,8 @@ class FireXBaseApp:
     def __init__(self):
         from firexapp.info import InfoBaseApp
         self.info_app = InfoBaseApp()
+        from firexapp.submit import SubmitBaseApp
+        self.submit_app = SubmitBaseApp()
         self.arg_parser = None
 
     def run(self):
@@ -56,8 +58,13 @@ class FireXBaseApp:
         if not hasattr(arguments, "func"):
             self.arg_parser.print_help()
             self.arg_parser.exit()
-
-        arguments.func(arguments)
+        if self.submit_app.run_submit.__name__ not in arguments.func.__name__:
+            if len(others):
+                msg = 'Unrecognized arguments: %s'
+                self.arg_parser.error(message=msg)
+            arguments.func(arguments)
+        else:
+            arguments.func(arguments, others)
 
     def create_arg_parser(self, description=None)->ArgumentParser:
         if not description:
@@ -70,6 +77,7 @@ and testing processes."""
 
         self.info_app.create_list_sub_parser(sub_parser)
         self.info_app.create_info_sub_parser(sub_parser)
+        self.submit_app.create_submit_parser(sub_parser)
 
         return main_parser
 
