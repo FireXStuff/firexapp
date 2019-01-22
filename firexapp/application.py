@@ -1,7 +1,7 @@
 import os
 
 from argparse import ArgumentParser, Action, RawTextHelpFormatter
-from firexapp.plugins import load_plugin_modules, cdl2list
+from firexapp.plugins import load_plugin_modules, cdl2list, merge_plugins
 
 
 def main():
@@ -94,7 +94,7 @@ class CommaDelimitedListAction(Action):
         self.is_default = False
         if old_value:
             old_value += ","
-        new_value = old_value + values
+        new_value = ",".join(merge_plugins(old_value, values))
         setattr(namespace, self.dest, new_value)
 
 

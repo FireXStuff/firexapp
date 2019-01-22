@@ -4,6 +4,7 @@ import inspect
 
 from celery.signals import worker_init
 from celery.utils.log import get_task_logger
+from firexapp.common import delimit2list
 
 logger = get_task_logger(__name__)
 PLUGGING_ENV_NAME = "firex_external"
@@ -210,3 +211,13 @@ def set_plugins_env(external_files):
 
 def get_active_plugins():
     return os.environ.get(PLUGGING_ENV_NAME, "")
+
+
+def merge_plugins(plugins_list1, plugins_list2='')->[]:
+    """Merge two comma delimited list of plugins into a single list. Right-handed most significant plugin"""
+    combined_list = delimit2list(plugins_list1) + delimit2list(plugins_list2)
+    new_list = []
+    for next_idx, plugin in enumerate(combined_list, start=1):
+        if plugin not in combined_list[next_idx:]:
+            new_list.append(plugin)
+    return new_list

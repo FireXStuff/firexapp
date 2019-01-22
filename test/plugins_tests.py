@@ -2,7 +2,7 @@ import os
 import unittest
 
 from firexapp.plugins import identify_duplicate_tasks, find_plugin_file, cdl2list, get_plugin_modules, \
-    get_active_plugins, set_plugins_env, load_plugin_modules, get_plugin_module_list
+    get_active_plugins, set_plugins_env, load_plugin_modules, get_plugin_module_list, merge_plugins
 
 
 class DuplicateIdentificationTests(unittest.TestCase):
@@ -148,3 +148,42 @@ class ResolvePathTests(unittest.TestCase):
         import subprocess
         discovery = os.path.join(os.path.dirname(__file__), "data", "plugins", "subprocess.py")
         load_plugin_modules(discovery)
+
+
+class MergePluginsTests(unittest.TestCase):
+    def test_merge_plugins(self):
+        with self.subTest('identical plugins'):
+            plugins_list_1 = 'a,b,c'
+            plugins_list_2 = 'a,b,c'
+            merged = ','.join(merge_plugins(plugins_list_1, plugins_list_2))
+            self.assertEqual(merged, plugins_list_1)
+
+        with self.subTest('subset of plugins'):
+            plugins_list_1 = 'a,b,c'
+            plugins_list_2 = 'a,d'
+            merged = ','.join(merge_plugins(plugins_list_1, plugins_list_2))
+            self.assertEqual(merged, 'b,c,a,d')
+
+        with self.subTest('different plugins'):
+            plugins_list_1 = 'a,b,c'
+            plugins_list_2 = 'd,e'
+            merged = ','.join(merge_plugins(plugins_list_1, plugins_list_2))
+            self.assertEqual(merged, plugins_list_1+','+plugins_list_2)
+
+        with self.subTest('first list only'):
+            plugins_list_1 = None
+            plugins_list_2 = 'd,e'
+            merged = ','.join(merge_plugins(plugins_list_1, plugins_list_2))
+            self.assertEqual(merged, plugins_list_2)
+
+        with self.subTest('second list only'):
+            plugins_list_1 = 'a,b'
+            plugins_list_2 = ''
+            merged = ','.join(merge_plugins(plugins_list_1, plugins_list_2))
+            self.assertEqual(merged, plugins_list_1)
+
+        with self.subTest('second list should override'):
+            plugins_list_1 = 'a,b'
+            plugins_list_2 = 'b,a'
+            merged = ','.join(merge_plugins(plugins_list_1, plugins_list_2))
+            self.assertEqual(merged, plugins_list_2)
