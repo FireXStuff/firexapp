@@ -49,10 +49,17 @@ class FireXBaseApp:
         self.submit_app = SubmitBaseApp()
         self.arg_parser = None
 
-    def run(self):
+    def run(self, sys_argv=None):
         if not self.arg_parser:
             self.arg_parser = self.create_arg_parser()
-        arguments, others = self.arg_parser.parse_known_args()
+
+        try:
+            "".join(sys_argv).encode('ascii')
+        except UnicodeEncodeError as ue:
+            self.arg_parser.error(
+                'You entered a non-ascii character at the command line.\n' + str(ue))
+
+        arguments, others = self.arg_parser.parse_known_args(sys_argv)
 
         # run default help
         if not hasattr(arguments, "func"):
@@ -60,7 +67,8 @@ class FireXBaseApp:
             self.arg_parser.exit()
         if self.submit_app.run_submit.__name__ not in arguments.func.__name__:
             if len(others):
-                msg = 'Unrecognized arguments: %s'
+                # only submit supports 'other' arguments
+                msg = 'Unrecognized arguments: %s' % ' '.join(others)
                 self.arg_parser.error(message=msg)
             arguments.func(arguments)
         else:
