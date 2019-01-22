@@ -1,6 +1,7 @@
 import inspect
 from celery.exceptions import NotRegistered
-from firexapp.application import import_microservices, get_app_task, plugin_support_parser
+from firexapp.plugins import plugin_support_parser
+from firexapp.application import import_microservices, get_app_task
 
 
 class InfoBaseApp:
@@ -72,7 +73,7 @@ class InfoBaseApp:
         if not all_tasks:
             all_tasks = import_microservices(plugins)
 
-        # Is this thing a microsevice?
+        # Is this thing a microservice?
         task = None
         try:
             task = get_app_task(entity, all_tasks)

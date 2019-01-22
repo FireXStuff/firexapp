@@ -1,5 +1,5 @@
 import argparse
-from firexapp.application import plugin_support_parser
+from firexapp.plugins import plugin_support_parser
 
 
 class SubmitBaseApp:

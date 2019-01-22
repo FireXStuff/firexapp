@@ -1,6 +1,7 @@
 import os
 import sys
 import inspect
+from argparse import ArgumentParser, Action
 
 from celery.signals import worker_init
 from celery.utils.log import get_task_logger
@@ -221,3 +222,27 @@ def merge_plugins(plugins_list1, plugins_list2='')->[]:
         if plugin not in combined_list[next_idx:]:
             new_list.append(plugin)
     return new_list
+
+
+class CommaDelimitedListAction(Action):
+    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+        self.is_default = True
+        if nargs is not None:
+            raise ValueError("nargs not allowed")
+        super(CommaDelimitedListAction, self).__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        old_value = getattr(namespace, self.dest) if hasattr(namespace, self.dest) and not self.is_default else ""
+        self.is_default = False
+        if old_value:
+            old_value += ","
+        new_value = ",".join(merge_plugins(old_value, values))
+        setattr(namespace, self.dest, new_value)
+
+
+plugin_support_parser = ArgumentParser(add_help=False)
+plugin_support_parser.add_argument("--external", "--plugins", '-external', '-plugins',
+                                   help="Comma delimited list of plugins files to load",
+                                   default="",
+                                   dest='plugins',
+                                   action=CommaDelimitedListAction)

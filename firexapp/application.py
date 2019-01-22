@@ -1,7 +1,7 @@
 import os
 
-from argparse import ArgumentParser, Action, RawTextHelpFormatter
-from firexapp.plugins import load_plugin_modules, cdl2list, merge_plugins
+from argparse import ArgumentParser, RawTextHelpFormatter
+from firexapp.plugins import load_plugin_modules, cdl2list
 
 
 def main():
@@ -80,27 +80,3 @@ and testing processes."""
         self.submit_app.create_submit_parser(sub_parser)
 
         return main_parser
-
-
-class CommaDelimitedListAction(Action):
-    def __init__(self, option_strings, dest, nargs=None, **kwargs):
-        self.is_default = True
-        if nargs is not None:
-            raise ValueError("nargs not allowed")
-        super(CommaDelimitedListAction, self).__init__(option_strings, dest, **kwargs)
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        old_value = getattr(namespace, self.dest) if hasattr(namespace, self.dest) and not self.is_default else ""
-        self.is_default = False
-        if old_value:
-            old_value += ","
-        new_value = ",".join(merge_plugins(old_value, values))
-        setattr(namespace, self.dest, new_value)
-
-
-plugin_support_parser = ArgumentParser(add_help=False)
-plugin_support_parser.add_argument("--external", "--plugins", '-external', '-plugins',
-                                   help="Comma delimited list of plugins files to load",
-                                   default="",
-                                   dest='plugins',
-                                   action=CommaDelimitedListAction)
