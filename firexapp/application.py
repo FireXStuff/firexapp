@@ -54,7 +54,8 @@ class FireXBaseApp:
             self.arg_parser = self.create_arg_parser()
 
         try:
-            "".join(sys_argv).encode('ascii')
+            if sys_argv is not None:
+                "".join(sys_argv).encode('ascii')
         except UnicodeEncodeError as ue:
             self.arg_parser.error(
                 'You entered a non-ascii character at the command line.\n' + str(ue))
