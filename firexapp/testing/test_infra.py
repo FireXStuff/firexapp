@@ -83,7 +83,7 @@ def main(default_results_dir, default_test_dir):
     FlowTestInfra.populate_tests()
 
     # if running a single suite, rename the test to reflect the suite
-    xunit_file_name = "TEST-FlowTestInfra-results.xml"
+    xunit_file_name = "TEST-%s.%s-results.xml" % (FlowTestInfra.__module__, FlowTestInfra.__name__)
     if os.path.isfile(args.tests):
         FlowTestInfra.__name__ = os.path.splitext(os.path.basename(args.tests))[0]
         orig_output = os.path.join(args.logs, xunit_file_name.replace("FlowTestInfra",
