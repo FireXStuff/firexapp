@@ -1,7 +1,6 @@
 import os
 import abc
 import sys
-import shutil
 import inspect
 from importlib import import_module
 
@@ -30,12 +29,7 @@ def skip_test(cls):
     return cls
 
 
-def discover_tests(logs: str, tests, config_filter="") -> (list, str):
-    # prepare logging directory
-    results_directory = logs
-    if os.path.isdir(results_directory):
-        shutil.rmtree(results_directory)
-    os.mkdir(results_directory)
+def discover_tests(tests, config_filter="") -> list:
 
     configs = []
     for tests_path in tests.split(","):
@@ -53,7 +47,7 @@ def discover_tests(logs: str, tests, config_filter="") -> (list, str):
                                                                                                       "skip_test")]
     configs = [config for config in configs if not hasattr(config, "skip_test")]
 
-    return configs, results_directory
+    return configs
 
 
 def import_test_configs(path) -> []:
