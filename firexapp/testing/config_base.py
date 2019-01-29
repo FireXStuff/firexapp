@@ -24,6 +24,28 @@ class FlowTestConfiguration(object):
         pass
 
 
+class InterceptFlowTestConfiguration(FlowTestConfiguration):
+    __metaclass__ = abc.ABCMeta
+
+    def assert_expected_return_code(self, ret_value):
+        assert 0 == ret_value, "Expected return code of 0"
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        return cmd_err is None, "Intercept tests should not have errors"
+
+    @abc.abstractmethod
+    def intercept_service(self)->str:
+        """
+            Name of the microservice that will be mocked into the validator capturing the options that get compared by
+            assertExpectedOptions()
+        """
+        pass
+
+    @abc.abstractmethod
+    def assert_expected_options(self, captured_kwargs):
+        pass
+
+
 def skip_test(cls):
     setattr(cls, "skip_test", True)
     return cls
