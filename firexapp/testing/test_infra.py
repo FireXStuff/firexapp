@@ -5,6 +5,7 @@ import shutil
 import argparse
 import unittest
 from firexapp.testing.config_base import discover_tests
+from firexapp.testing.config_interpreter import ConfigInterpreter
 
 TEST_EXE = os.path.realpath(os.path.abspath(__file__))
 if not os.path.isfile(TEST_EXE):
@@ -22,7 +23,7 @@ class FlowTestInfra(unittest.TestCase):
     @classmethod
     def populate_tests(cls):
         if not cls.config_interpreter:
-            raise Exception("Config runner was not set")
+            cls.config_interpreter = ConfigInterpreter()
         if not cls.results_dir:
             raise Exception("Results directory not set")
         if not cls.test_configs:
