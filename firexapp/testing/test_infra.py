@@ -76,6 +76,7 @@ def main(default_results_dir, default_test_dir):
     results_directory = args.logs
     if os.path.isdir(results_directory):
         shutil.rmtree(results_directory)
+    os.umask(0)
     os.mkdir(results_directory)
 
     FlowTestInfra.config_interpreter.profile = args.profile
