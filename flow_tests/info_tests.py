@@ -49,3 +49,29 @@ class InfoCaNotFindMicroservice(FlowTestConfiguration):
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
 
+
+class ListMicroservices(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        return ["list", "--microservices"]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        assert "The following microservices are available:" in cmd_output, "List header not there"
+        assert "info_tests.a_service_to_test" in cmd_output, "Test microservice not listed"
+        assert not cmd_err, "No errors expected"
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
+
+
+class ListArguments(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        return ["list", "--arguments"]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        assert "The following arguments are used by microservices" in cmd_output, "List header not there"
+        assert "use_this_arg" in cmd_output, "Test microservice not listed"
+        assert not cmd_err, "No errors expected"
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
+
