@@ -18,12 +18,10 @@ class FlowTestInfra(unittest.TestCase):
     results_dir = None
     failures = 0
     max_acceptable_failures = None
-    config_interpreter = None
+    config_interpreter = ConfigInterpreter()
 
     @classmethod
     def populate_tests(cls):
-        if not cls.config_interpreter:
-            cls.config_interpreter = ConfigInterpreter()
         if not cls.results_dir:
             raise Exception("Results directory not set")
         if not cls.test_configs:
@@ -106,5 +104,13 @@ def main(default_results_dir, default_test_dir):
 
 
 if __name__ == "__main__":
+    import firexapp
+    module_dir = os.path.dirname(firexapp.__file__)
+    root_dir = os.path.dirname(module_dir)
+    tests_dir = os.path.join(root_dir, "flow_tests")
+    if os.path.isdir(tests_dir):
+        default_test_dir = tests_dir
+    else:
+        default_test_dir = "."
     main(default_results_dir=os.path.join(os.getcwd(), "results"),
-         default_test_dir=".")
+         default_test_dir=default_test_dir)

@@ -56,8 +56,9 @@ def {0}(**kwargs):
     if not os.path.isfile(file_path):
         raise Exception("Could not create result files")
     """
-        content = intercept_task.format(intercept_microservice,
-                                        os.path.join(results_folder, results_file))
+        content = intercept_task.format(intercept_microservice, results_file)
+        if not os.path.isdir(results_folder):
+            os.mkdir(results_folder)
         with open(mock_file, "w") as f:
             f.write(content)
         return mock_file
@@ -66,17 +67,77 @@ def {0}(**kwargs):
         return file_path
 
     @staticmethod
+    def get_intercept_results_file(flow_test_config):
+        return os.path.join(flow_test_config.results_folder, flow_test_config.name + ".results")
+
+    @staticmethod
     def get_test_name(flow_test_config):
         return flow_test_config.__class__.__name__
 
-    def run_executable(self, cmd, flow_test_config, results_folder, intercept_results_file):
-        test_name = self.get_test_name(flow_test_config)
+    def run_integration_test(self, flow_test_config, results_folder):
+        # provide sub-folder for testsuite data
+        flow_test_config.results_folder = os.path.join(results_folder, flow_test_config.name)
+
+        cmd = self.create_cmd(flow_test_config)
+        self.run_executable(cmd, flow_test_config, results_folder)
+
+    def create_cmd(self, flow_test_config)->[]:
+        # assemble options, adding/consolidating --external and --sync
+        cmd = self.get_exe(flow_test_config)
+        cmd += flow_test_config.initial_firex_options()
+
+        plugins = self.collect_plugins(flow_test_config)
+        if plugins:
+            cmd += ["--plugins", ",".join(plugins)]
+
+        submit_test = self.is_submit_command(flow_test_config)
+        if submit_test:
+            cmd += ["--sync"]
+        return cmd
+
+    def get_exe(self, flow_test_config)->[]:
+        import firexapp
+        if not self.profile:
+            return ["python", "-m", firexapp.__name__]
+        else:
+            base_dir = os.path.dirname(firexapp.__file__)
+            exe_file = os.path.join(base_dir, "__main__.py")
+            return ["python", "-m", "cProfile", "-s", "cumtime", exe_file]
+
+    def collect_plugins(self, flow_test_config)->[]:
+        # add test file and dynamically generated files to --plugins
+        test_src_file = inspect.getfile(flow_test_config.__class__)
+        plugins = [
+            os.path.realpath(test_src_file),  # must be first to be imported
+        ]
+
+        submit_test = self.is_submit_command(flow_test_config)
+        if submit_test:
+            if self.is_instance_of_intercept(flow_test_config):
+                # create file containing mock and capture microservices
+                intercept = flow_test_config.intercept_service()
+                if intercept:
+                    intercept_results_file = self.get_intercept_results_file(flow_test_config)
+                    mock_file = self.create_mock_file(flow_test_config.results_folder,
+                                                      intercept_results_file,
+                                                      flow_test_config.name, intercept)
+                    plugins.append(mock_file)
+
+        # test and use add_plugins=False to explicitly prevent dynamic plugins being added to the test
+        extras = getattr(flow_test_config, "add_plugins", [])
+        if extras:
+            plugins += extras
+        if extras is False:
+            plugins = []
+        return plugins
+
+    def run_executable(self, cmd, flow_test_config, results_folder):
 
         # print useful links
         test_src_file = inspect.getfile(flow_test_config.__class__)
         print("\tTest source:", self.document_viewer(test_src_file), file=sys.stderr)
-        std_out = os.path.join(results_folder, test_name + ".stdout")
-        std_err = os.path.join(results_folder, test_name + ".stderr")
+        std_out = os.path.join(results_folder, flow_test_config.name + ".stdout")
+        std_err = os.path.join(results_folder, flow_test_config.name + ".stderr")
         print("\tStd out:", self.document_viewer(std_out), file=sys.stderr)
         print("\tStd err:", self.document_viewer(std_err), file=sys.stderr)
 
@@ -102,6 +163,7 @@ def {0}(**kwargs):
                     self.is_instance_of_intercept(flow_test_config) and \
                     flow_test_config.intercept_service():
                 # retrieve captured kwargs and validate them
+                intercept_results_file = self.get_intercept_results_file(flow_test_config)
                 if not os.path.isfile(intercept_results_file):
                     raise FileNotFoundError(intercept_results_file + " was not found. Could not retrieve results.")
 

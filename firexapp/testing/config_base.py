@@ -11,6 +11,10 @@ class FlowTestConfiguration(object):
     def __init__(self):
         self.results_folder = ""
 
+    @property
+    def name(self):
+        return self.__class__.__name__
+
     @abc.abstractmethod
     def initial_firex_options(self)->list:
         pass
