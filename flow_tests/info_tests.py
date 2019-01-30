@@ -1,7 +1,7 @@
 
 from celery import current_app
 from firexkit.task import FireXTask
-from firexapp.testing.config_base import FlowTestConfiguration
+from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 
 
 # noinspection PyUnusedLocal
@@ -21,8 +21,7 @@ class InfoFindsMicroservice(FlowTestConfiguration):
         assert not cmd_err, "No errors expected"
 
     def assert_expected_return_code(self, ret_value):
-        assert ret_value is 0, "Test expects a CLEAN run, but returned %s. " \
-                               "Check the err output to see what went wrong." % str(ret_value)
+        assert_is_good_run(ret_value)
 
 
 class InfoFindsArgument(FlowTestConfiguration):
@@ -36,5 +35,17 @@ class InfoFindsArgument(FlowTestConfiguration):
         assert not cmd_err, "No errors expected"
 
     def assert_expected_return_code(self, ret_value):
-        assert ret_value is 0, "Test expects a CLEAN run, but returned %s. " \
-                               "Check the err output to see what went wrong." % str(ret_value)
+        assert_is_good_run(ret_value)
+
+
+class InfoCaNotFindMicroservice(FlowTestConfiguration):
+
+    def initial_firex_options(self) -> list:
+        return ["info", "does_hot_exist"]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        assert "Microservice does_hot_exist was not found!" in cmd_err, "Error not provided"
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_bad_run(ret_value)
+

@@ -24,13 +24,16 @@ class InfoBaseApp:
         return list_group
 
     def create_info_sub_parser(self, sub_parser):
-        info_parser = sub_parser.add_parser("info", help="Lists detailed information about a microservice",
-                                            parents=[plugin_support_parser])
-        info_parser.add_argument("entity", help="The short or long name of the microservice to be detailed, or a "
-                                                "microservice argument")
+        if not self._info_sub_parser:
 
-        info_parser.set_defaults(func=self.run_info)
-        return info_parser
+            info_parser = sub_parser.add_parser("info", help="Lists detailed information about a microservice",
+                                                parents=[plugin_support_parser])
+            info_parser.add_argument("entity", help="The short or long name of the microservice to be detailed, or a "
+                                                    "microservice argument")
+
+            info_parser.set_defaults(func=self.run_info)
+            self._info_sub_parser = info_parser
+        return  self._info_sub_parser
 
     def run_list(self, args):
         if args.microservices:
@@ -96,7 +99,7 @@ class InfoBaseApp:
                 print(micro.name)
             return
 
-        print("Microservice %s was not found!" % entity)
+        self._info_sub_parser.exit(status=-1, message="Microservice %s was not found!" % entity)
 
     @staticmethod
     def print_task_details(task):
