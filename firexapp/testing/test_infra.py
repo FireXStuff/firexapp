@@ -104,13 +104,14 @@ def main(default_results_dir, default_test_dir):
 
 
 if __name__ == "__main__":
+    # determine default location to look for tests
     import firexapp
     module_dir = os.path.dirname(firexapp.__file__)
     root_dir = os.path.dirname(module_dir)
-    tests_dir = os.path.join(root_dir, "flow_tests")
-    if os.path.isdir(tests_dir):
-        default_test_dir = tests_dir
+    package_tests_dir = os.path.join(root_dir, "flow_tests")
+    if os.path.isdir(package_tests_dir):
+        default_test_location = package_tests_dir
     else:
-        default_test_dir = "."
+        default_test_location = "."
     main(default_results_dir=os.path.join(os.getcwd(), "results"),
-         default_test_dir=default_test_dir)
+         default_test_dir=default_test_location)
