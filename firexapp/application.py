@@ -88,4 +88,5 @@ and testing processes."""
         self.info_app.create_info_sub_parser(sub_parser)
         self.submit_app.create_submit_parser(sub_parser)
 
+        self.arg_parser = main_parser
         return main_parser
