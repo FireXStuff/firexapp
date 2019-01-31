@@ -44,7 +44,8 @@ class SubmitArgsTests(unittest.TestCase):
                 raise AppExited()
             main.submit_app.parser.exit = exit_app
             with self.assertRaises(AppExited):
-                main.submit_app.process_other_chain_args(['--one', '--two', 'two'])
+                main.submit_app.process_other_chain_args(args=None,
+                                                         other_args=['--one', '--two', 'two'])
 
         with self.subTest("bad ascii"):
             def error_app(_):
@@ -52,4 +53,3 @@ class SubmitArgsTests(unittest.TestCase):
             main.arg_parser.error = error_app
             with self.assertRaises(AppExited):
                 main.run(sys_argv=['--pound', '£'])
-
