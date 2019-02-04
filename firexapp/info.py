@@ -33,7 +33,7 @@ class InfoBaseApp:
 
             info_parser.set_defaults(func=self.run_info)
             self._info_sub_parser = info_parser
-        return  self._info_sub_parser
+        return self._info_sub_parser
 
     def run_list(self, args):
         if args.microservices:
