@@ -1,12 +1,16 @@
 import os
+import tempfile
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 from firexapp.plugins import load_plugin_modules, cdl2list
 
 
 def main():
-    app = FireXBaseApp()
-    app.run()
+    with tempfile.NamedTemporaryFile(delete=True) as submission_tmp_file:
+        from firexapp.submit import SubmitBaseApp
+        submit_app = SubmitBaseApp(submission_tmp_file=submission_tmp_file.name)
+        app = FireXBaseApp(submit_app=submit_app)
+        app.run()
 
 
 def import_microservices(plugins_files)->[]:
@@ -42,11 +46,16 @@ def get_app_task(task_short_name, all_tasks):
 
 
 class FireXBaseApp:
-    def __init__(self):
-        from firexapp.info import InfoBaseApp
-        self.info_app = InfoBaseApp()
-        from firexapp.submit import SubmitBaseApp
-        self.submit_app = SubmitBaseApp()
+    def __init__(self, submit_app=None, info_app=None):
+        if not info_app:
+            from firexapp.info import InfoBaseApp
+            info_app = InfoBaseApp()
+        self.info_app = info_app
+
+        if not submit_app:
+            from firexapp.submit import SubmitBaseApp
+            submit_app = SubmitBaseApp()
+        self.submit_app = submit_app
         self.arg_parser = None
 
     def run(self, sys_argv=None):
