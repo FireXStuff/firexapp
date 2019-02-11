@@ -8,11 +8,15 @@ from shutil import copyfile
 from firexapp.submit.uid import Uid
 from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args
 from firexapp.plugins import plugin_support_parser
+from firexapp.submit.console import setup_console_logging
+from firexapp.application import import_microservices
+
+
+logger = setup_console_logging(__name__)
 
 
 class SubmitBaseApp:
     SUBMISSION_LOGGING_FORMATTER = '[%(asctime)s %(levelname)s] %(message)s'
-    CONSOLE_LOGGING_FORMATTER = '[%(asctime)s] %(message)s'
 
     def __init__(self, submission_tmp_file=None):
         self.parser = None
@@ -22,9 +26,8 @@ class SubmitBaseApp:
     def init_file_logging(self):
         os.umask(0)
         if self.submission_tmp_file:
-            if self.submission_tmp_file:
-                logging.basicConfig(filename=self.submission_tmp_file, level=logging.DEBUG, filemode='w',
-                                    format=self.SUBMISSION_LOGGING_FORMATTER, datefmt="%Y-%m-%d %H:%M:%S")
+            logging.basicConfig(filename=self.submission_tmp_file, level=logging.DEBUG, filemode='w',
+                                format=self.SUBMISSION_LOGGING_FORMATTER, datefmt="%Y-%m-%d %H:%M:%S")
         self.log_preamble()
 
     def copy_submission_log(self):
@@ -48,6 +51,15 @@ class SubmitBaseApp:
         self.parser = submit_parser
         return self.parser
 
+    def convert_chain_args(self, chain_args) -> dict:
+        try:
+            return InputConverter.convert(**chain_args)
+        except Exception as e:
+            logger.error('\nThe arguments you provided firex had the following error:')
+            logger.error(e)
+            self.main_error_exit_handler()
+            sys.exit(-1)
+
     def run_submit(self, args, others):
         try:
             self.init_file_logging()
@@ -67,17 +79,23 @@ class SubmitBaseApp:
         with open(os.path.join(self.uid.logs_dir, "environ.json"), 'w') as f:
             json.dump(dict(os.environ), fp=f, skipkeys=True, sort_keys=True, indent=4)
 
-        try:
-            chain_args = InputConverter.convert(**chain_args)
-        except Exception as e:
-            logger.error('\nThe arguments you provided firex had the following error:')
-            logger.error(e)
-            self.main_error_exit_handler()
+        self.convert_chain_args(chain_args)
 
         # todo: Concurrency lock
         # todo:   Start Broker
-        # todo:   Import all microservices
-        # todo:   post import converters
+
+        # IMPORT ALL THE MICROSERVICES
+        # ONLY AFTER BROKER HAD STARTED
+        try:
+            all_tasks = import_microservices(args.plugins)
+        except FileNotFoundError as e:
+            logger.error("\nError: FireX run failed. File %s is not found." % e)
+            self.main_error_exit_handler()
+            sys.exit(-1)
+
+        # Post import converters
+        self.convert_chain_args(chain_args)
+
         # todo:   check argument applicability
         # todo:   Verify chain
         # todo:   Execute chain
@@ -95,37 +113,3 @@ class SubmitBaseApp:
 
     def main_error_exit_handler(self, expedite=False):
         logger.error('Aborting FireX submission...')
-
-
-def setup_console_logging(module=''):
-    formatter = logging.Formatter(SubmitBaseApp.CONSOLE_LOGGING_FORMATTER, "%H:%M:%S")
-    module_logger = logging.getLogger(module)
-    module_logger.setLevel(logging.DEBUG)
-
-    class LogLevelFilter(logging.Filter):
-        """Filters (lets through) all messages with level < LEVEL"""
-
-        def __init__(self, level):
-            self.level = level
-            super(LogLevelFilter, self).__init__()
-
-        def filter(self, record):
-            # "<" instead of "<=": since logger.setLevel is inclusive, this should
-            # be exclusive
-            return record.levelno < self.level
-
-    console_stdout = logging.StreamHandler(sys.stdout)
-    console_stdout.setLevel(logging.INFO)
-    console_stdout.setFormatter(formatter)
-    log_filter = LogLevelFilter(logging.ERROR)
-    console_stdout.addFilter(log_filter)
-
-    console_stderr = logging.StreamHandler()
-    console_stderr.setLevel(logging.ERROR)
-    console_stderr.setFormatter(formatter)
-    module_logger.addHandler(console_stdout)
-    module_logger.addHandler(console_stderr)
-    return module_logger
-
-
-logger = setup_console_logging(__name__)

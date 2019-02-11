@@ -4,7 +4,7 @@ import tempfile
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 from firexapp.plugins import load_plugin_modules, cdl2list
-from firexapp.submit.submit import setup_console_logging
+from firexapp.submit.console import setup_console_logging
 
 logger = setup_console_logging(__name__)
 
