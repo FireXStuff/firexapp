@@ -31,6 +31,10 @@ class SubmitBaseApp:
                                     format=self.SUBMISSION_LOGGING_FORMATTER, datefmt="%Y-%m-%d %H:%M:%S")
         self.log_preamble()
 
+    def copy_submission_log(self):
+        if self.submission_tmp_file and os.path.isfile(self.submission_tmp_file) and self.uid:
+            copyfile(self.submission_tmp_file, os.path.join(self.uid.logs_dir, "submission.txt"))
+
     def log_preamble(self):
         """Overridable method to allow a firex application to log on startup"""
         pass
@@ -53,8 +57,7 @@ class SubmitBaseApp:
             self.init_file_logging()
             return self.submit(args, others)
         finally:
-            if self.submission_tmp_file and os.path.isfile(self.submission_tmp_file) and self.uid:
-                copyfile(self.submission_tmp_file, os.path.join(self.uid.logs_dir, "submission.txt"))
+            self.copy_submission_log()
 
     def submit(self, args, others):
         chain_args = self.process_other_chain_args(args, others)
@@ -64,16 +67,16 @@ class SubmitBaseApp:
         chain_args['uid'] = uid
         logger.info('Logs: %s', uid.logs_dir)
 
-        # Create an env file
-        with open(os.path.join(uid.logs_dir, "environ.json"), 'w') as f:
+        # Create an env file for debugging
+        with open(os.path.join(self.uid.logs_dir, "environ.json"), 'w') as f:
             json.dump(dict(os.environ), fp=f, skipkeys=True, sort_keys=True, indent=4)
+
         try:
             chain_args = InputConverter.convert(**chain_args)
         except Exception as e:
             logger.error('\nThe arguments you provided firex had the following error:')
             logger.error(e)
-            self.parser.exit(-1, 'Aborting...')
-            # todo: Main exit handler
+            self.main_error_exit_handler()
 
         # todo: Concurrency lock
         # todo:   Start Broker
@@ -93,6 +96,9 @@ class SubmitBaseApp:
             self.parser.exit(-1,  'Aborting...')
 
         return chain_args
+
+    def main_error_exit_handler(self, expedite=False):
+        logger.error('Aborting FireX submission...')
 
 
 class Uid(object):

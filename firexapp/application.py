@@ -1,8 +1,12 @@
 import os
+import signal
 import tempfile
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 from firexapp.plugins import load_plugin_modules, cdl2list
+from firexapp.submit import setup_console_logging
+
+logger = setup_console_logging(__name__)
 
 
 def main():
@@ -57,6 +61,8 @@ class FireXBaseApp:
             submit_app = SubmitBaseApp()
         self.submit_app = submit_app
         self.arg_parser = None
+        self.running_app = None
+        self._signal_exit_handler = ExitSignalHandler(self)
 
     def run(self, sys_argv=None):
         if not self.arg_parser:
@@ -82,7 +88,13 @@ class FireXBaseApp:
                 self.arg_parser.error(message=msg)
             arguments.func(arguments)
         else:
+            self.running_app = self.submit_app
             arguments.func(arguments, others)
+
+    def main_error_exit_handler(self, expedite=False):
+        if self.running_app and hasattr(self.running_app, self.main_error_exit_handler.__name__):
+            self.running_app.main_error_exit_handler(expedite)
+        exit(-1)
 
     def create_arg_parser(self, description=None)->ArgumentParser:
         if not description:
@@ -99,3 +111,31 @@ and testing processes."""
 
         self.arg_parser = main_parser
         return main_parser
+
+
+class ExitSignalHandler:
+    first_warning = "\nExiting due to signal %s"
+    second_warning = "\nWe know! Have a little patience for crying out loud!"
+    last_warning = "\nFINE! We'll stop. But you might have leaked a celery instance or a broker instance."
+
+    @staticmethod
+    def _register_signal_handlers(handler):
+        signal.signal(signal.SIGTERM, handler)
+        signal.signal(signal.SIGINT, handler)
+        signal.signal(signal.SIGHUP, handler)
+
+    def __init__(self, app):
+        def first_exit_handler(signal_num, _):
+            def last_exit_handler(_, __):
+                logger.error(self.last_warning)
+                exit(-1)
+
+            def second_exit_handler(_, __):
+                logger.error(self.second_warning)
+                self._register_signal_handlers(last_exit_handler)
+
+            self._register_signal_handlers(second_exit_handler)
+            logger.error(self.first_warning % signal.Signals(signal_num).name)
+            app.main_error_exit_handler(expedite=True)
+
+        self._register_signal_handlers(first_exit_handler)
