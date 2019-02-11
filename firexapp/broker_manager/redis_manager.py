@@ -1,7 +1,7 @@
 import shlex
 import urllib
 from socket import gethostname
-from broker_manager import BrokerManager
+from firexapp.broker_manager import BrokerManager
 import subprocess
 import os
 import logging
