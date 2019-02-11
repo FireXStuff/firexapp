@@ -1,6 +1,6 @@
 import unittest
 from firexapp.application import FireXBaseApp
-from firexapp.submit import get_chain_args, ChainArgException, InputConverter, convert_booleans
+from firexapp.submit.arguments import get_chain_args, ChainArgException, InputConverter, convert_booleans
 from firexkit.argument_conversion import ConverterRegister
 
 

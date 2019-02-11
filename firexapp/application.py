@@ -4,14 +4,14 @@ import tempfile
 
 from argparse import ArgumentParser, RawTextHelpFormatter
 from firexapp.plugins import load_plugin_modules, cdl2list
-from firexapp.submit import setup_console_logging
+from firexapp.submit.submit import setup_console_logging
 
 logger = setup_console_logging(__name__)
 
 
 def main():
     with tempfile.NamedTemporaryFile(delete=True) as submission_tmp_file:
-        from firexapp.submit import SubmitBaseApp
+        from firexapp.submit.submit import SubmitBaseApp
         submit_app = SubmitBaseApp(submission_tmp_file=submission_tmp_file.name)
         app = FireXBaseApp(submit_app=submit_app)
         app.run()
@@ -57,7 +57,7 @@ class FireXBaseApp:
         self.info_app = info_app
 
         if not submit_app:
-            from firexapp.submit import SubmitBaseApp
+            from firexapp.submit.submit import SubmitBaseApp
             submit_app = SubmitBaseApp()
         self.submit_app = submit_app
         self.arg_parser = None
