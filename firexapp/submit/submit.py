@@ -6,7 +6,7 @@ import argparse
 from shutil import copyfile
 
 from firexapp.submit.uid import Uid
-from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args
+from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args, find_unused_arguments
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
 from firexapp.application import import_microservices
@@ -96,7 +96,11 @@ class SubmitBaseApp:
         # Post import converters
         self.convert_chain_args(chain_args)
 
-        # todo:   check argument applicability
+        # check argument applicability to detect useless input arguments
+        if not self.validate_argument_applicability(chain_args, args, all_tasks):
+            self.main_error_exit_handler()
+            sys.exit(-1)
+
         # todo:   Verify chain
         # todo:   Execute chain
         # todo: do sync
@@ -113,3 +117,22 @@ class SubmitBaseApp:
 
     def main_error_exit_handler(self, expedite=False):
         logger.error('Aborting FireX submission...')
+
+    @classmethod
+    def validate_argument_applicability(cls, chain_args, args, all_tasks):
+        if isinstance(args, argparse.Namespace):
+            args = vars(args)
+        if isinstance(args, dict):
+            args = list(args.keys())
+
+        unused_chain_args = find_unused_arguments(chain_args=chain_args,
+                                                  ignore_list=args,
+                                                  all_tasks=all_tasks)
+        if not unused_chain_args:
+            # everything is used. Good job!
+            return True
+
+        logger.error("\nThe following arguments are not used by any microservices:")
+        for arg in unused_chain_args:
+            logger.error("--" + arg)
+        return False

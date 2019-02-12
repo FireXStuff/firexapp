@@ -1,9 +1,11 @@
 
 import re
 from firexkit.argument_conversion import ConverterRegister
+from typing import Union
 
 
-def get_chain_args(other_args):
+def get_chain_args(other_args: []):
+    """This function converts a flat list of --key value pairs into a dictionary"""
     chain_arguments = {}
     # Create arguments list for the chain
     it = iter(other_args)
@@ -130,3 +132,57 @@ def convert_booleans(kwargs):
             value = None
         kwargs[key] = value
     return kwargs
+
+
+_global_argument_whitelist = set()
+
+
+def whitelist_arguments(argument_list: Union[str, list]):
+    """
+    Function for adding argument keys to the global argument whitelist. Used during validation of input arguments
+
+    :param argument_list:List of argument keys to whitelist.
+    :type argument_list: list
+    """
+    if type(argument_list) == str:
+        argument_list = [argument_list]
+    global _global_argument_whitelist
+    _global_argument_whitelist |= set(argument_list)
+
+
+def find_unused_arguments(chain_args: {}, ignore_list: [], all_tasks: []):
+    """
+    Function to detect any arguments that are not explicitly consumed by any microservice.
+
+    :note: This should be run AFTER all microservices have been loaded.
+
+    :param chain_args: The dictionary of chain args to check
+    :type chain_args: dict
+    :param ignore_list: A list of exception arguments that are acceptable. This usually includes application args.
+    :type ignore_list: list
+    :param all_tasks: A list of all microservices. Usually app.tasks
+    :return: A dictionary of un-applicable arguments
+    """
+    if len(chain_args) is 0:
+        return {}
+
+    ignore_list += _global_argument_whitelist
+
+    # remove any whitelisted
+    unused_chain_args = chain_args.copy()
+    for std_arg in ignore_list:
+        if std_arg in unused_chain_args:
+            unused_chain_args.pop(std_arg)
+
+    for _, task in all_tasks.items():
+        if not hasattr(task, "required_args") or not hasattr(task, "optional_args"):
+            continue
+        for arg in task.required_args + list(task.optional_args):
+            if arg in unused_chain_args:
+                unused_chain_args.pop(arg)
+
+                if not unused_chain_args:
+                    return unused_chain_args
+
+    # if we reached here, some un-applicable kwarg was provided
+    return unused_chain_args

@@ -1,7 +1,10 @@
 import unittest
+from celery import Celery
 from firexapp.application import FireXBaseApp
-from firexapp.submit.arguments import get_chain_args, ChainArgException, InputConverter, convert_booleans
+from firexapp.submit.arguments import get_chain_args, ChainArgException, InputConverter, convert_booleans, \
+    find_unused_arguments, whitelist_arguments
 from firexkit.argument_conversion import ConverterRegister
+from firexkit.task import FireXTask
 
 
 class SubmitArgsTests(unittest.TestCase):
@@ -163,3 +166,38 @@ class InputConversionTests(unittest.TestCase):
         }
         for k, v in convert_booleans(initial).items():
             self.assertTrue(v is expected[k])
+
+
+class ArgumentApplicabilityTests(unittest.TestCase):
+    test_app = Celery()
+
+    @test_app.task(base=FireXTask, bind=True)
+    def micro_for_args_check_test(self, uid):
+        pass
+
+    @property
+    def base_kwargs(self):
+        return {"chain": "test"}
+
+    def test_not_applicable(self):
+        kwargs = self.base_kwargs
+        kwargs["uid"] = "valid stuff"
+        kwargs["not_applicable"] = "invalid stuff"
+        unused = find_unused_arguments(kwargs, ["chain"], self.test_app.tasks)
+        self.assertEqual(len(unused), 1)
+
+    def test_only_applicable(self):
+        kwargs = {'chain': 'noop',
+                  'uid': 'FireX-mdelahou-161215-150725-21939'}
+        unused = find_unused_arguments(kwargs, ["chain"], self.test_app.tasks)
+        self.assertEqual(len(unused), 0)
+
+    def test_white_list(self):
+        kwargs = {'chain': 'noop',
+                  'uid': 'FireX-mdelahou-161215-150725-21939',
+                  'list_arg': "a list",
+                  'str_arg': "a str"}
+        whitelist_arguments(["list_arg"])
+        whitelist_arguments('str_arg')
+        unused = find_unused_arguments(kwargs, ["chain", "anything"], self.test_app.tasks)
+        self.assertEqual(len(unused), 0)
