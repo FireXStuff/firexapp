@@ -1,16 +1,10 @@
 from setuptools import setup, find_packages
-import os
+import versioneer
 
-# Determine the build number
-build_file = os.path.join(os.path.dirname(__file__), "BUILD")
-if os.path.exists(build_file):
-    with open(build_file) as f:
-        version_num = f.read()
-else:
-    version_num = "dev"
 
 setup(name='firexapp',
-      version='0.1.' + version_num,
+      version=versioneer.get_version(),
+      cmdclass=versioneer.get_cmdclass(),
       description='Core firex application libraries',
       url='https://github.com/FireXStuff/firexapp',
       author='Core FireX Team',
