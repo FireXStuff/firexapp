@@ -1,1 +1,1 @@
-# firexapp
+# FireXApp
