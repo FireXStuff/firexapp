@@ -3,7 +3,7 @@ from celery import Celery
 from firexapp.application import FireXBaseApp
 from firexapp.submit.arguments import get_chain_args, ChainArgException, InputConverter, convert_booleans, \
     find_unused_arguments, whitelist_arguments
-from firexkit.argument_conversion import ConverterRegister
+from firexkit.argument_conversion import SingleArgDecorator
 from firexkit.task import FireXTask
 
 
@@ -62,6 +62,7 @@ class SubmitArgsTests(unittest.TestCase):
 class InputConversionTests(unittest.TestCase):
     def setUp(self):
         self.old = InputConverter.instance()
+        InputConverter._global_instance = None
         self.was_run = InputConverter.pre_load_was_run
 
     def tearDown(self):
@@ -69,8 +70,6 @@ class InputConversionTests(unittest.TestCase):
         InputConverter.pre_load_was_run = self.was_run
 
     def test_pre_post_load_argument(self):
-        InputConverter._global_instance = ConverterRegister()
-        InputConverter.pre_load_was_run = False
 
         # register with no bool is ok during pre
         @InputConverter.register
@@ -167,13 +166,72 @@ class InputConversionTests(unittest.TestCase):
         for k, v in convert_booleans(initial).items():
             self.assertTrue(v is expected[k])
 
+    def test_single_arg_converter_append(self):
+        # a Single converter is registered against a specific argument
+        @InputConverter.register
+        @SingleArgDecorator("initial_arg")
+        def flip(arg_value):
+            return not arg_value
+
+        # another module adds another argument to it
+        flip.append("first_dynamic_arg")
+
+        data = {"initial_arg": False,
+                "first_dynamic_arg": False,
+                "second_dynamic_arg": False,
+                "third_dynamic_arg": False}
+
+        # conversion is run against input arguments
+        data = InputConverter.convert(**data)
+
+        # pre-load registered arguments are converted
+        self.assertTrue(data["initial_arg"])
+        self.assertTrue(data["first_dynamic_arg"])
+        self.assertFalse(data["second_dynamic_arg"])
+        self.assertFalse(data["third_dynamic_arg"])
+
+        # during loading, another module comes online and registers another argument
+        flip.append("second_dynamic_arg")
+        flip.append("third_dynamic_arg")
+
+        # post load conversion is run
+        data = InputConverter.convert(**data)
+
+        # Initially registered arguments are not re-processed but newly registered arg is
+        self.assertTrue(data["initial_arg"])
+        self.assertTrue(data["first_dynamic_arg"])
+        self.assertTrue(data["second_dynamic_arg"])
+        self.assertTrue(data["third_dynamic_arg"])
+
+    def test_single_arg_append_post_load(self):
+        # same case as above but pos load.
+
+        data = {"initial_arg": False,
+                "first_dynamic_arg": False,
+                "second_dynamic_arg": False}
+        # conversion is run against input arguments
+        data = InputConverter.convert(**data)
+
+        @InputConverter.register
+        @SingleArgDecorator("initial_arg")
+        def flip(arg_value):
+            return not arg_value
+        flip.append("first_dynamic_arg")
+
+        # post load conversion is run
+        data = InputConverter.convert(**data)
+
+        # Initially registered arguments are not re-processed but newly registered arg is
+        self.assertTrue(data["initial_arg"])
+        self.assertTrue(data["first_dynamic_arg"])
+
 
 class ArgumentApplicabilityTests(unittest.TestCase):
     test_app = Celery()
 
     @test_app.task(base=FireXTask, bind=True)
     def micro_for_args_check_test(self, uid):
-        pass
+        pass  # pragma: no cover
 
     @property
     def base_kwargs(self):

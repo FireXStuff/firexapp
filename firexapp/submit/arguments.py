@@ -96,9 +96,38 @@ class InputConverter:
             if arg and cls.pre_load_was_run:
                 raise Exception("Pre-microservice load conversion has already been run. "
                                 "You can only register post load")
+            preload = arg
             break
         else:
-            args = args + (not cls.pre_load_was_run,)
+            preload = not cls.pre_load_was_run
+            args = args + (preload,)
+
+        if preload:
+            for arg in args:
+                if not callable(arg):
+                    continue
+                converter = arg
+
+                # special handling of single argument decorator
+                single_arg_decorator = getattr(converter, "single_arg_decorator", None)
+                if not single_arg_decorator:
+                    continue
+
+                # need to override the append method of the single argument converters
+                old_append = converter.append
+
+                def new_append(*more_ags):
+                    # special handling of first post load call
+                    if cls.pre_load_was_run:
+                        # re-register this converter, but in post
+                        single_arg_decorator.args.clear()
+                        InputConverter.register(converter)
+
+                        # restore original behaviour
+                        converter.append = old_append
+                    old_append(*more_ags)
+                converter.append = new_append
+
         return cls.instance().register(*args)
 
     @classmethod
