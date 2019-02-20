@@ -34,6 +34,9 @@ def build(workspace='.', twine_username=None, upload=False, run_tests_only=False
     check_call(['coverage', 'html', '-d', './coverage', '--title', 'Code Coverage for %s' % git_hash], cwd=workspace)
     print('View Coverage at: %s' % os.path.abspath(os.path.os.path.join(workspace, 'coverage/index.html')))
 
+    print('--> Uploading coverage report to codecov')
+    check_call(['codecov'], cwd=workspace)
+    
     if upload and twine_username:
         print('--> Uploading pip package')
         check_call(['twine', 'upload', '--verbose', '--username', twine_username, 'dist/*'], cwd=workspace)
