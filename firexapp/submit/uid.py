@@ -14,6 +14,7 @@ class Uid(object):
         else:
             self.identifier = 'FireX-%s-%s-%s' % (self.user, self.timestamp.strftime("%y%m%d-%H%M%S"), os.getpid())
         self._logs_dir = None
+        self._debug_dir = None
 
     @property
     def base_logging_dir(self):
@@ -27,11 +28,14 @@ class Uid(object):
 
     @property
     def debug_dir(self):
-        return os.path.join(self.logs_dir, "debug")
+        if not self._debug_dir:
+            self._debug_dir = os.path.join(self.logs_dir, "debug")
+            os.makedirs(self._debug_dir, 0o777)
+        return self._debug_dir
 
     def create_logs_dir(self):
         path = os.path.join(self.base_logging_dir, self.identifier)
-        os.makedirs(path, 0o766)
+        os.makedirs(path, 0o777)
         return path
 
     def __str__(self):
