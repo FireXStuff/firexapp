@@ -25,6 +25,10 @@ class Uid(object):
             self._logs_dir = self.create_logs_dir()
         return self._logs_dir
 
+    @property
+    def debug_dir(self):
+        return os.path.join(self.logs_dir, "debug")
+
     def create_logs_dir(self):
         path = os.path.join(self.base_logging_dir, self.identifier)
         os.makedirs(path, 0o766)
