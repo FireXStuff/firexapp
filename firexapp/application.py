@@ -31,7 +31,10 @@ def import_microservices(plugins_files)->[]:
     return app.tasks
 
 
-def get_app_task(task_short_name, all_tasks):
+def get_app_task(task_short_name, all_tasks=None):
+    if all_tasks is None:
+        from firexapp.engine.celery import app
+        all_tasks = app.tasks
 
     # Search for an exact match first
     for key, value in all_tasks.items():
