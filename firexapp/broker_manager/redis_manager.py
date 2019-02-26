@@ -1,5 +1,5 @@
 import shlex
-import urllib
+from urllib.parse import urlsplit
 from socket import gethostname
 from firexapp.broker_manager import BrokerManager
 import subprocess
@@ -74,7 +74,7 @@ class RedisManager(BrokerManager):
 
     @staticmethod
     def get_hostname_port_from_url(broker_url):
-        hostname, port = urllib.parse.urlsplit(broker_url).netloc.split(':')
+        hostname, port = urlsplit(broker_url).netloc.split(':')
         return hostname, port
 
     def get(self, key):
