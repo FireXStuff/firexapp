@@ -14,7 +14,8 @@ setup(name='firexapp',
       zip_safe=True,
       install_requires=[
           "distlib",
-          "firexkit"
+          "firexkit",
+          "tqmd<=4.29.1"
       ],
       classifiers=[
           "Programming Language :: Python :: 3",
