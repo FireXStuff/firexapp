@@ -31,7 +31,8 @@ def import_microservices(plugins_files)->[]:
     return app.tasks
 
 
-def get_app_task(task_short_name, all_tasks=None):
+def get_app_task(task_short_name: str, all_tasks=None):
+    task_short_name = task_short_name.strip()
     if all_tasks is None:
         from firexapp.engine.celery import app
         all_tasks = app.tasks
@@ -50,6 +51,12 @@ def get_app_task(task_short_name, all_tasks=None):
     # Can't find a match
     from celery.exceptions import NotRegistered
     raise NotRegistered(task_short_name)
+
+
+def get_app_tasks(tasks, all_tasks=None):
+    if type(tasks) is str:
+        tasks = tasks.split(",")
+    return [get_app_task(task, all_tasks) for task in tasks]
 
 
 class FireXBaseApp:
