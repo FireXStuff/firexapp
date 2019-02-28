@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import argparse
+from firexapp.fileregistry import register_file, get_file
 from shutil import copyfile
 
 from firexapp.submit.uid import Uid
@@ -13,6 +14,10 @@ from firexapp.application import import_microservices
 
 
 logger = setup_console_logging(__name__)
+
+
+SUBMISSION_FILE_REGISTRY_KEY = 'firex_submission'
+register_file(SUBMISSION_FILE_REGISTRY_KEY, 'submission.txt')
 
 
 class SubmitBaseApp:
@@ -32,7 +37,7 @@ class SubmitBaseApp:
 
     def copy_submission_log(self):
         if self.submission_tmp_file and os.path.isfile(self.submission_tmp_file) and self.uid:
-            copyfile(self.submission_tmp_file, os.path.join(self.uid.logs_dir, "submission.txt"))
+            copyfile(self.submission_tmp_file, get_file(SUBMISSION_FILE_REGISTRY_KEY, self.uid.debug_dir))
 
     def log_preamble(self):
         """Overridable method to allow a firex application to log on startup"""

@@ -29,9 +29,13 @@ class Uid(object):
     @property
     def debug_dir(self):
         if not self._debug_dir:
-            self._debug_dir = os.path.join(self.logs_dir, "debug")
+            self._debug_dir = self.debug_dir_from_logs_dir(self.logs_dir)
             os.makedirs(self._debug_dir, 0o777)
         return self._debug_dir
+
+    @staticmethod
+    def debug_dir_from_logs_dir(logs_dir):
+        return os.path.join(logs_dir, 'debug')
 
     def create_logs_dir(self):
         path = os.path.join(self.base_logging_dir, self.identifier)
