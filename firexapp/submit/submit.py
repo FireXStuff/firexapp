@@ -19,6 +19,9 @@ logger = setup_console_logging(__name__)
 SUBMISSION_FILE_REGISTRY_KEY = 'firex_submission'
 register_file(SUBMISSION_FILE_REGISTRY_KEY, 'submission.txt')
 
+ENVIRON_FILE_REGISTRY_KEY = 'env'
+register_file(ENVIRON_FILE_REGISTRY_KEY, 'environ.json')
+
 
 class SubmitBaseApp:
     SUBMISSION_LOGGING_FORMATTER = '[%(asctime)s %(levelname)s] %(message)s'
@@ -81,7 +84,7 @@ class SubmitBaseApp:
         logger.info('Logs: %s', uid.logs_dir)
 
         # Create an env file for debugging
-        with open(os.path.join(self.uid.logs_dir, "environ.json"), 'w') as f:
+        with open(get_file(ENVIRON_FILE_REGISTRY_KEY, self.uid.debug_dir), 'w') as f:
             json.dump(dict(os.environ), fp=f, skipkeys=True, sort_keys=True, indent=4)
 
         self.convert_chain_args(chain_args)
