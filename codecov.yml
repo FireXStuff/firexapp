@@ -1,2 +1,12 @@
 codecov:
       token: c9119a94-155f-4050-a397-f44e2becb280
+coverage:
+  notify:
+    slack:
+      default:
+        url: "https://hooks.slack.com/services/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"
+        threshold: null
+        only_pulls: false
+        branches: null
+        flags: null
+        paths: null
