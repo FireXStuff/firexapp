@@ -204,9 +204,7 @@ def find_unused_arguments(chain_args: {}, ignore_list: [], all_tasks: []):
             unused_chain_args.pop(std_arg)
 
     for _, task in all_tasks.items():
-        if not hasattr(task, "required_args") or not hasattr(task, "optional_args"):
-            continue
-        for arg in task.required_args + list(task.optional_args):
+        for arg in getattr(task, "required_args", []) + list(getattr(task, "optional_args", [])):
             if arg in unused_chain_args:
                 unused_chain_args.pop(arg)
 

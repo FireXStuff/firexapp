@@ -230,7 +230,7 @@ class ArgumentApplicabilityTests(unittest.TestCase):
     test_app = Celery()
 
     @test_app.task(base=FireXTask, bind=True)
-    def micro_for_args_check_test(self, uid):
+    def micro_for_args_check_test(self, uid, ignored=True):
         pass  # pragma: no cover
 
     @property
@@ -240,11 +240,15 @@ class ArgumentApplicabilityTests(unittest.TestCase):
     def test_not_applicable(self):
         kwargs = self.base_kwargs
         kwargs["uid"] = "valid stuff"
+
         kwargs["not_applicable"] = "invalid stuff"
         unused = find_unused_arguments(kwargs, ["chain"], self.test_app.tasks)
         self.assertEqual(len(unused), 1)
 
     def test_only_applicable(self):
+        unused = find_unused_arguments({}, [], self.test_app.tasks)
+        self.assertEqual(len(unused), 0)
+
         kwargs = {'chain': 'noop',
                   'uid': 'FireX-mdelahou-161215-150725-21939'}
         unused = find_unused_arguments(kwargs, ["chain"], self.test_app.tasks)
