@@ -6,12 +6,14 @@ import argparse
 from firexapp.fileregistry import register_file, get_file
 from shutil import copyfile
 
+from celery.exceptions import NotRegistered
+
+from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.submit.uid import Uid
 from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args, find_unused_arguments
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
-from firexapp.application import import_microservices
-
+from firexapp.application import import_microservices, get_app_tasks
 
 logger = setup_console_logging(__name__)
 
@@ -25,6 +27,7 @@ register_file(ENVIRON_FILE_REGISTRY_KEY, 'environ.json')
 
 class SubmitBaseApp:
     SUBMISSION_LOGGING_FORMATTER = '[%(asctime)s %(levelname)s] %(message)s'
+    DEFAULT_MICROSERVICE = None
 
     def __init__(self, submission_tmp_file=None):
         self.parser = None
@@ -54,7 +57,8 @@ class SubmitBaseApp:
                                                    "firex. Check out our documentation for common usage patterns",
                                               parents=[plugin_support_parser],
                                               formatter_class=argparse.RawDescriptionHelpFormatter)
-
+        submit_parser.add_argument('--chain', '-chain', help='A comma delimited list of microservices to run',
+                                   default=self.DEFAULT_MICROSERVICE)
         submit_parser.set_defaults(func=self.run_submit)
         self.parser = submit_parser
         return self.parser
@@ -109,7 +113,27 @@ class SubmitBaseApp:
             self.main_error_exit_handler()
             sys.exit(-1)
 
-        # todo:   Verify chain
+        # locate task objects
+        try:
+            app_tasks = get_app_tasks(args.chain)
+        except NotRegistered as e:
+            logger.error("Could not find task %s" % str(e))
+            self.main_error_exit_handler()
+            sys.exit(-1)
+
+        # validate that all necessary chain args were provided
+        c = InjectArgs(**chain_args)
+        for t in app_tasks:
+            c |= t.s()
+        try:
+            verify_chain_arguments(c)
+        except InvalidChainArgsException as e:
+            logger.error(e)
+            self.main_error_exit_handler()
+            sys.exit(-1)
+
+        # todo:   Start Tracking services
+        # todo:   Start Celery
         # todo:   Execute chain
         # todo: do sync
 
@@ -140,7 +164,7 @@ class SubmitBaseApp:
             # everything is used. Good job!
             return True
 
-        logger.error("\nThe following arguments are not used by any microservices:")
+        logger.error("The following arguments are not used by any microservices:")
         for arg in unused_chain_args:
             logger.error("--" + arg)
         return False
