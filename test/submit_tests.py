@@ -1,8 +1,11 @@
+import os
 import unittest
+
 from celery import Celery
 from firexapp.application import FireXBaseApp
 from firexapp.submit.arguments import get_chain_args, ChainArgException, InputConverter, convert_booleans, \
     find_unused_arguments, whitelist_arguments
+from firexapp.submit.uid import Uid
 from firexkit.argument_conversion import SingleArgDecorator
 from firexkit.task import FireXTask
 
@@ -263,3 +266,19 @@ class ArgumentApplicabilityTests(unittest.TestCase):
         whitelist_arguments('str_arg')
         unused = find_unused_arguments(kwargs, ["chain", "anything"], self.test_app.tasks)
         self.assertEqual(len(unused), 0)
+
+
+class UidTests(unittest.TestCase):
+    def test_operators(self):
+        test_str = "hello"
+        uid = Uid(test_str)
+        self.assertEqual(uid, test_str)
+        self.assertEqual(str(uid), test_str)
+        self.assertEqual(repr(uid), test_str)
+        self.assertEqual(uid.identifier, test_str)
+
+    def test_logs_creation(self):
+        uid = Uid()
+        self.assertTrue(os.path.isdir(uid.logs_dir))
+        self.assertTrue(os.path.isdir(uid.debug_dir))
+        os.removedirs(uid.debug_dir)
