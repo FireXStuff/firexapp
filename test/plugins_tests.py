@@ -2,7 +2,8 @@ import os
 import unittest
 
 from firexapp.plugins import identify_duplicate_tasks, find_plugin_file, cdl2list, get_plugin_modules, \
-    get_active_plugins, set_plugins_env, load_plugin_modules, get_plugin_module_list, merge_plugins
+    get_active_plugins, set_plugins_env, load_plugin_modules, get_plugin_module_list, merge_plugins, \
+    plugin_support_parser
 from firexkit.task import FireXTask
 
 
@@ -205,3 +206,13 @@ class MergePluginsTests(unittest.TestCase):
             plugins_list_2 = 'b,a'
             merged = ','.join(merge_plugins(plugins_list_1, plugins_list_2))
             self.assertEqual(merged, plugins_list_2)
+
+class CDLActionTest(unittest.TestCase):
+    def test_cdla(self):
+        arguments, _ = plugin_support_parser.parse_known_args(["--plugins", "p1.py", "--plugins", "p2.py"])
+        self.assertEqual(arguments.plugins, "p1.py,p2.py")
+    def test_cdla_normalization(self):
+        arguments, _ = plugin_support_parser.parse_known_args(["--plugins", "p1.py",
+                                                               "--plugins", "p2.py",
+                                                               "--plugins", "p1.py"])
+        self.assertEqual(arguments.plugins, "p2.py,p1.py")
