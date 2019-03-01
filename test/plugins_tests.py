@@ -3,6 +3,7 @@ import unittest
 
 from firexapp.plugins import identify_duplicate_tasks, find_plugin_file, cdl2list, get_plugin_modules, \
     get_active_plugins, set_plugins_env, load_plugin_modules, get_plugin_module_list, merge_plugins
+from firexkit.task import FireXTask
 
 
 class DuplicateIdentificationTests(unittest.TestCase):
@@ -140,14 +141,31 @@ class ResolvePathTests(unittest.TestCase):
         self.assertEqual(get_active_plugins(), __file__)
         load_plugin_modules(__file__)
 
+        from firexapp.engine.celery import app as test_app
+
+        @test_app.task(base=FireXTask)
+        def override_me():
+            pass  # pragma: no cover
+
         mock = os.path.join(os.path.dirname(__file__), "data", "plugins", "mock_plugin.py")
         load_plugin_modules(mock)
+        # original registration is now pointing to overrider
+        self.assertEqual(test_app.tasks['plugins_tests.override_me'],
+                         test_app.tasks['mock_plugin.override_me'])
+        # there is a reference to the original for use
+        self.assertTrue(hasattr(test_app.tasks['plugins_tests.override_me'], "orig"))
+        self.assertEqual(test_app.tasks['plugins_tests.override_me'].orig,
+                         test_app.tasks['plugins_tests.override_me_orig'])
+        self.assertEqual(override_me.name, 'plugins_tests.override_me')
 
         # name matches preexisting python module
         # noinspection PyUnresolvedReferences
         import subprocess
-        discovery = os.path.join(os.path.dirname(__file__), "data", "plugins", "subprocess.py")
-        load_plugin_modules(discovery)
+        sp = os.path.join(os.path.dirname(__file__), "data", "plugins", "subprocess.py")
+        load_plugin_modules(sp)
+
+        new = os.path.join(os.path.dirname(__file__), "data", "plugins", "new.py")
+        load_plugin_modules(new)
 
 
 class MergePluginsTests(unittest.TestCase):
