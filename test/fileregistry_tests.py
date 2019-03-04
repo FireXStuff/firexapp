@@ -1,54 +1,59 @@
 import os
+import tempfile
 import unittest
-from firexapp.fileregistry import register_file, get_file, KeyNotRegistered, KeyAlreadyRegistered
+from firexapp.fileregistry import FileRegistry, KeyNotRegistered, KeyAlreadyRegistered
+from firexapp.submit.uid import Uid
 
 
 class FileRegistryTests(unittest.TestCase):
-    def test_default_callable(self):
+
+    def tearDown(self):
+        FileRegistry().destroy()
+        self.assertDictEqual(FileRegistry().file_registry, {})
+
+    def test_registered_keys(self):
         key = 'key1'
         filename = 'something.txt'
         some_path = '/nobackup/user'
-        register_file(key, filename)
+        FileRegistry().register_file(key, filename)
 
         with self.subTest('Basic functionality'):
-            self.assertEqual(get_file(key, some_path), os.path.join(some_path, filename))
+            self.assertEqual(FileRegistry().get_file(key, some_path), os.path.join(some_path, filename))
 
         with self.subTest('Testing duplicate key registrations'):
             with self.assertRaises(KeyAlreadyRegistered):
-                register_file(key, 'something_else')
-            self.assertEqual(get_file(key, some_path), os.path.join(some_path, filename))
+                FileRegistry().register_file(key, 'something_else')
+            self.assertEqual(FileRegistry().get_file(key, some_path), os.path.join(some_path, filename))
 
     def test_unregistered_key(self):
+        some_path = '/nobackup/user'
         with self.assertRaises(KeyNotRegistered):
-            get_file('unregistered_key')
+            FileRegistry().get_file('unregistered_key', some_path)
 
-    def test_non_default_callable(self):
-        key = 'key2'
-        filename = 'something2.txt'
-        some_path = '/nobackup/user2'
+    def test_uid_object(self):
+        uid = Uid()
+        key = 'key3'
+        relative_path = 'some_relative_path/something3.txt'
+        FileRegistry().register_file(key, relative_path)
 
-        def foo(logs_dir):
-            return os.path.join(logs_dir, filename)
+        try:
+            with self.subTest('Basic functionality'):
+                self.assertEqual(FileRegistry().get_file(key, uid), os.path.join(uid.logs_dir, relative_path))
+        finally:
+            try:
+                os.removedirs(uid.logs_dir)
+            except Exception:
+                pass
 
-        register_file(key, foo)
-        self.assertEqual(get_file(key, some_path), foo(some_path))
+    def test_dump_and_read_from_file(self):
+        registry = {'key1': 'value1',
+                    'key2': 'value2'}
+        for k, v in registry.items():
+            FileRegistry().register_file(k, v)
 
-    def test_non_default_callable_with_args(self):
-        key1 = 'key3'
-        key2 = 'key4'
+        file_registry = tempfile.NamedTemporaryFile().name
+        FileRegistry().dump_to_file(file_registry)
+        FileRegistry().destroy()
+        FileRegistry(from_file=file_registry)
+        self.assertDictEqual(FileRegistry().file_registry, registry)
 
-        filename1 = 'something3.txt'
-        filename2 = 'something4.txt'
-
-        some_path = '/nobackup/user2'
-
-        def bar(logs_dir, file=filename1):
-            return os.path.join(logs_dir, file)
-
-        with self.subTest('First registration of a partial'):
-            register_file(key1, bar)
-            self.assertEqual(get_file(key1, some_path), bar(some_path))
-
-        with self.subTest('Seconds registration of a different partial of the same callable'):
-            register_file(key2, bar, file=filename2)
-            self.assertEqual(get_file(key2, some_path), bar(some_path, file=filename2))

@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import argparse
-from firexapp.fileregistry import register_file, get_file
+from firexapp.fileregistry import FileRegistry
 from shutil import copyfile
 
 from celery.exceptions import NotRegistered
@@ -19,10 +19,10 @@ logger = setup_console_logging(__name__)
 
 
 SUBMISSION_FILE_REGISTRY_KEY = 'firex_submission'
-register_file(SUBMISSION_FILE_REGISTRY_KEY, 'submission.txt')
+FileRegistry().register_file(SUBMISSION_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'submission.txt'))
 
 ENVIRON_FILE_REGISTRY_KEY = 'env'
-register_file(ENVIRON_FILE_REGISTRY_KEY, 'environ.json')
+FileRegistry().register_file(ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'environ.json'))
 
 
 class SubmitBaseApp:
@@ -43,7 +43,7 @@ class SubmitBaseApp:
 
     def copy_submission_log(self):
         if self.submission_tmp_file and os.path.isfile(self.submission_tmp_file) and self.uid:
-            copyfile(self.submission_tmp_file, get_file(SUBMISSION_FILE_REGISTRY_KEY, self.uid.debug_dir))
+            copyfile(self.submission_tmp_file, FileRegistry().get_file(SUBMISSION_FILE_REGISTRY_KEY, self.uid.logs_dir))
 
     def log_preamble(self):
         """Overridable method to allow a firex application to log on startup"""
@@ -88,7 +88,7 @@ class SubmitBaseApp:
         logger.info('Logs: %s', uid.logs_dir)
 
         # Create an env file for debugging
-        with open(get_file(ENVIRON_FILE_REGISTRY_KEY, self.uid.debug_dir), 'w') as f:
+        with open(FileRegistry().get_file(ENVIRON_FILE_REGISTRY_KEY, self.uid.logs_dir), 'w') as f:
             json.dump(dict(os.environ), fp=f, skipkeys=True, sort_keys=True, indent=4)
 
         self.convert_chain_args(chain_args)

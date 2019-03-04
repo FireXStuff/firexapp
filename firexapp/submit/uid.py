@@ -6,6 +6,8 @@ from getpass import getuser
 
 
 class Uid(object):
+    debug_dirname = 'debug'
+
     def __init__(self, identifier=None):
         self.timestamp = datetime.datetime.now(tz=pytz.utc)
         self.user = getuser()
@@ -24,23 +26,25 @@ class Uid(object):
     def logs_dir(self):
         if not self._logs_dir:
             self._logs_dir = self.create_logs_dir()
+            self._debug_dir = self.create_debug_dir()
         return self._logs_dir
 
     @property
     def debug_dir(self):
         if not self._debug_dir:
-            self._debug_dir = self.debug_dir_from_logs_dir(self.logs_dir)
-            os.makedirs(self._debug_dir, 0o777)
+            self._debug_dir = self.create_debug_dir()
         return self._debug_dir
-
-    @staticmethod
-    def debug_dir_from_logs_dir(logs_dir):
-        return os.path.join(logs_dir, 'debug')
 
     def create_logs_dir(self):
         path = os.path.join(self.base_logging_dir, self.identifier)
         os.makedirs(path, 0o777)
         return path
+
+    def create_debug_dir(self):
+        path = os.path.join(self.logs_dir, self.debug_dirname)
+        os.makedirs(path, 0o777)
+        return path
+
 
     def __str__(self):
         return self.identifier
