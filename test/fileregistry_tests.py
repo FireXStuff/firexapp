@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 import unittest
 from firexapp.fileregistry import FileRegistry, KeyNotRegistered, KeyAlreadyRegistered
@@ -31,19 +32,16 @@ class FileRegistryTests(unittest.TestCase):
             FileRegistry().get_file('unregistered_key', some_path)
 
     def test_uid_object(self):
-        uid = Uid()
-        key = 'key3'
-        relative_path = 'some_relative_path/something3.txt'
-        FileRegistry().register_file(key, relative_path)
-
         try:
+            uid = Uid()
+            key = 'key3'
+            relative_path = 'some_relative_path/something3.txt'
+            FileRegistry().register_file(key, relative_path)
+
             with self.subTest('Basic functionality'):
                 self.assertEqual(FileRegistry().get_file(key, uid), os.path.join(uid.logs_dir, relative_path))
         finally:
-            try:
-                os.removedirs(uid.logs_dir)
-            except Exception:
-                pass
+            shutil.rmtree(uid.logs_dir)
 
     def test_dump_and_read_from_file(self):
         registry = {'key1': 'value1',
