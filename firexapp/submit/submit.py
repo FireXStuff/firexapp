@@ -61,6 +61,8 @@ class SubmitBaseApp:
                                               formatter_class=argparse.RawDescriptionHelpFormatter)
         submit_parser.add_argument('--chain', '-chain', help='A comma delimited list of microservices to run',
                                    default=self.DEFAULT_MICROSERVICE)
+        submit_parser.add_argument('--sync', '-sync', help='Hold console until run completes', nargs='?', const=True,
+                                   default=False)
         submit_parser.set_defaults(func=self.run_submit)
         self.parser = submit_parser
         return self.parser
