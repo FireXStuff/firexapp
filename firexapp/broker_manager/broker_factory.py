@@ -21,21 +21,18 @@ class BrokerFactory:
 
         from firexapp.engine.celery import app
 
-        redis_bin = os.environ.get("redis_bin")
-        if not redis_bin:
+        redis_bin_dir = os.environ.get("redis_bin_dir")
+        if not redis_bin_dir:
             try:
-                redis_bin = app.conf.redis_bin
+                redis_bin_dir = app.conf.redis_bin_dir
             except AttributeError:
                 pass
 
-        if redis_bin:
-            if not os.path.isdir(redis_bin):
-                raise FileNotFoundError("'redis_bin' in environment is not a valid directory")
-            from firexapp.broker_manager.redis_manager import RedisManager
-            broker = RedisManager(redis_bin_base=redis_bin)
-            app.conf.result_backend = broker.get_url()
-            cls.set_broker_manager(broker)
-            return broker
+        from firexapp.broker_manager.redis_manager import RedisManager
+        broker = RedisManager(redis_bin_base=redis_bin_dir)
+        app.conf.result_backend = broker.get_url()
+        cls.set_broker_manager(broker)
+        return broker
 
     @classmethod
     def get_broker_url(cls)->str:
