@@ -98,7 +98,7 @@ class SubmitBaseApp:
         # todo: Concurrency lock
 
         # Start Broker
-        self.start_broker(args=args, uid=uid)
+        self.start_broker(args=args)
 
         # start backend
         app.backend.set('uid', str(uid))
@@ -140,7 +140,9 @@ class SubmitBaseApp:
             self.main_error_exit_handler()
             sys.exit(-1)
 
-        # todo:   Start Tracking services
+        # Start any tracking services to monitor, track, and present the state of the run
+        self.start_tracking_services(args)
+
         # todo:   Start Celery
         # todo:   Execute chain
 
@@ -157,10 +159,13 @@ class SubmitBaseApp:
 
         return chain_args
 
-    def start_broker(self, args, uid):
+    def start_broker(self, args):
         from firexapp.broker_manager.broker_factory import BrokerFactory
         self.broker = BrokerFactory.get_broker_manager()
         self.broker.start()
+
+    def start_tracking_services(self, args):
+        pass
 
     def main_error_exit_handler(self, expedite=False):
         logger.error('Aborting FireX submission...')
