@@ -21,7 +21,7 @@ class BrokerFactory:
 
         from firexapp.engine.celery import app
 
-        redis_bin_dir = os.environ.get("redis_bin_dir")
+        redis_bin_dir = os.environ.get("redis_bin_dir", "")
         if not redis_bin_dir:
             try:
                 redis_bin_dir = app.conf.redis_bin_dir
