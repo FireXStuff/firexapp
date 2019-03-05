@@ -191,17 +191,21 @@ def load_plugin_modules(external_files=None):
 
     external_files = cdl2list(external_files)
     for module_name in external_modules:
-        __import__(module_name)
-        if module_name in sys.modules:
-            module_source = sys.modules[module_name].__file__
-            if module_source in external_files:
-                print("External module %s imported" % module_name)
-            else:
-                logger.error("External module %s was NOT imported. "
-                             "A module with the same name was already imported from %s" % (module_name, module_source))
-        else:
-            logger.error("External module %s was NOT imported." % module_name)
+        import_plugin_module(module_name=module_name, external_files=external_files)
     _unregister_duplicate_tasks()
+
+
+def import_plugin_module(module_name, external_files):
+    __import__(module_name)
+    if module_name in sys.modules:
+        module_source = sys.modules[module_name].__file__
+        if module_source in external_files:
+            print("External module %s imported" % module_name)
+        else:
+            logger.error("External module %s was NOT imported. "
+                         "A module with the same name was already imported from %s" % (module_name, module_source))
+    else:
+        logger.error("External module %s was NOT imported." % module_name)
 
 
 def set_plugins_env(external_files):
