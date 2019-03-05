@@ -1,17 +1,21 @@
 from abc import ABC, abstractmethod
 import logging
-from firexapp.submit.submit import setup_console_logging
+from firexapp.submit.console import setup_console_logging
 
 logger = setup_console_logging(__name__)
 
 
 class BrokerManager(ABC):
     @abstractmethod
-    def connect(self):
+    def start(self):
         pass
 
     @abstractmethod
     def shutdown(self):
+        pass
+
+    @abstractmethod
+    def get_url(self)->str:
         pass
 
     @classmethod

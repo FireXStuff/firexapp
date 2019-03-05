@@ -4,6 +4,8 @@ import pytz
 import tempfile
 from getpass import getuser
 
+from firexapp.submit.arguments import whitelist_arguments
+
 
 class Uid(object):
     debug_dirname = 'debug'
@@ -45,7 +47,6 @@ class Uid(object):
         os.makedirs(path, 0o777)
         return path
 
-
     def __str__(self):
         return self.identifier
 
@@ -54,3 +55,6 @@ class Uid(object):
 
     def __eq__(self, other):
         return str(other) == self.identifier
+
+
+whitelist_arguments("uid")

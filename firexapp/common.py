@@ -1,4 +1,5 @@
 import re
+import socket
 
 
 def delimit2list(str_to_split, delimiters=(',', ';', '|', ' ')) -> []:
@@ -18,3 +19,10 @@ def delimit2list(str_to_split, delimiters=(',', ';', '|', ' ')) -> []:
     tokens = [t.strip("".join(delimiters) + " ") for t in tokens]  # remove any extra (or lone) delimiters
     tokens = [t for t in tokens if t]  # remove empty tokens
     return tokens
+
+
+def reserve_port():
+    sock = socket.socket()
+    sock.bind(('', 0))
+    port = sock.getsockname()[1]
+    return port

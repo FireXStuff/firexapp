@@ -14,6 +14,7 @@ from firexapp.submit.arguments import InputConverter, ChainArgException, get_cha
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
 from firexapp.application import import_microservices, get_app_tasks
+from firexapp.engine.celery import app
 
 logger = setup_console_logging(__name__)
 
@@ -33,6 +34,7 @@ class SubmitBaseApp:
         self.parser = None
         self.submission_tmp_file = submission_tmp_file
         self.uid = None
+        self.broker = None
 
     def init_file_logging(self):
         os.umask(0)
@@ -94,7 +96,13 @@ class SubmitBaseApp:
         self.convert_chain_args(chain_args)
 
         # todo: Concurrency lock
-        # todo:   Start Broker
+
+        # Start Broker
+        self.start_broker(args=args, uid=uid)
+
+        # start backend
+        app.backend.set('uid', str(uid))
+        app.backend.set('logs_dir', uid.logs_dir)
 
         # IMPORT ALL THE MICROSERVICES
         # ONLY AFTER BROKER HAD STARTED
@@ -135,7 +143,9 @@ class SubmitBaseApp:
         # todo:   Start Tracking services
         # todo:   Start Celery
         # todo:   Execute chain
+
         # todo: do sync
+        self.self_destruct()
 
     def process_other_chain_args(self, args, other_args)-> {}:
         chain_args = {}
@@ -147,8 +157,24 @@ class SubmitBaseApp:
 
         return chain_args
 
+    def start_broker(self, args, uid):
+        from firexapp.broker_manager.broker_factory import BrokerFactory
+        self.broker = BrokerFactory.get_broker_manager()
+        self.broker.start()
+
     def main_error_exit_handler(self, expedite=False):
         logger.error('Aborting FireX submission...')
+        if self.broker:
+            self.self_destruct(expedite)
+        if self.uid:
+            self.copy_submission_log()
+
+    def self_destruct(self, expedite=False):
+        try:
+            self.broker.shutdown()
+        except Exception as e:
+            logger.warning('Error during self_destruct')
+            logger.warning(e)
 
     @classmethod
     def validate_argument_applicability(cls, chain_args, args, all_tasks):
