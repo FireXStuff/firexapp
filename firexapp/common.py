@@ -1,8 +1,6 @@
 import os
 import re
-import shlex
 import socket
-import subprocess
 
 def delimit2list(str_to_split, delimiters=(',', ';', '|', ' ')) -> []:
     if not str_to_split:
