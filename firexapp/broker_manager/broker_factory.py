@@ -4,15 +4,15 @@ from firexapp.broker_manager import BrokerManager
 
 
 class BrokerFactory:
-    BROKER_ENV_VARIABLE = 'BROKER'
+    broker_env_variable = 'BROKER'
     _broker = None
 
     @classmethod
     def set_broker_manager(cls, manager):
         if not isinstance(manager, BrokerManager):
             raise BrokerManagerException("Object %s is not of type BrokerManager" % str(manager))
-        os.environ[cls.BROKER_ENV_VARIABLE] = manager.get_url()
-        manager.log('export %s=%s' % (cls.BROKER_ENV_VARIABLE, manager.get_url()), level=logging.INFO)
+        os.environ[cls.broker_env_variable] = manager.get_url()
+        manager.log('export %s=%s' % (cls.broker_env_variable, manager.get_url()), level=logging.INFO)
         cls._broker = manager
 
     @classmethod
@@ -37,7 +37,7 @@ class BrokerFactory:
 
     @classmethod
     def get_broker_url(cls)->str:
-        return os.environ.get(cls.BROKER_ENV_VARIABLE, "")
+        return os.environ.get(cls.broker_env_variable, "")
 
 
 class BrokerManagerException(Exception):
