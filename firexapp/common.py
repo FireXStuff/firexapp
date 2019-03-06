@@ -1,6 +1,8 @@
+import os
 import re
+import shlex
 import socket
-
+import subprocess
 
 def delimit2list(str_to_split, delimiters=(',', ';', '|', ' ')) -> []:
     if not str_to_split:
@@ -26,3 +28,7 @@ def reserve_port():
     sock.bind(('', 0))
     port = sock.getsockname()[1]
     return port
+
+
+def silent_mkdir(path, mode=0o777, exist_ok=True):
+    os.makedirs(path, mode=mode, exist_ok=exist_ok)
