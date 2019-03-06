@@ -11,9 +11,13 @@ class BrokerFactory:
     def set_broker_manager(cls, manager):
         if not isinstance(manager, BrokerManager):
             raise BrokerManagerException("Object %s is not of type BrokerManager" % str(manager))
-        os.environ[cls.broker_env_variable] = manager.get_url()
+        cls.set_broker_env(manager.get_url())
         manager.log('export %s=%s' % (cls.broker_env_variable, manager.get_url()), level=logging.INFO)
         cls._broker = manager
+
+    @classmethod
+    def set_broker_env(cls, broker_url):
+        os.environ[cls.broker_env_variable] = broker_url
 
     @classmethod
     def get_broker_manager(cls)->BrokerManager:
@@ -36,9 +40,11 @@ class BrokerFactory:
         return broker
 
     @classmethod
-    def get_broker_url(cls)->str:
-        return os.environ.get(cls.broker_env_variable, "")
-
+    def get_broker_url(cls, assert_if_not_set=False)->str:
+        url = os.environ.get(cls.broker_env_variable, "")
+        if assert_if_not_set and not url:
+            raise '%s env variable has not been set' % cls.broker_env_variable
+        return url
 
 class BrokerManagerException(Exception):
     pass
