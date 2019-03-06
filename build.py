@@ -25,11 +25,13 @@ def build(workspace):
 
 def get_git_hash_tags_and_files(workspace):
     git_hash = check_output(['git', 'rev-parse', '--short', 'HEAD'], cwd=workspace).decode().strip()
-    print ('Git Hash @ HEAD: %s' % git_hash)
-    git_tags = [tag.decode() for tag in check_output(['git', 'tag', '-l', '--points-at', 'HEAD'], cwd=workspace).splitlines()]
+    print('Git Hash @ HEAD: %s' % git_hash)
+    git_tags = [tag.decode() for tag in check_output(['git', 'tag', '-l', '--points-at', 'HEAD'],
+                                                     cwd=workspace).splitlines()]
     if git_tags:
-        print ('Git tags @ HEAD: %s' % git_tags)
-    files = [file.decode() for file in check_output(['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'], cwd=workspace).splitlines()]
+        print('Git tags @ HEAD: %s' % git_tags)
+    files = [file.decode() for file in check_output(['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'],
+                                                    cwd=workspace).splitlines()]
     print ('Files @ HEAD: %s' % '\n'.join(files))
     return git_hash, git_tags, files
 
@@ -59,8 +61,9 @@ def build_sphinx_docs(workspace):
     print('--> Building the Docs')
     check_call(['sphinx-build', '-b', 'html', 'docs', 'html'], cwd=workspace)
 
-def run(workspace='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None, twine_username=None, skip_htmlcov=None, upload_codecov=None, 
-    skip_docs_build=None):
+
+def run(workspace='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None, twine_username=None, skip_htmlcov=None,
+        upload_codecov=None, skip_docs_build=None):
 
     git_hash, git_tags, files = get_git_hash_tags_and_files(workspace)
 
@@ -81,6 +84,7 @@ def run(workspace='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None,
     if not skip_docs_build:
         build_sphinx_docs(workspace)
 
+
 if __name__ == '__main__':
     import argparse
 
@@ -97,4 +101,3 @@ if __name__ == '__main__':
     args, unknown = parser.parse_known_args()
 
     run(**vars(args))
-    
