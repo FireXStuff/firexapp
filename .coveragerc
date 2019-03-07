@@ -3,3 +3,7 @@ branch = True
 omit = 
     */lib/*
     */_version.py
+    */firexapp/testing/*
+    */test/*
+include =
+    *firexapp*
