@@ -42,7 +42,7 @@ class FileRegistry(metaclass=Singleton):
 
     def get_file(self, key, uid_or_logsdir):
         try:
-            return self.resolve_path(uid_or_logsdir, self.file_registry[key])
+            return self.resolve_path(uid_or_logsdir, self.get_relative_path(key))
         except KeyError:
             raise KeyNotRegistered('%r is not registered' % key)
 
