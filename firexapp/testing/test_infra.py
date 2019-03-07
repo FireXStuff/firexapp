@@ -69,8 +69,8 @@ def main(default_results_dir, default_test_dir):
     parser.add_argument("--xunit_file_name", help="Name of the xunit file", default=None)
     extras = parser.add_mutually_exclusive_group()
     extras.add_argument("--profile", action='store_true', help="Turn on profiling")
-    extras.add_argument("--coverage", action='store_true', help="Turn on code coverage. "
-                                                                ".coverage file will be generated in the logs directory")
+    extras.add_argument("--coverage", action='store_true', help="Turn on code coverage. A .coverage file will be "
+                                                                "generated in the logs directory")
     args = parser.parse_args()
 
     # prepare logging directory
@@ -99,7 +99,8 @@ def main(default_results_dir, default_test_dir):
         os.environ["COVERAGE_FILE"] = os.path.join(results_directory, ".coverage")
 
     import xmlrunner
-    success = unittest.main(testRunner=xmlrunner.XMLTestRunner(output=args.logs, outsuffix="results"),
+    success = unittest.main(module=FlowTestInfra.__module__,
+                            testRunner=xmlrunner.XMLTestRunner(output=args.logs, outsuffix="results"),
                             argv=sys.argv[:1],
                             exit=False).result.wasSuccessful()
 
@@ -108,14 +109,17 @@ def main(default_results_dir, default_test_dir):
         os.rename(orig_output,
                   os.path.join(args.logs, os.path.basename(args.xunit_file_name)))
     if args.coverage:
+        cov_report = os.path.join(results_directory, "coverage")
+        print("Generating Coverage Report...", file=sys.stderr)
         import subprocess
-        subprocess.check_output(["coverage", "html", "-d", os.path.join(results_directory, "coverage")],
+        subprocess.check_output(["coverage", "html", "-d", cov_report],
                                 cwd=FlowTestInfra.config_interpreter.execution_directory)
+        print(cov_report, file=sys.stderr)
 
     sys.exit(not success)
 
 
-if __name__ == "__main__":
+def default_main():
     # determine default location to look for tests
     import firexapp
     module_dir = os.path.dirname(firexapp.__file__)
@@ -127,3 +131,7 @@ if __name__ == "__main__":
         default_test_location = "."
     main(default_results_dir=os.path.join(os.getcwd(), "results"),
          default_test_dir=default_test_location)
+
+
+if __name__ == "__main__":
+    default_main()

@@ -23,6 +23,7 @@ setup(name='firexapp',
           "License :: OSI Approved :: BSD License",
       ],
       entry_points={
-          'console_scripts': ['firexapp = firexapp.application:main', ]
+          'console_scripts': ['firexapp = firexapp.application:main',
+                              'flow_test = firexapp.testing.test_infra:default_main']
       },
       )
