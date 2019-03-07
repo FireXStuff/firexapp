@@ -15,7 +15,8 @@ setup(name='firexapp',
       install_requires=[
           "distlib",
           "firexkit",
-          "tqdm<=4.29.1"
+          "tqdm<=4.29.1",
+          "xmlrunner"
       ],
       classifiers=[
           "Programming Language :: Python :: 3",
