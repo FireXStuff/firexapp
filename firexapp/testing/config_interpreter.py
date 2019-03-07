@@ -12,6 +12,7 @@ class ConfigInterpreter:
 
     def __init__(self):
         self.profile = False
+        self.coverage = False
 
     @staticmethod
     def is_submit_command(test_config: FlowTestConfiguration):
@@ -97,12 +98,13 @@ def {0}(**kwargs):
 
     def get_exe(self, flow_test_config)->[]:
         import firexapp
-        if not self.profile:
-            return ["python", "-m", firexapp.__name__]
-        else:
+        if self.coverage:
+            return ["coverage", "run", "--branch", "--append", '--omit=*/lib/*', "-m", firexapp.__name__]
+        if self.profile:
             base_dir = os.path.dirname(firexapp.__file__)
             exe_file = os.path.join(base_dir, "__main__.py")
             return ["python", "-m", "cProfile", "-s", "cumtime", exe_file]
+        return ["python", "-m", firexapp.__name__]
 
     def collect_plugins(self, flow_test_config)->[]:
         # add test file and dynamically generated files to --plugins

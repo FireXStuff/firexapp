@@ -67,7 +67,10 @@ def main(default_results_dir, default_test_dir):
     parser.add_argument("--config", "--configs", dest="config",
                         help="A comma separated list of test configurations to run", default=None)
     parser.add_argument("--xunit_file_name", help="Name of the xunit file", default=None)
-    parser.add_argument("--profile", action='store_true', help="Turn on profiling")
+    extras = parser.add_mutually_exclusive_group()
+    extras.add_argument("--profile", action='store_true', help="Turn on profiling")
+    extras.add_argument("--coverage", action='store_true', help="Turn on code coverage. "
+                                                                ".coverage file will be generated in the logs directory")
     args = parser.parse_args()
 
     # prepare logging directory
@@ -78,6 +81,7 @@ def main(default_results_dir, default_test_dir):
     os.mkdir(results_directory)
 
     FlowTestInfra.config_interpreter.profile = args.profile
+    FlowTestInfra.config_interpreter.coverage = args.coverage
     FlowTestInfra.results_dir = results_directory
     FlowTestInfra.test_configs = discover_tests(args.tests, args.config)
     FlowTestInfra.populate_tests()
@@ -91,6 +95,9 @@ def main(default_results_dir, default_test_dir):
     else:
         orig_output = os.path.join(args.logs, xunit_file_name)
 
+    if args.coverage:
+        os.environ["COVERAGE_FILE"] = os.path.join(results_directory, ".coverage")
+
     import xmlrunner
     success = unittest.main(testRunner=xmlrunner.XMLTestRunner(output=args.logs, outsuffix="results"),
                             argv=sys.argv[:1],
@@ -100,6 +107,11 @@ def main(default_results_dir, default_test_dir):
     if args.xunit_file_name:
         os.rename(orig_output,
                   os.path.join(args.logs, os.path.basename(args.xunit_file_name)))
+    if args.coverage:
+        import subprocess
+        subprocess.check_output(["coverage", "html", "-d", os.path.join(results_directory, "coverage")],
+                                cwd=FlowTestInfra.config_interpreter.execution_directory)
+
     sys.exit(not success)
 
 
