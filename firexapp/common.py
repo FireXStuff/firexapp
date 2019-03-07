@@ -1,3 +1,5 @@
+import time
+
 import os
 import re
 import socket
@@ -30,3 +32,17 @@ def reserve_port():
 
 def silent_mkdir(path, mode=0o777, exist_ok=True):
     os.makedirs(path, mode=mode, exist_ok=exist_ok)
+
+
+def poll_until_file_exist(file_path, timeout=10):
+    timeout_time = time.time() + timeout
+    while not os.path.exists(file_path) and time.time() < timeout_time:
+        time.sleep(0.1)
+    assert os.path.isfile(file_path), 'File %s did not exist within %r seconds' % (file_path, timeout)
+
+
+def poll_until_file_not_empty(file_path, timeout=10):
+    timeout_time = time.time() + timeout
+    while os.stat(file_path).st_size == 0 and time.time() < timeout_time:
+        time.sleep(0.1)
+    assert os.stat(file_path).st_size > 0, 'File %s size is zero' % file_path
