@@ -2,7 +2,6 @@
 # a registry of the ouptut files needed
 import json
 from firexapp.submit.uid import Uid
-from functools import partial
 
 import os
 
@@ -46,6 +45,9 @@ class FileRegistry(metaclass=Singleton):
             return self.resolve_path(uid_or_logsdir, self.file_registry[key])
         except KeyError:
             raise KeyNotRegistered('%r is not registered' % key)
+
+    def get_relative_path(self, key):
+        return self.file_registry[key]
 
     @staticmethod
     def resolve_path(uid_or_logsdir, relative_path):
