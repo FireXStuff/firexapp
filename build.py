@@ -41,6 +41,14 @@ def run_unit_tests(workspace):
     check_call(['coverage', 'run', '-m', 'unittest', 'discover', '-s', 'test/', '-p', '*_tests.py'], cwd=workspace)
 
 
+def run_flow_tests(workspace):
+    print('--> Run flow-tests and coverage')
+    check_call(['flow_tests', "--coverage", "--tests", os.path.join(workspace, "flow_tests")], cwd=workspace)
+
+    print('--> Merge coverage data')
+    check_call(['coverage', 'combine', '.coverage', './results/.coverage'], cwd=workspace)
+
+
 def upload_coverage_to_codecov(workspace):
     print('--> Uploading coverage report to codecov')
     check_call(['codecov'], cwd=workspace)
@@ -73,6 +81,7 @@ def run(workspace='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None,
         build(workspace)
 
     run_unit_tests(workspace)
+    run_flow_tests(workspace)
 
     if not skip_htmlcov:
         generate_htmlcov(workspace, git_hash)
@@ -111,6 +120,7 @@ def main():
     functions = {
         "build": build,
         "unit_test": run_unit_tests,
+        "run_flow_tests": run_flow_tests,
         "cov_report": generate_htmlcov,
         "upload_codecov": upload_coverage_to_codecov,
         "docs": build_sphinx_docs

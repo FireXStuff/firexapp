@@ -99,7 +99,7 @@ def {0}(**kwargs):
     def get_exe(self, flow_test_config)->[]:
         import firexapp
         if self.coverage:
-            return ["coverage", "run", "--branch", "--append", '--omit=*/lib/*', "-m", firexapp.__name__]
+            return ["coverage", "run", "--branch", "--append", "-m", firexapp.__name__]
         if self.profile:
             base_dir = os.path.dirname(firexapp.__file__)
             exe_file = os.path.join(base_dir, "__main__.py")

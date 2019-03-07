@@ -24,6 +24,6 @@ setup(name='firexapp',
       ],
       entry_points={
           'console_scripts': ['firexapp = firexapp.application:main',
-                              'flow_test = firexapp.testing.test_infra:default_main']
+                              'flow_tests = firexapp.testing.test_infra:default_main']
       },
       )
