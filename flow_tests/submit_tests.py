@@ -3,7 +3,7 @@ import os
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.arguments import InputConverter
 from firexapp.submit.submit import SUBMISSION_FILE_REGISTRY_KEY
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
+from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, skip_test
 from firexkit.argument_conversion import SingleArgDecorator
 
 
@@ -28,6 +28,7 @@ def get_log_dir_from_output(cmd_output: str)->str:
         return ""
 
 
+@skip_test
 class SubmitConvertFailureStillHasLogs(FlowTestConfiguration):
 
     def initial_firex_options(self) -> list:
