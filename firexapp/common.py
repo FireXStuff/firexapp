@@ -41,8 +41,15 @@ def poll_until_file_exist(file_path, timeout=10):
     assert os.path.isfile(file_path), 'File %s did not exist within %r seconds' % (file_path, timeout)
 
 
-def poll_until_file_not_empty(file_path, timeout=10):
+def poll_until_existing_file_not_empty(file_path, timeout=10):
     timeout_time = time.time() + timeout
     while os.stat(file_path).st_size == 0 and time.time() < timeout_time:
         time.sleep(0.1)
     assert os.stat(file_path).st_size > 0, 'File %s size is zero' % file_path
+
+
+def poll_until_file_not_empty(file_path, timeout=10):
+    start_time = time.time()
+    poll_until_file_exist(file_path, timeout)
+    remaining_timeout = timeout - (time.time() - start_time)
+    poll_until_existing_file_not_empty(file_path, remaining_timeout)

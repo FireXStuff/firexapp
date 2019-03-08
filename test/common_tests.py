@@ -71,9 +71,8 @@ class PollingTests(unittest.TestCase):
 
     def test_poll_till_content(self):
         # Never going to arrive
-        # todo: are we to handle the case here the file does not already exist?
-        # with self.assertRaises(AssertionError):
-        #     poll_until_file_not_empty(os.path.join(os.path.dirname(__file__), "not_happening"), timeout=0.1)
+        with self.assertRaises(AssertionError):
+            poll_until_file_not_empty(os.path.join(os.path.dirname(__file__), "not_happening"), timeout=0.1)
 
         # Never going to have content
         with self.assertRaises(AssertionError):
