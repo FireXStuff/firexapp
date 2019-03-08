@@ -71,10 +71,10 @@ class InfoFindsArgument(FlowTestConfiguration):
 class InfoCaNotFindMicroservice(FlowTestConfiguration):
 
     def initial_firex_options(self) -> list:
-        return ["info", "does_hot_exist"]
+        return ["info", "does.hot.exist"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        assert "Microservice does_hot_exist was not found!" in cmd_err, "Error not provided"
+        assert "Microservice does.hot.exist was not found!" in cmd_err, "Error not provided"
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
@@ -95,7 +95,12 @@ class ListMicroservices(FlowTestConfiguration):
 
 # noinspection PyUnusedLocal
 @current_app.task(base=FireXTask)
-def second_to_use_arg(use_this_arg):  # this is the same arg name as the microservice at the top of this module
+def second_to_use_arg(uid, use_this_arg):  # this is the same arg name as the microservice at the top of this module
+    pass
+
+
+@current_app.task()
+def support_none_firex_tasks():
     pass
 
 
