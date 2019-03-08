@@ -37,11 +37,12 @@ def get_git_hash_tags_and_files(workspace):
 
 
 def run_tests(workspace):
-    run_unit_tests(workspace)
-    run_flow_tests(workspace)
+    unit_cov_file = run_unit_tests(workspace)
+    flow_cov_file = run_flow_tests(workspace)
 
-    print('--> Merge coverage data')
-    check_call(['coverage', 'combine', '.coverage', './results/.coverage'], cwd=workspace)
+    if flow_cov_file and os.path.exists(flow_cov_file):
+        print('--> Merge coverage data')
+        check_call(['coverage', 'combine', unit_cov_file, flow_cov_file], cwd=workspace)
 
 
 def run_unit_tests(workspace):
@@ -50,11 +51,19 @@ def run_unit_tests(workspace):
     check_call(['coverage', 'run', '-m', 'unittest', 'discover', '-s', unit_test_dir, '-p', '*_tests.py'],
                cwd=workspace)
 
+    # unit test coverage file is located in the cwd
+    return os.path.join(workspace, '.coverage')
+
 
 def run_flow_tests(workspace):
     print('--> Run flow-tests and coverage')
-    unit_test_dir = os.path.join(workspace, "tests", "integration_tests")
-    check_call(['flow_tests', "--coverage", "--tests", unit_test_dir], cwd=workspace)
+    flow_test_dir = os.path.join(workspace, "tests", "integration_tests")
+    if not os.path.exists(flow_test_dir):
+        return None
+    check_call(['flow_tests', "--coverage", "--tests", flow_test_dir], cwd=workspace)
+
+    # flow test coverage file is located in the results dir
+    return os.path.join(workspace, "results", ".coverage")
 
 
 def upload_coverage_to_codecov(workspace):
