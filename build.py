@@ -36,17 +36,25 @@ def get_git_hash_tags_and_files(workspace):
     return git_hash, git_tags, files
 
 
+def run_tests(workspace):
+    run_unit_tests(workspace)
+    run_flow_tests(workspace)
+
+    print('--> Merge coverage data')
+    check_call(['coverage', 'combine', '.coverage', './results/.coverage'], cwd=workspace)
+
+
 def run_unit_tests(workspace):
     print('--> Run unit-tests and coverage')
-    check_call(['coverage', 'run', '-m', 'unittest', 'discover', '-s', 'test/', '-p', '*_tests.py'], cwd=workspace)
+    unit_test_dir = os.path.join(workspace, "tests", "unit_tests")
+    check_call(['coverage', 'run', '-m', 'unittest', 'discover', '-s', unit_test_dir, '-p', '*_tests.py'],
+               cwd=workspace)
 
 
 def run_flow_tests(workspace):
     print('--> Run flow-tests and coverage')
-    check_call(['flow_tests', "--coverage", "--tests", os.path.join(workspace, "flow_tests")], cwd=workspace)
-
-    print('--> Merge coverage data')
-    check_call(['coverage', 'combine', '.coverage', './results/.coverage'], cwd=workspace)
+    unit_test_dir = os.path.join(workspace, "tests", "integration_tests")
+    check_call(['flow_tests', "--coverage", "--tests", unit_test_dir], cwd=workspace)
 
 
 def upload_coverage_to_codecov(workspace):
@@ -80,8 +88,7 @@ def run(workspace='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None,
     if not skip_build:
         build(workspace)
 
-    run_unit_tests(workspace)
-    run_flow_tests(workspace)
+    run_tests(workspace)
 
     if not skip_htmlcov:
         generate_htmlcov(workspace, git_hash)
@@ -119,8 +126,9 @@ def main():
 
     functions = {
         "build": build,
+        "tests": run_tests,
         "unit_test": run_unit_tests,
-        "run_flow_tests": run_flow_tests,
+        "integration_tests": run_flow_tests,
         "cov_report": generate_htmlcov,
         "upload_codecov": upload_coverage_to_codecov,
         "docs": build_sphinx_docs

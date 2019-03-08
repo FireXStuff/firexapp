@@ -4,7 +4,6 @@ omit =
     */lib/*
     */_version.py
     */firexapp/testing/*
-    */test/*
-    */flow_tests/*
+    */tests/*
 include =
     *firexapp*
