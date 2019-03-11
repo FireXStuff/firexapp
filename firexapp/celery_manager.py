@@ -179,7 +179,7 @@ class CeleryManager(object):
         self.log('pid %d became active' % pid, level=INFO)
 
     def start(self, workername, queues=None, wait=True, timeout=15*60, concurrency=None, worker_log_level=None,
-              app=None, cap_concurrency=None):
+              app=None, cap_concurrency=None, cwd=None):
 
         # Override defaults if applicable
         worker_log_level = worker_log_level if worker_log_level else self.worker_log_level
@@ -205,7 +205,8 @@ class CeleryManager(object):
         self.log(cmd)
 
         with open(stdout_file, 'ab') as fp:
-            subprocess.check_call(cmd, shell=True, stdout=fp, stderr=subprocess.STDOUT, env=self.env)
+            subprocess.check_call(cmd, shell=True, stdout=fp, stderr=subprocess.STDOUT, env=self.env,
+                                  cwd=cwd)
 
         if wait:
             self.wait_until_active(pid_file, timeout=timeout)
