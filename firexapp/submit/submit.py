@@ -4,6 +4,7 @@ import logging
 import os
 import argparse
 from firexapp.fileregistry import FileRegistry
+from firexkit.result import wait_on_async_results
 from shutil import copyfile
 
 from celery.exceptions import NotRegistered
@@ -35,6 +36,7 @@ class SubmitBaseApp:
         self.submission_tmp_file = submission_tmp_file
         self.uid = None
         self.broker = None
+        self.celery_manager = None
 
     def init_file_logging(self):
         os.umask(0)
@@ -146,10 +148,20 @@ class SubmitBaseApp:
         self.start_tracking_services(args)
 
         # todo:   Start Celery
+        self.start_celery(args)
+
         # todo:   Execute chain
+        chain_result = c.delay()
 
         # todo: do sync
+        wait_on_async_results(chain_result)
         self.self_destruct()
+
+    def start_celery(self, args):
+        from firexapp.celery_manager import CeleryManager
+        import multiprocessing
+        self.celery_manager = CeleryManager(logs_dir=self.uid.logs_dir, plugins=args.plugins)
+        self.celery_manager.start('mc', wait=True, concurrency=multiprocessing.cpu_count()*4)
 
     def process_other_chain_args(self, args, other_args)-> {}:
         chain_args = {}
@@ -177,6 +189,7 @@ class SubmitBaseApp:
             self.copy_submission_log()
 
     def self_destruct(self, expedite=False):
+        app.control.broadcast('shutdown')
         try:
             self.broker.shutdown()
         except Exception as e:
