@@ -186,25 +186,22 @@ class CeleryManager(object):
         app = app if app else self.app
         cap_concurrency = cap_concurrency if cap_concurrency else self.cap_concurrency
 
-        queues = workername if not queues else queues
-
         stdout_file = self._get_stdout_file(workername)
         log_file = self._get_worker_log_file(workername)
         pid_file = self._get_pid_file(workername)
         self.pid_files[workername] = pid_file
 
-        cmd = '%s worker --hostname=%s@%%h --queues=%s --app=%s --loglevel=%s ' \
-              '--logfile=%s --pidfile=%s --events -Ofair' % (self.celery_bin, workername, queues,
+        cmd = '%s worker --hostname=%s@%%h --app=%s --loglevel=%s ' \
+              '--logfile=%s --pidfile=%s --events -Ofair' % (self.celery_bin, workername,
                                                              app, worker_log_level, log_file, pid_file)
+        if queues:
+            cmd += ' --queues=%s' % queues
         if concurrency:
             cmd += ' --concurrency=%d' % self.cap_cpu_count(concurrency, cap_concurrency)
         cmd += " | ts '[%Y-%m-%d %H:%M:%S]'"
         cmd += ' &'
 
         self.log('Starting %s on %s...' % (workername, self.hostname))
-        self.log('Queues: ' + queues)
-        if self.plugins:
-            self.log('Plugins:  ' + self.plugins)
         self.log(cmd)
 
         with open(stdout_file, 'ab') as fp:
