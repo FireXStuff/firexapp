@@ -204,6 +204,9 @@ class CeleryManager(object):
         self.log('Starting %s on %s...' % (workername, self.hostname))
         self.log(cmd)
 
+        if cwd:
+            self.log('cwd=%s' % cwd)
+
         with open(stdout_file, 'ab') as fp:
             subprocess.check_call(cmd, shell=True, stdout=fp, stderr=subprocess.STDOUT, env=self.env,
                                   cwd=cwd)

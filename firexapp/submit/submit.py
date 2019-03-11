@@ -148,13 +148,13 @@ class SubmitBaseApp:
         self.start_tracking_services(args)
 
         # todo:   Start Celery
-        self.start_celery(args)
+        #self.start_celery(args)
 
         # todo:   Execute chain
         chain_result = c.delay()
 
         # todo: do sync
-        wait_on_async_results(chain_result)
+        #wait_on_async_results(chain_result)
         self.self_destruct()
 
     def start_celery(self, args):
@@ -189,7 +189,7 @@ class SubmitBaseApp:
             self.copy_submission_log()
 
     def self_destruct(self, expedite=False):
-        app.control.broadcast('shutdown')
+        #app.control.broadcast('shutdown')
         try:
             self.broker.shutdown()
         except Exception as e:
