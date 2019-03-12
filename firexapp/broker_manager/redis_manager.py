@@ -2,19 +2,33 @@ import os
 import time
 import shlex
 import subprocess
+from firexapp.fileregistry import FileRegistry
+from firexapp.submit.uid import Uid
 from socket import gethostname
 from urllib.parse import urlsplit
 
 from firexapp.broker_manager import BrokerManager
 from firexapp.common import reserve_port
 
+REDIS_DIR_REGISTRY_KEY = 'REDIS_DIR_REGISTRY_KEY'
+FileRegistry().register_file(REDIS_DIR_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'redis'))
+
+REDIS_LOG_REGISTRY_KEY = 'REDIS_LOG_REGISTRY_KEY'
+FileRegistry().register_file(REDIS_LOG_REGISTRY_KEY,
+                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), 'redis.stdout'))
+
+REDIS_PID_REGISTRY_KEY = 'REDIS_PID_REGISTRY_KEY'
+FileRegistry().register_file(REDIS_PID_REGISTRY_KEY,
+                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), 'redis.pid'))
+
 
 class RedisManager(BrokerManager):
 
-    def __init__(self, redis_bin_base, hostname=gethostname(), port=reserve_port()):
+    def __init__(self, redis_bin_base, hostname=gethostname(), port=reserve_port(), logs_dir=None):
         self.redis_bin_base = redis_bin_base
         self.host = hostname
         self.port = int(port)
+        self.logs_dir = logs_dir
         self.broker_url = self.get_broker_url(self.port, self.host)
 
         self.redis_server_cmd = os.path.join(redis_bin_base, 'redis-server') + ' --port %d' % self.port
@@ -23,13 +37,40 @@ class RedisManager(BrokerManager):
         if hostname != gethostname():
             self.redis_cli_cmd += ' -h %s' % hostname
 
-    def start(self, log_file=None, pid_file=None):
+        self._log_file = None
+        self._pid_file = None
+
+    @staticmethod
+    def get_log_file(logs_dir):
+        return FileRegistry().get_file(REDIS_LOG_REGISTRY_KEY, logs_dir)
+
+    @staticmethod
+    def get_pid_file(logs_dir):
+        return FileRegistry().get_file(REDIS_PID_REGISTRY_KEY, logs_dir)
+
+    @property
+    def log_file(self):
+        if not self._log_file and self.logs_dir:
+            _log_file = self.get_log_file(self.logs_dir)
+            os.makedirs(os.path.dirname(_log_file), exist_ok=True)
+            self._log_file = _log_file
+        return self._log_file
+
+    @property
+    def pid_file(self):
+        if not self._pid_file and self.logs_dir:
+            _pid_file = self.get_pid_file(self.logs_dir)
+            os.makedirs(os.path.dirname(_pid_file), exist_ok=True)
+            self._pid_file = _pid_file
+        return self._pid_file
+
+    def start(self):
         self.log('Starting new process (port %d)...' % self.port)
         cmd = self.redis_server_cmd + ' --loglevel debug --protected-mode no --daemonize yes'
-        if pid_file:
-            cmd += ' --pidfile %s' % pid_file
-        if log_file:
-            cmd += ' --logfile %s' % log_file
+        if self.pid_file:
+            cmd += ' --pidfile %s' % self.pid_file
+        if self.log_file:
+            cmd += ' --logfile %s' % self.log_file
         subprocess.check_call(shlex.split(cmd))
         self.wait_until_active()
         self.log('redis started.')
