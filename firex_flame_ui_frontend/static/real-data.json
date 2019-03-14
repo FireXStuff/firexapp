@@ -1,0 +1,447 @@
+{
+  "uuid": "1e548134-a95c-429b-92b3-af4ee9323599",
+  "task_num": 0,
+  "hostname": "mc@sjc-ads-6971",
+  "parent_id": null,
+  "type": "task-shutdown",
+  "retries": 0,
+  "name": "FireXRunner",
+  "children": [
+    {
+      "uuid": "d73466fe-3791-4990-a165-8927702e3924",
+      "task_num": 1,
+      "hostname": "mc@sjc-ads-6971",
+      "parent_id": "1e548134-a95c-429b-92b3-af4ee9323599",
+      "type": "task-succeeded",
+      "retries": 0,
+      "name": "SendInitialEmail"
+    },
+    {
+      "uuid": "1e267c01-8ce2-4599-a69d-7278f2ef2d09",
+      "task_num": 2,
+      "hostname": "mc@sjc-ads-6971",
+      "parent_id": "1e548134-a95c-429b-92b3-af4ee9323599",
+      "type": "task-succeeded",
+      "retries": 0,
+      "name": "UpdateCetsUsage"
+    },
+    {
+      "uuid": "ecc0b0c2-0477-4d7d-a00f-ae9abcb90ef9",
+      "task_num": 3,
+      "hostname": "mc@sjc-ads-6971",
+      "parent_id": "1e548134-a95c-429b-92b3-af4ee9323599",
+      "type": "task-succeeded",
+      "retries": 0,
+      "name": "Nightly",
+      "children": [
+        {
+          "uuid": "b4f11386-f7df-4023-bae9-0ff36af1a878",
+          "task_num": 4,
+          "hostname": "mc@sjc-ads-6971",
+          "parent_id": "ecc0b0c2-0477-4d7d-a00f-ae9abcb90ef9",
+          "type": "task-succeeded",
+          "retries": 0,
+          "name": "CopyLocalPlugins",
+          "children": [
+            {
+              "uuid": "f90c84d5-51e7-4b55-84b2-b76afe77b2d0",
+              "task_num": 5,
+              "hostname": "mc@sjc-ads-6971",
+              "parent_id": "b4f11386-f7df-4023-bae9-0ff36af1a878",
+              "type": "task-succeeded",
+              "retries": 0,
+              "name": "GetValidLineup",
+              "children": [
+                {
+                  "uuid": "4a4052c1-5faa-4eff-ae03-efa3c0989d79",
+                  "task_num": 6,
+                  "hostname": "mc@sjc-ads-6971",
+                  "parent_id": "f90c84d5-51e7-4b55-84b2-b76afe77b2d0",
+                  "type": "task-succeeded",
+                  "retries": 0,
+                  "name": "ConvertTagToEfr",
+                  "children": [
+                    {
+                      "uuid": "b9c58a27-95a4-47de-a44d-7119db1e898c",
+                      "task_num": 7,
+                      "hostname": "mc@sjc-ads-6971",
+                      "parent_id": "4a4052c1-5faa-4eff-ae03-efa3c0989d79",
+                      "type": "task-succeeded",
+                      "retries": 0,
+                      "name": "GetStoreAndConfigDirs",
+                      "children": [
+                        {
+                          "uuid": "e3e787a7-a110-4e44-a6d4-d6c809d7bffe",
+                          "task_num": 8,
+                          "hostname": "mc@sjc-ads-6971",
+                          "parent_id": "b9c58a27-95a4-47de-a44d-7119db1e898c",
+                          "type": "task-succeeded",
+                          "retries": 0,
+                          "name": "ConvertTestsuitesToScriptObjs",
+                          "children": [
+                            {
+                              "uuid": "5bce6335-0d6d-4c05-8080-e63e56fde65d",
+                              "task_num": 9,
+                              "hostname": "mc@sjc-ads-6971",
+                              "parent_id": "e3e787a7-a110-4e44-a6d4-d6c809d7bffe",
+                              "type": "task-succeeded",
+                              "retries": 0,
+                              "name": "ReleaseSync",
+                              "children": [
+                                {
+                                  "uuid": "3de35361-b55c-4d34-9a7f-244f9fc391e1",
+                                  "task_num": 10,
+                                  "hostname": "mc@sjc-ads-6971",
+                                  "parent_id": "5bce6335-0d6d-4c05-8080-e63e56fde65d",
+                                  "type": "task-succeeded",
+                                  "retries": 0,
+                                  "name": "CreateWorkerConfigFromTestsuites",
+                                  "children": [
+                                    {
+                                      "uuid": "a0335933-1c6f-427d-9d91-42518b78ca56",
+                                      "task_num": 11,
+                                      "hostname": "mc@sjc-ads-6971",
+                                      "parent_id": "3de35361-b55c-4d34-9a7f-244f9fc391e1",
+                                      "type": "task-succeeded",
+                                      "retries": 0,
+                                      "name": "ExecuteChainOnWorkerFarm",
+                                      "children": [
+                                        {
+                                          "uuid": "a52d7ef4-8268-4148-ac6d-50367cda05c3",
+                                          "task_num": 12,
+                                          "hostname": "mc@sjc-ads-6971",
+                                          "parent_id": "a0335933-1c6f-427d-9d91-42518b78ca56",
+                                          "type": "task-succeeded",
+                                          "retries": 0,
+                                          "name": "Regress",
+                                          "children": [
+                                            {
+                                              "uuid": "1444eea6-c7c5-48e2-842e-8f38e099a1b9",
+                                              "task_num": 15,
+                                              "hostname": "mc@sjc-ads-6971",
+                                              "parent_id": "a52d7ef4-8268-4148-ac6d-50367cda05c3",
+                                              "type": "task-succeeded",
+                                              "retries": 0,
+                                              "name": "ConvertTagToEfr"
+                                            },
+                                            {
+                                              "uuid": "d1adf7ad-cdcb-48ca-a645-923563e50c50",
+                                              "task_num": 18,
+                                              "hostname": "master@sjc-ads-6971",
+                                              "parent_id": "a52d7ef4-8268-4148-ac6d-50367cda05c3",
+                                              "type": "task-succeeded",
+                                              "retries": 0,
+                                              "name": "MasterBuildAndRegress",
+                                              "children": [
+                                                {
+                                                  "uuid": "5037ca0a-f3d1-4251-b3e0-5c637e8e676b",
+                                                  "task_num": 19,
+                                                  "hostname": "worker@sjc-ads-6971",
+                                                  "parent_id": "d1adf7ad-cdcb-48ca-a645-923563e50c50",
+                                                  "type": "task-succeeded",
+                                                  "retries": 0,
+                                                  "name": "BuildAndRegress",
+                                                  "children": [
+                                                    {
+                                                      "uuid": "b30f51d3-e842-43ac-928d-24eab420a1d6",
+                                                      "task_num": 20,
+                                                      "hostname": "worker@sjc-ads-6971",
+                                                      "parent_id": "5037ca0a-f3d1-4251-b3e0-5c637e8e676b",
+                                                      "type": "task-succeeded",
+                                                      "retries": 0,
+                                                      "name": "MineLumensForSuiteMetadata",
+                                                      "children": [
+                                                        {
+                                                          "uuid": "891a67b4-d10a-4f30-a6e0-e1857dc4cb08",
+                                                          "task_num": 22,
+                                                          "hostname": "mc@sjc-ads-6971",
+                                                          "parent_id": "b30f51d3-e842-43ac-928d-24eab420a1d6",
+                                                          "type": "task-succeeded",
+                                                          "retries": 0,
+                                                          "name": "LumensQuery"
+                                                        }
+                                                      ]
+                                                    },
+                                                    {
+                                                      "uuid": "88055fa4-4ee0-4aab-9e2c-e5ae9beb197a",
+                                                      "task_num": 21,
+                                                      "hostname": "worker@sjc-ads-6971",
+                                                      "parent_id": "5037ca0a-f3d1-4251-b3e0-5c637e8e676b",
+                                                      "type": "task-succeeded",
+                                                      "retries": 0,
+                                                      "name": "ComputeCacheResultsIndex"
+                                                    },
+                                                    {
+                                                      "uuid": "975a75e8-d0b2-40e2-8aa9-c10b6795a793",
+                                                      "task_num": 23,
+                                                      "hostname": "worker@sjc-ads-6971",
+                                                      "parent_id": "5037ca0a-f3d1-4251-b3e0-5c637e8e676b",
+                                                      "type": "task-succeeded",
+                                                      "retries": 0,
+                                                      "name": "GetCacheResultsIfAvailable",
+                                                      "children": [
+                                                        {
+                                                          "uuid": "5a7f43fa-3bd5-4197-b3b1-0e8e937a5465",
+                                                          "task_num": 24,
+                                                          "hostname": "mc@sjc-ads-6971",
+                                                          "parent_id": "975a75e8-d0b2-40e2-8aa9-c10b6795a793",
+                                                          "type": "task-succeeded",
+                                                          "retries": 0,
+                                                          "name": "LumensQuery"
+                                                        }
+                                                      ]
+                                                    },
+                                                    {
+                                                      "uuid": "bae81603-cf86-4c6e-afdc-456e9cff59b5",
+                                                      "task_num": 25,
+                                                      "hostname": "worker@sjc-ads-6971",
+                                                      "parent_id": "5037ca0a-f3d1-4251-b3e0-5c637e8e676b",
+                                                      "type": "task-succeeded",
+                                                      "retries": 0,
+                                                      "name": "GenerateIouLicense"
+                                                    },
+                                                    {
+                                                      "uuid": "55417092-2731-48a3-8be4-703a80d0f00d",
+                                                      "task_num": 26,
+                                                      "hostname": "worker@sjc-ads-6971",
+                                                      "parent_id": "5037ca0a-f3d1-4251-b3e0-5c637e8e676b",
+                                                      "type": "task-succeeded",
+                                                      "retries": 0,
+                                                      "name": "JamBuild",
+                                                      "children": [
+                                                        {
+                                                          "uuid": "c7a347fe-c879-46bb-a0f1-1d7c7fb6d7df",
+                                                          "task_num": 27,
+                                                          "hostname": "worker@sjc-ads-6971",
+                                                          "parent_id": "55417092-2731-48a3-8be4-703a80d0f00d",
+                                                          "type": "task-succeeded",
+                                                          "retries": 0,
+                                                          "name": "PrepareCaptureAccessedFiles",
+                                                          "children": [
+                                                            {
+                                                              "uuid": "d9212d8c-3eb5-453e-9cfe-8e618af3c8fa",
+                                                              "task_num": 28,
+                                                              "hostname": "worker@sjc-ads-6971",
+                                                              "parent_id": "c7a347fe-c879-46bb-a0f1-1d7c7fb6d7df",
+                                                              "type": "task-succeeded",
+                                                              "retries": 0,
+                                                              "name": "JamBuild_orig",
+                                                              "children": [
+                                                                {
+                                                                  "uuid": "a5539f33-922b-4c3e-8a19-41b4fc303925",
+                                                                  "task_num": 29,
+                                                                  "hostname": "worker@sjc-ads-6971",
+                                                                  "parent_id": "d9212d8c-3eb5-453e-9cfe-8e618af3c8fa",
+                                                                  "type": "task-succeeded",
+                                                                  "retries": 0,
+                                                                  "name": "CaptureAccessedFiles"
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "uuid": "3eea2a39-0a6c-48df-8f12-4109ae894c9f",
+                                              "task_num": 30,
+                                              "hostname": "mc@sjc-ads-6971",
+                                              "parent_id": "a52d7ef4-8268-4148-ac6d-50367cda05c3",
+                                              "type": "task-succeeded",
+                                              "retries": 0,
+                                              "name": "ProcessRegressionResults",
+                                              "children": [
+                                                {
+                                                  "uuid": "61a79046-732e-4435-9ef4-b72aeafa38b3",
+                                                  "task_num": 31,
+                                                  "hostname": "mc@sjc-ads-6971",
+                                                  "parent_id": "3eea2a39-0a6c-48df-8f12-4109ae894c9f",
+                                                  "type": "task-succeeded",
+                                                  "retries": 0,
+                                                  "name": "CollectTestsuiteResults",
+                                                  "children": [
+                                                    {
+                                                      "uuid": "4824d3c6-3fae-46d6-a40f-2c61b7ac27ec",
+                                                      "task_num": 32,
+                                                      "hostname": "mc@sjc-ads-6971",
+                                                      "parent_id": "61a79046-732e-4435-9ef4-b72aeafa38b3",
+                                                      "type": "task-succeeded",
+                                                      "retries": 0,
+                                                      "name": "AggregateXunitReports",
+                                                      "children": [
+                                                        {
+                                                          "uuid": "7b00dd46-769d-4e52-b607-70b18eb0bbb4",
+                                                          "task_num": 33,
+                                                          "hostname": "mc@sjc-ads-6971",
+                                                          "parent_id": "4824d3c6-3fae-46d6-a40f-2c61b7ac27ec",
+                                                          "type": "task-succeeded",
+                                                          "retries": 0,
+                                                          "name": "ConvertXunit2Text",
+                                                          "children": [
+                                                            {
+                                                              "uuid": "773319c8-be0c-4a35-92b5-ef5c16d9859f",
+                                                              "task_num": 34,
+                                                              "hostname": "mc@sjc-ads-6971",
+                                                              "parent_id": "7b00dd46-769d-4e52-b607-70b18eb0bbb4",
+                                                              "type": "task-succeeded",
+                                                              "retries": 0,
+                                                              "name": "ConvertXunit2Yellow",
+                                                              "children": [
+                                                                {
+                                                                  "uuid": "a90e4610-1407-4416-a362-3a6fdf6268ac",
+                                                                  "task_num": 35,
+                                                                  "hostname": "mc@sjc-ads-6971",
+                                                                  "parent_id": "773319c8-be0c-4a35-92b5-ef5c16d9859f",
+                                                                  "type": "task-succeeded",
+                                                                  "retries": 0,
+                                                                  "name": "StoreReport",
+                                                                  "children": [
+                                                                    {
+                                                                      "uuid": "ea777a68-a83c-4c1d-a8f7-d8581b737ecb",
+                                                                      "task_num": 36,
+                                                                      "hostname": "mc@sjc-ads-6971",
+                                                                      "parent_id": "a90e4610-1407-4416-a362-3a6fdf6268ac",
+                                                                      "type": "task-succeeded",
+                                                                      "retries": 0,
+                                                                      "name": "CreateTestsuiteMetadataHtmls"
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "uuid": "be5f1b3d-f67c-4055-99e1-8fdab88bdf16",
+                                          "task_num": 13,
+                                          "hostname": "mc@sjc-ads-6971",
+                                          "parent_id": "a0335933-1c6f-427d-9d91-42518b78ca56",
+                                          "type": "task-succeeded",
+                                          "retries": 0,
+                                          "name": "SpawnWaitReleaseChain",
+                                          "children": [
+                                            {
+                                              "uuid": "62fe315e-c657-44d9-9522-d58ba8ebd737",
+                                              "task_num": 14,
+                                              "hostname": "mc@sjc-ads-6971",
+                                              "parent_id": "be5f1b3d-f67c-4055-99e1-8fdab88bdf16",
+                                              "type": "task-succeeded",
+                                              "retries": 0,
+                                              "name": "SpawnWorkers",
+                                              "children": [
+                                                {
+                                                  "uuid": "e62cdded-d69e-4da0-8e27-038944bbe4fe",
+                                                  "task_num": 16,
+                                                  "hostname": "mc@sjc-ads-6971",
+                                                  "parent_id": "62fe315e-c657-44d9-9522-d58ba8ebd737",
+                                                  "type": "task-succeeded",
+                                                  "retries": 0,
+                                                  "name": "StartMaster"
+                                                },
+                                                {
+                                                  "uuid": "26a64bf9-b2d8-4e01-8153-29a4cc34e48d",
+                                                  "task_num": 17,
+                                                  "hostname": "mc@sjc-ads-6971",
+                                                  "parent_id": "62fe315e-c657-44d9-9522-d58ba8ebd737",
+                                                  "type": "task-succeeded",
+                                                  "retries": 0,
+                                                  "name": "WaitOnResults",
+                                                  "children": [
+                                                    {
+                                                      "uuid": "86cd2369-d856-48c4-8168-875e46b18896",
+                                                      "task_num": 37,
+                                                      "hostname": "mc@sjc-ads-6971",
+                                                      "parent_id": "26a64bf9-b2d8-4e01-8153-29a4cc34e48d",
+                                                      "type": "task-succeeded",
+                                                      "retries": 0,
+                                                      "name": "ReleaseAdsWorkers",
+                                                      "children": [
+                                                        {
+                                                          "uuid": "e453a20a-e843-4ade-bb30-8a7d506c3574",
+                                                          "task_num": 38,
+                                                          "hostname": "mc@sjc-ads-6971",
+                                                          "parent_id": "86cd2369-d856-48c4-8168-875e46b18896",
+                                                          "type": "task-succeeded",
+                                                          "retries": 0,
+                                                          "name": "ShutdownCeleryWorker"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "uuid": "1fdcc464-a9c9-4589-a907-275c76f870ce",
+          "task_num": 39,
+          "hostname": "mc@sjc-ads-6971",
+          "parent_id": "ecc0b0c2-0477-4d7d-a00f-ae9abcb90ef9",
+          "type": "task-succeeded",
+          "retries": 0,
+          "name": "GenerateTrend",
+          "children": [
+            {
+              "uuid": "0306e2c2-427f-4610-bd36-08971d3d42c0",
+              "task_num": 40,
+              "hostname": "mc@sjc-ads-6971",
+              "parent_id": "1fdcc464-a9c9-4589-a907-275c76f870ce",
+              "type": "task-succeeded",
+              "retries": 0,
+              "name": "DetectFlakyTests"
+            }
+          ]
+        },
+        {
+          "uuid": "8d120a5e-da9a-4811-81b4-2a327b070869",
+          "task_num": 41,
+          "hostname": "mc@sjc-ads-6971",
+          "parent_id": "ecc0b0c2-0477-4d7d-a00f-ae9abcb90ef9",
+          "type": "task-succeeded",
+          "retries": 0,
+          "name": "Results2Json",
+          "children": [
+            {
+              "uuid": "8d729c90-9a04-4e9b-a8ed-7f2961cf36c1",
+              "task_num": 42,
+              "hostname": "mc@sjc-ads-6971",
+              "parent_id": "8d120a5e-da9a-4811-81b4-2a327b070869",
+              "type": "task-succeeded",
+              "retries": 0,
+              "name": "Results2Pickle"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

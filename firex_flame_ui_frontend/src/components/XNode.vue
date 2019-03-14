@@ -1,0 +1,153 @@
+<template>
+  <div :style="topLevelStyle">
+    <div style="overflow: hidden; text-overflow: ellipsis;">
+      <div v-if="node.children && node.children.length" style="float: right;">
+        <i v-on:click="emit_collapse_toggle" style="cursor: pointer;">
+          <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
+          <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
+        </i>
+      </div>
+      <div style="float: left; font-size: 12px; width: 0;">{{node.task_num}}</div>
+      <div style="text-align: center; padding: 3px; ">
+        <strong>{{node.name}}</strong>
+      </div>
+      <div class="flame-data">
+        <!-- We're really trusting data from the server here (rendering raw HTML) -->
+        <!-- TODO: verify flame_additional_data is always accumulative -->
+        <div v-if="node.flame_additional_data" v-html="node.flame_additional_data" style="padding: 3px"></div>
+      </div>
+
+      <div> <!-- </div>style="position: absolute; bottom: 0;">-->
+        <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import _ from 'lodash'
+
+// "duration": '17m 15s',
+
+let nodeAttributes = [
+  // 'x', 'y',
+  'hostname',
+  'task_num',
+  // 'retries',
+  'uuid',
+  'name',
+  'state',
+  'width',
+  'height'
+]
+
+// let inProgressAnimationStyle = {
+//   'animation-name': 'taskRunning',
+//   'animation-duration': '1.5s',
+//   'animation-timing-function': 'ease',
+//   'animation-delay': '0s',
+//   'animation-iteration-count': 'infinite',
+//   'animation-direction': 'normal',
+//   'animation-fill-mode': 'none',
+//   'animation-play-state': 'running'
+// }
+
+export default {
+  name: 'XNode',
+  props: {
+    node: {
+      type: Object,
+      required: true,
+      validator: function (value) {
+        return _.difference(nodeAttributes, _.keys(value)).length === 0
+      }
+    },
+    allowCollapse: {
+      default: true
+    }
+  },
+  data () {
+    return {
+      expanded: true,
+      statusToColour: {
+        'task-received': '#2A2',
+        'task-blocked': '#888',
+        'task-started': 'darkblue', // #888',
+        'task-succeeded': '#2A2',
+        'task-shutdown': '#2A2',
+        'task-failed': '#900',
+        'task-revoked': '',
+        'task-incomplete': ''
+      }
+    }
+  },
+  computed: {
+    topLevelStyle () {
+      let width = _.isInteger(this.node.width) ? this.node.width + 'px' : this.node.width
+      let height = _.isInteger(this.node.height) ? this.node.height + 'px' : this.node.height
+      let style = {
+        'font-family': "'Source Sans Pro',sans-serif",
+        'font-weight': 'normal',
+        'font-size': '14px',
+        background: this.statusToColour[this.node.state],
+        color: 'white',
+        width: width,
+        height: height,
+        'border-radius': '8px',
+        padding: '3px'
+        // border: '1px solid black'
+      }
+      if (this.node.state === 'task-started') {
+        // style = _.merge(style, inProgressAnimationStyle)
+      }
+      return style
+    }
+  },
+  mounted () {
+    this.emit_dimensions()
+  },
+  methods: {
+    emit_collapse_toggle () {
+      this.expanded = !this.expanded
+      this.$emit('collapse-node')
+    },
+    emit_dimensions () {
+      // TODO: this is gross. There must be a better way to get height and width dynamically.
+      // TODO: consider getBoundingClientRect();
+      let h = this.$el.clientHeight
+      let w = this.$el.clientWidth
+      if (h && w) {
+        this.$emit('node-dimensions', {uuid: this.node.uuid, height: h, width: w})
+      }
+    }
+  }
+}
+</script>
+
+<style scoped>
+
+/*@keyframes taskRunning {*/
+  /*from {*/
+      /*box-shadow: 0 0 10px #888;*/
+  /*}*/
+  /*50% {*/
+      /*box-shadow: 0 0 50px #05F;*/
+  /*}*/
+  /*to {*/
+      /*box-shadow: 0 0 10px #888;*/
+  /*}*/
+/*}*/
+
+/*.progress {*/
+  /*animation: taskRunning 1.5s ease 0s infinite normal none running;*/
+/*}*/
+
+.flame-data {
+  background: white;
+  text-align: center;
+  border: 1px solid rgba(217,83,79,0.8);
+  color: black;
+  margin: 3px
+}
+
+</style>
