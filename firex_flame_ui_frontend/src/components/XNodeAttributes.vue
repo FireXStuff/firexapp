@@ -45,15 +45,21 @@ export default {
   },
   mounted() {
     if (this.nodesByUuid) {
-        this.$emit('title', this.nodesByUuid[this.uuid].long_name)
+      if (_.has(this.nodesByUuid[this.uuid], 'long_name')) {
+          this.$emit('title', this.nodesByUuid[this.uuid].long_name)
+        }
         this.$emit('logs_url', this.nodesByUuid[this.uuid].logs_url)
       }
   },
   watch: { // TODO: defend again uninitialized nodesByUuid in router.
     'nodesByUuid': function(newNodesByUuid, oldNodesByUuid) {
       if (newNodesByUuid) {
-        this.$emit('title', newNodesByUuid[this.uuid].long_name)
-        this.$emit('logs_url', newNodesByUuid[this.uuid].logs_url)
+        if (_.has(newNodesByUuid[this.uuid], 'long_name')) {
+          this.$emit('title', newNodesByUuid[this.uuid].long_name)
+        }
+        if (_.has(newNodesByUuid[this.uuid], 'logs_url')) {
+          this.$emit('logs_url', newNodesByUuid[this.uuid].logs_url)
+        }
       }
     }
   }

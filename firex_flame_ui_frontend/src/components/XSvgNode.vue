@@ -52,30 +52,11 @@ export default {
       type: Object,
       required: true,
       validator: function (value) {
-        let missing = _.difference(['x', 'y', 'width', 'height'], _.keys(value))
-        let hasRequired = missing.length === 0
-
-        if (!hasRequired) {
-          console.log('Missing: ' + missing)
-          console.log(value)
-        }
-
-        // TODO: always use size or always use width/height
-        // let hasWidth = _.has(value, 'width') || _.has(value, 'size')
-        // let hasHeight = _.has(value, 'height') || _.has(value, 'size')
-
-        return hasRequired // && hasWidth && hasHeight
+        return _.difference(['x', 'y', 'width', 'height'], _.keys(value))
       },
     },
   },
   computed: {
-    // TODO: verify internal padding is necessary.
-    // computedHeight () {
-    //   return _.isNumber(this.node.height) ? this.node.height + 10 : 10000
-    // },
-    // computedWidth () {
-    //   return _.isNumber(this.node.width) ? this.node.width + 10 : 10000
-    // },
     computedDimensions () {
       // TODO: is node.width always defaultWidth?
       return {

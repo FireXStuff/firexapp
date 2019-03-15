@@ -4,7 +4,6 @@ import XHeader from '@/components/XHeader'
 import XGraph from '@/components/XGraph'
 import XList from '@/components/XList'
 import XNodeAttributes from '@/components/XNodeAttributes'
-import XTestNodeDimensions from '@/components/XTestNodeDimensions'
 
 Vue.use(Router)
 
@@ -27,12 +26,6 @@ const router = new Router({
           component: XNodeAttributes,
           props: true,
         },
-        {
-          path: 'test',
-          name: 'XTestNodeDimensions.vue',
-          component: XTestNodeDimensions,
-          props: true,
-        },
         // default path must be last.
         {
           path: '',
@@ -47,7 +40,5 @@ const router = new Router({
     // }
   ],
 })
-// router.replace('/graph')
-// router.replace({ path: '*', redirect: '/graph' })
 
 export default router
