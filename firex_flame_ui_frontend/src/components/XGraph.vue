@@ -1,24 +1,30 @@
 <template>
   <div>
     <!-- TODO: this div can eat in to the preceding one despite display: block. Figure out why and remove margin.  -->
-  <div id="chart-container" ref="graph-parent" style="margin-top:25px">
+  <div id="chart-container" style="margin-top:25px;">
     <!--.attr('viewBox','0 0 '+Math.min(width, height)+' '+Math.min(width, height))-->
     <svg width="100%" height="100%" viewBox="0 0 294 294" preserveAspectRatio="xMinYMin" ref="graph-svg">
       <rect width="1385" height="294" style="fill: none; pointer-events: all;"></rect>
       <g>
         <!--     .append("g").attr("transform", "translate(" + (margin.left + width/2) + "," + margin.top + ")") -->
         <g ref="inner-graph-svg">
-          <!--  transform="translate(-137.6250000000001,-102.26371954479794)scale(1)translate(812.5,20)"-->
            <path class="link" v-for="l in displayLinks" :d="l.d" :key="l.source.uuid +'->' + l.target.uuid">
            </path>
-
              <x-svg-node v-for="n in displayNodes" :node="n" :key="n.uuid"
-                     v-on:collapse-node="toggle_collapse_children(n.uuid)"
-                     v-on:node-dimensions="updateNodeDimensions($event)">
-             </x-svg-node>
+                         v-on:collapse-node="toggleCollapseChildren(n.uuid)"></x-svg-node>
         </g>
       </g>
     </svg>
+  </div>
+  <div style="visibility: collapse; overflow: hidden;">
+    <!-- This is very gross, but here the nodes that will be put on the graph are rendered invisibly or order
+      for the browser to calculate their intrinsic size. Each node's size is then passed to the graph layout
+      algorithm before the actual graph is rendered.-->
+    <!-- need inline-block display per node to get each node's intrinsic width (i.e. don't want it to fill parent). -->
+    <div v-for="n in defaultHeightWidthNodes" :key="n.uuid"
+         style="display: inline-block; position: absolute; top: 0px;">
+      <x-node :emitDimensions="true" :node="n" v-on:node-dimensions="updateNodeDimensions($event)"></x-node>
+    </div>
   </div>
   </div>
 </template>
@@ -31,8 +37,11 @@
 import * as d3 from "d3";
 import XSvgNode from './XSvgNode';
 import _ from 'lodash';
+import {flatGraphToTree} from '../parse_rec'
+import XNode from './XNode'
+import {flextree} from 'd3-flextree'
 
-var margin = {top: 20, right: 120, bottom: 20, left: 120};
+// var margin = {top: 20, right: 120, bottom: 20, left: 120};
 //var width = 3000 - margin.right - margin.left;
 //var height = 1000 - margin.top - margin.bottom;
 
@@ -45,11 +54,14 @@ let d3Tree = d3.layout.tree()
   .separation(function(a, b) {return a.parent === b.parent ? 1.5 : 2;})
 	.nodeSize([nodeWidth, nodeHeight]);
 
+// This calculates the layout (x, y per node) with dynamic node sizes.
+const flextreeLayout = flextree({spacing: 75});
+
 export default {
   name: 'XGraph',
-  components: {XSvgNode},
+  components: {XSvgNode, XNode},
   props: {
-    root: {}
+    nodesByUuid: {}
   },
   data () {
     return {
@@ -59,37 +71,61 @@ export default {
     };
   },
   computed: {
-    allNodesById () {
-      if (this.root) {
-        // let all_uuids = this.getUuids(this.root)
-        // only actually do layout if we have all the dimensions of child nodes.
-        // if (_.difference(all_uuids, _.keys(this.dimensions_by_uuid)).length === 0) {
-          // Compute layout using de hierarical layout. This adds x,y attributes to node objects.
-          let tree_nodes = d3Tree.nodes(this.root).reverse();
-
-          // Force shared y coordinate for nodes at same depth.
-          tree_nodes.forEach((d) => {
-            let horizontal_node_spacing = 150;
-            d.y = d.depth * horizontal_node_spacing
-
-            if (_.has(this.dimensions_by_uuid, d.uuid)) {
-              d.height = this.dimensions_by_uuid[d.uuid].height
-              d.width = nodeWidth //this.dimensions_by_uuid[d.uuid].width
-            } else {
-              d.height = 'auto'
-              d.width = nodeWidth //'auto'
-            }
-          });
-
-          // There is only one node per uuid, so use _.head to get it.
-          return _.mapValues(_.groupBy(tree_nodes, 'uuid'), _.head);
-        // }
+    root () {
+      // TODO: delay view creation until populated.
+      if (_.isEmpty(this.nodesByUuid)) {
+        return null;
       }
-      return {};
+      return flatGraphToTree(this.nodesByUuid)
+    },
+    defaultHeightWidthNodes() {
+      let nodes = _.values(this.nodesByUuid)
+      nodes.forEach((n) => {n.width = 'auto'; n.height = 'auto'})
+      return nodes;
+    },
+    intrinsicHeightWidthTree() {
+        if (!this.root) {
+          return {}
+        }
+        let all_uuids = _.keys(this.nodesByUuid)
+        // only actually do layout if we have all the dimensions of child nodes.
+        if (_.difference(all_uuids, _.keys(this.dimensions_by_uuid)).length === 0) {
+          let newRoot = _.cloneDeep(this.root)
+          this.invokePerNode(newRoot, (node) => {
+            node.width = this.dimensions_by_uuid[node.uuid].width
+            node.height = this.dimensions_by_uuid[node.uuid].height
+          })
+          return newRoot
+        }
+        return {}
+    },
+    fullyLaidOutNodes () {
+      if (!_.isEmpty(this.intrinsicHeightWidthTree)){
+        // Need to clone to trigger downstream updates (no deep watches).
+        let newRootForLayout = _.cloneDeep(this.intrinsicHeightWidthTree)
+        // TODO: change size accessor.
+        this.invokePerNode(newRootForLayout, (node) => node.size = [node.width, node.height])
+        let laidOutTree = flextreeLayout.hierarchy(newRootForLayout)
+        flextreeLayout(laidOutTree)
+
+        // This is a lot of cloning. Make sure they're all necessary.
+        let resultNodes = _.cloneDeep(this.nodesByUuid)
+
+        laidOutTree.each(laidOutNode => {
+          resultNodes[laidOutNode.data.uuid].x = laidOutNode.left
+          // Seperate each node by some fixed amount (.e.g 50).
+          resultNodes[laidOutNode.data.uuid].y = laidOutNode.top + laidOutNode.depth * 50
+          resultNodes[laidOutNode.data.uuid].width = laidOutNode.xSize
+          resultNodes[laidOutNode.data.uuid].height = laidOutNode.ySize
+        })
+        return _.values(resultNodes);
+      }
+      return []
     },
     displayNodes () {
-      return _.values(_.omit(this.allNodesById, this.hidden_node_ids))
+      return _.filter(this.fullyLaidOutNodes, n => !_.includes(this.hidden_node_ids, n.uuid))
     },
+    // TODO: move to separate component.
     displayLinks () {
       let vm = this;
       // Don't want to show links with one-end hidden.
@@ -101,20 +137,19 @@ export default {
       let links = d3Tree.links(withoutHiddenChildren)
       links.forEach(l => {
         let source_height = _.isNumber(l.source.height) ? l.source.height : nodeHeight
-        let d = "M" + (l.source.x + nodeWidth/2) + ' ' + (l.source.y + source_height)
+        let source_width = _.isNumber(l.source.width) ? l.source.width : nodeWidth
+        l['d'] = "M" + (l.source.x + source_width/2) + ' ' + (l.source.y + source_height)
             + " v " + (l.target.y - l.source.y - source_height)/2
-            + " h" + (l.target.x - l.source.x)
+            + " h" + ((l.target.x + l.target.width/2) - (l.source.x + l.source.width/2))
             + " v " + (l.target.y - l.source.y)/2
-        l['d'] = d
       })
       return links
     },
     uid () {
-      let nodeWithUid =  _.find(_.values(this.allNodesById), 'firex_bound_args.uid')
+      let nodeWithUid =  _.find(_.values(this.nodesByUuid), 'firex_bound_args.uid')
       if (nodeWithUid) {
         return nodeWithUid.firex_bound_args.uid
       }
-      this.$emit('title', uid) // TODO: move out from computed
       return ''
     }
   },
@@ -124,6 +159,7 @@ export default {
                           .on("zoom", this.zoomed);
     d3.select('div#chart-container svg').call(zoom).on("dblclick.zoom", null);
     // TODO: set initial zoom.
+    this.$emit('title', this.uid)
   },
   methods: {
     zoomed () {
@@ -132,9 +168,9 @@ export default {
 
       this.$refs['inner-graph-svg'].setAttribute("transform", t1 + s1)
     },
-    toggle_collapse_children(parent_node_id) {
+    toggleCollapseChildren(parent_node_id) {
       let descendant_ids = this.getDescendantUuids(parent_node_id);
-      if (_.intersection(this.hidden_node_ids, descendant_ids).length > 0) {
+      if (_.difference(descendant_ids, this.hidden_node_ids).length === 0) {
         // These IDs are currently hidden, so remove them.
         this.hidden_node_ids = _.difference(this.hidden_node_ids, descendant_ids);
       }
@@ -145,30 +181,37 @@ export default {
     updateNodeDimensions (event) {
         let new_entry = {}
         new_entry[event.uuid] = {width: event.width, height: event.height}
-        // Vue doesn't deep watch, so create a new object.
+        // Vue doesn't deep watch, so create a new object for every update.
         this.dimensions_by_uuid = _.merge({}, this.dimensions_by_uuid, new_entry)
     },
-    // TODO: write or find generic tree-walking functions.
+    // TODO: write in terms of invokePerNode
     getDescendantUuids(node_id) {
-      let result_uuids = [];
-      let uuids_to_check = _.map(this.allNodesById[node_id]['children'], 'uuid');
-      while (uuids_to_check.length > 0) {
-        let node_uuid = uuids_to_check.pop();
-        if (!_.includes(result_uuids, node_uuid)) {
-          let children_ids = _.map(this.allNodesById[node_uuid]['children'], 'uuid')
-          uuids_to_check = uuids_to_check.concat(children_ids)
-          result_uuids.push(node_uuid)
+      let resultUuids = [];
+      let uuidsToCheck = _.map(this.nodesByUuid[node_id]['children'], 'uuid');
+      while (uuidsToCheck.length > 0) {
+        let nodeUuid = uuidsToCheck.pop();
+        if (!_.includes(resultUuids, nodeUuid)) {
+          let children_ids = _.map(this.nodesByUuid[nodeUuid]['children'], 'uuid')
+          uuidsToCheck = uuidsToCheck.concat(children_ids)
+          resultUuids.push(nodeUuid)
         }
       }
-      return result_uuids;
+      return resultUuids;
     },
-    getUuids(root) {
-      let result_uuids = [root.uuid]
-      root.children.forEach((c) => {
-        result_uuids = result_uuids.concat(this.getUuids(c))
-      })
-      return result_uuids
-    }
+    // TODO: move to generic graph utils file.
+    invokePerNode(root, fn) {
+      let doneUuids = [];
+      let nodesToCheck = [root]
+      while (nodesToCheck.length > 0) {
+        let node = nodesToCheck.pop()
+        // Avoid loops in graph.
+        if (!_.includes(doneUuids, node.uuid)) {
+          doneUuids.push(node.uuid)
+          fn(node)
+          nodesToCheck = nodesToCheck.concat(node.children)
+        }
+      }
+    },
   }
 }
 </script>

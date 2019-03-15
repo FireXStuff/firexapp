@@ -19,7 +19,7 @@ export default {
   name: 'XList',
   components: {XNode},
   props: {
-    root: {required: false}
+    nodesByUuid: {}
   },
   computed: {
     displayNodes () {
@@ -29,22 +29,22 @@ export default {
       })
       return _.sortBy(this.nodes, 'task_num')
     },
-    // TODO: decide where this function should live.
+    // TODO: decide where this function should live -- it's general purpose.
     nodes () {
-      if (!this.root) {
+      if (!this.nodesByUuid) {
         return []
       }
-      let node_list = []
-      let nodes_to_check = [this.root]
-      while (nodes_to_check.length > 0) {
-        let node = nodes_to_check.pop()
-        node_list.push(node)
-        // TODO: where the hell are children getting deleted???
-        if (_.has(node, 'children')) {
-          nodes_to_check = nodes_to_check.concat(node['children'])
-        }
-      }
-      return node_list
+      // let node_list = []
+      // let nodes_to_check = [this.root]
+      // while (nodes_to_check.length > 0) {
+      //   let node = nodes_to_check.pop()
+      //   node_list.push(node)
+      //   // TODO: where the hell are children getting deleted???
+      //   if (_.has(node, 'children')) {
+      //     nodes_to_check = nodes_to_check.concat(node['children'])
+      //   }
+      // }
+      return _.values(this.nodesByUuid)
     }
   }
   // mounted () {

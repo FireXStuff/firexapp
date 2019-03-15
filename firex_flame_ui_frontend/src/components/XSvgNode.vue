@@ -1,11 +1,13 @@
 <template>
   <!--:class="[{ progress: node.state === 'task-started' }]"-->
-  <g class="node" :transform="t(node.x, node.y)"
-     :width="node.width" :height="node.height" >
-    <foreignObject :width="computedWidth" :height="computedHeight">
-      <x-node :node="node" :key="node.uuid"
+  <g class="node" :transform="transform"
+     :width="computedDimensions.width" :height="computedDimensions.height" >
+    <foreignObject :width="computedDimensions.width" :height="computedDimensions.height">
+      <div style="display: inline-block">
+      <x-node :node="node"
               v-on:collapse-node="$emit('collapse-node')"
               v-on:node-dimensions="$emit('node-dimensions', $event)"></x-node>
+        </div>
     </foreignObject>
 
     <!-- could use this shadow for animation of in-progress nodes -->
@@ -50,25 +52,49 @@ export default {
       type: Object,
       required: true,
       validator: function (value) {
-        return _.difference(['x', 'y', 'width', 'height'], _.keys(value)).length === 0
-      }
-    }
+        let missing = _.difference(['x', 'y', 'width', 'height'], _.keys(value))
+        let hasRequired = missing.length === 0
+
+        if (!hasRequired) {
+          console.log('Missing: ' + missing)
+          console.log(value)
+        }
+
+        // TODO: always use size or always use width/height
+        // let hasWidth = _.has(value, 'width') || _.has(value, 'size')
+        // let hasHeight = _.has(value, 'height') || _.has(value, 'size')
+
+        return hasRequired // && hasWidth && hasHeight
+      },
+    },
   },
   computed: {
-    computedHeight () {
-      return _.isNumber(this.node.height) ? this.node.height : 0
+    // TODO: verify internal padding is necessary.
+    // computedHeight () {
+    //   return _.isNumber(this.node.height) ? this.node.height + 10 : 10000
+    // },
+    // computedWidth () {
+    //   return _.isNumber(this.node.width) ? this.node.width + 10 : 10000
+    // },
+    computedDimensions () {
+      // TODO: is node.width always defaultWidth?
+      return {
+        width: _.isNumber(this.node.width) ? this.node.width + 10 : 10000,
+        height: _.isNumber(this.node.height) ? this.node.height + 10 : 10000,
+      }
     },
-    computedWidth () {
-      return _.isNumber(this.node.width) ? this.node.width : 0
-    }
+    transform () {
+      return 'translate(' + this.node.x + ',' + this.node.y + ')'
+    },
   },
-  methods: {
-    t (x, y) {
-      return 'translate(' + x + ',' + y + ')'
-    }
-  }
 }
 </script>
 
 <style scoped>
+
+  /* set foreignObject dimensions small, then rely on overflow to show */
+  /* This trick causes crazy rendering -- no good. -->
+/*foreignObject {*/
+  /*overflow: visible;*/
+/*}*/
 </style>

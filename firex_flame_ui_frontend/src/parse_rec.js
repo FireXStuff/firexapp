@@ -1,8 +1,8 @@
 import _ from 'lodash'
 
-export {parseRecFileContentsToTree}
+export {parseRecFileContentsToNodesByUuid, flatGraphToTree}
 
-function parseRecFileContentsToTree (recFileContents) {
+function parseRecFileContentsToNodesByUuid (recFileContents) {
   let taskNum = 1
   let tasksByUuid = {}
   recFileContents.split(/\r?\n/).forEach(function (line) {
@@ -13,7 +13,7 @@ function parseRecFileContentsToTree (recFileContents) {
       }
     }
   })
-  return flatGraphToTree(tasksByUuid)
+  return tasksByUuid
 }
 
 function captureEventState (event, tasksByUuid, taskNum) {
@@ -34,7 +34,8 @@ function captureEventState (event, tasksByUuid, taskNum) {
   }
 
   let copyFields = ['hostname', 'parent_id', 'type', 'retries', 'firex_bound_args', 'flame_additional_data',
-    'local_received']
+    'local_received', 'actual_runtime', 'support_location', 'utcoffset', 'type', 'code_url', 'firex_default_bound_args',
+    'from_plugin', 'chain_depth', 'firex_result']
   copyFields.forEach(function (field) {
     if (_.has(event, field)) {
       task[field] = event[field]
@@ -43,16 +44,19 @@ function captureEventState (event, tasksByUuid, taskNum) {
 
   let fieldsToTransforms = {
     'name': function (event) {
-      return {'name': _.last(event.name.split('.'))}
+      return {'name': _.last(event.name.split('.')), 'long_name': event.name}
     },
     'type': function (event) {
       let stateTypes = ['task-received', 'task-blocked', 'task-started', 'task-succeeded', 'task-shutdown',
-        'task-failed', 'task-revoked', 'task-incomplete']
+        'task-failed', 'task-revoked', 'task-incomplete', 'from_plugin']
       if (_.includes(stateTypes, event.type)) {
         return {'state': event.type}
       }
       return {}
-    }
+    },
+    'url': function (event) {
+      return {'logs_url': event.url}
+    },
   }
 
   _.keys(fieldsToTransforms).forEach(function (field) {
@@ -61,12 +65,6 @@ function captureEventState (event, tasksByUuid, taskNum) {
     }
   })
 
-  // if (_.has(event, 'flame_additional_data')) {
-  //   if (!_.has(task, 'flame_additional_data')) {
-  //     task['flame_additional_data'] = []
-  //   }
-  //   task['flame_additional_data'].push(event['flame_additional_data'])
-  // }
   return isNew
 }
 
@@ -94,17 +92,3 @@ function flatGraphToTree (tasksByUuid) {
   }
   return root
 }
-//
-// fetch('/auto/firex-logs-sjc/djungic/FireX-djungic-190311-152310-63727/flame.rec')
-//   .then(function (r) {
-//     return r.text()
-//   })
-//   .then(function (body) {
-//     body.split(/\r?\n/).forEach(function (line) {
-//       if (line) {
-//         captureEventState(JSON.parse(line))
-//       }
-//     })
-//     document.getElementById('content').innerText = JSON.stringify(flatGraphToTree(tasksByUuid),
-//       null, 2)
-//   })
