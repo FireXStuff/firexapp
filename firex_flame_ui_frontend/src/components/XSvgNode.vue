@@ -58,10 +58,9 @@ export default {
   },
   computed: {
     computedDimensions () {
-      // TODO: is node.width always defaultWidth?
       return {
-        width: _.isNumber(this.node.width) ? this.node.width + 10 : 10000,
-        height: _.isNumber(this.node.height) ? this.node.height + 10 : 10000,
+        width: this.node.width + 10,
+        height: this.node.height + 10,
       }
     },
     transform () {
@@ -73,9 +72,4 @@ export default {
 
 <style scoped>
 
-  /* set foreignObject dimensions small, then rely on overflow to show */
-  /* This trick causes crazy rendering -- no good. -->
-/*foreignObject {*/
-  /*overflow: visible;*/
-/*}*/
 </style>

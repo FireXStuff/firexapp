@@ -58,14 +58,13 @@ export default {
       // very unfortunate we need to track this manually. TODO: look for a better way.
       dimensions_by_uuid: {},
       zoom: zoom,
+      // TODO: this is gross. This state isn't necessary. Split this component in to two: one that does
+      //  gross per-node intrinsic size calculation, and another that always has nodes with full rect defined.
+      isFirstLoad: true,
     }
   },
   computed: {
     root () {
-      // TODO: delay view creation until populated.
-      if (_.isEmpty(this.nodesByUuid)) {
-        return null
-      }
       return flatGraphToTree(this.nodesByUuid)
     },
     defaultHeightWidthNodes () {
@@ -74,9 +73,6 @@ export default {
       return nodes
     },
     intrinsicHeightWidthTree () {
-      if (!this.root) {
-        return {}
-      }
       let allUuids = _.keys(this.nodesByUuid)
       // only actually do layout if we have all the dimensions of child nodes.
       if (_.difference(allUuids, _.keys(this.dimensions_by_uuid)).length === 0) {
@@ -109,19 +105,17 @@ export default {
           resultNodesByUuid[laidOutNode.data.uuid].width = laidOutNode.xSize
           resultNodesByUuid[laidOutNode.data.uuid].height = laidOutNode.ySize
         })
+        // This is gross -- get rid of side effect in computed property.
+        if (this.isFirstLoad) {
+          this.isFirstLoad = false
+          this.center()
+        }
         return _.values(resultNodesByUuid)
       }
       return []
     },
     displayNodes () {
       return _.filter(this.fullyLaidOutNodes, n => !_.includes(this.hidden_node_ids, n.uuid))
-    },
-    uid () {
-      let nodeWithUid = _.find(_.values(this.nodesByUuid), 'firex_bound_args.uid')
-      if (nodeWithUid) {
-        return nodeWithUid.firex_bound_args.uid
-      }
-      return ''
     },
     visibleExtent () {
       return {
@@ -137,8 +131,6 @@ export default {
   },
   mounted () {
     d3.select('div#chart-container svg').call(this.zoom).on('dblclick.zoom', null)
-    // TODO: set initial zoom.
-    this.$emit('title', this.uid)
   },
   methods: {
     zoomed () {
@@ -171,6 +163,8 @@ export default {
         this.zoom.scale(scale)
         this.zoom.translate(translate)
         this.setTransform(_.join(translate, ','), scale)
+      } else {
+        console.warn('svg-graph not initialized.')
       }
     },
     toggleCollapseChildren (parentNodeId) {

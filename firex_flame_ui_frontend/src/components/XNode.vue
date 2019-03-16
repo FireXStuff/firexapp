@@ -1,15 +1,18 @@
 <template>
   <div :style="topLevelStyle" class="node">
-    <router-link :to="{name: 'XNodeAttributes', params: {'uuid': node.uuid}}">
+    <!-- TODO: link-router click seem to supercede collapse actions (even with stopPropagation above collapse click.
+         However, a link is better because it allows right-click as a link. -->
+    <!--<router-link :to="{name: 'XNodeAttributes', params: {'uuid': node.uuid}}">-->
       <div style="overflow: hidden; text-overflow: ellipsis; cursor: pointer;"
-           >
-        <div v-if="allowCollapse && node.children && node.children.length" style="float: right;">
-          <i v-on:click="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
+            v-on:click="$router.push({name: 'XNodeAttributes', params: {'uuid': node.uuid}})">
+        <div v-if="allowCollapse && node.children && node.children.length"
+             style="float: right;">
+          <i v-on:click="emit_collapse_toggle" style="cursor: pointer; padding: 2px;" >
             <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
             <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
           </i>
         </div>
-          <div style="float: left; font-size: 12px; width: 0;">{{node.task_num}}</div>
+          <div style="float: left; font-size: 12px">{{node.task_num}}</div>
           <div style="text-align: center; padding: 3px; ">
             <strong>{{node.name}}</strong>
           </div>
@@ -24,7 +27,7 @@
           <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
           <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
       </div>
-    </router-link>
+    <!--</router-link>-->
   </div>
 </template>
 
@@ -141,10 +144,10 @@ export default {
   },
   methods: {
     emit_collapse_toggle (event) {
+      event.stopPropagation()
       this.expanded = !this.expanded
       this.$emit('collapse-node')
       // Gross hack since if the event propagates, the node-wide link to NodeAttributes is followed.
-      event.stopPropagation()
     },
     emit_dimensions () {
       // TODO: this is gross. There must be a better way to get height and width dynamically.

@@ -4,36 +4,39 @@
 
       <div style="text-align: center">
           Logs Directory:
-          <input type="text" size=100 :value="logDir" :style="fetchFailed ? 'border-color: red;' : ''"
+          <input type="text" size=100 :value="logDir"
+                 :style="$asyncComputed.nodesByUuid.error ? 'border-color: red;' : ''"
                  @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value } })">
       </div>
       <div class="header">
         <a href="/" class="logo"><img style='height: 36px;' src="../assets/firex_logo.png"></a>
-        <div class="uid">{{title}}</div>
+        <div class="uid">{{title ? title : uid}}</div>
         <a class="flame-link" href="help">Help</a>
         <a :href="this.logsUrl" class="flame-link">View Logs</a>
         <div class="header-icon-button">
-          <!-- Should send access to all nodes.-->
           <router-link :to="{ name: 'XList', props: true }">
-            <font-awesome-icon icon="list-ul" size="1x"></font-awesome-icon>
+            <font-awesome-icon icon="list-ul"></font-awesome-icon>
           </router-link>
         </div>
         <div v-if="false" class="header-icon-button">
-          <font-awesome-icon icon="plus-circle" size="1x"></font-awesome-icon>
+          <font-awesome-icon icon="plus-circle"></font-awesome-icon>
         </div>
         <div v-if="false" class="header-icon-button" >
-          <font-awesome-icon :icon="['far', 'eye']" size="1x"></font-awesome-icon>
+          <font-awesome-icon :icon="['far', 'eye']"></font-awesome-icon>
         </div>
         <div class="header-icon-button" v-on:click="eventHub.$emit('center')">
-          <font-awesome-icon icon="bullseye" size="1x"></font-awesome-icon>
+          <font-awesome-icon icon="bullseye"></font-awesome-icon>
         </div>
         <div v-if="false" class="header-icon-button" >
-          <font-awesome-icon icon="search" size="1x"></font-awesome-icon>
+          <font-awesome-icon icon="search"></font-awesome-icon>
         </div>
       </div>
     </div>
-    <router-view v-on:title="title = $event" :nodesByUuid="nodesByUuid"
-                 v-on:logs_url="logsUrl = $event"></router-view>
+    <!-- Only show main panel after data is loaded -->
+    <template v-if="$asyncComputed.nodesByUuid.success" >
+      <router-view v-on:title="title = $event" :nodesByUuid="nodesByUuid"
+                   v-on:logs_url="logsUrl = $event"></router-view>
+    </template>
   </div>
 </template>
 
@@ -50,28 +53,40 @@ export default {
     return {
       title: '',
       logsUrl: this.logDir,
-      fetchFailed: false,
       eventHub: eventHub,
     }
   },
+  computed: {
+    uid () {
+      let nodeWithUid = _.find(_.values(this.nodesByUuid), 'firex_bound_args.uid')
+      if (nodeWithUid) {
+        return nodeWithUid.firex_bound_args.uid
+      }
+      return ''
+    },
+  },
   asyncComputed: {
-    nodesByUuid () {
-      let vm = this
-      vm.fetchFailed = false
-      return fetch(this.logDir + '/flame.rec')
+    nodesByUuid: {
+      get () {
+        return this.fetchTreeData(this.logDir)
+      },
+      default: {},
+    },
+  },
+  methods: {
+    fetchTreeData (logsDir) {
+      return fetch(logsDir + '/flame.rec')
         .then(function (r) {
           return r.text()
         })
         .then(function (recFileContent) {
-          let nodesByUuid = parseRecFileContentsToNodesByUuid(recFileContent)
-          vm.fetchFailed = false
-          return nodesByUuid
+          return parseRecFileContentsToNodesByUuid(recFileContent)
         })
-        .catch(__ => { vm.fetchFailed = true })
     },
   },
   watch: {
     '$route' (to, from) {
+      // TODO: define log location per child route, not here.
       if (_.includes(['XGraph', 'XList'], to.name)) {
         this.logsUrl = 'http://firex.cisco.com' + this.logDir
       } else {
