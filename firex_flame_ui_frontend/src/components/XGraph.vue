@@ -1,10 +1,8 @@
 <template>
   <div>
     <!-- TODO: this div can eat in to the preceding one despite display: block. Figure out why and remove margin.  -->
-    <div id="chart-container" style="margin-top:25px;">
-      <!--.attr('viewBox','0 0 '+Math.min(width, height)+' '+Math.min(width, height))-->
-      <svg width="100%" height="100%" viewBox="0 0 294 294" preserveAspectRatio="xMinYMin" ref="graph-svg">
-        <rect width="1385" height="294" style="fill: none; pointer-events: all;"></rect>
+    <div id="chart-container" style="margin-top:25px;" ref="graph-svg">
+      <svg width="100%" height="100%" preserveAspectRatio="xMinYMin" >
         <g>
           <!--     .append("g").attr("transform", "translate(" + (margin.left + width/2) + "," + margin.top + ")") -->
           <g ref="inner-graph-svg">
@@ -37,10 +35,10 @@
 import * as d3 from 'd3'
 import XSvgNode from './XSvgNode'
 import _ from 'lodash'
-import {flatGraphToTree} from '../parse_rec'
 import XNode from './XNode'
 import {flextree} from 'd3-flextree'
-import XLink from './XLink'
+import XLink from './XLinks'
+import {invokePerNode, flatGraphToTree, eventHub} from '../utils'
 
 // This calculates the layout (x, y per node) with dynamic node sizes.
 const flextreeLayout = flextree({spacing: 75})
@@ -52,10 +50,14 @@ export default {
     nodesByUuid: {},
   },
   data () {
+    let zoom = d3.behavior.zoom()
+      .scaleExtent([0.01, 1])
+      .on('zoom', this.zoomed)
     return {
       hidden_node_ids: [],
       // very unfortunate we need to track this manually. TODO: look for a better way.
       dimensions_by_uuid: {},
+      zoom: zoom,
     }
   },
   computed: {
@@ -79,7 +81,7 @@ export default {
       // only actually do layout if we have all the dimensions of child nodes.
       if (_.difference(allUuids, _.keys(this.dimensions_by_uuid)).length === 0) {
         let newRoot = _.cloneDeep(this.root)
-        this.invokePerNode(newRoot, (node) => {
+        invokePerNode(newRoot, (node) => {
           node.width = this.dimensions_by_uuid[node.uuid].width
           node.height = this.dimensions_by_uuid[node.uuid].height
         })
@@ -92,7 +94,7 @@ export default {
         // Need to clone to trigger downstream updates (no deep watches).
         let newRootForLayout = _.cloneDeep(this.intrinsicHeightWidthTree)
         // TODO: change size accessor.
-        this.invokePerNode(newRootForLayout, (node) => { node.size = [node.width, node.height] })
+        invokePerNode(newRootForLayout, (node) => { node.size = [node.width, node.height] })
         let laidOutTree = flextreeLayout.hierarchy(newRootForLayout)
         flextreeLayout(laidOutTree)
 
@@ -121,21 +123,55 @@ export default {
       }
       return ''
     },
+    visibleExtent () {
+      return {
+        top: _.min(_.map(this.displayNodes, 'y')),
+        left: _.min(_.map(this.displayNodes, 'x')),
+        right: _.max(_.map(this.displayNodes, n => n.x + n.width)),
+        bottom: _.max(_.map(this.displayNodes, n => n.y + n.height)),
+      }
+    },
+  },
+  created () {
+    eventHub.$on('center', this.center)
   },
   mounted () {
-    let zoom = d3.behavior.zoom()
-      .scaleExtent([0.01, 1])
-      .on('zoom', this.zoomed)
-    d3.select('div#chart-container svg').call(zoom).on('dblclick.zoom', null)
+    d3.select('div#chart-container svg').call(this.zoom).on('dblclick.zoom', null)
     // TODO: set initial zoom.
     this.$emit('title', this.uid)
   },
   methods: {
     zoomed () {
-      let t1 = 'translate(' + d3.event.translate + ')'
-      let s1 = 'scale(' + d3.event.scale + ')'
+      this.setTransform(d3.event.translate, d3.event.scale)
+    },
+    setTransform (translate, scale) {
+      let transform = ''
+      if (translate) {
+        transform += 'translate(' + translate + ')'
+      }
+      if (scale) {
+        transform += 'scale(' + scale + ')'
+      }
+      this.$refs['inner-graph-svg'].setAttribute('transform', transform)
+    },
+    center () {
+      // TODO: figure out why this ref can be undefined even after initial render.
+      if (this.$refs['graph-svg']) {
+        let boundingRect = this.$refs['graph-svg'].getBoundingClientRect()
 
-      this.$refs['inner-graph-svg'].setAttribute('transform', t1 + s1)
+        let visibleExtentWidth = this.visibleExtent.right - this.visibleExtent.left
+        let visibleExtentHeight = this.visibleExtent.bottom - this.visibleExtent.top
+        let xScale = boundingRect.width / visibleExtentWidth
+        let yScale = boundingRect.height / visibleExtentHeight
+        let scale = _.min([xScale, yScale])
+
+        let translate = [-(this.visibleExtent.left - visibleExtentWidth / 2) * scale, -this.visibleExtent.top * scale]
+
+        // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent with current position.
+        this.zoom.scale(scale)
+        this.zoom.translate(translate)
+        this.setTransform(_.join(translate, ','), scale)
+      }
     },
     toggleCollapseChildren (parentNodeId) {
       let descendantIds = this.getDescendantUuids(parentNodeId)
@@ -165,20 +201,6 @@ export default {
         }
       }
       return resultUuids
-    },
-    // TODO: move to generic graph utils file.
-    invokePerNode (root, fn) {
-      let doneUuids = []
-      let nodesToCheck = [root]
-      while (nodesToCheck.length > 0) {
-        let node = nodesToCheck.pop()
-        // Avoid loops in graph.
-        if (!_.includes(doneUuids, node.uuid)) {
-          doneUuids.push(node.uuid)
-          fn(node)
-          nodesToCheck = nodesToCheck.concat(node.children)
-        }
-      }
     },
   },
 }

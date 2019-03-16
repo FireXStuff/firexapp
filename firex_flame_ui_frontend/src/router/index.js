@@ -1,6 +1,6 @@
 import Vue from 'vue'
 import Router from 'vue-router'
-import XHeader from '@/components/XHeader'
+import XParent from '@/components/XParent'
 import XGraph from '@/components/XGraph'
 import XList from '@/components/XList'
 import XNodeAttributes from '@/components/XNodeAttributes'
@@ -11,7 +11,7 @@ const router = new Router({
   routes: [
     {
       path: '/',
-      component: XHeader,
+      component: XParent,
       props: (route) => ({logDir: route.query.logDir}),
       children: [
         {

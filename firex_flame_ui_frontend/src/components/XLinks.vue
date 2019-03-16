@@ -8,7 +8,7 @@
 import _ from 'lodash'
 
 export default {
-  name: 'XLink',
+  name: 'XLinks',
   props: {
     nodes: {required: true, type: Array},
   },

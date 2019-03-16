@@ -1,28 +1,30 @@
 <template>
-  <div :style="topLevelStyle">
-    <div style="overflow: hidden; text-overflow: ellipsis;">
-      <div v-if="allowCollapse && node.children && node.children.length" style="float: right;">
-        <i v-on:click="emit_collapse_toggle" style="cursor: pointer;">
-          <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
-          <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
-        </i>
-      </div>
-      <router-link :to="{name: 'XNodeAttributes', params: {'uuid': node.uuid}}">
-        <div style="float: left; font-size: 12px; width: 0;">{{node.task_num}}</div>
-        <div style="text-align: center; padding: 3px; ">
-          <strong>{{node.name}}</strong>
+  <div :style="topLevelStyle" class="node">
+    <router-link :to="{name: 'XNodeAttributes', params: {'uuid': node.uuid}}">
+      <div style="overflow: hidden; text-overflow: ellipsis; cursor: pointer;"
+           >
+        <div v-if="allowCollapse && node.children && node.children.length" style="float: right;">
+          <i v-on:click="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
+            <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
+            <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
+          </i>
         </div>
-        <div class="flame-data">
-          <!-- We're really trusting data from the server here (rendering raw HTML) -->
-          <!-- TODO: verify flame_additional_data is always accumulative -->
-          <div v-if="node.flame_additional_data" v-html="node.flame_additional_data" style="padding: 3px"></div>
-        </div>
+          <div style="float: left; font-size: 12px; width: 0;">{{node.task_num}}</div>
+          <div style="text-align: center; padding: 3px; ">
+            <strong>{{node.name}}</strong>
+          </div>
+          <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid navigating to
+               task node attribute page. Should likely find a better way.-->
+          <div class="flame-data" v-on:click="$event.stopPropagation()">
+            <!-- We're really trusting data from the server here (rendering raw HTML) -->
+            <!-- TODO: verify flame_additional_data is always accumulative -->
+            <div v-if="node.flame_additional_data" v-html="node.flame_additional_data" style="padding: 3px"></div>
+          </div>
 
-        <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
-        <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
-       </router-link>
-      <!-- TODO: the bottom-right isn't clickable to view task attributes. -->
-    </div>
+          <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
+          <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
+      </div>
+    </router-link>
   </div>
 </template>
 
@@ -30,15 +32,12 @@
 import _ from 'lodash'
 
 let nodeAttributes = [
-  // 'x', 'y',
   'hostname',
   'task_num',
-  // 'retries',
+  'retries',
   'uuid',
   'name',
   'state',
-  // 'width',
-  // 'height',
 ]
 // TODO: somewhere should be checking for node.rect
 
@@ -79,7 +78,9 @@ export default {
         'task-shutdown': '#2A2',
         'task-failed': '#900',
         'task-revoked': '#F40',
-        'task-incomplete': '',
+        'task-incomplete': 'repeating-linear-gradient(45deg,#888,#888 5px,#444 5px,#444 10px)',
+        // TODO: is this correct? completed means incompleted??
+        'task-completed': 'repeating-linear-gradient(45deg,#888,#888 5px,#444 5px,#444 10px)',
       },
     }
   },
@@ -91,6 +92,7 @@ export default {
         'font-size': '14px',
         background: this.statusToColour[this.node.state],
         color: 'white',
+        // width/height could be 'auto'
         width: _.isInteger(this.node.width) ? this.node.width + 'px' : this.node.width,
         height: _.isInteger(this.node.height) ? this.node.height + 'px' : this.node.height,
         'min-width': '250px', // TODO: externalize some of this.
@@ -138,9 +140,11 @@ export default {
     }
   },
   methods: {
-    emit_collapse_toggle () {
+    emit_collapse_toggle (event) {
       this.expanded = !this.expanded
       this.$emit('collapse-node')
+      // Gross hack since if the event propagates, the node-wide link to NodeAttributes is followed.
+      event.stopPropagation()
     },
     emit_dimensions () {
       // TODO: this is gross. There must be a better way to get height and width dynamically.
@@ -186,10 +190,12 @@ a {
   text-decoration: none;
 }
 
-/*
-TODO: fix.
-div a:hover {*/
-  /*background: #000;*/
-/*}*/
+.node:hover {
+  background: #000 !important;
+}
+
+.flame-data a {
+    display: inline-block;
+}
 
 </style>

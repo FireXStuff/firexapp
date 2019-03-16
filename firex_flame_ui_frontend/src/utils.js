@@ -1,6 +1,24 @@
 import _ from 'lodash'
+import Vue from 'vue'
 
-export {parseRecFileContentsToNodesByUuid, flatGraphToTree}
+// See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
+let eventHub = new Vue()
+
+export {invokePerNode, parseRecFileContentsToNodesByUuid, flatGraphToTree, eventHub}
+
+function invokePerNode (root, fn) {
+  let doneUuids = []
+  let nodesToCheck = [root]
+  while (nodesToCheck.length > 0) {
+    let node = nodesToCheck.pop()
+    // Avoid loops in graph.
+    if (!_.includes(doneUuids, node.uuid)) {
+      doneUuids.push(node.uuid)
+      fn(node)
+      nodesToCheck = nodesToCheck.concat(node.children)
+    }
+  }
+}
 
 function parseRecFileContentsToNodesByUuid (recFileContents) {
   let taskNum = 1
@@ -48,7 +66,7 @@ function captureEventState (event, tasksByUuid, taskNum) {
     },
     'type': function (event) {
       let stateTypes = ['task-received', 'task-blocked', 'task-started', 'task-succeeded', 'task-shutdown',
-        'task-failed', 'task-revoked', 'task-incomplete', 'from_plugin']
+        'task-failed', 'task-revoked', 'task-incomplete', 'task-completed']
       if (_.includes(stateTypes, event.type)) {
         return {'state': event.type}
       }

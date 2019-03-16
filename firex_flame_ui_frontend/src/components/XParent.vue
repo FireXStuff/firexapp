@@ -24,7 +24,7 @@
         <div v-if="false" class="header-icon-button" >
           <font-awesome-icon :icon="['far', 'eye']" size="1x"></font-awesome-icon>
         </div>
-        <div v-if="false" class="header-icon-button">
+        <div class="header-icon-button" v-on:click="eventHub.$emit('center')">
           <font-awesome-icon icon="bullseye" size="1x"></font-awesome-icon>
         </div>
         <div v-if="false" class="header-icon-button" >
@@ -38,49 +38,50 @@
 </template>
 
 <script>
-/* eslint-disable */
-
-import _ from 'lodash';
-import {parseRecFileContentsToNodesByUuid} from '../parse_rec.js'
+import _ from 'lodash'
+import {parseRecFileContentsToNodesByUuid, eventHub} from '../utils'
 
 export default {
   name: 'XHeader',
   props: {
-    logDir: {default: '/auto/firex-logs-sjc/djungic/FireX-djungic-190311-152310-63727'}
+    logDir: {default: '/auto/firex-logs-sjc/djungic/FireX-djungic-190311-152310-63727'},
   },
   data () {
-    return {title: '', logsUrl: this.logDir, fetchFailed: false}
+    return {
+      title: '',
+      logsUrl: this.logDir,
+      fetchFailed: false,
+      eventHub: eventHub,
+    }
   },
   asyncComputed: {
     nodesByUuid () {
       let vm = this
-      vm.fetchFailed  = false
+      vm.fetchFailed = false
       return fetch(this.logDir + '/flame.rec')
         .then(function (r) {
           return r.text()
         })
-        .then(function (rec_file_content) {
-          let nodesByUuid = parseRecFileContentsToNodesByUuid(rec_file_content)
-          vm.fetchFailed  = false
+        .then(function (recFileContent) {
+          let nodesByUuid = parseRecFileContentsToNodesByUuid(recFileContent)
+          vm.fetchFailed = false
           return nodesByUuid
         })
-      .catch(error => { vm.fetchFailed  = true; })
-    }
+        .catch(__ => { vm.fetchFailed = true })
+    },
   },
   watch: {
     '$route' (to, from) {
       if (_.includes(['XGraph', 'XList'], to.name)) {
         this.logsUrl = 'http://firex.cisco.com' + this.logDir
-      }
-      else {
+      } else {
         this.logsUrl = ''
       }
-    }
-  }
+    },
+  },
 }
 </script>
 
-<!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped>
 
 .header {
