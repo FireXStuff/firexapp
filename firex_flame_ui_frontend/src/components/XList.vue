@@ -1,24 +1,30 @@
 <template>
-  <div style="margin-left: 5px">
-    <div>Sort by:</div>
-    <div v-for="option in sortOptions" :key="option.value" style="display: inline-block; margin: 0 15px;">
-      <input type="radio" :id="option.value" name="list-order" :value="option.value" v-model="selectedSortOption">
-      <label :for="option.value">{{option.text}}</label>
-    </div>
-
-    <div>Filter by task type:</div>
-    <div v-for="option in filterOptions" :key="option" style="display: inline-block; margin: 0 15px;">
-      <input type="radio" :id="option" name="list-filter" :value="option" v-model="selectedFilterOption">
-      <label :for="option">{{option}}</label>
-    </div>
-
-    <hr>
-
-    <div class="list-container" style="margin-top:25px; display: inline-block;">
-      <div style="margin: 0 50px">
-        <x-node v-for="n in displayNodes" ref="list-node"
-                :node="n" :key="n.uuid" style="margin: 10px;" class="node" :allowCollapse="false"></x-node>
+  <div style="display:flex; flex-direction: column; margin-left: 5px">
+    <div>Sort by:
+      <div style="display:flex;">
+        <div v-for="option in sortOptions" :key="option.value" style="margin: 0 15px;">
+          <input type="radio" :id="option.value" name="list-order" :value="option.value" v-model="selectedSortOption">
+          <label :for="option.value">{{option.text}}</label>
+        </div>
       </div>
+    </div>
+
+    <div>Filter by task type:
+      <div style="display:flex;">
+        <div v-for="option in filterOptions" :key="option" style="display: inline-block; margin: 0 15px;">
+          <input type="radio" :id="option" name="list-filter" :value="option" v-model="selectedFilterOption">
+          <label :for="option">{{option}}</label>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <hr>
+    </div>
+
+    <div class="list-container">
+        <x-node v-for="n in displayNodes"
+                :node="n" :key="n.uuid" style="margin: 10px" :allowCollapse="false"></x-node>
     </div>
   </div>
 </template>
@@ -36,6 +42,7 @@ export default {
   },
   data () {
     return {
+      // TODO: consider having these as URL parameters, so we can link to failures only.
       selectedSortOption: 'time-received',
       sortOptions: [
         {value: 'time-received', text: 'Time Received (default)'},

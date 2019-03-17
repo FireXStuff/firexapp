@@ -14,15 +14,17 @@
       </svg>
     </div>
     <div style="visibility: collapse; overflow: hidden;">
-      <!-- This is very gross, but the nodes that will be put on the graph are rendered invisibly or order
+      <!-- This is very gross, but the nodes that will be put on the graph are rendered invisibly in order
         for the browser to calculate their intrinsic size. Each node's size is then passed to the graph layout
         algorithm before the actual graph is rendered.-->
 
-      <!-- Need inline-block display per node to get each node's intrinsic width (i.e. don't want it to fill parent).
+      <!--
+        Need inline-block display per node to get each node's intrinsic width (i.e. don't want it to force fill parent).
       -->
       <div v-for="n in defaultHeightWidthNodes" :key="n.uuid"
            style="display: inline-block; position: absolute; top: 0;">
-        <x-node :emitDimensions="true" :node="n" v-on:node-dimensions="updateNodeDimensions($event)"></x-node>
+        <x-node :emitDimensions="true" :allowCollapse="false"
+                :node="n" v-on:node-dimensions="updateNodeDimensions($event)"></x-node>
       </div>
     </div>
   </div>
