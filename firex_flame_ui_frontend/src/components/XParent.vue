@@ -2,11 +2,12 @@
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
     <div class="header">
 
-      <div style="text-align: center">
+      <div style="text-align: center" >
         Logs Directory:
         <input type="text" size=100 :value="logDir"
                :style="$asyncComputed.nodesByUuid.error ? 'border-color: red;' : ''"
                @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value } })">
+        <div :class="{spinner: $asyncComputed.nodesByUuid.updating}"></div>
       </div>
       <div style="display: flex; flex-direction: row;">
         <div>
@@ -30,7 +31,8 @@
             <font-awesome-icon icon="plus-circle"></font-awesome-icon>
           </div>
           <div class="header-icon-button">
-            <router-link :to="{ name: 'XList', props: true }">
+            <!-- TODO: is there a better way to link to a child view? -->
+            <router-link :to="{ name: 'XList', params: { nodesByUuid: nodesByUuid, logsDir: logDir } }">
               <font-awesome-icon icon="list-ul"></font-awesome-icon>
             </router-link>
           </div>
@@ -41,7 +43,7 @@
     </div>
     <!-- Only show main panel after data is loaded -->
     <template v-if="$asyncComputed.nodesByUuid.success">
-      <router-view v-on:title="title = $event" :nodesByUuid="nodesByUuid"
+      <router-view v-on:title="title = $event" :nodesByUuid="nodesByUuid" :logDir="logDir"
                    v-on:logs_url="logsUrl = $event"></router-view>
     </template>
   </div>
@@ -142,6 +144,29 @@ export default {
   justify-content: end;
   font-size: 20px;
   line-height: 40px;
+  cursor: pointer;
+}
+
+@keyframes spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner:before {
+  content: '';
+  box-sizing: border-box;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin-top: -10px;
+  margin-left: -10px;
+  border-radius: 50%;
+  border-top: 2px solid #07d;
+  border-right: 2px solid transparent;
+  animation: spinner .6s linear infinite;
 }
 
 </style>

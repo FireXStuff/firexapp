@@ -1,13 +1,10 @@
 <template>
   <div :style="topLevelStyle" class="node">
-    <!-- TODO: link-router click seem to supercede collapse actions (even with stopPropagation above collapse click.
-         However, a link is better because it allows right-click as a link. -->
-    <!--<router-link :to="{name: 'XNodeAttributes', params: {'uuid': node.uuid}}">-->
-      <div style="overflow: hidden; text-overflow: ellipsis; cursor: pointer;"
-            v-on:click="$router.push({name: 'XNodeAttributes', params: {'uuid': node.uuid}})">
+    <router-link :to="{name: 'XNodeAttributes', params: {'uuid': node.uuid}}">
+      <div style="overflow: hidden; text-overflow: ellipsis">
         <div v-if="allowCollapse && node.children && node.children.length"
              style="float: right;">
-          <i v-on:click="emit_collapse_toggle" style="cursor: pointer; padding: 2px;" >
+          <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;" >
             <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
             <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
           </i>
@@ -27,7 +24,7 @@
           <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
           <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
       </div>
-    <!--</router-link>-->
+    </router-link>
   </div>
 </template>
 
@@ -42,7 +39,6 @@ let nodeAttributes = [
   'name',
   'state',
 ]
-// TODO: somewhere should be checking for node.rect
 
 // let inProgressAnimationStyle = {
 //   'animation-name': 'taskRunning',
@@ -143,19 +139,23 @@ export default {
     }
   },
   methods: {
-    emit_collapse_toggle (event) {
-      event.stopPropagation()
+    emit_collapse_toggle () {
       this.expanded = !this.expanded
       this.$emit('collapse-node')
       // Gross hack since if the event propagates, the node-wide link to NodeAttributes is followed.
     },
     emit_dimensions () {
       // TODO: this is gross. There must be a better way to get height and width dynamically.
-      let h = this.$el.clientHeight
-      let w = this.$el.clientWidth
-      if (h && w) {
-        this.$emit('node-dimensions', {uuid: this.node.uuid, height: h, width: w})
+      let r = this.$el.getBoundingClientRect()
+      if (r) {
+        this.$emit('node-dimensions', {uuid: this.node.uuid, height: r.height, width: r.width})
       }
+    },
+    routeToAttribute (uuid) {
+      this.$router.push({
+        name: 'XNodeAttributes',
+        params: {'uuid': uuid, logDir: this.$route.params.logDir},
+        query: {logDir: this.$route.params.logDir}})
     },
   },
 }

@@ -1,7 +1,17 @@
 <template>
   <div style="width: 100%; height: 100%; overflow: hidden;">
+    <div v-if="hiddenNodesCount > 0" class="user-message" style="background: lightblue; ">
+      {{hiddenNodesCount}} tasks are hidden
+      <a href="#" @click.prevent="hidden_node_ids = []"> (Show All)</a>
+    </div>
+    <div v-else-if="hasFailures" class="user-message" style="background: orange">
+      Some tasks have failed.
+      <a href="#" @click.prevent="hideSucessPaths()">
+        Show only failed paths
+      </a>
+    </div>
     <div id="chart-container" style="width: 100%; height: 100%" ref="graph-svg">
-      <svg width="100%" height="100%" preserveAspectRatio="xMinYMin">
+      <svg width="100%" height="100%" preserveAspectRatio="xMinYMin"  style="background-color: white;">
         <g>
           <!--     .append("g").attr("transform", "translate(" + (margin.left + width/2) + "," + margin.top + ")") -->
           <g ref="inner-graph-svg">
@@ -12,7 +22,9 @@
         </g>
       </svg>
     </div>
-    <div style="visibility: collapse; overflow: hidden;">
+    <!-- TODO: FIND A BETTER WAY! visiblity:collapse prevents table height from being calculatd, so instead
+    draw everything at z-index=-1000 and make sure the SVG covers it.-->
+    <div style="/*visibility: collapse;*/ overflow: hidden;">
       <!-- This is very gross, but the nodes that will be put on the graph are rendered invisibly in order
         for the browser to calculate their intrinsic size. Each node's size is then passed to the graph layout
         algorithm before the actual graph is rendered.-->
@@ -21,7 +33,7 @@
         Need inline-block display per node to get each node's intrinsic width (i.e. don't want it to force fill parent).
       -->
       <div v-for="n in defaultHeightWidthNodes" :key="n.uuid"
-           style="display: inline-block; position: absolute; top: 0;">
+           style="display: inline-block; position: absolute; top: 0;  z-index: -1000;">
         <x-node :emitDimensions="true" :allowCollapse="false"
                 :node="n" v-on:node-dimensions="updateNodeDimensions($event)"></x-node>
       </div>
@@ -39,7 +51,7 @@ import _ from 'lodash'
 import XNode from './XNode'
 import {flextree} from 'd3-flextree'
 import XLink from './XLinks'
-import {invokePerNode, flatGraphToTree, eventHub} from '../utils'
+import {invokePerNode, flatGraphToTree, eventHub, nodesWithAncestorOrDescendantFailure} from '../utils'
 
 // This calculates the layout (x, y per node) with dynamic node sizes.
 const flextreeLayout = flextree({spacing: 75})
@@ -48,14 +60,15 @@ export default {
   name: 'XGraph',
   components: {XSvgNode, XNode, XLink},
   props: {
-    nodesByUuid: {},
+    nodesByUuid: {required: true, type: Object},
   },
   data () {
     let zoom = d3.behavior.zoom()
       .scaleExtent([0.01, 1])
       .on('zoom', this.zoomed)
     return {
-      hidden_node_ids: [],
+      // Default to hiding paths that don't include a failure by default.
+      hidden_node_ids: nodesWithAncestorOrDescendantFailure(this.nodesByUuid),
       // very unfortunate we need to track this manually. TODO: look for a better way.
       dimensions_by_uuid: {},
       zoom: zoom,
@@ -98,13 +111,23 @@ export default {
         // This is a lot of cloning. Make sure they're all necessary.
         let resultNodesByUuid = _.cloneDeep(this.nodesByUuid)
 
+        // TODO: consider if we want fixed-depth despite variable height per-node. Create a list where the index is
+        //  the depth and the
+        // value is the sum of each previous depth's tallest node.
+        // let maxHeightByDepth = _.mapValues(_.groupBy(laidOutTree.nodes, 'depth'),
+        //   nodes => _.max(_.map(nodes, 'size.1')))
+        // let depthHeightArray = _.toArray(maxHeightByDepth) // orders based on input object keys.
+        // let sumDepthHeightArray = [0].concat(_.map(depthHeightArray, (v, i, c) => _.sum(_.take(c, i)) + v))
+        // console.log(maxHeightByDepth)
+        // console.log(sumDepthHeightArray)
         // Since the flex-layout library messes with data, we'll just copy out the few parameters we need.
         laidOutTree.each(laidOutNode => {
           resultNodesByUuid[laidOutNode.data.uuid].x = laidOutNode.left
           // Separate each node by some fixed amount (.e.g 50).
-          resultNodesByUuid[laidOutNode.data.uuid].y = laidOutNode.top + laidOutNode.depth * 50
-          resultNodesByUuid[laidOutNode.data.uuid].width = laidOutNode.xSize
-          resultNodesByUuid[laidOutNode.data.uuid].height = laidOutNode.ySize
+
+          resultNodesByUuid[laidOutNode.data.uuid].y = laidOutNode.top+ laidOutNode.depth * 50
+          resultNodesByUuid[laidOutNode.data.uuid].width = laidOutNode.size[0]
+          resultNodesByUuid[laidOutNode.data.uuid].height = laidOutNode.size[1]
         })
         // This is gross -- get rid of side effect in computed property.
         if (this.isFirstLoad) {
@@ -125,6 +148,12 @@ export default {
         right: _.max(_.map(this.displayNodes, n => n.x + n.width)),
         bottom: _.max(_.map(this.displayNodes, n => n.y + n.height)),
       }
+    },
+    hiddenNodesCount () {
+      return this.hidden_node_ids.length
+    },
+    hasFailures () {
+      return _.some(_.values(this.nodesByUuid), {'state': 'task-failed'})
     },
   },
   created () {
@@ -151,14 +180,20 @@ export default {
       // TODO: figure out why this ref can be undefined even after initial render.
       if (this.$refs['graph-svg']) {
         let boundingRect = this.$refs['graph-svg'].getBoundingClientRect()
-
+        // TODO should likely add padding.
         let visibleExtentWidth = this.visibleExtent.right - this.visibleExtent.left
         let visibleExtentHeight = this.visibleExtent.bottom - this.visibleExtent.top
         let xScale = boundingRect.width / visibleExtentWidth
         let yScale = boundingRect.height / visibleExtentHeight
         let scale = _.min([xScale, yScale])
-
-        let translate = [-(this.visibleExtent.left - visibleExtentWidth / 2) * scale, -this.visibleExtent.top * scale]
+        let topPadding = 100
+        // - visibleExtentWidth / 2
+        let xTranslate = this.visibleExtent.left
+        // If we're fitting to Y, we want to x-center.
+        if (scale === yScale) {
+          xTranslate = xTranslate - visibleExtentWidth / 2
+        }
+        let translate = [-xTranslate * scale, -(this.visibleExtent.top - topPadding) * scale]
 
         // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent with current position.
         this.zoom.scale(scale)
@@ -197,15 +232,23 @@ export default {
       }
       return resultUuids
     },
+    hideSucessPaths () {
+      this.hidden_node_ids = this.hidden_node_ids.concat(nodesWithAncestorOrDescendantFailure(this.nodesByUuid))
+    },
   },
 }
 </script>
 
 <style scoped>
+  * {
+    box-sizing: border-box;
+  }
 
-#chart-container {
-  width: 100%;
-  height: 100%;
-}
-
+  .user-message {
+    text-align: center;
+    font-size: 18px;
+    position: absolute;
+    z-index: 3;
+    width: 100%;
+  }
 </style>

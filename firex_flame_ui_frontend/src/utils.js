@@ -4,7 +4,12 @@ import Vue from 'vue'
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
 let eventHub = new Vue()
 
-export {invokePerNode, parseRecFileContentsToNodesByUuid, flatGraphToTree, eventHub}
+export {
+  invokePerNode,
+  parseRecFileContentsToNodesByUuid,
+  flatGraphToTree,
+  eventHub,
+  nodesWithAncestorOrDescendantFailure}
 
 function invokePerNode (root, fn) {
   let doneUuids = []
@@ -109,4 +114,31 @@ function flatGraphToTree (tasksByUuid) {
     uuidsToCheck = uuidsToCheck.concat(_.map(curTask['children'], 'uuid'))
   }
   return root
+}
+
+function nodesWithAncestorOrDescendantFailure (nodesByUuid) {
+  let failurePredicate = {'state': 'task-failed'}
+  if (_.some(_.values(nodesByUuid), failurePredicate)) {
+    let parentIds = _.map(_.values(nodesByUuid), 'parent_id')
+    let leafNodes = _.filter(_.values(nodesByUuid), n => !_.includes(parentIds, n.uuid))
+    let leafUuidPathsToRoot = _.map(leafNodes, l => getUuidsToRoot(l, nodesByUuid))
+    let uuidPathsWithFailure = _.filter(leafUuidPathsToRoot,
+      pathUuids => _.some(_.values(_.pick(nodesByUuid, pathUuids)), failurePredicate))
+    let keepUuids = _.flatten(uuidPathsWithFailure)
+    return _.difference(_.keys(nodesByUuid), keepUuids)
+  }
+  return []
+}
+
+function getUuidsToRoot (node, nodesByUuid) {
+  let curNode = node
+  let resultUuids = []
+  while (true) {
+    resultUuids.push(curNode.uuid)
+    if (_.isNull(curNode.parent_id)) {
+      break
+    }
+    curNode = nodesByUuid[curNode.parent_id]
+  }
+  return resultUuids
 }

@@ -25,7 +25,7 @@ export default {
               ' v ' + (c.y - p.y - p.height) / 2 +
               // Horizontal line between the horizontal-centers of the two nodes.
               ' h ' + ((c.x + c.width / 2) - (p.x + p.width / 2)) +
-              ' v ' + (c.y - p.y) / 2
+              ' v ' + (c.y - p.y - p.height) / 2
             links.push({d: d, id: p.uuid + '->' + c.uuid})
           }
         })
