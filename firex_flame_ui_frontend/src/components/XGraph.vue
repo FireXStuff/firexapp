@@ -1,8 +1,7 @@
 <template>
-  <div>
-    <!-- TODO: this div can eat in to the preceding one despite display: block. Figure out why and remove margin.  -->
-    <div id="chart-container" style="margin-top:25px;" ref="graph-svg">
-      <svg width="100%" height="100%" preserveAspectRatio="xMinYMin" >
+  <div style="width: 100%; height: 100%; overflow: hidden;">
+    <div id="chart-container" style="width: 100%; height: 100%" ref="graph-svg">
+      <svg width="100%" height="100%" preserveAspectRatio="xMinYMin">
         <g>
           <!--     .append("g").attr("transform", "translate(" + (margin.left + width/2) + "," + margin.top + ")") -->
           <g ref="inner-graph-svg">
@@ -32,7 +31,7 @@
 
 <script>
 
-//  TODO: specify what to import from d3 more precisely.
+//  TODO: specify what to import from d3 more precisely (select, zoom).
 // TODO: use a more recent version of d3 (find where layout was moved to).
 import * as d3 from 'd3'
 import XSvgNode from './XSvgNode'
@@ -205,10 +204,8 @@ export default {
 <style scoped>
 
 #chart-container {
-    position: absolute;
-    top: 40px; /* Header Height */
-    bottom: 20px; /* Footer Height */
-    width: 100%;
+  width: 100%;
+  height: 100%;
 }
 
 </style>

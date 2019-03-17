@@ -8,7 +8,7 @@
                :style="$asyncComputed.nodesByUuid.error ? 'border-color: red;' : ''"
                @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value } })">
       </div>
-      <div style="display: flex;">
+      <div style="display: flex; flex-direction: row;">
         <div>
           <a href="/">
             <img style='height: 36px;' src="../assets/firex_logo.png">
@@ -20,11 +20,12 @@
             <font-awesome-icon icon="search"></font-awesome-icon>
           </div>
           <div v-if="false" class="header-icon-button">
+            <font-awesome-icon :icon="['far', 'eye']"></font-awesome-icon>
+          </div>
             <div class="header-icon-button" v-on:click="eventHub.$emit('center')">
               <font-awesome-icon icon="bullseye"></font-awesome-icon>
             </div>
-            <font-awesome-icon :icon="['far', 'eye']"></font-awesome-icon>
-          </div>
+
           <div v-if="false" class="header-icon-button">
             <font-awesome-icon icon="plus-circle"></font-awesome-icon>
           </div>
@@ -106,9 +107,6 @@ export default {
 <style scoped>
 
 .header {
-  /*width: 100%;*/
-  /*display: flex;*/
-  /*flex-direction: column;*/
   background-color: #EEE;
   border-bottom: 1px solid #000;
 }
@@ -137,6 +135,7 @@ export default {
   font-size: 20px;
   justify-content: flex-end;
 }
+
 .header-icon-button {
   padding: 0 8px;
   border-left: 1px solid #000;
