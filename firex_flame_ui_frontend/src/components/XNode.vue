@@ -1,9 +1,10 @@
 <template>
   <div :style="topLevelStyle" class="node">
-    <router-link :to="{name: 'XNodeAttributes', params: {'uuid': node.uuid}}">
+    <router-link :to="routeToAttribute(node.uuid)">
       <div style="overflow: hidden; text-overflow: ellipsis">
         <div v-if="allowCollapse && node.children && node.children.length"
              style="float: right;">
+          <!-- Need to prevent to avoid activating node-wide attribute link -->
           <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
             <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
             <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
@@ -76,7 +77,7 @@ export default {
       statusToColour: {
         'task-received': '#2A2',
         'task-blocked': '#888',
-        'task-started': 'darkblue', // #888',
+        'task-started': 'darkblue', // #888', //TODO: animate in-progress.
         'task-succeeded': '#2A2',
         'task-shutdown': '#2A2',
         'task-failed': '#900',
@@ -156,10 +157,10 @@ export default {
       }
     },
     routeToAttribute (uuid) {
-      this.$router.push({
+      return {
         name: 'XNodeAttributes',
-        params: {'uuid': uuid, logDir: this.$route.params.logDir},
-        query: {logDir: this.$route.params.logDir}})
+        params: {'uuid': uuid},
+        query: {logDir: this.$route.query.logDir}}
     },
   },
 }

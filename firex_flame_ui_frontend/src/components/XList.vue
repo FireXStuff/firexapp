@@ -22,6 +22,7 @@
       <hr>
     </div>
 
+    <!-- TODO: Add no nodes matching filters result. -->
     <div class="list-container">
         <x-node v-for="n in displayNodes"
                 :node="n" :key="n.uuid" style="margin: 10px" :allowCollapse="false"></x-node>

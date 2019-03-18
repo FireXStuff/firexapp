@@ -31,8 +31,8 @@
             <font-awesome-icon icon="plus-circle"></font-awesome-icon>
           </div>
           <div class="header-icon-button">
-            <!-- TODO: is there a better way to link to a child view? -->
-            <router-link :to="{ name: 'XList', params: { nodesByUuid: nodesByUuid, logsDir: logDir } }">
+            <!-- TODO: find a better way to always propagte the fetch key (i.e right now log dir, in general the UID -->
+            <router-link :to="{ name: 'XList', params: { nodesByUuid: nodesByUuid }, query: {logDir: logDir}}">
               <font-awesome-icon icon="list-ul"></font-awesome-icon>
             </router-link>
           </div>
