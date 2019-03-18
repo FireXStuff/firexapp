@@ -2,7 +2,7 @@
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
     <div class="header">
 
-      <div style="text-align: center" >
+      <div style="text-align: center">
         Logs Directory:
         <input type="text" size=100 :value="logDir"
                :style="$asyncComputed.nodesByUuid.error ? 'border-color: red;' : ''"
@@ -11,7 +11,7 @@
       </div>
       <div style="display: flex; flex-direction: row;">
         <div>
-          <router-link to="/">
+          <router-link :to="{ name: 'XGraph', params: { nodesByUuid: nodesByUuid }, query: {logDir: logDir}}">
             <img style='height: 36px;' src="../assets/firex_logo.png">
           </router-link>
         </div>
@@ -23,21 +23,33 @@
           <div v-if="false" class="header-icon-button">
             <font-awesome-icon :icon="['far', 'eye']"></font-awesome-icon>
           </div>
-            <div class="header-icon-button" v-on:click="eventHub.$emit('center')">
-              <font-awesome-icon icon="bullseye"></font-awesome-icon>
-            </div>
+          <div v-if="childSupportCenter" class="header-icon-button" v-on:click="eventHub.$emit('center')">
+            <font-awesome-icon icon="bullseye"></font-awesome-icon>
+          </div>
 
           <div v-if="false" class="header-icon-button">
             <font-awesome-icon icon="plus-circle"></font-awesome-icon>
           </div>
-          <div class="header-icon-button">
-            <!-- TODO: find a better way to always propagte the fetch key (i.e right now log dir, in general the UID -->
+          <div v-if="childSupportListLink" class="header-icon-button">
+            <!-- TODO: find a better way to always propagate the fetch key (i.e right now log dir, in general the UID
+            -->
             <router-link :to="{ name: 'XList', params: { nodesByUuid: nodesByUuid }, query: {logDir: logDir}}">
               <font-awesome-icon icon="list-ul"></font-awesome-icon>
             </router-link>
           </div>
-          <a :href="this.logsUrl" class="flame-link">View Logs</a>
-          <a class="flame-link" href="help">Help</a>
+          <div v-if="childSupportGraphLink" class="header-icon-button">
+            <!-- TODO: find a better way to always propagate the fetch key (i.e right now log dir, in general the UID
+            -->
+            <router-link :to="{ name: 'XGraph', params: { nodesByUuid: nodesByUuid }, query: {logDir: logDir}}">
+              <font-awesome-icon icon="sitemap"></font-awesome-icon>
+            </router-link>
+          </div>
+          <a :href="logsUrl" class="flame-link">View Logs</a>
+          <a  v-if="supportLocation" :href="supportLocation" class="flame-link">Support</a>
+          <a v-if="childSupportHelpLink" class="header-icon-button" href="help">Help</a>
+          <a v-if="codeUrl" class="flame-link" :href="codeUrl">
+            <font-awesome-icon icon="file-code"></font-awesome-icon>
+          </a>
         </div>
       </div>
     </div>
@@ -54,7 +66,7 @@ import _ from 'lodash'
 import {parseRecFileContentsToNodesByUuid, eventHub} from '../utils'
 
 export default {
-  name: 'XHeader',
+  name: 'XParent',
   props: {
     logDir: {default: '/auto/firex-logs-sjc/djungic/FireX-djungic-190311-152310-63727'},
   },
@@ -63,6 +75,13 @@ export default {
       title: '',
       logsUrl: this.logDir,
       eventHub: eventHub,
+      // TODO: clean this up by mapping event names, enablement variables, and components in a single structure.
+      childSupportListLink: false,
+      childSupportCenter: false,
+      childSupportGraphLink: false,
+      codeUrl: false,
+      childSupportHelpLink: false,
+      supportLocation: false,
     }
   },
   computed: {
@@ -82,6 +101,15 @@ export default {
       default: {},
     },
   },
+  created () {
+    // TODO: clean this up by mapping event names, enablement variables, and components in a single structure.
+    eventHub.$on('support-list-link', () => { this.childSupportListLink = true })
+    eventHub.$on('support-graph-link', () => { this.childSupportGraphLink = true })
+    eventHub.$on('support-help-link', () => { this.childSupportHelpLink = true })
+    eventHub.$on('support-center', () => { this.childSupportCenter = true })
+    eventHub.$on('code_url', (c) => { this.codeUrl = c })
+    eventHub.$on('support_location', (l) => { this.supportLocation = l })
+  },
   methods: {
     fetchTreeData (logsDir) {
       return fetch(logsDir + '/flame.rec')
@@ -95,10 +123,14 @@ export default {
   },
   watch: {
     '$route' (to, from) {
+      this.childSupportListLink = false
+      this.childSupportCenter = false
+      this.childSupportGraphLink = false
+      this.childSupportHelpLink = false
+      this.codeUrl = false
+      this.supportLocation = false
       // TODO: define log location per child route, not here.
-      if (_.includes(['XGraph', 'XList'], to.name)) {
-        this.logsUrl = 'http://firex.cisco.com' + this.logDir
-      } else {
+      if (!_.includes(['XGraph', 'XList'], to.name)) {
         this.logsUrl = ''
       }
     },

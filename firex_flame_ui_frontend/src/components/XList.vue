@@ -34,6 +34,7 @@
 import _ from 'lodash'
 
 import XNode from './XNode'
+import {eventHub} from '../utils'
 
 export default {
   name: 'XList',
@@ -82,6 +83,10 @@ export default {
     nodes () {
       return _.values(this.nodesByUuid)
     },
+  },
+  created () {
+    let supportedParentButtons = ['support-graph-link', 'support-help-link']
+    supportedParentButtons.forEach(e => { eventHub.$emit(e) })
   },
 }
 </script>

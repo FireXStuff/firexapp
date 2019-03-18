@@ -12,6 +12,9 @@
       <div v-else-if="key === 'firex_result'">
         <strong>task_result:</strong> {{displayNode[key]}}
       </div>
+      <div v-else-if="key === 'support_location'">
+        <strong>support_location:</strong> <a :href="displayNode[key]">{{displayNode[key]}}</a>
+      </div>
       <span v-else>
         <strong>{{key}}:</strong> {{displayNode[key]}}
       </span>
@@ -22,6 +25,7 @@
 <script>
 /* eslint-disable */
 import _ from 'lodash';
+import {eventHub} from '../utils'
 
 export default {
   name: 'XNodeAttributes',
@@ -33,14 +37,15 @@ export default {
     displayNode () {
         let node =  _.clone(this.nodesByUuid[this.uuid])
         let attributeBlacklist = ['children', 'long_name', 'name', 'parent', 'flame_additional_data',
-        'height', 'width', 'x', 'y', 'from_plugin', 'depth', 'logs_url', 'task_num']
+        'height', 'width', 'x', 'y', 'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url']
         return _.omit(node, attributeBlacklist)
     },
     sortedDisplayNodeKeys () {
       return _.sortBy(_.keys(this.displayNode))
     }
   },
-  mounted() {
+  created() {
+    // TODO: this is super gross. Make it easier for children views to add buttons to the parent.
     if (this.nodesByUuid) {
       if (_.has(this.nodesByUuid[this.uuid], 'long_name')) {
         this.$emit('title', this.nodesByUuid[this.uuid].long_name)
@@ -48,20 +53,14 @@ export default {
       if (_.has(this.nodesByUuid[this.uuid], 'logs_url')) {
         this.$emit('logs_url', this.nodesByUuid[this.uuid].logs_url)
       }
-    }
-  },
-  watch: { // TODO: defend again uninitialized nodesByUuid in router.
-    'nodesByUuid': function(newNodesByUuid, oldNodesByUuid) {
-      if (newNodesByUuid) {
-        if (_.has(newNodesByUuid[this.uuid], 'long_name')) {
-          this.$emit('title', newNodesByUuid[this.uuid].long_name)
-        }
-        if (_.has(newNodesByUuid[this.uuid], 'logs_url')) {
-          this.$emit('logs_url', newNodesByUuid[this.uuid].logs_url)
-        }
+      if (_.has(this.nodesByUuid[this.uuid], 'code_url')) {
+        eventHub.$emit('code_url', this.nodesByUuid[this.uuid].code_url)
+      }
+      if (_.has(this.nodesByUuid[this.uuid], 'support_location')) {
+        eventHub.$emit('support_location', this.nodesByUuid[this.uuid].support_location)
       }
     }
-  }
+  },
 }
 </script>
 

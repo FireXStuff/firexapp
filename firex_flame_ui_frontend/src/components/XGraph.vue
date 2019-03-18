@@ -153,6 +153,10 @@ export default {
   },
   created () {
     eventHub.$on('center', this.center)
+
+    // TODO: clean up child route support communication by moving it to route definition.
+    let supportedParentButtons = ['support-list-link', 'support-center', 'support-help-link']
+    supportedParentButtons.forEach(e => { eventHub.$emit(e) })
   },
   mounted () {
     d3.select('div#chart-container svg').call(this.zoom).on('dblclick.zoom', null)
