@@ -11,9 +11,9 @@
       </div>
       <div style="display: flex; flex-direction: row;">
         <div>
-          <a href="/">
+          <router-link to="/">
             <img style='height: 36px;' src="../assets/firex_logo.png">
-          </a>
+          </router-link>
         </div>
         <div class="uid">{{title ? title : uid}}</div>
         <div style="margin-left: auto; display: flex;">

@@ -129,11 +129,6 @@ export default {
           resultNodesByUuid[laidOutNode.data.uuid].width = laidOutNode.size[0]
           resultNodesByUuid[laidOutNode.data.uuid].height = laidOutNode.size[1]
         })
-        // This is gross -- get rid of side effect in computed property.
-        if (this.isFirstLoad) {
-          this.isFirstLoad = false
-          this.center()
-        }
         return _.values(resultNodesByUuid)
       }
       return []
@@ -242,6 +237,16 @@ export default {
     },
     hideSucessPaths () {
       this.hidden_node_ids = this.hidden_node_ids.concat(nodesWithAncestorOrDescendantFailure(this.nodesByUuid))
+    },
+  },
+  watch: {
+    fullyLaidOutNodes: function (_, __) {
+      // This is somewhat gross. Maybe there should be another component that does the SVG rendering tha always
+      // has dimensions populated.
+      if (this.isFirstLoad) {
+        this.isFirstLoad = false
+        this.center()
+      }
     },
   },
 }
