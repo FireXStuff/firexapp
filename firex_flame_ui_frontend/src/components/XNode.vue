@@ -4,25 +4,29 @@
       <div style="overflow: hidden; text-overflow: ellipsis">
         <div v-if="allowCollapse && node.children && node.children.length"
              style="float: right;">
-          <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;" >
+          <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
             <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
             <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
           </i>
         </div>
-          <div style="float: left; font-size: 12px">{{node.task_num}}</div>
-          <div style="text-align: center; padding: 3px; ">
-            <strong>{{node.name}}</strong>
-          </div>
-          <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid navigating to
-               task node attribute page. Should likely find a better way.-->
-          <div class="flame-data" v-on:click="$event.stopPropagation()">
-            <!-- We're really trusting data from the server here (rendering raw HTML) -->
-            <!-- TODO: verify flame_additional_data is always accumulative -->
-            <div v-if="node.flame_additional_data" v-html="node.flame_additional_data" style="padding: 3px"></div>
-          </div>
+        <div v-if="node.retries" style="float: right; position: relative;">
+          <img src="../assets/retry.png" class="retries-img">
+          <div title="Retries" class="retries">{{node.retries}}</div>
+        </div>
+        <div style="float: left; font-size: 12px">{{node.task_num}}</div>
+        <div style="text-align: center; padding: 3px; ">
+          <strong>{{node.name}}</strong>
+        </div>
+        <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid navigating to
+             task node attribute page. Should likely find a better way.-->
+        <div class="flame-data" v-on:click="$event.stopPropagation()">
+          <!-- We're really trusting data from the server here (rendering raw HTML) -->
+          <!-- TODO: verify flame_additional_data is always accumulative -->
+          <div v-if="node.flame_additional_data" v-html="node.flame_additional_data" style="padding: 3px"></div>
+        </div>
 
-          <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
-          <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
+        <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
+        <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
       </div>
     </router-link>
   </div>
@@ -199,6 +203,20 @@ a {
 
 .flame-data a {
     display: inline-block;
+}
+
+ /* retries position is off for big numbers. TODO: find better solution. */
+.retries {
+  position: absolute;
+  right: 6px;
+  font-size: 11px;
+  top: 2px;
+}
+
+.retries-img {
+  position: absolute;
+  right: 1px;
+  height: 16px;
 }
 
 </style>

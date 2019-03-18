@@ -125,7 +125,7 @@ export default {
           resultNodesByUuid[laidOutNode.data.uuid].x = laidOutNode.left
           // Separate each node by some fixed amount (.e.g 50).
 
-          resultNodesByUuid[laidOutNode.data.uuid].y = laidOutNode.top+ laidOutNode.depth * 50
+          resultNodesByUuid[laidOutNode.data.uuid].y = laidOutNode.top + laidOutNode.depth * 50
           resultNodesByUuid[laidOutNode.data.uuid].width = laidOutNode.size[0]
           resultNodesByUuid[laidOutNode.data.uuid].height = laidOutNode.size[1]
         })
@@ -177,30 +177,38 @@ export default {
       this.$refs['inner-graph-svg'].setAttribute('transform', transform)
     },
     center () {
-      // TODO: figure out why this ref can be undefined even after initial render.
+      // Not available during re-render.
       if (this.$refs['graph-svg']) {
         let boundingRect = this.$refs['graph-svg'].getBoundingClientRect()
-        // TODO should likely add padding.
+
+        // TODO: padding as percentage of available area.
+        let verticalPadding = 200
         let visibleExtentWidth = this.visibleExtent.right - this.visibleExtent.left
-        let visibleExtentHeight = this.visibleExtent.bottom - this.visibleExtent.top
+        let visibleExtentHeight = this.visibleExtent.bottom - this.visibleExtent.top + verticalPadding
         let xScale = boundingRect.width / visibleExtentWidth
         let yScale = boundingRect.height / visibleExtentHeight
         let scale = _.min([xScale, yScale])
-        let topPadding = 100
-        // - visibleExtentWidth / 2
-        let xTranslate = this.visibleExtent.left
-        // If we're fitting to Y, we want to x-center.
-        if (scale === yScale) {
-          xTranslate = xTranslate - visibleExtentWidth / 2
+
+        let scaledExtendWidth = visibleExtentWidth * scale
+        let xTranslate = this.visibleExtent.left * scale
+        // Center the graph based on (scaled) extra horizontal or vertical space.
+        if (Math.round(boundingRect.width) > Math.round(scaledExtendWidth)) {
+          let remainingHorizontal = boundingRect.width - scaledExtendWidth
+          xTranslate = xTranslate - remainingHorizontal / 2
         }
-        let translate = [-xTranslate * scale, -(this.visibleExtent.top - topPadding) * scale]
+
+        let scaledExtendHeight = visibleExtentHeight * scale
+        let yTranslate = (this.visibleExtent.top - verticalPadding / 2) * scale
+        if (Math.round(boundingRect.height) > Math.round(scaledExtendHeight)) {
+          let remainingVertical = boundingRect.height - scaledExtendHeight
+          yTranslate = yTranslate - remainingVertical / 2
+        }
+        let translate = [ -xTranslate, -(yTranslate) ]
 
         // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent with current position.
         this.zoom.scale(scale)
         this.zoom.translate(translate)
         this.setTransform(_.join(translate, ','), scale)
-      } else {
-        console.warn('svg-graph not initialized.')
       }
     },
     toggleCollapseChildren (parentNodeId) {
