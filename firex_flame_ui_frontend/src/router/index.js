@@ -13,7 +13,7 @@ const router = new Router({
     {
       path: '/',
       component: XParent,
-      props: (route) => ({logDir: route.query.logDir}),
+      props: (route) => ({logDir: route.query.logDir, flameServer: route.query.flameServer}),
       children: [
         {
           path: 'list',

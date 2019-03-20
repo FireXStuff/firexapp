@@ -15,7 +15,7 @@
         <g>
           <g :transform="svgGraphTransform">
             <x-link :nodesByUuid="displayNodesByUuid"></x-link>
-            <x-svg-node v-for="n in displayNodesByUuid" :node="n" :key="n.uuid"
+            <x-svg-node v-for="n in displayNodesByUuid" :node="n" :state="nodesByUuid[n.uuid].state" :key="n.uuid"
                         v-on:collapse-node="toggleCollapseChildren(n.uuid)"></x-svg-node>
             <path :d="'M' + (-transform.x / transform.scale) + ' ' + (30) + ' h' + (-lineLength)"
                   style="stroke: #000;stroke-width: 10px;"></path>
@@ -36,7 +36,7 @@
       <div v-for="n in defaultHeightWidthNodes" :key="n.uuid"
            style="display: inline-block; position: absolute; top: 0;  z-index: -1000;">
         <x-node :emitDimensions="true" :allowCollapse="false"
-                :node="n" v-on:node-dimensions="updateNodeDimensions($event)"></x-node>
+                :node="n" :state="n.state" v-on:node-dimensions="updateNodeDimensions($event)"></x-node>
       </div>
     </div>
   </div>
@@ -52,7 +52,7 @@ import _ from 'lodash'
 import XNode from './XNode'
 import XLink from './XLinks'
 import {eventHub, nodesWithAncestorOrDescendantFailure,
-  calculateNodesPositionByUuid} from '../utils'
+  calculateNodesPositionByUuid, flatGraphToTree} from '../utils'
 
 export default {
   name: 'XGraph',
@@ -101,9 +101,12 @@ export default {
     onlyVisibleIntrinsicDimensionNodesByUuid () {
       return _.omit(this.intrinsicDimensionNodesByUuid, this.hiddenNodeIds)
     },
+    graphAsTree () {
+      return flatGraphToTree(this.onlyVisibleIntrinsicDimensionNodesByUuid)
+    },
     fullyLaidOutNodesByUuid () {
       if (!_.isEmpty(this.intrinsicDimensionNodesByUuid)) {
-        let positionByUuid = calculateNodesPositionByUuid(this.onlyVisibleIntrinsicDimensionNodesByUuid)
+        let positionByUuid = calculateNodesPositionByUuid(this.graphAsTree)
 
         // This is a lot of cloning. Make sure they're all necessary.
         let resultNodesByUuid = _.cloneDeep(this.onlyVisibleIntrinsicDimensionNodesByUuid)

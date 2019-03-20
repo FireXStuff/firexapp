@@ -24,8 +24,8 @@
 
     <!-- TODO: Add no nodes matching filters result. -->
     <div class="list-container">
-        <x-node v-for="n in displayNodes"
-                :node="n" :key="n.uuid" style="margin: 10px" :allowCollapse="false"></x-node>
+        <x-node v-for="n in displayNodesByUuid"
+                :node="n" :state="n.state" :key="n.uuid" style="margin: 10px" :allowCollapse="false"></x-node>
     </div>
   </div>
 </template>

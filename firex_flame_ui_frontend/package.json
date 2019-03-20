@@ -22,7 +22,8 @@
     "lodash": "^4.17.11",
     "vue": "^2.5.2",
     "vue-async-computed": "^3.6.1",
-    "vue-router": "^3.0.1"
+    "vue-router": "^3.0.1",
+    "socket.io-client": "2.2.0"
   },
   "devDependencies": {
     "autoprefixer": "^7.1.2",

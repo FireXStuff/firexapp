@@ -23,10 +23,10 @@
         <div class="flame-data" v-on:click="$event.stopPropagation()">
           <!-- We're really trusting data from the server here (rendering raw HTML) -->
           <!-- TODO: verify flame_additional_data is always accumulative -->
-          <div v-if="node.flame_additional_data" v-html="node.flame_additional_data" style="padding: 3px"></div>
+          <div v-if="node.flame_additional_data" v-html="node.flame_additional_data"></div>
         </div>
 
-        <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
+        <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}} {{state}}</div>
         <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
       </div>
     </router-link>
@@ -64,9 +64,15 @@ export default {
       type: Object,
       required: true,
       validator: function (value) {
-        return _.difference(nodeAttributes, _.keys(value)).length === 0
+        let missing = _.difference(nodeAttributes, _.keys(value))
+        if (missing.length !== 0) {
+          console.error('Missing following required properties: ' + missing)
+          console.error(value)
+        }
+        return missing.length === 0
       },
     },
+    state: {default: 'task-blocked', type: String},
     allowCollapse: {
       default: true,
     },
@@ -76,9 +82,9 @@ export default {
     return {
       expanded: true,
       statusToColour: {
-        'task-received': '#2A2',
+        'task-received': '#888',
         'task-blocked': '#888',
-        'task-started': 'darkblue', // #888', //TODO: animate in-progress.
+        'task-started': 'cornflowerblue', // animate?
         'task-succeeded': '#2A2',
         'task-shutdown': '#2A2',
         'task-failed': '#900',
@@ -95,7 +101,7 @@ export default {
         'font-family': "'Source Sans Pro',sans-serif",
         'font-weight': 'normal',
         'font-size': '14px',
-        background: this.statusToColour[this.node.state],
+        background: this.statusToColour[this.state],
         color: 'white',
         // width/height could be 'auto'
         width: _.isInteger(this.node.width) ? this.node.width + 'px' : this.node.width,
@@ -104,9 +110,6 @@ export default {
         'border-radius': !this.node.chain_depth ? '8px' : '',
         border: this.node.from_plugin ? '2px dashed #000' : '',
         padding: '3px',
-      }
-      if (this.node.state === 'task-started') {
-        // style = _.merge(style, inProgressAnimationStyle)
       }
       return style
     },

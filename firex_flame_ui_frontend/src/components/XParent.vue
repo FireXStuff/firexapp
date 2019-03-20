@@ -2,12 +2,19 @@
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
     <div class="header">
 
-      <div style="text-align: center">
+      <div style="text-align: center; padding: 0 10px">
         Logs Directory:
-        <input type="text" size=100 :value="logDir"
-               :style="$asyncComputed.nodesByUuid.error ? 'border-color: red;' : ''"
+        <!--:style="$asyncComputed.nodesByUuid.error ? 'border-color: red;' : ''"-->
+        <input type="text" size="100" :value="logDir"
+
                @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value } })">
-        <div :class="{spinner: $asyncComputed.nodesByUuid.updating}"></div>
+
+        <!--Flame Server:-->
+        <!--<input type="text" size=20 v-model.trim="flameServerUrl"-->
+               <!--:style="socket.connected ? '' : 'border-color: red;'"-->
+        <!--&gt;-->
+
+        <div :class="{spinner: $asyncComputed.recFileNodesByUuid.updating}"></div>
       </div>
       <div style="display: flex; flex-direction: row;">
         <div>
@@ -54,7 +61,7 @@
       </div>
     </div>
     <!-- Only show main panel after data is loaded -->
-    <template v-if="$asyncComputed.nodesByUuid.success">
+    <template v-if="hasTasks">
       <router-view v-on:title="title = $event" :nodesByUuid="nodesByUuid" :logDir="logDir"
                    v-on:logs_url="logsUrl = $event"></router-view>
     </template>
@@ -64,16 +71,19 @@
 <script>
 import _ from 'lodash'
 import {parseRecFileContentsToNodesByUuid, eventHub} from '../utils'
+import io from 'socket.io-client'
 
 export default {
   name: 'XParent',
   props: {
     logDir: {default: '/auto/firex-logs-sjc/djungic/FireX-djungic-190311-152310-63727'},
+    flameServer: {required: false, type: String},
   },
   data () {
     return {
       title: '',
       logsUrl: this.logDir,
+      flameServerUrl: this.flameServer ? this.flameServer : '',
       eventHub: eventHub,
       // TODO: clean this up by mapping event names, enablement variables, and components in a single structure.
       childSupportListLink: false,
@@ -82,6 +92,7 @@ export default {
       codeUrl: false,
       childSupportHelpLink: false,
       supportLocation: false,
+      socketNodesByUuid: {},
     }
   },
   computed: {
@@ -92,13 +103,47 @@ export default {
       }
       return ''
     },
+    nodesByUuid () {
+      if (this.useRecFile) {
+        return this.recFileNodesByUuid
+      }
+      return this.socketNodesByUuid
+    },
+    hasTasks () {
+      return !_.isEmpty(this.nodesByUuid)
+    },
+    useRecFile () {
+      return _.isEmpty(this.flameServerUrl)
+    },
+    socket () {
+      if (this.useRecFile) {
+        return {connected: true, noUrl: true}
+      }
+      let socket = io(this.flameServerUrl, {reconnection: false})
+      socket.on('tasks-update', (data) => {
+        // console.log('updating tasks:')
+        // console.log(data)
+        this.mergeNodesByUuid(data)
+      })
+      socket.on('connect', () => {
+        socket.emit('send-full-state')
+      })
+      socket.on('full-state', this.setNodesByUuid)
+      socket.on('disconnect', () => {
+        console.log('Connection lost. ')
+      })
+      return socket
+    },
   },
   asyncComputed: {
-    nodesByUuid: {
+    recFileNodesByUuid: {
       get () {
+        if (!this.useRecFile) {
+          return null
+        }
         return this.fetchTreeData(this.logDir)
       },
-      default: {},
+      // default: {},
     },
   },
   created () {
@@ -120,6 +165,20 @@ export default {
           return parseRecFileContentsToNodesByUuid(recFileContent)
         })
     },
+    setNodesByUuid (newNodesByUuid) {
+      // Order UUID keys by task_num.
+      this.socketNodesByUuid = _.mapValues(_.groupBy(_.sortBy(newNodesByUuid, 'task_num'), 'uuid'), _.head)
+    },
+    mergeNodesByUuid (newDataByUuid) {
+      _.each(newDataByUuid, (newData, uuid) => {
+        if (_.has(newData, 'state')) {
+          console.warn('state transition: ' +
+            _.get(this.socketNodesByUuid[uuid], 'state', 'None') + '->' + newData['state'])
+          console.warn(this.socketNodesByUuid[uuid])
+        }
+        this.socketNodesByUuid[uuid] = _.assign({}, this.socketNodesByUuid[uuid], newData)
+      })
+    },
   },
   watch: {
     '$route' (to, from) {
@@ -129,10 +188,8 @@ export default {
       this.childSupportHelpLink = false
       this.codeUrl = false
       this.supportLocation = false
-      // TODO: define log location per child route, not here.
-      if (!_.includes(['XGraph', 'XList'], to.name)) {
-        this.logsUrl = ''
-      }
+      this.title = this.uid
+      this.logsUrl = this.logDir
     },
   },
 }
