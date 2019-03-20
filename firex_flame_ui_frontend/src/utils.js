@@ -1,29 +1,32 @@
 import _ from 'lodash'
 import Vue from 'vue'
+import {flextree} from 'd3-flextree'
 
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
 let eventHub = new Vue()
 
 export {
-  invokePerNode,
+  // invokePerNode,
   parseRecFileContentsToNodesByUuid,
-  flatGraphToTree,
+  // flatGraphToTree,
   eventHub,
-  nodesWithAncestorOrDescendantFailure}
-
-function invokePerNode (root, fn) {
-  let doneUuids = []
-  let nodesToCheck = [root]
-  while (nodesToCheck.length > 0) {
-    let node = nodesToCheck.pop()
-    // Avoid loops in graph.
-    if (!_.includes(doneUuids, node.uuid)) {
-      doneUuids.push(node.uuid)
-      fn(node)
-      nodesToCheck = nodesToCheck.concat(node.children)
-    }
-  }
+  nodesWithAncestorOrDescendantFailure,
+  calculateNodesPositionByUuid,
 }
+
+// function invokePerNode (root, fn) {
+//   let doneUuids = []
+//   let nodesToCheck = [root]
+//   while (nodesToCheck.length > 0) {
+//     let node = nodesToCheck.pop()
+//     // Avoid loops in graph.
+//     if (!_.includes(doneUuids, node.uuid)) {
+//       doneUuids.push(node.uuid)
+//       fn(node)
+//       nodesToCheck = nodesToCheck.concat(node.children)
+//     }
+//   }
+// }
 
 function parseRecFileContentsToNodesByUuid (recFileContents) {
   let taskNum = 1
@@ -145,4 +148,27 @@ function getUuidsToRoot (node, nodesByUuid) {
     curNode = nodesByUuid[curNode.parent_id]
   }
   return resultUuids
+}
+
+function calculateNodesPositionByUuid (nodesByUuid) {
+  let newRootForLayout = _.cloneDeep(flatGraphToTree(nodesByUuid))
+  // This calculates the layout (x, y per node) with dynamic node sizes.
+  let flextreeLayout = flextree({
+    spacing: 75,
+    nodeSize: node => [node.data.width, node.data.height],
+  })
+  let laidOutTree = flextreeLayout.hierarchy(newRootForLayout)
+  // Modify the input tree, adding x, y, left, top attributes to each node. This is the computed layout.
+  flextreeLayout(laidOutTree)
+
+  // The flextreeLayout does some crazy stuff to its input data, where as we only care about a couple fields.
+  // Therefore just extract the fields.
+  let calcedDimensionsByUuid = {}
+  laidOutTree.each(dimensionNode => {
+    calcedDimensionsByUuid[dimensionNode.data.uuid] = {
+      x: dimensionNode.left,
+      y: dimensionNode.top + dimensionNode.depth * 50, // Separate each node by some fixed amount (e.g. 50).
+    }
+  })
+  return calcedDimensionsByUuid
 }

@@ -50,12 +50,9 @@ import * as d3 from 'd3'
 import XSvgNode from './XSvgNode'
 import _ from 'lodash'
 import XNode from './XNode'
-import {flextree} from 'd3-flextree'
 import XLink from './XLinks'
-import {invokePerNode, flatGraphToTree, eventHub, nodesWithAncestorOrDescendantFailure} from '../utils'
-
-// This calculates the layout (x, y per node) with dynamic node sizes.
-const flextreeLayout = flextree({spacing: 75})
+import {eventHub, nodesWithAncestorOrDescendantFailure,
+  calculateNodesPositionByUuid} from '../utils'
 
 export default {
   name: 'XGraph',
@@ -106,8 +103,7 @@ export default {
     },
     fullyLaidOutNodesByUuid () {
       if (!_.isEmpty(this.intrinsicDimensionNodesByUuid)) {
-        console.log('Layout')
-        let positionByUuid = this.calculateNodesPositionByUuid(this.onlyVisibleIntrinsicDimensionNodesByUuid)
+        let positionByUuid = calculateNodesPositionByUuid(this.onlyVisibleIntrinsicDimensionNodesByUuid)
 
         // This is a lot of cloning. Make sure they're all necessary.
         let resultNodesByUuid = _.cloneDeep(this.onlyVisibleIntrinsicDimensionNodesByUuid)
@@ -255,32 +251,11 @@ export default {
     hideSucessPaths () {
       this.hiddenNodeIds = this.hiddenNodeIds.concat(nodesWithAncestorOrDescendantFailure(this.nodesByUuid))
     },
-    calculateNodesPositionByUuid (nodesByUuid) {
-      let newRootForLayout = _.cloneDeep(flatGraphToTree(nodesByUuid))
-      // TODO: change size accessor?
-      invokePerNode(newRootForLayout, (node) => {
-        node.size = [node.width, node.height]
-      })
-      let laidOutTree = flextreeLayout.hierarchy(newRootForLayout)
-      // Modify the input tree, adding x, y, left, top attributes to each node. This is the computed layout.
-      flextreeLayout(laidOutTree)
-
-      // The flextreeLayout does some crazy stuff to its input data, where as we only care about a couple fields.
-      // Therefore just extract the fields.
-      let calcedDimensionsByUuid = {}
-      laidOutTree.each(dimensionNode => {
-        calcedDimensionsByUuid[dimensionNode.data.uuid] = {
-          x: dimensionNode.left,
-          y: dimensionNode.top + dimensionNode.depth * 50, // Separate each node by some fixed amount (e.g. 50).
-        }
-      })
-      return calcedDimensionsByUuid
-    },
   },
   watch: {
     fullyLaidOutNodesByUuid: function (_, __) {
-      // This is somewhat gross. Maybe there should be another component that does the SVG rendering tha always
-      // has dimensions populated.
+      // This is somewhat gross. Maybe there should be another component that does the SVG rendering that always
+      // has dimensions populated. It could then center on mounted or similar.
       if (this.isFirstLoad) {
         this.isFirstLoad = false
         this.center()
