@@ -58,7 +58,7 @@ export default {
     }
   },
   computed: {
-    displayNodes () {
+    displayNodesByUuid () {
       this.nodes.forEach(function (n) {
         n.width = 'auto'
         n.height = 'auto'

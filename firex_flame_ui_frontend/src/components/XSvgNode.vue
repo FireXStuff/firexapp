@@ -1,27 +1,25 @@
 <template>
   <!--:class="[{ progress: node.state === 'task-started' }]"-->
   <g class="node" :transform="transform"
-     :width="computedDimensions.width" :height="computedDimensions.height" >
+     :width="computedDimensions.width" :height="computedDimensions.height">
     <foreignObject :width="computedDimensions.width" :height="computedDimensions.height">
-      <div style="display: inline-block">
-      <x-node :node="node"
-              v-on:collapse-node="$emit('collapse-node')"
-              v-on:node-dimensions="$emit('node-dimensions', $event)"></x-node>
-        </div>
+      <div>
+        <x-node :node="node" v-on:collapse-node="$emit('collapse-node')"></x-node>
+      </div>
     </foreignObject>
 
     <!-- could use this shadow for animation of in-progress nodes -->
-     <!--style="filter:url(#dropshadow)"-->
+    <!--style="filter:url(#dropshadow)"-->
     <!--<filter id="dropshadow" height="130%">-->
-      <!--<feGaussianBlur in="SourceAlpha" stdDeviation="10"/> &lt;!&ndash; stdDeviation is how much to blur &ndash;&gt;-->
-      <!--<feOffset dx="5" dy="5" result="offsetblur"/> &lt;!&ndash; how much to offset &ndash;&gt;-->
-      <!--<feComponentTransfer>-->
-        <!--<feFuncA type="linear" slope="0.5"/> &lt;!&ndash; slope is the opacity of the shadow &ndash;&gt;-->
-      <!--</feComponentTransfer>-->
-      <!--<feMerge>-->
-        <!--<feMergeNode/> &lt;!&ndash; this contains the offset blurred image &ndash;&gt;-->
-        <!--<feMergeNode in="SourceGraphic"/> &lt;!&ndash; this contains the element that the filter is applied to &ndash;&gt;-->
-      <!--</feMerge>-->
+    <!--<feGaussianBlur in="SourceAlpha" stdDeviation="10"/> &lt;!&ndash; stdDeviation is how much to blur &ndash;&gt;-->
+    <!--<feOffset dx="5" dy="5" result="offsetblur"/> &lt;!&ndash; how much to offset &ndash;&gt;-->
+    <!--<feComponentTransfer>-->
+    <!--<feFuncA type="linear" slope="0.5"/> &lt;!&ndash; slope is the opacity of the shadow &ndash;&gt;-->
+    <!--</feComponentTransfer>-->
+    <!--<feMerge>-->
+    <!--<feMergeNode/> &lt;!&ndash; this contains the offset blurred image &ndash;&gt;-->
+    <!--<feMergeNode in="SourceGraphic"/> &lt;!&ndash; this contains the element that the filter is applied to &ndash;&gt;-->
+    <!--</feMerge>-->
     <!--</filter>-->
 
   </g>

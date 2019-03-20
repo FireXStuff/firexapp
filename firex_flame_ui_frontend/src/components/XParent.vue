@@ -11,7 +11,7 @@
       </div>
       <div style="display: flex; flex-direction: row;">
         <div>
-          <router-link :to="{ name: 'XGraph', params: { nodesByUuid: nodesByUuid }, query: {logDir: logDir}}">
+          <router-link :to="{ name: 'XGraph', params: { nodesByUuid: nodesByUuid }}">
             <img style='height: 36px;' src="../assets/firex_logo.png">
           </router-link>
         </div>
@@ -33,20 +33,20 @@
           <div v-if="childSupportListLink" class="header-icon-button">
             <!-- TODO: find a better way to always propagate the fetch key (i.e right now log dir, in general the UID
             -->
-            <router-link :to="{ name: 'XList', params: { nodesByUuid: nodesByUuid }, query: {logDir: logDir}}">
+            <router-link :to="{ name: 'XList', params: { nodesByUuid: nodesByUuid }}">
               <font-awesome-icon icon="list-ul"></font-awesome-icon>
             </router-link>
           </div>
           <div v-if="childSupportGraphLink" class="header-icon-button">
             <!-- TODO: find a better way to always propagate the fetch key (i.e right now log dir, in general the UID
             -->
-            <router-link :to="{ name: 'XGraph', params: { nodesByUuid: nodesByUuid }, query: {logDir: logDir}}">
+            <router-link :to="{ name: 'XGraph', params: { nodesByUuid: nodesByUuid }}">
               <font-awesome-icon icon="sitemap"></font-awesome-icon>
             </router-link>
           </div>
           <a :href="logsUrl" class="flame-link">View Logs</a>
           <a  v-if="supportLocation" :href="supportLocation" class="flame-link">Support</a>
-          <a v-if="childSupportHelpLink" class="header-icon-button" href="help">Help</a>
+          <a v-if="childSupportHelpLink" class="flame-link" href="help">Help</a>
           <a v-if="codeUrl" class="flame-link" :href="codeUrl">
             <font-awesome-icon icon="file-code"></font-awesome-icon>
           </a>
@@ -177,6 +177,15 @@ export default {
   font-size: 20px;
   line-height: 40px;
   cursor: pointer;
+  color: #000;
+}
+
+a {
+  color: #000;
+}
+
+a:hover {
+    color: #2980ff;
 }
 
 @keyframes spinner {

@@ -2,7 +2,7 @@
   <div style="width: 100%; height: 100%; overflow: hidden;">
     <div v-if="hiddenNodesCount > 0" class="user-message" style="background: lightblue; ">
       {{hiddenNodesCount}} tasks are hidden
-      <a href="#" @click.prevent="hidden_node_ids = []"> (Show All)</a>
+      <a href="#" @click.prevent="hiddenNodeIds = []"> (Show All)</a>
     </div>
     <div v-else-if="hasFailures" class="user-message" style="background: orange">
       Some tasks have failed.
@@ -13,17 +13,18 @@
     <div id="chart-container" style="width: 100%; height: 100%" ref="graph-svg">
       <svg width="100%" height="100%" preserveAspectRatio="xMinYMin"  style="background-color: white;">
         <g>
-          <!--     .append("g").attr("transform", "translate(" + (margin.left + width/2) + "," + margin.top + ")") -->
-          <g ref="inner-graph-svg">
-            <x-link :nodes="displayNodes"></x-link>
-            <x-svg-node v-for="n in displayNodes" :node="n" :key="n.uuid"
+          <g :transform="svgGraphTransform">
+            <x-link :nodesByUuid="displayNodesByUuid"></x-link>
+            <x-svg-node v-for="n in displayNodesByUuid" :node="n" :key="n.uuid"
                         v-on:collapse-node="toggleCollapseChildren(n.uuid)"></x-svg-node>
+            <path :d="'M' + (-transform.x / transform.scale) + ' ' + (30) + ' h' + (-lineLength)"
+                  style="stroke: #000;stroke-width: 10px;"></path>
           </g>
         </g>
       </svg>
     </div>
-    <!-- TODO: FIND A BETTER WAY! visiblity:collapse prevents table height from being calculatd, so instead
-    draw everything at z-index=-1000 and make sure the SVG covers it.-->
+    <!-- TODO: FIND A BETTER WAY! visiblity:collapse prevents table height from being calculated, so instead
+    draw everything at z-index=-1000 and make sure the SVG & header cover these nodes.-->
     <div style="/*visibility: collapse;*/ overflow: hidden;">
       <!-- This is very gross, but the nodes that will be put on the graph are rendered invisibly in order
         for the browser to calculate their intrinsic size. Each node's size is then passed to the graph layout
@@ -68,87 +69,79 @@ export default {
       .on('zoom', this.zoomed)
     return {
       // Default to hiding paths that don't include a failure by default.
-      hidden_node_ids: nodesWithAncestorOrDescendantFailure(this.nodesByUuid),
+      hiddenNodeIds: nodesWithAncestorOrDescendantFailure(this.nodesByUuid),
       // very unfortunate we need to track this manually. TODO: look for a better way.
-      dimensions_by_uuid: {},
+      dimensionsByUuid: {},
       zoom: zoom,
       // TODO: this is gross. This state isn't necessary. Split this component in to two: one that does
       //  gross per-node intrinsic size calculation, and another that always has nodes with full rect defined.
       isFirstLoad: true,
+      lineLength: 0,
+      transform: {
+        x: 0, y: 0, scale: 1,
+      },
     }
   },
   computed: {
-    root () {
-      return flatGraphToTree(this.nodesByUuid)
-    },
     defaultHeightWidthNodes () {
-      let nodes = _.values(this.nodesByUuid)
+      let nodes = _.values(_.cloneDeep(this.nodesByUuid))
       nodes.forEach((n) => { n.width = 'auto'; n.height = 'auto' })
       return nodes
     },
-    intrinsicHeightWidthTree () {
+    intrinsicDimensionNodesByUuid () {
       let allUuids = _.keys(this.nodesByUuid)
       // only actually do layout if we have all the dimensions of child nodes.
-      if (_.difference(allUuids, _.keys(this.dimensions_by_uuid)).length === 0) {
-        let newRoot = _.cloneDeep(this.root)
-        invokePerNode(newRoot, (node) => {
-          node.width = this.dimensions_by_uuid[node.uuid].width
-          node.height = this.dimensions_by_uuid[node.uuid].height
+      if (_.difference(allUuids, _.keys(this.dimensionsByUuid)).length === 0) {
+        let newNodesByUuid = _.cloneDeep(this.nodesByUuid)
+        _.each(newNodesByUuid, (node) => {
+          node.width = this.dimensionsByUuid[node.uuid].width
+          node.height = this.dimensionsByUuid[node.uuid].height
         })
-        return newRoot
-      }
-      return {}
-    },
-    fullyLaidOutNodes () {
-      if (!_.isEmpty(this.intrinsicHeightWidthTree)) {
-        // Need to clone to trigger downstream updates (no deep watches).
-        let newRootForLayout = _.cloneDeep(this.intrinsicHeightWidthTree)
-        // TODO: change size accessor.
-        invokePerNode(newRootForLayout, (node) => { node.size = [node.width, node.height] })
-        let laidOutTree = flextreeLayout.hierarchy(newRootForLayout)
-        flextreeLayout(laidOutTree)
-
-        // This is a lot of cloning. Make sure they're all necessary.
-        let resultNodesByUuid = _.cloneDeep(this.nodesByUuid)
-
-        // TODO: consider if we want fixed-depth despite variable height per-node. Create a list where the index is
-        //  the depth and the
-        // value is the sum of each previous depth's tallest node.
-        // let maxHeightByDepth = _.mapValues(_.groupBy(laidOutTree.nodes, 'depth'),
-        //   nodes => _.max(_.map(nodes, 'size.1')))
-        // let depthHeightArray = _.toArray(maxHeightByDepth) // orders based on input object keys.
-        // let sumDepthHeightArray = [0].concat(_.map(depthHeightArray, (v, i, c) => _.sum(_.take(c, i)) + v))
-        // console.log(maxHeightByDepth)
-        // console.log(sumDepthHeightArray)
-        // Since the flex-layout library messes with data, we'll just copy out the few parameters we need.
-        laidOutTree.each(laidOutNode => {
-          resultNodesByUuid[laidOutNode.data.uuid].x = laidOutNode.left
-          // Separate each node by some fixed amount (.e.g 50).
-
-          resultNodesByUuid[laidOutNode.data.uuid].y = laidOutNode.top + laidOutNode.depth * 50
-          resultNodesByUuid[laidOutNode.data.uuid].width = laidOutNode.size[0]
-          resultNodesByUuid[laidOutNode.data.uuid].height = laidOutNode.size[1]
-        })
-        return _.values(resultNodesByUuid)
+        return newNodesByUuid
       }
       return []
     },
-    displayNodes () {
-      return _.filter(this.fullyLaidOutNodes, n => !_.includes(this.hidden_node_ids, n.uuid))
+    onlyVisibleIntrinsicDimensionNodesByUuid () {
+      return _.omit(this.intrinsicDimensionNodesByUuid, this.hiddenNodeIds)
+    },
+    fullyLaidOutNodesByUuid () {
+      if (!_.isEmpty(this.intrinsicDimensionNodesByUuid)) {
+        console.log('Layout')
+        let positionByUuid = this.calculateNodesPositionByUuid(this.onlyVisibleIntrinsicDimensionNodesByUuid)
+
+        // This is a lot of cloning. Make sure they're all necessary.
+        let resultNodesByUuid = _.cloneDeep(this.onlyVisibleIntrinsicDimensionNodesByUuid)
+        _.each(resultNodesByUuid, n => {
+          n.x = positionByUuid[n.uuid].x
+          n.y = positionByUuid[n.uuid].y
+          n.width = this.onlyVisibleIntrinsicDimensionNodesByUuid[n.uuid].width
+          n.height = this.onlyVisibleIntrinsicDimensionNodesByUuid[n.uuid].height
+        })
+        return resultNodesByUuid
+      }
+      return {}
+    },
+    displayNodesByUuid () {
+      // return _.filter(this.fullyLaidOutNodesByUuid, n => !_.includes(this.hiddenNodeIds, n.uuid))
+      return this.fullyLaidOutNodesByUuid
     },
     visibleExtent () {
       return {
-        top: _.min(_.map(this.displayNodes, 'y')),
-        left: _.min(_.map(this.displayNodes, 'x')),
-        right: _.max(_.map(this.displayNodes, n => n.x + n.width)),
-        bottom: _.max(_.map(this.displayNodes, n => n.y + n.height)),
+        top: _.min(_.map(_.values(this.displayNodesByUuid), 'y')),
+        left: _.min(_.map(_.values(this.displayNodesByUuid), 'x')),
+        right: _.max(_.map(_.values(this.displayNodesByUuid), n => n.x + n.width)),
+        bottom: _.max(_.map(_.values(this.displayNodesByUuid), n => n.y + n.height)),
       }
     },
     hiddenNodesCount () {
-      return this.hidden_node_ids.length
+      return this.hiddenNodeIds.length
     },
     hasFailures () {
       return _.some(_.values(this.nodesByUuid), {'state': 'task-failed'})
+    },
+    svgGraphTransform () {
+      return 'translate(' + _.join([this.transform.x, this.transform.y], ',') + ')' +
+        'scale(' + this.transform.scale + ')'
     },
   },
   created () {
@@ -165,15 +158,25 @@ export default {
     zoomed () {
       this.setTransform(d3.event.translate, d3.event.scale)
     },
+    setTransformUpdateZoom (translate, scale) {
+      // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent with current position.
+      if (!_.isNil(scale)) {
+        this.zoom.scale(scale)
+      }
+      if (!_.isNil(translate)) {
+        this.zoom.translate(translate)
+      }
+      this.setTransform(translate, scale)
+    },
     setTransform (translate, scale) {
-      let transform = ''
-      if (translate) {
-        transform += 'translate(' + translate + ')'
+      this.transform = {x: translate[0], y: translate[1], scale: scale}
+    },
+    getCurrentRelPos (nodeUuid) {
+      let laidOutNode = this.fullyLaidOutNodesByUuid[nodeUuid]
+      return {
+        x: laidOutNode.x + this.transform.x,
+        y: laidOutNode.y + this.transform.y,
       }
-      if (scale) {
-        transform += 'scale(' + scale + ')'
-      }
-      this.$refs['inner-graph-svg'].setAttribute('transform', transform)
     },
     center () {
       // Not available during re-render.
@@ -190,6 +193,7 @@ export default {
 
         let scaledExtendWidth = visibleExtentWidth * scale
         let xTranslate = this.visibleExtent.left * scale
+
         // Center the graph based on (scaled) extra horizontal or vertical space.
         if (Math.round(boundingRect.width) > Math.round(scaledExtendWidth)) {
           let remainingHorizontal = boundingRect.width - scaledExtendWidth
@@ -202,37 +206,46 @@ export default {
           let remainingVertical = boundingRect.height - scaledExtendHeight
           yTranslate = yTranslate - remainingVertical / 2
         }
-        let translate = [ -xTranslate, -(yTranslate) ]
-
-        // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent with current position.
-        this.zoom.scale(scale)
-        this.zoom.translate(translate)
-        this.setTransform(_.join(translate, ','), scale)
+        let translate = [ -xTranslate, -yTranslate ]
+        this.setTransformUpdateZoom(translate, scale)
       }
     },
     toggleCollapseChildren (parentNodeId) {
+      let initialRelPos = this.getCurrentRelPos(parentNodeId)
+
       let descendantIds = this.getDescendantUuids(parentNodeId)
-      if (_.difference(descendantIds, this.hidden_node_ids).length === 0) {
+      if (_.difference(descendantIds, this.hiddenNodeIds).length === 0) {
         // These IDs are currently hidden, so remove them.
-        this.hidden_node_ids = _.difference(this.hidden_node_ids, descendantIds)
+        this.hiddenNodeIds = _.difference(this.hiddenNodeIds, descendantIds)
       } else {
-        this.hidden_node_ids = this.hidden_node_ids.concat(descendantIds)
+        this.hiddenNodeIds = this.hiddenNodeIds.concat(descendantIds)
       }
+
+      // Since we're changing the nodes being displayed, the layout might drastically change. Maintain the
+      // position of the node whose decendants have been added/removed so that the user remains oriented.
+      this.$nextTick(() => {
+        let nextRelPos = this.getCurrentRelPos(parentNodeId)
+        let xShift = (initialRelPos.x - nextRelPos.x) * this.transform.scale
+        let finalTranslateX = this.transform.x + xShift
+        // Since we're viewing hierarchies, the y position shouldn't ever change when children are collapsed.
+        let translated = [finalTranslateX, this.transform.y]
+        this.setTransformUpdateZoom(translated, this.transform.scale)
+      })
     },
     updateNodeDimensions (event) {
       let newEntry = {}
       newEntry[event.uuid] = {width: event.width, height: event.height}
       // Vue doesn't deep watch, so create a new object for every update.
-      this.dimensions_by_uuid = _.merge({}, this.dimensions_by_uuid, newEntry)
+      this.dimensionsByUuid = _.merge({}, this.dimensionsByUuid, newEntry)
     },
     // TODO: write in terms of invokePerNode
     getDescendantUuids (nodeId) {
       let resultUuids = []
-      let uuidsToCheck = _.map(this.nodesByUuid[nodeId]['children'], 'uuid')
+      let uuidsToCheck = _.clone(this.nodesByUuid[nodeId]['children_uuids'])
       while (uuidsToCheck.length > 0) {
         let nodeUuid = uuidsToCheck.pop()
         if (!_.includes(resultUuids, nodeUuid)) {
-          let childrenIds = _.map(this.nodesByUuid[nodeUuid]['children'], 'uuid')
+          let childrenIds = this.nodesByUuid[nodeUuid]['children_uuids']
           uuidsToCheck = uuidsToCheck.concat(childrenIds)
           resultUuids.push(nodeUuid)
         }
@@ -240,11 +253,32 @@ export default {
       return resultUuids
     },
     hideSucessPaths () {
-      this.hidden_node_ids = this.hidden_node_ids.concat(nodesWithAncestorOrDescendantFailure(this.nodesByUuid))
+      this.hiddenNodeIds = this.hiddenNodeIds.concat(nodesWithAncestorOrDescendantFailure(this.nodesByUuid))
+    },
+    calculateNodesPositionByUuid (nodesByUuid) {
+      let newRootForLayout = _.cloneDeep(flatGraphToTree(nodesByUuid))
+      // TODO: change size accessor?
+      invokePerNode(newRootForLayout, (node) => {
+        node.size = [node.width, node.height]
+      })
+      let laidOutTree = flextreeLayout.hierarchy(newRootForLayout)
+      // Modify the input tree, adding x, y, left, top attributes to each node. This is the computed layout.
+      flextreeLayout(laidOutTree)
+
+      // The flextreeLayout does some crazy stuff to its input data, where as we only care about a couple fields.
+      // Therefore just extract the fields.
+      let calcedDimensionsByUuid = {}
+      laidOutTree.each(dimensionNode => {
+        calcedDimensionsByUuid[dimensionNode.data.uuid] = {
+          x: dimensionNode.left,
+          y: dimensionNode.top + dimensionNode.depth * 50, // Separate each node by some fixed amount (e.g. 50).
+        }
+      })
+      return calcedDimensionsByUuid
     },
   },
   watch: {
-    fullyLaidOutNodes: function (_, __) {
+    fullyLaidOutNodesByUuid: function (_, __) {
       // This is somewhat gross. Maybe there should be another component that does the SVG rendering tha always
       // has dimensions populated.
       if (this.isFirstLoad) {

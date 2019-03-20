@@ -36,6 +36,10 @@ function parseRecFileContentsToNodesByUuid (recFileContents) {
       }
     }
   })
+  let tasks = _.values(tasksByUuid)
+  _.each(tasksByUuid, n => {
+    n.children_uuids = _.map(_.filter(tasks, t => t.parent_id === n.uuid), 'uuid')
+  })
   return tasksByUuid
 }
 
@@ -94,7 +98,7 @@ function captureEventState (event, tasksByUuid, taskNum) {
 function flatGraphToTree (tasksByUuid) {
   // TODO: error handling for not exactly 1 root
   let root = _.filter(_.values(tasksByUuid), function (task) {
-    return _.isNull(task.parent_id)
+    return _.isNull(task.parent_id) || !_.has(tasksByUuid, task.parent_id)
   })[0]
   // TODO: manipulating input is bad.
   // Initialize all nodes as having no children.

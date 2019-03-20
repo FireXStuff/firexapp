@@ -2,7 +2,7 @@
   <div :style="topLevelStyle" class="node">
     <router-link :to="routeToAttribute(node.uuid)">
       <div style="overflow: hidden; text-overflow: ellipsis">
-        <div v-if="allowCollapse && node.children && node.children.length"
+        <div v-if="allowCollapse && node.children_uuids.length"
              style="float: right;">
           <!-- Need to prevent to avoid activating node-wide attribute link -->
           <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
@@ -43,6 +43,7 @@ let nodeAttributes = [
   'uuid',
   'name',
   'state',
+  'children_uuids',
 ]
 
 // let inProgressAnimationStyle = {
@@ -137,6 +138,14 @@ export default {
     },
   },
   mounted () {
+    if (this.emitDimensions) {
+      this.$nextTick(function () {
+        this.emit_dimensions()
+      })
+    }
+  },
+  updated () {
+    // TODO: this is pretty gross.
     if (this.emitDimensions) {
       this.$nextTick(function () {
         this.emit_dimensions()

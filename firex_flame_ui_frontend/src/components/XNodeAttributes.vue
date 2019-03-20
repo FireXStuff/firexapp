@@ -23,28 +23,27 @@
 </template>
 
 <script>
-/* eslint-disable */
-import _ from 'lodash';
+import _ from 'lodash'
 import {eventHub} from '../utils'
 
 export default {
   name: 'XNodeAttributes',
   props: {
     uuid: {required: true, type: String},
-    nodesByUuid: {}
+    nodesByUuid: {required: true, type: Object},
   },
   computed: {
     displayNode () {
-        let node =  _.clone(this.nodesByUuid[this.uuid])
-        let attributeBlacklist = ['children', 'long_name', 'name', 'parent', 'flame_additional_data',
+      let node = _.clone(this.nodesByUuid[this.uuid])
+      let attributeBlacklist = ['children', 'long_name', 'name', 'parent', 'flame_additional_data',
         'height', 'width', 'x', 'y', 'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url']
-        return _.omit(node, attributeBlacklist)
+      return _.omit(node, attributeBlacklist)
     },
     sortedDisplayNodeKeys () {
       return _.sortBy(_.keys(this.displayNode))
-    }
+    },
   },
-  created() {
+  created () {
     // TODO: this is super gross. Make it easier for children views to add buttons to the parent.
     if (this.nodesByUuid) {
       if (_.has(this.nodesByUuid[this.uuid], 'long_name')) {
