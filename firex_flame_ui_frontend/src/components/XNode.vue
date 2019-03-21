@@ -26,7 +26,7 @@
           <div v-if="node.flame_additional_data" v-html="node.flame_additional_data"></div>
         </div>
 
-        <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}} {{state}}</div>
+        <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
         <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
       </div>
     </router-link>
@@ -72,7 +72,6 @@ export default {
         return missing.length === 0
       },
     },
-    state: {default: 'task-blocked', type: String},
     allowCollapse: {
       default: true,
     },
@@ -101,7 +100,7 @@ export default {
         'font-family': "'Source Sans Pro',sans-serif",
         'font-weight': 'normal',
         'font-size': '14px',
-        background: this.statusToColour[this.state],
+        background: this.statusToColour[this.node.state],
         color: 'white',
         // width/height could be 'auto'
         width: _.isInteger(this.node.width) ? this.node.width + 'px' : this.node.width,
@@ -142,17 +141,13 @@ export default {
   },
   mounted () {
     if (this.emitDimensions) {
-      this.$nextTick(function () {
-        this.emit_dimensions()
-      })
+      this.emit_dimensions()
     }
   },
   updated () {
     // TODO: this is pretty gross.
     if (this.emitDimensions) {
-      this.$nextTick(function () {
-        this.emit_dimensions()
-      })
+      this.emit_dimensions()
     }
   },
   methods: {
@@ -163,16 +158,17 @@ export default {
     },
     emit_dimensions () {
       // TODO: this is gross. There must be a better way to get height and width dynamically.
-      let r = this.$el.getBoundingClientRect()
-      if (r) {
-        this.$emit('node-dimensions', {uuid: this.node.uuid, height: r.height, width: r.width})
-      }
+      this.$nextTick(function () {
+        let r = this.$el.getBoundingClientRect()
+        if (r) {
+          this.$emit('node-dimensions', {uuid: this.node.uuid, height: r.height, width: r.width})
+        }
+      })
     },
     routeToAttribute (uuid) {
       return {
         name: 'XNodeAttributes',
-        params: {'uuid': uuid},
-        query: {logDir: this.$route.query.logDir}}
+        params: {'uuid': uuid}}
     },
   },
 }

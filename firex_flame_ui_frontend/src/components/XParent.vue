@@ -4,15 +4,15 @@
 
       <div style="text-align: center; padding: 0 10px">
         Logs Directory:
-        <!--:style="$asyncComputed.nodesByUuid.error ? 'border-color: red;' : ''"-->
+
         <input type="text" size="100" :value="logDir"
+               :style="$asyncComputed.recFileNodesByUuid.error ? 'border-color: red;' : ''"
+               @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value.trim() } })">
 
-               @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value } })">
-
-        <!--Flame Server:-->
-        <!--<input type="text" size=20 v-model.trim="flameServerUrl"-->
-               <!--:style="socket.connected ? '' : 'border-color: red;'"-->
-        <!--&gt;-->
+        Flame Server:
+        <input type="text" size=20 :value="flameServer"
+               @keyup.enter="$router.push({ name: 'XGraph', query: { flameServer: $event.target.value.trim() } })"
+               :style="!liveUpdate || socket.connected ? 'border-color: lightgreen;' : 'border-color: red;'">
 
         <div :class="{spinner: $asyncComputed.recFileNodesByUuid.updating}"></div>
       </div>
@@ -27,7 +27,8 @@
           <div v-if="false" class="header-icon-button">
             <font-awesome-icon icon="search"></font-awesome-icon>
           </div>
-          <div v-if="false" class="header-icon-button">
+          <div v-if="liveUpdateAllowed" class="header-icon-button" :style="liveUpdate ? 'color: #2B2;' : ''"
+               v-on:click="toggleLiveUpdate">
             <font-awesome-icon :icon="['far', 'eye']"></font-awesome-icon>
           </div>
           <div v-if="childSupportCenter" class="header-icon-button" v-on:click="eventHub.$emit('center')">
@@ -38,15 +39,11 @@
             <font-awesome-icon icon="plus-circle"></font-awesome-icon>
           </div>
           <div v-if="childSupportListLink" class="header-icon-button">
-            <!-- TODO: find a better way to always propagate the fetch key (i.e right now log dir, in general the UID
-            -->
             <router-link :to="{ name: 'XList', params: { nodesByUuid: nodesByUuid }}">
               <font-awesome-icon icon="list-ul"></font-awesome-icon>
             </router-link>
           </div>
           <div v-if="childSupportGraphLink" class="header-icon-button">
-            <!-- TODO: find a better way to always propagate the fetch key (i.e right now log dir, in general the UID
-            -->
             <router-link :to="{ name: 'XGraph', params: { nodesByUuid: nodesByUuid }}">
               <font-awesome-icon icon="sitemap"></font-awesome-icon>
             </router-link>
@@ -83,11 +80,12 @@ export default {
     return {
       title: '',
       logsUrl: this.logDir,
-      flameServerUrl: this.flameServer ? this.flameServer : '',
       eventHub: eventHub,
       // TODO: clean this up by mapping event names, enablement variables, and components in a single structure.
       childSupportListLink: false,
       childSupportCenter: false,
+      childSupportLiveUpdate: false,
+      liveUpdate: true,
       childSupportGraphLink: false,
       codeUrl: false,
       childSupportHelpLink: false,
@@ -113,26 +111,26 @@ export default {
       return !_.isEmpty(this.nodesByUuid)
     },
     useRecFile () {
-      return _.isEmpty(this.flameServerUrl)
+      return _.isEmpty(this.flameServer)
     },
     socket () {
+      // TODO: have UI indications of socket state (connected, connection lost, etc.).
       if (this.useRecFile) {
-        return {connected: true, noUrl: true}
+        return {connected: false}
       }
-      let socket = io(this.flameServerUrl, {reconnection: false})
-      socket.on('tasks-update', (data) => {
-        // console.log('updating tasks:')
-        // console.log(data)
-        this.mergeNodesByUuid(data)
-      })
-      socket.on('connect', () => {
-        socket.emit('send-full-state')
-      })
-      socket.on('full-state', this.setNodesByUuid)
-      socket.on('disconnect', () => {
-        console.log('Connection lost. ')
-      })
+      let socket = io(this.flameServer, {reconnection: false})
+      // socket.on('connect', () => {
+      //
+      // })
+      this.setSocketNodesByUuid({}) // Clear data from previous socket.
+      this.startSocketListening(socket)
+      // socket.on('disconnect', () => {
+      //   console.log('Connection lost.')
+      // })
       return socket
+    },
+    liveUpdateAllowed () {
+      return this.childSupportLiveUpdate && !this.useRecFile
     },
   },
   asyncComputed: {
@@ -152,6 +150,7 @@ export default {
     eventHub.$on('support-graph-link', () => { this.childSupportGraphLink = true })
     eventHub.$on('support-help-link', () => { this.childSupportHelpLink = true })
     eventHub.$on('support-center', () => { this.childSupportCenter = true })
+    eventHub.$on('support-watch', () => { this.childSupportLiveUpdate = true })
     eventHub.$on('code_url', (c) => { this.codeUrl = c })
     eventHub.$on('support_location', (l) => { this.supportLocation = l })
   },
@@ -165,31 +164,54 @@ export default {
           return parseRecFileContentsToNodesByUuid(recFileContent)
         })
     },
-    setNodesByUuid (newNodesByUuid) {
+    setSocketNodesByUuid (newNodesByUuid) {
       // Order UUID keys by task_num.
       this.socketNodesByUuid = _.mapValues(_.groupBy(_.sortBy(newNodesByUuid, 'task_num'), 'uuid'), _.head)
     },
     mergeNodesByUuid (newDataByUuid) {
       _.each(newDataByUuid, (newData, uuid) => {
-        if (_.has(newData, 'state')) {
-          console.warn('state transition: ' +
-            _.get(this.socketNodesByUuid[uuid], 'state', 'None') + '->' + newData['state'])
-          console.warn(this.socketNodesByUuid[uuid])
-        }
-        this.socketNodesByUuid[uuid] = _.assign({}, this.socketNodesByUuid[uuid], newData)
+        // Note Vue can't deep watch for new properties, or watch nested objects. We re-assign a new
+        // node object to Vue every time any data for that node changes.
+        this.$set(this.socketNodesByUuid, uuid, _.assign({}, this.socketNodesByUuid[uuid], newData))
       })
+    },
+    toggleLiveUpdate () {
+      this.liveUpdate = !this.liveUpdate
+      if (this.liveUpdate) {
+        this.startSocketListening(this.socket)
+      } else {
+        this.stopSocketListening(this.socket)
+      }
+    },
+    stopSocketListening (socket) {
+      // Stop listening on everything.
+      socket.off('full-state')
+      socket.off('tasks-update')
+    },
+    startSocketListening (socket) {
+      // full state refresh plus subscribe to incremental updates.
+      socket.on('full-state', (nodesByUuid) => {
+        this.setSocketNodesByUuid(nodesByUuid)
+        // Only start listening for incremental updates after we've processed the full state.
+        socket.on('tasks-update', this.mergeNodesByUuid)
+      })
+      socket.emit('send-full-state')
     },
   },
   watch: {
     '$route' (to, from) {
       this.childSupportListLink = false
       this.childSupportCenter = false
+      this.childSupportLiveUpdate = false
       this.childSupportGraphLink = false
       this.childSupportHelpLink = false
       this.codeUrl = false
       this.supportLocation = false
       this.title = this.uid
       this.logsUrl = this.logDir
+      if (to.meta.supportedActions) {
+        to.meta.supportedActions.forEach(a => eventHub.$emit(a))
+      }
     },
   },
 }

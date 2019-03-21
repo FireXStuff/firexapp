@@ -3,7 +3,7 @@
      :width="computedDimensions.width" :height="computedDimensions.height">
     <foreignObject :width="computedDimensions.width" :height="computedDimensions.height">
       <div>
-        <x-node :node="node" :state="state" v-on:collapse-node="$emit('collapse-node')"></x-node>
+        <x-node :node="node" v-on:collapse-node="$emit('collapse-node')"></x-node>
       </div>
     </foreignObject>
 
@@ -52,7 +52,6 @@ export default {
         return _.difference(['x', 'y', 'width', 'height'], _.keys(value))
       },
     },
-    state: {default: 'task-blocked', type: String},
   },
   computed: {
     computedDimensions () {

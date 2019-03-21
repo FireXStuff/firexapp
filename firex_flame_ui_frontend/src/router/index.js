@@ -33,21 +33,27 @@ const router = new Router({
           name: 'XGraph',
           component: XGraph,
           props: true,
+          meta: { supportedActions: ['support-list-link', 'support-center', 'support-help-link', 'support-watch'] },
         },
       ],
     },
-    // {
-    //   path: '*', redirect: { name: 'XGraph' }
-    // }
   ],
 })
 
+// TODO: doesn't affect clicking to open a new tab.
 router.beforeEach((to, from, next) => {
-  // By default, keep the current logDir. This is the central key by which data is fetched.
+  // By default, keep the current logDir & flameServer. These are the central key by which data is fetched.
+  let keptQuery = {}
   if (from.query.logDir && !to.query.logDir) {
-    // Need to clone since next expects a mutable route.
+    keptQuery.logDir = from.query.logDir
+  }
+  if (from.query.flameServer && !to.query.flameServer) {
+    keptQuery.flameServer = from.query.flameServer
+  }
+
+  if (!_.isEmpty(keptQuery)) {
     let newTo = _.clone(to)
-    newTo.query.logDir = from.query.logDir
+    newTo.query = _.assign({}, newTo.query, keptQuery)
     next(newTo)
   } else {
     next()

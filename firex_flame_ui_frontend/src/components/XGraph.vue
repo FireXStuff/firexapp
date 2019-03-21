@@ -15,7 +15,7 @@
         <g>
           <g :transform="svgGraphTransform">
             <x-link :nodesByUuid="displayNodesByUuid"></x-link>
-            <x-svg-node v-for="n in displayNodesByUuid" :node="n" :state="nodesByUuid[n.uuid].state" :key="n.uuid"
+            <x-svg-node v-for="n in displayNodesByUuid" :node="n" :key="n.uuid"
                         v-on:collapse-node="toggleCollapseChildren(n.uuid)"></x-svg-node>
             <path :d="'M' + (-transform.x / transform.scale) + ' ' + (30) + ' h' + (-lineLength)"
                   style="stroke: #000;stroke-width: 10px;"></path>
@@ -36,7 +36,7 @@
       <div v-for="n in defaultHeightWidthNodes" :key="n.uuid"
            style="display: inline-block; position: absolute; top: 0;  z-index: -1000;">
         <x-node :emitDimensions="true" :allowCollapse="false"
-                :node="n" :state="n.state" v-on:node-dimensions="updateNodeDimensions($event)"></x-node>
+                :node="n" v-on:node-dimensions="updateNodeDimensions($event)"></x-node>
       </div>
     </div>
   </div>
@@ -147,7 +147,7 @@ export default {
     eventHub.$on('center', this.center)
 
     // TODO: clean up child route support communication by moving it to route definition.
-    let supportedParentButtons = ['support-list-link', 'support-center', 'support-help-link']
+    let supportedParentButtons = ['support-list-link', 'support-center', 'support-help-link', 'support-watch']
     supportedParentButtons.forEach(e => { eventHub.$emit(e) })
   },
   mounted () {
