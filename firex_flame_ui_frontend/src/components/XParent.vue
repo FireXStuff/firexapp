@@ -76,7 +76,7 @@ import io from 'socket.io-client'
 export default {
   name: 'XParent',
   props: {
-    logDir: {default: '/auto/firex-logs-sjc/djungic/FireX-djungic-190311-152310-63727'},
+    logDir: {required: false, type: String},
     flameServer: {required: false, type: String},
   },
   data () {

@@ -11,8 +11,12 @@
 
     <div>Filter by task type:
       <div style="display:flex;">
+        <div style="display: inline-block; margin: 0 15px;">
+          <input type="checkbox" id="all" v-on:change="toggleShowAll" :checked="allFiltersSelected">
+          <label for="all">all</label>
+        </div>
         <div v-for="option in filterOptions" :key="option" style="display: inline-block; margin: 0 15px;">
-          <input type="radio" :id="option" name="list-filter" :value="option" v-model="selectedFilterOption">
+          <input type="checkbox" :id="option" name="list-filter" :value="option" v-model="selectedFilterOptions">
           <label :for="option">{{option}}</label>
         </div>
       </div>
@@ -43,6 +47,8 @@ export default {
     nodesByUuid: {required: true, type: Object},
   },
   data () {
+    let filterOptions = ['task-received', 'task-blocked', 'task-started', 'task-succeeded', 'task-shutdown',
+      'task-failed', 'task-revoked', 'task-incomplete']
     return {
       // TODO: consider having these as URL parameters, so we can link to failures only.
       selectedSortOption: 'time-received',
@@ -52,16 +58,15 @@ export default {
         {value: 'runtime-ascending', text: 'Runtime (Asc)'},
         {value: 'runtime-descending', text: 'Runtime (Desc)'},
       ],
-      selectedFilterOption: 'all',
-      filterOptions: ['all', 'task-received', 'task-blocked', 'task-started', 'task-succeeded', 'task-shutdown',
-        'task-failed', 'task-revoked', 'task-incomplete'],
+      selectedFilterOptions: _.clone(filterOptions),
+      filterOptions: filterOptions,
     }
   },
   computed: {
     displayNodesByUuid () {
       let resultNodes = this.nodes
-      if (this.selectedFilterOption !== 'all') {
-        resultNodes = _.filter(resultNodes, {'state': this.selectedFilterOption})
+      if (this.selectedFilterOptions !== 'all') {
+        resultNodes = _.filter(resultNodes, n => _.includes(this.selectedFilterOptions, n.state))
       }
       let optionsToSortFields = {
         'time-received': 'task_num',
@@ -78,6 +83,18 @@ export default {
     },
     nodes () {
       return _.values(this.nodesByUuid)
+    },
+    allFiltersSelected () {
+      return _.difference(this.filterOptions, this.selectedFilterOptions).length === 0
+    },
+  },
+  methods: {
+    toggleShowAll () {
+      if (_.difference(this.filterOptions, this.selectedFilterOptions).length === 0) {
+        this.selectedFilterOptions = []
+      } else {
+        this.selectedFilterOptions = this.filterOptions
+      }
     },
   },
   created () {
