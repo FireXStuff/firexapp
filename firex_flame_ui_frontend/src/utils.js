@@ -8,7 +8,7 @@ let eventHub = new Vue()
 export {
   // invokePerNode,
   parseRecFileContentsToNodesByUuid,
-  flatGraphToTree,
+  // flatGraphToTree,
   eventHub,
   nodesWithAncestorOrDescendantFailure,
   calculateNodesPositionByUuid,
@@ -151,7 +151,7 @@ function getUuidsToRoot (node, nodesByUuid) {
 }
 
 function calculateNodesPositionByUuid (nodesByUuid) {
-  let newRootForLayout = _.cloneDeep((nodesByUuid))
+  let newRootForLayout = flatGraphToTree(_.cloneDeep(nodesByUuid))
   // This calculates the layout (x, y per node) with dynamic node sizes.
   let flextreeLayout = flextree({
     spacing: 75,

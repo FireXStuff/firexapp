@@ -58,6 +58,8 @@ export default {
     showUuid: {},
     width: {required: true, type: Number},
     height: {required: true, type: Number},
+    xPosition: {required: true, type: Number},
+    yPosition: {required: true, type: Number},
   },
   computed: {
     computedDimensions () {
@@ -67,7 +69,7 @@ export default {
       }
     },
     transform () {
-      return 'translate(' + this.node.x + ',' + this.node.y + ')'
+      return 'translate(' + this.xPosition + ',' + this.yPosition + ')'
     },
   },
 }

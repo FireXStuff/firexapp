@@ -13,7 +13,7 @@
                :style="$asyncComputed.recFileNodesByUuid.error ? 'border-color: red;' : ''"
                @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value.trim() } })">
 
-        <div :class="{spinner: $asyncComputed.recFileNodesByUuid.updating}"></div>
+        <div :class="{spinner: $asyncComputed.recFileNodesByUuid.updating} || socketUpdateInProgress"></div>
       </div>
       <div style="display: flex; flex-direction: row;">
         <div>
@@ -95,6 +95,7 @@ export default {
       childSupportHelpLink: false,
       supportLocation: false,
       socketNodesByUuid: {},
+      socketUpdateInProgress: false,
     }
   },
   computed: {
@@ -194,10 +195,12 @@ export default {
       // full state refresh plus subscribe to incremental updates.
       socket.on('full-state', (nodesByUuid) => {
         this.setSocketNodesByUuid(nodesByUuid)
+        this.socketUpdateInProgress = false
         // Only start listening for incremental updates after we've processed the full state.
         socket.on('tasks-update', this.mergeNodesByUuid)
       })
       socket.emit('send-full-state')
+      this.socketUpdateInProgress = true
     },
   },
   watch: {

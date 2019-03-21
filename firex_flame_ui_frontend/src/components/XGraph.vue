@@ -14,14 +14,18 @@
       <svg width="100%" height="100%" preserveAspectRatio="xMinYMin"  style="background-color: white;">
         <g>
           <g :transform="svgGraphTransform">
-            <x-link :nodesByUuid="fullyLaidOutNodesByUuid"></x-link>
-            <x-svg-node v-for="n in fullyLaidOutNodesByUuid"
-                        :node="n"
-                        :width="dimensionsByUuid[n.uuid].width"
-                        :height="dimensionsByUuid[n.uuid].height"
-                        :key="n.uuid"
+            <x-link :onlyVisibleIntrinsicDimensionNodesByUuid="onlyVisibleIntrinsicDimensionNodesByUuid"
+                    :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
+
+            <x-svg-node v-for="(nodeLayout, uuid) in nodeLayoutsByUuid"
+                        :node="nodesByUuid[uuid]"
+                        :width="dimensionsByUuid[uuid].width"
+                        :height="dimensionsByUuid[uuid].height"
+                        :xPosition="nodeLayout.x"
+                        :yPosition="nodeLayout.y"
+                        :key="uuid"
                         :showUuid="showUuids"
-                        v-on:collapse-node="toggleCollapseChildren(n.uuid)"></x-svg-node>
+                        v-on:collapse-node="toggleCollapseChildren(uuid)"></x-svg-node>
           </g>
         </g>
       </svg>
@@ -56,7 +60,7 @@ import _ from 'lodash'
 import XNode from './XNode'
 import XLink from './XLinks'
 import {eventHub, nodesWithAncestorOrDescendantFailure,
-  calculateNodesPositionByUuid, flatGraphToTree} from '../utils'
+  calculateNodesPositionByUuid} from '../utils'
 
 export default {
   name: 'XGraph',
@@ -85,47 +89,38 @@ export default {
     }
   },
   computed: {
-    intrinsicDimensionNodesByUuid () {
+    intrinsicNodeDimensionsByUuid () {
       let allUuids = _.keys(this.nodesByUuid)
       // Only actually do layout if we have all the dimensions of child nodes.
       if (_.difference(allUuids, _.keys(this.dimensionsByUuid)).length === 0) {
-        let newNodesByUuid = _.cloneDeep(this.nodesByUuid)
-        _.each(newNodesByUuid, (node) => {
-          node.width = this.dimensionsByUuid[node.uuid].width
-          node.height = this.dimensionsByUuid[node.uuid].height
+        return _.mapValues(this.nodesByUuid, (node) => {
+          return {
+            uuid: node.uuid,
+            width: this.dimensionsByUuid[node.uuid].width,
+            height: this.dimensionsByUuid[node.uuid].height,
+            parent_id: node.parent_id,
+          }
         })
-        return newNodesByUuid
       }
       return {}
     },
     onlyVisibleIntrinsicDimensionNodesByUuid () {
-      return _.omit(this.intrinsicDimensionNodesByUuid, this.hiddenNodeIds)
+      return _.omit(this.intrinsicNodeDimensionsByUuid, this.hiddenNodeIds)
     },
-    graphAsTree () {
-      return flatGraphToTree(this.onlyVisibleIntrinsicDimensionNodesByUuid)
-    },
-    fullyLaidOutNodesByUuid () {
-      if (!_.isEmpty(this.intrinsicDimensionNodesByUuid)) {
-        let positionByUuid = calculateNodesPositionByUuid(this.graphAsTree)
-
-        // This is a lot of cloning. Make sure they're all necessary.
-        let resultNodesByUuid = _.cloneDeep(this.onlyVisibleIntrinsicDimensionNodesByUuid)
-        _.each(resultNodesByUuid, n => {
-          n.x = positionByUuid[n.uuid].x
-          n.y = positionByUuid[n.uuid].y
-          n.width = this.onlyVisibleIntrinsicDimensionNodesByUuid[n.uuid].width
-          n.height = this.onlyVisibleIntrinsicDimensionNodesByUuid[n.uuid].height
-        })
-        return resultNodesByUuid
+    nodeLayoutsByUuid () {
+      if (!_.isEmpty(this.intrinsicNodeDimensionsByUuid)) {
+        return calculateNodesPositionByUuid(this.onlyVisibleIntrinsicDimensionNodesByUuid)
       }
       return {}
     },
     visibleExtent () {
       return {
-        top: _.min(_.map(_.values(this.fullyLaidOutNodesByUuid), 'y')),
-        left: _.min(_.map(_.values(this.fullyLaidOutNodesByUuid), 'x')),
-        right: _.max(_.map(_.values(this.fullyLaidOutNodesByUuid), n => n.x + n.width)),
-        bottom: _.max(_.map(_.values(this.fullyLaidOutNodesByUuid), n => n.y + n.height)),
+        top: _.min(_.map(_.values(this.nodeLayoutsByUuid), 'y')),
+        left: _.min(_.map(_.values(this.nodeLayoutsByUuid), 'x')),
+        right: _.max(_.map(_.values(this.onlyVisibleIntrinsicDimensionNodesByUuid),
+          n => this.nodeLayoutsByUuid[n.uuid].x + n.width)),
+        bottom: _.max(_.map(_.values(this.onlyVisibleIntrinsicDimensionNodesByUuid),
+          n => this.nodeLayoutsByUuid[n.uuid].y + n.height)),
       }
     },
     hasFailures () {
@@ -166,7 +161,7 @@ export default {
       this.transform = {x: translate[0], y: translate[1], scale: scale}
     },
     getCurrentRelPos (nodeUuid) {
-      let laidOutNode = this.fullyLaidOutNodesByUuid[nodeUuid]
+      let laidOutNode = this.nodeLayoutsByUuid[nodeUuid]
       return {
         x: laidOutNode.x + this.transform.x,
         y: laidOutNode.y + this.transform.y,
@@ -255,7 +250,7 @@ export default {
     },
   },
   watch: {
-    fullyLaidOutNodesByUuid (_, __) {
+    nodeLayoutsByUuid (_, __) {
       // This is somewhat gross. Maybe there should be another component that does the SVG rendering that always
       // has dimensions populated. It could then center on mounted or similar.
       if (this.isFirstLoad) {

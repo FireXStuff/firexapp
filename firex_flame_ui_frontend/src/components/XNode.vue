@@ -164,7 +164,9 @@ export default {
     routeToAttribute (uuid) {
       return {
         name: 'XNodeAttributes',
-        params: {'uuid': uuid}}
+        params: {'uuid': uuid},
+        query: {logDir: this.$route.query.logDir,
+          flameServer: this.$route.query.flameServer}}
     },
   },
 }
