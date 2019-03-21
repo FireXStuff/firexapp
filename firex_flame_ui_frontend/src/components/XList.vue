@@ -24,8 +24,8 @@
 
     <!-- TODO: Add no nodes matching filters result. -->
     <div class="list-container">
-        <x-node v-for="n in displayNodesByUuid"
-                :node="n" :key="n.uuid" style="margin: 10px" :allowCollapse="false"></x-node>
+        <x-node v-for="n in displayNodesByUuid" :key="n.uuid"
+                :node="n" width='auto' height='auto' style="margin: 10px" :allowCollapse="false"></x-node>
     </div>
   </div>
 </template>
@@ -59,10 +59,6 @@ export default {
   },
   computed: {
     displayNodesByUuid () {
-      this.nodes.forEach(function (n) {
-        n.width = 'auto'
-        n.height = 'auto'
-      })
       let resultNodes = this.nodes
       if (this.selectedFilterOption !== 'all') {
         resultNodes = _.filter(resultNodes, {'state': this.selectedFilterOption})

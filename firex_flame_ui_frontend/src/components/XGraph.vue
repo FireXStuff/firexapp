@@ -1,7 +1,7 @@
 <template>
   <div style="width: 100%; height: 100%; overflow: hidden;">
-    <div v-if="hiddenNodesCount > 0" class="user-message" style="background: lightblue; ">
-      {{hiddenNodesCount}} tasks are hidden
+    <div v-if="hiddenNodeIds.length > 0" class="user-message" style="background: lightblue; ">
+      {{hiddenNodeIds.length}} tasks are hidden
       <a href="#" @click.prevent="hiddenNodeIds = []"> (Show All)</a>
     </div>
     <div v-else-if="hasFailures" class="user-message" style="background: orange">
@@ -14,18 +14,21 @@
       <svg width="100%" height="100%" preserveAspectRatio="xMinYMin"  style="background-color: white;">
         <g>
           <g :transform="svgGraphTransform">
-            <x-link :nodesByUuid="displayNodesByUuid"></x-link>
-            <x-svg-node v-for="n in displayNodesByUuid" :node="n" :key="n.uuid"
+            <x-link :nodesByUuid="fullyLaidOutNodesByUuid"></x-link>
+            <x-svg-node v-for="n in fullyLaidOutNodesByUuid"
+                        :node="n"
+                        :width="dimensionsByUuid[n.uuid].width"
+                        :height="dimensionsByUuid[n.uuid].height"
+                        :key="n.uuid"
+                        :showUuid="showUuids"
                         v-on:collapse-node="toggleCollapseChildren(n.uuid)"></x-svg-node>
-            <path :d="'M' + (-transform.x / transform.scale) + ' ' + (30) + ' h' + (-lineLength)"
-                  style="stroke: #000;stroke-width: 10px;"></path>
           </g>
         </g>
       </svg>
     </div>
     <!-- TODO: FIND A BETTER WAY! visiblity:collapse prevents table height from being calculated, so instead
     draw everything at z-index=-1000 and make sure the SVG & header cover these nodes.-->
-    <div style="/*visibility: collapse;*/ overflow: hidden;">
+    <div style="overflow: hidden;">
       <!-- This is very gross, but the nodes that will be put on the graph are rendered invisibly in order
         for the browser to calculate their intrinsic size. Each node's size is then passed to the graph layout
         algorithm before the actual graph is rendered.-->
@@ -33,10 +36,11 @@
       <!--
         Need inline-block display per node to get each node's intrinsic width (i.e. don't want it to force fill parent).
       -->
-      <div v-for="n in defaultHeightWidthNodes" :key="n.uuid"
+      <div v-for="n in nodesByUuid" :key="n.uuid"
            style="display: inline-block; position: absolute; top: 0;  z-index: -1000;">
-        <x-node :emitDimensions="true" :allowCollapse="false"
-                :node="n" v-on:node-dimensions="updateNodeDimensions($event)"></x-node>
+        <x-node :emitDimensions="true" :allowCollapse="false" :showUuid="showUuids"
+                :node="n" width='auto' height='auto'
+                v-on:node-dimensions="updateNodeDimensions($event)"></x-node>
       </div>
     </div>
   </div>
@@ -45,7 +49,7 @@
 <script>
 
 //  TODO: specify what to import from d3 more precisely (select, zoom).
-// TODO: use a more recent version of d3 (find where layout was moved to).
+// TODO: maybe use a more recent version of d3.
 import * as d3 from 'd3'
 import XSvgNode from './XSvgNode'
 import _ from 'lodash'
@@ -73,21 +77,17 @@ export default {
       // TODO: this is gross. This state isn't necessary. Split this component in to two: one that does
       //  gross per-node intrinsic size calculation, and another that always has nodes with full rect defined.
       isFirstLoad: true,
-      lineLength: 0,
+      // TODO: read & write transform to local storage to save view port.
       transform: {
         x: 0, y: 0, scale: 1,
       },
+      showUuids: false,
     }
   },
   computed: {
-    defaultHeightWidthNodes () {
-      let nodes = _.values(_.cloneDeep(this.nodesByUuid))
-      nodes.forEach((n) => { n.width = 'auto'; n.height = 'auto' })
-      return nodes
-    },
     intrinsicDimensionNodesByUuid () {
       let allUuids = _.keys(this.nodesByUuid)
-      // only actually do layout if we have all the dimensions of child nodes.
+      // Only actually do layout if we have all the dimensions of child nodes.
       if (_.difference(allUuids, _.keys(this.dimensionsByUuid)).length === 0) {
         let newNodesByUuid = _.cloneDeep(this.nodesByUuid)
         _.each(newNodesByUuid, (node) => {
@@ -96,7 +96,7 @@ export default {
         })
         return newNodesByUuid
       }
-      return []
+      return {}
     },
     onlyVisibleIntrinsicDimensionNodesByUuid () {
       return _.omit(this.intrinsicDimensionNodesByUuid, this.hiddenNodeIds)
@@ -120,20 +120,13 @@ export default {
       }
       return {}
     },
-    displayNodesByUuid () {
-      // return _.filter(this.fullyLaidOutNodesByUuid, n => !_.includes(this.hiddenNodeIds, n.uuid))
-      return this.fullyLaidOutNodesByUuid
-    },
     visibleExtent () {
       return {
-        top: _.min(_.map(_.values(this.displayNodesByUuid), 'y')),
-        left: _.min(_.map(_.values(this.displayNodesByUuid), 'x')),
-        right: _.max(_.map(_.values(this.displayNodesByUuid), n => n.x + n.width)),
-        bottom: _.max(_.map(_.values(this.displayNodesByUuid), n => n.y + n.height)),
+        top: _.min(_.map(_.values(this.fullyLaidOutNodesByUuid), 'y')),
+        left: _.min(_.map(_.values(this.fullyLaidOutNodesByUuid), 'x')),
+        right: _.max(_.map(_.values(this.fullyLaidOutNodesByUuid), n => n.x + n.width)),
+        bottom: _.max(_.map(_.values(this.fullyLaidOutNodesByUuid), n => n.y + n.height)),
       }
-    },
-    hiddenNodesCount () {
-      return this.hiddenNodeIds.length
     },
     hasFailures () {
       return _.some(_.values(this.nodesByUuid), {'state': 'task-failed'})
@@ -145,9 +138,11 @@ export default {
   },
   created () {
     eventHub.$on('center', this.center)
+    eventHub.$on('toggle-uuids', this.toggleShowUuids)
 
     // TODO: clean up child route support communication by moving it to route definition.
-    let supportedParentButtons = ['support-list-link', 'support-center', 'support-help-link', 'support-watch']
+    let supportedParentButtons = ['support-list-link', 'support-center', 'support-help-link', 'support-watch',
+      'support-add']
     supportedParentButtons.forEach(e => { eventHub.$emit(e) })
   },
   mounted () {
@@ -177,6 +172,10 @@ export default {
         y: laidOutNode.y + this.transform.y,
       }
     },
+    toggleShowUuids () {
+      this.showUuids = !this.showUuids
+    },
+    // TODO: externalize meat of this function as getCenterTransform(innerRect, outerRect).
     center () {
       // Not available during re-render.
       if (this.$refs['graph-svg']) {
@@ -188,7 +187,7 @@ export default {
         let visibleExtentHeight = this.visibleExtent.bottom - this.visibleExtent.top + verticalPadding
         let xScale = boundingRect.width / visibleExtentWidth
         let yScale = boundingRect.height / visibleExtentHeight
-        let scale = _.min([xScale, yScale])
+        let scale = _.min([xScale, yScale]) // TODO: include absolute scale min.
 
         let scaledExtendWidth = visibleExtentWidth * scale
         let xTranslate = this.visibleExtent.left * scale
@@ -214,7 +213,7 @@ export default {
 
       let descendantIds = this.getDescendantUuids(parentNodeId)
       if (_.difference(descendantIds, this.hiddenNodeIds).length === 0) {
-        // These IDs are currently hidden, so remove them.
+        // These UUIDs are currently hidden, so remove them.
         this.hiddenNodeIds = _.difference(this.hiddenNodeIds, descendantIds)
       } else {
         this.hiddenNodeIds = this.hiddenNodeIds.concat(descendantIds)
@@ -235,9 +234,9 @@ export default {
       let newEntry = {}
       newEntry[event.uuid] = {width: event.width, height: event.height}
       // Vue doesn't deep watch, so create a new object for every update.
+      // this.$set(this.dimensionsByUuid, event.uuid, newEntry)
       this.dimensionsByUuid = _.merge({}, this.dimensionsByUuid, newEntry)
     },
-    // TODO: write in terms of invokePerNode
     getDescendantUuids (nodeId) {
       let resultUuids = []
       let uuidsToCheck = _.clone(this.nodesByUuid[nodeId]['children_uuids'])
@@ -256,7 +255,7 @@ export default {
     },
   },
   watch: {
-    fullyLaidOutNodesByUuid: function (_, __) {
+    fullyLaidOutNodesByUuid (_, __) {
       // This is somewhat gross. Maybe there should be another component that does the SVG rendering that always
       // has dimensions populated. It could then center on mounted or similar.
       if (this.isFirstLoad) {

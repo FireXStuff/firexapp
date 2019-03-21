@@ -3,16 +3,15 @@
     <div class="header">
 
       <div style="text-align: center; padding: 0 10px">
-        Logs Directory:
-
-        <input type="text" size="100" :value="logDir"
-               :style="$asyncComputed.recFileNodesByUuid.error ? 'border-color: red;' : ''"
-               @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value.trim() } })">
-
         Flame Server:
         <input type="text" size=20 :value="flameServer"
                @keyup.enter="$router.push({ name: 'XGraph', query: { flameServer: $event.target.value.trim() } })"
                :style="!liveUpdate || socket.connected ? 'border-color: lightgreen;' : 'border-color: red;'">
+
+        Logs Directory:
+        <input type="text" size="100" :value="logDir"
+               :style="$asyncComputed.recFileNodesByUuid.error ? 'border-color: red;' : ''"
+               @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value.trim() } })">
 
         <div :class="{spinner: $asyncComputed.recFileNodesByUuid.updating}"></div>
       </div>
@@ -23,21 +22,25 @@
           </router-link>
         </div>
         <div class="uid">{{title ? title : uid}}</div>
+
         <div style="margin-left: auto; display: flex;">
           <div v-if="false" class="header-icon-button">
             <font-awesome-icon icon="search"></font-awesome-icon>
           </div>
-          <div v-if="liveUpdateAllowed" class="header-icon-button" :style="liveUpdate ? 'color: #2B2;' : ''"
-               v-on:click="toggleLiveUpdate">
-            <font-awesome-icon :icon="['far', 'eye']"></font-awesome-icon>
-          </div>
+
           <div v-if="childSupportCenter" class="header-icon-button" v-on:click="eventHub.$emit('center')">
             <font-awesome-icon icon="bullseye"></font-awesome-icon>
           </div>
 
-          <div v-if="false" class="header-icon-button">
+          <div v-if="liveUpdateAllowed" class="header-icon-button" :style="liveUpdate ? 'color: #2B2;' : ''"
+               v-on:click="toggleLiveUpdate">
+            <font-awesome-icon :icon="['far', 'eye']"></font-awesome-icon>
+          </div>
+
+          <div v-if="childSupportAdd" class="header-icon-button" v-on:click="eventHub.$emit('toggle-uuids')">
             <font-awesome-icon icon="plus-circle"></font-awesome-icon>
           </div>
+
           <div v-if="childSupportListLink" class="header-icon-button">
             <router-link :to="{ name: 'XList', params: { nodesByUuid: nodesByUuid }}">
               <font-awesome-icon icon="list-ul"></font-awesome-icon>
@@ -84,6 +87,7 @@ export default {
       // TODO: clean this up by mapping event names, enablement variables, and components in a single structure.
       childSupportListLink: false,
       childSupportCenter: false,
+      childSupportAdd: false,
       childSupportLiveUpdate: false,
       liveUpdate: true,
       childSupportGraphLink: false,
@@ -119,9 +123,6 @@ export default {
         return {connected: false}
       }
       let socket = io(this.flameServer, {reconnection: false})
-      // socket.on('connect', () => {
-      //
-      // })
       this.setSocketNodesByUuid({}) // Clear data from previous socket.
       this.startSocketListening(socket)
       // socket.on('disconnect', () => {
@@ -150,6 +151,7 @@ export default {
     eventHub.$on('support-graph-link', () => { this.childSupportGraphLink = true })
     eventHub.$on('support-help-link', () => { this.childSupportHelpLink = true })
     eventHub.$on('support-center', () => { this.childSupportCenter = true })
+    eventHub.$on('support-add', () => { this.childSupportAdd = true })
     eventHub.$on('support-watch', () => { this.childSupportLiveUpdate = true })
     eventHub.$on('code_url', (c) => { this.codeUrl = c })
     eventHub.$on('support_location', (l) => { this.supportLocation = l })
@@ -202,6 +204,7 @@ export default {
     '$route' (to, from) {
       this.childSupportListLink = false
       this.childSupportCenter = false
+      this.childSupportAdd = false
       this.childSupportLiveUpdate = false
       this.childSupportGraphLink = false
       this.childSupportHelpLink = false

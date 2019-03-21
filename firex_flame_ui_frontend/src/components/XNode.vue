@@ -2,9 +2,8 @@
   <div :style="topLevelStyle" class="node">
     <router-link :to="routeToAttribute(node.uuid)">
       <div style="overflow: hidden; text-overflow: ellipsis">
-        <div v-if="allowCollapse && node.children_uuids.length"
-             style="float: right;">
-          <!-- Need to prevent to avoid activating node-wide attribute link -->
+        <div v-if="allowCollapse && node.children_uuids.length" style="float: right;">
+          <!-- Use prevent to avoid activating node-wide attribute link -->
           <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
             <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
             <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
@@ -21,6 +20,7 @@
         <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid navigating to
              task node attribute page. Should likely find a better way.-->
         <div class="flame-data" v-on:click="$event.stopPropagation()">
+          <div v-if="showUuid">{{node.uuid}}</div>
           <!-- We're really trusting data from the server here (rendering raw HTML) -->
           <!-- TODO: verify flame_additional_data is always accumulative -->
           <div v-if="node.flame_additional_data" v-html="node.flame_additional_data"></div>
@@ -76,6 +76,9 @@ export default {
       default: true,
     },
     emitDimensions: {default: false},
+    showUuid: {default: false},
+    width: {required: true},
+    height: {required: true},
   },
   data () {
     return {
@@ -96,21 +99,14 @@ export default {
   },
   computed: {
     topLevelStyle () {
-      let style = {
-        'font-family': "'Source Sans Pro',sans-serif",
-        'font-weight': 'normal',
-        'font-size': '14px',
+      return {
         background: this.statusToColour[this.node.state],
-        color: 'white',
         // width/height could be 'auto'
-        width: _.isInteger(this.node.width) ? this.node.width + 'px' : this.node.width,
-        height: _.isInteger(this.node.height) ? this.node.height + 'px' : this.node.height,
-        'min-width': '250px', // TODO: externalize some of this.
+        width: _.isNumber(this.width) ? this.width + 'px' : this.width,
+        height: _.isNumber(this.height) ? this.height + 'px' : this.height,
         'border-radius': !this.node.chain_depth ? '8px' : '',
         border: this.node.from_plugin ? '2px dashed #000' : '',
-        padding: '3px',
       }
-      return style
     },
     duration () {
       let actualRuntime = this.node.actual_runtime
@@ -145,7 +141,7 @@ export default {
     }
   },
   updated () {
-    // TODO: this is pretty gross.
+    // TODO: this is pretty gross. Maybe check if the dimensions have changed before emitting.
     if (this.emitDimensions) {
       this.emit_dimensions()
     }
@@ -197,13 +193,22 @@ export default {
   text-align: center;
   border: 1px solid rgba(217,83,79,0.8);
   color: black;
-  margin: 3px
+  margin: 3px;
+  min-width: 250px;
 }
 
 a {
   color: inherit;
   cursor: pointer;
   text-decoration: none;
+}
+
+.node {
+  font-family: 'Source Sans Pro',sans-serif;
+  font-weight: normal;
+  font-size: 14px;
+  color: white;
+  padding: 3px;
 }
 
 .node:hover {

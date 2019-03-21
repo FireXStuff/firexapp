@@ -1,9 +1,12 @@
 <template>
-  <g class="node" :transform="transform"
+  <g :transform="transform"
      :width="computedDimensions.width" :height="computedDimensions.height">
     <foreignObject :width="computedDimensions.width" :height="computedDimensions.height">
       <div>
-        <x-node :node="node" v-on:collapse-node="$emit('collapse-node')"></x-node>
+        <x-node :node="node"
+                :showUuid="showUuid"
+                :width="width" :height="height"
+                v-on:collapse-node="$emit('collapse-node')"></x-node>
       </div>
     </foreignObject>
 
@@ -49,15 +52,18 @@ export default {
       type: Object,
       required: true,
       validator: function (value) {
-        return _.difference(['x', 'y', 'width', 'height'], _.keys(value))
+        return _.difference(['x', 'y'], _.keys(value))
       },
     },
+    showUuid: {},
+    width: {required: true, type: Number},
+    height: {required: true, type: Number},
   },
   computed: {
     computedDimensions () {
       return {
-        width: this.node.width + 10,
-        height: this.node.height + 10,
+        width: this.width + 10,
+        height: this.height + 10,
       }
     },
     transform () {
