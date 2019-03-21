@@ -6,14 +6,14 @@
         Flame Server:
         <input type="text" size=20 :value="flameServer"
                @keyup.enter="$router.push({ name: 'XGraph', query: { flameServer: $event.target.value.trim() } })"
-               :style="!liveUpdate || socket.connected ? 'border-color: lightgreen;' : 'border-color: red;'">
+               :style="socketUpdateInProgress || socket.connected ? 'border-color: lightgreen;' : 'border-color: red;'">
 
         Logs Directory:
         <input type="text" size="100" :value="logDir"
                :style="$asyncComputed.recFileNodesByUuid.error ? 'border-color: red;' : ''"
                @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value.trim() } })">
 
-        <div :class="{spinner: $asyncComputed.recFileNodesByUuid.updating} || socketUpdateInProgress"></div>
+        <div :class="{spinner: $asyncComputed.recFileNodesByUuid.updating || socketUpdateInProgress}"></div>
       </div>
       <div style="display: flex; flex-direction: row;">
         <div>
@@ -37,7 +37,8 @@
             <font-awesome-icon :icon="['far', 'eye']"></font-awesome-icon>
           </div>
 
-          <div v-if="childSupportAdd" class="header-icon-button" v-on:click="eventHub.$emit('toggle-uuids')">
+          <div v-if="childSupportShowUuids" class="header-icon-button" :style="showUuids ? 'color: #2B2;' : ''"
+               v-on:click="toggleShowUuids">
             <font-awesome-icon icon="plus-circle"></font-awesome-icon>
           </div>
 
@@ -87,7 +88,8 @@ export default {
       // TODO: clean this up by mapping event names, enablement variables, and components in a single structure.
       childSupportListLink: false,
       childSupportCenter: false,
-      childSupportAdd: false,
+      childSupportShowUuids: false,
+      showUuids: false,
       childSupportLiveUpdate: false,
       liveUpdate: true,
       childSupportGraphLink: false,
@@ -125,14 +127,19 @@ export default {
       }
       let socket = io(this.flameServer, {reconnection: false})
       this.setSocketNodesByUuid({}) // Clear data from previous socket.
+      // TODO handle not connected after 5 seconds.
       this.startSocketListening(socket)
       // socket.on('disconnect', () => {
       //   console.log('Connection lost.')
       // })
       return socket
     },
+    hasIncompleteTasks () {
+      let incompleteStates = ['task-blocked', 'task-started', 'task-received']
+      return _.some(this.nodesByUuid, n => _.includes(incompleteStates, n.state))
+    },
     liveUpdateAllowed () {
-      return this.childSupportLiveUpdate && !this.useRecFile
+      return this.childSupportLiveUpdate && !this.useRecFile && this.hasIncompleteTasks
     },
   },
   asyncComputed: {
@@ -152,7 +159,7 @@ export default {
     eventHub.$on('support-graph-link', () => { this.childSupportGraphLink = true })
     eventHub.$on('support-help-link', () => { this.childSupportHelpLink = true })
     eventHub.$on('support-center', () => { this.childSupportCenter = true })
-    eventHub.$on('support-add', () => { this.childSupportAdd = true })
+    eventHub.$on('support-add', () => { this.childSupportShowUuids = true })
     eventHub.$on('support-watch', () => { this.childSupportLiveUpdate = true })
     eventHub.$on('code_url', (c) => { this.codeUrl = c })
     eventHub.$on('support_location', (l) => { this.supportLocation = l })
@@ -196,18 +203,24 @@ export default {
       socket.on('full-state', (nodesByUuid) => {
         this.setSocketNodesByUuid(nodesByUuid)
         this.socketUpdateInProgress = false
-        // Only start listening for incremental updates after we've processed the full state.
-        socket.on('tasks-update', this.mergeNodesByUuid)
+        if (this.hasIncompleteTasks) {
+          // Only start listening for incremental updates after we've processed the full state.
+          socket.on('tasks-update', this.mergeNodesByUuid)
+        }
       })
       socket.emit('send-full-state')
       this.socketUpdateInProgress = true
+    },
+    toggleShowUuids () {
+      this.showUuids = !this.showUuids
+      eventHub.$emit('toggle-uuids')
     },
   },
   watch: {
     '$route' (to, from) {
       this.childSupportListLink = false
       this.childSupportCenter = false
-      this.childSupportAdd = false
+      this.childSupportShowUuids = false
       this.childSupportLiveUpdate = false
       this.childSupportGraphLink = false
       this.childSupportHelpLink = false
@@ -263,6 +276,10 @@ export default {
   line-height: 40px;
   cursor: pointer;
   color: #000;
+}
+
+.header-icon-button:hover {
+    color: #2980ff;
 }
 
 a {

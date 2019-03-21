@@ -26,7 +26,7 @@
           <div v-if="node.flame_additional_data" v-html="node.flame_additional_data"></div>
         </div>
 
-        <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
+        <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}} {{node.state}}</div>
         <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
       </div>
     </router-link>
@@ -93,8 +93,12 @@ export default {
         'task-revoked': '#F40',
         'task-incomplete': 'repeating-linear-gradient(45deg,#888,#888 5px,#444 5px,#444 10px)',
         // TODO: is this correct? completed means incompleted??
-        'task-completed': 'repeating-linear-gradient(45deg,#888,#888 5px,#444 5px,#444 10px)',
+        //  No, this isn't right. But events to happen this way (revoked then completed, even though we want to show
+        //  revoked.) sometimes completed means incomplete! I hope this is only at the end of a run.
+        'task-completed': '#2A2',
+        'task-unblocked': 'cornflowerblue',
       },
+      intrinsicDimensions: {width: null, height: null},
     }
   },
   computed: {
@@ -156,8 +160,9 @@ export default {
       // TODO: this is gross. There must be a better way to get height and width dynamically.
       this.$nextTick(function () {
         let r = this.$el.getBoundingClientRect()
-        if (r) {
+        if (r && (this.intrinsicDimensions.width !== r.width || this.intrinsicDimensions.height !== r.height)) {
           this.$emit('node-dimensions', {uuid: this.node.uuid, height: r.height, width: r.width})
+          this.intrinsicDimensions = {width: r.width, height: r.height}
         }
       })
     },
