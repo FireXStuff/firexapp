@@ -12,6 +12,7 @@ export {
   eventHub,
   nodesWithAncestorOrDescendantFailure,
   calculateNodesPositionByUuid,
+  xNodeAttributeTo,
 }
 
 // function invokePerNode (root, fn) {
@@ -171,4 +172,15 @@ function calculateNodesPositionByUuid (nodesByUuid) {
     }
   })
   return calcedDimensionsByUuid
+}
+
+function xNodeAttributeTo (uuid, vm) {
+  return {
+    name: 'XNodeAttributes',
+    params: {'uuid': uuid},
+    query: {
+      logDir: vm.$route.query.logDir,
+      flameServer: vm.$route.query.flameServer,
+    },
+  }
 }

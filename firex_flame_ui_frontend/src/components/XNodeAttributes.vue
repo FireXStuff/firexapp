@@ -12,6 +12,17 @@
       <div v-else-if="key === 'firex_result'">
         <strong>task_result:</strong> {{displayNode[key]}}
       </div>
+      <div v-else-if="key === 'parent_id' && displayNode[key]">
+        <strong>parent:</strong>
+        {{nodesByUuid[displayNode[key]].name}}
+        <router-link :to="linkToUuid(displayNode[key])">{{displayNode[key]}}</router-link>
+      </div>
+      <div v-else-if="key === 'children_uuids'">
+        <strong>children:</strong>
+        <div v-for="child_uuid in displayNode[key]" :key="child_uuid" style="margin-left: 25px">
+          {{nodesByUuid[child_uuid].name}} <router-link :to="linkToUuid(child_uuid)">{{child_uuid}}</router-link>
+        </div>
+      </div>
       <div v-else-if="key === 'support_location'">
         <strong>support_location:</strong> <a :href="displayNode[key]">{{displayNode[key]}}</a>
       </div>
@@ -24,17 +35,18 @@
 
 <script>
 import _ from 'lodash'
-import {eventHub} from '../utils'
+import {eventHub, xNodeAttributeTo} from '../utils'
 
 export default {
   name: 'XNodeAttributes',
   props: {
     uuid: {required: true, type: String},
     nodesByUuid: {required: true, type: Object},
+    taskDetails: {required: true, type: Object},
   },
   computed: {
     displayNode () {
-      let node = _.clone(this.nodesByUuid[this.uuid])
+      let node = _.clone(this.taskDetails)
       let attributeBlacklist = ['children', 'long_name', 'name', 'parent', 'flame_additional_data',
         'height', 'width', 'x', 'y', 'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url']
       return _.omit(node, attributeBlacklist)
@@ -43,22 +55,52 @@ export default {
       return _.sortBy(_.keys(this.displayNode))
     },
   },
-  created () {
+  mounted () {
     // TODO: this is super gross. Make it easier for children views to add buttons to the parent.
-    if (this.nodesByUuid) {
-      if (_.has(this.nodesByUuid[this.uuid], 'long_name')) {
-        this.$emit('title', this.nodesByUuid[this.uuid].long_name)
-      }
-      if (_.has(this.nodesByUuid[this.uuid], 'logs_url')) {
-        this.$emit('logs_url', this.nodesByUuid[this.uuid].logs_url)
-      }
-      if (_.has(this.nodesByUuid[this.uuid], 'code_url')) {
-        eventHub.$emit('code_url', this.nodesByUuid[this.uuid].code_url)
-      }
-      if (_.has(this.nodesByUuid[this.uuid], 'support_location')) {
-        eventHub.$emit('support_location', this.nodesByUuid[this.uuid].support_location)
-      }
-    }
+    this.emitData()
+  },
+  methods: {
+    linkToUuid (uuid) {
+      return xNodeAttributeTo(uuid, this)
+    },
+    fetchAttributes (uuid) {
+      return fetch('/flame.rec')
+        .then(function (r) {
+          return r.json()
+        })
+    },
+    emitData () {
+      let data = [
+        {field: 'long_name', event: 'title'},
+        {field: 'logs_url', event: 'logs_url'},
+        {field: 'code_url', event: 'code_url'},
+        {field: 'support_location', event: 'support_location'},
+      ]
+      data.forEach(d => {
+        if (_.has(this.taskDetails, d.field)) {
+          eventHub.$emit(d.event, this.taskDetails[d.field])
+        }
+      })
+    },
+  },
+  // beforeRouteEnter (to, from, next) {
+  //   next(vm => {
+  //     vm.emitData()
+  //   })
+  // },
+  // beforeRouteUpdate (to, from, next) {
+  //   this.emitData()
+  // },
+  watch: {
+    'taskDetails' (newVal, oldVal) {
+      this.emitData()
+    },
+    // 'uuid' (newVal, oldVal) {
+    //   this.emitData()
+    // },
+    '$route' (to, from) {
+      this.emitData()
+    },
   },
 }
 </script>

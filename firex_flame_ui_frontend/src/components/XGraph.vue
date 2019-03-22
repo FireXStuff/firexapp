@@ -90,19 +90,14 @@ export default {
   },
   computed: {
     intrinsicNodeDimensionsByUuid () {
-      let allUuids = _.keys(this.nodesByUuid)
-      // Only actually do layout if we have all the dimensions of child nodes.
-      if (_.difference(allUuids, _.keys(this.dimensionsByUuid)).length === 0) {
-        return _.mapValues(this.nodesByUuid, (node) => {
-          return {
-            uuid: node.uuid,
-            width: this.dimensionsByUuid[node.uuid].width,
-            height: this.dimensionsByUuid[node.uuid].height,
-            parent_id: node.parent_id,
-          }
-        })
-      }
-      return {}
+      return _.mapValues(this.dimensionsByUuid, (node, uuid) => {
+        return {
+          uuid: uuid,
+          width: this.dimensionsByUuid[uuid].width,
+          height: this.dimensionsByUuid[uuid].height,
+          parent_id: this.nodesByUuid[uuid].parent_id,
+        }
+      })
     },
     onlyVisibleIntrinsicDimensionNodesByUuid () {
       return _.omit(this.intrinsicNodeDimensionsByUuid, this.hiddenNodeIds)
@@ -113,14 +108,13 @@ export default {
       }
       return {}
     },
-    visibleExtent () {
+    nonHiddenNodesExtent () {
       return {
-        top: _.min(_.map(_.values(this.nodeLayoutsByUuid), 'y')),
-        left: _.min(_.map(_.values(this.nodeLayoutsByUuid), 'x')),
-        right: _.max(_.map(_.values(this.onlyVisibleIntrinsicDimensionNodesByUuid),
-          n => this.nodeLayoutsByUuid[n.uuid].x + n.width)),
-        bottom: _.max(_.map(_.values(this.onlyVisibleIntrinsicDimensionNodesByUuid),
-          n => this.nodeLayoutsByUuid[n.uuid].y + n.height)),
+        top: _.min(_.map(this.nodeLayoutsByUuid, 'y')),
+        left: _.min(_.map(this.nodeLayoutsByUuid, 'x')),
+        // Note that if we've done the layout for a given UUID, we necessarily have the node dimensions.
+        right: _.max(_.map(this.nodeLayoutsByUuid, (n, uuid) => n.x + this.dimensionsByUuid[uuid].width)),
+        bottom: _.max(_.map(this.nodeLayoutsByUuid, (n, uuid) => n.y + this.dimensionsByUuid[uuid].height)),
       }
     },
     hasFailures () {
@@ -178,14 +172,14 @@ export default {
 
         // TODO: padding as percentage of available area.
         let verticalPadding = 200
-        let visibleExtentWidth = this.visibleExtent.right - this.visibleExtent.left
-        let visibleExtentHeight = this.visibleExtent.bottom - this.visibleExtent.top + verticalPadding
+        let visibleExtentWidth = this.nonHiddenNodesExtent.right - this.nonHiddenNodesExtent.left
+        let visibleExtentHeight = this.nonHiddenNodesExtent.bottom - this.nonHiddenNodesExtent.top + verticalPadding
         let xScale = boundingRect.width / visibleExtentWidth
         let yScale = boundingRect.height / visibleExtentHeight
         let scale = _.min([xScale, yScale]) // TODO: include absolute scale min.
 
         let scaledExtendWidth = visibleExtentWidth * scale
-        let xTranslate = this.visibleExtent.left * scale
+        let xTranslate = this.nonHiddenNodesExtent.left * scale
 
         // Center the graph based on (scaled) extra horizontal or vertical space.
         if (Math.round(boundingRect.width) > Math.round(scaledExtendWidth)) {
@@ -194,7 +188,7 @@ export default {
         }
 
         let scaledExtendHeight = visibleExtentHeight * scale
-        let yTranslate = (this.visibleExtent.top - verticalPadding / 2) * scale
+        let yTranslate = (this.nonHiddenNodesExtent.top - verticalPadding / 2) * scale
         if (Math.round(boundingRect.height) > Math.round(scaledExtendHeight)) {
           let remainingVertical = boundingRect.height - scaledExtendHeight
           yTranslate = yTranslate - remainingVertical / 2

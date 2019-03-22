@@ -52,6 +52,9 @@
               <font-awesome-icon icon="sitemap"></font-awesome-icon>
             </router-link>
           </div>
+          <div v-if="true" class="header-icon-button kill-button" v-on:click="revokeRoot">
+              <font-awesome-icon icon="times"></font-awesome-icon>
+          </div>
           <a :href="logsUrl" class="flame-link">View Logs</a>
           <a  v-if="supportLocation" :href="supportLocation" class="flame-link">Support</a>
           <a v-if="childSupportHelpLink" class="flame-link" href="help">Help</a>
@@ -63,8 +66,10 @@
     </div>
     <!-- Only show main panel after data is loaded -->
     <template v-if="hasTasks">
-      <router-view v-on:title="title = $event" :nodesByUuid="nodesByUuid" :logDir="logDir"
-                   v-on:logs_url="logsUrl = $event"></router-view>
+      <!-- TODO: is logDir still used by any children? If not, remove it.-->
+      <router-view :nodesByUuid="nodesByUuid"
+                   :logDir="logDir"
+                   :taskDetails="taskDetails"></router-view>
     </template>
   </div>
 </template>
@@ -98,15 +103,13 @@ export default {
       supportLocation: false,
       socketNodesByUuid: {},
       socketUpdateInProgress: false,
+      taskDetails: {},
     }
   },
   computed: {
     uid () {
-      let nodeWithUid = _.find(_.values(this.nodesByUuid), 'firex_bound_args.uid')
-      if (nodeWithUid) {
-        return nodeWithUid.firex_bound_args.uid
-      }
-      return ''
+      // TODO: super gross, get from server or as external param.
+      return this.logDir.match(/.*(FireX-.*)\/?$/)[1]
     },
     nodesByUuid () {
       if (this.useRecFile) {
@@ -163,6 +166,8 @@ export default {
     eventHub.$on('support-watch', () => { this.childSupportLiveUpdate = true })
     eventHub.$on('code_url', (c) => { this.codeUrl = c })
     eventHub.$on('support_location', (l) => { this.supportLocation = l })
+    eventHub.$on('title', (t) => { this.title = t })
+    eventHub.$on('logs_url', (l) => { this.logsUrl = l })
   },
   methods: {
     fetchTreeData (logsDir) {
@@ -180,9 +185,13 @@ export default {
     },
     mergeNodesByUuid (newDataByUuid) {
       _.each(newDataByUuid, (newData, uuid) => {
-        // Note Vue can't deep watch for new properties, or watch nested objects. We re-assign a new
-        // node object to Vue every time any data for that node changes.
-        this.$set(this.socketNodesByUuid, uuid, _.assign({}, this.socketNodesByUuid[uuid], newData))
+        // Note Vue can't deep watch for new properties, or watch nested objects automatically, so it's
+        // necessary to use this.$set: https://vuejs.org/v2/api/#Vue-set
+        if (!_.has(this.socketNodesByUuid, uuid)) {
+          this.$set(this.socketNodesByUuid, uuid, newData)
+        } else {
+          _.each(newData, (v, k) => { this.$set(this.socketNodesByUuid[uuid], k, v) })
+        }
       })
     },
     toggleLiveUpdate () {
@@ -195,12 +204,12 @@ export default {
     },
     stopSocketListening (socket) {
       // Stop listening on everything.
-      socket.off('full-state')
+      socket.off('graph-state')
       socket.off('tasks-update')
     },
     startSocketListening (socket) {
       // full state refresh plus subscribe to incremental updates.
-      socket.on('full-state', (nodesByUuid) => {
+      socket.on('graph-state', (nodesByUuid) => {
         this.setSocketNodesByUuid(nodesByUuid)
         this.socketUpdateInProgress = false
         if (this.hasIncompleteTasks) {
@@ -208,16 +217,60 @@ export default {
           socket.on('tasks-update', this.mergeNodesByUuid)
         }
       })
-      socket.emit('send-full-state')
+      socket.emit('send-graph-state')
       this.socketUpdateInProgress = true
     },
     toggleShowUuids () {
       this.showUuids = !this.showUuids
       eventHub.$emit('toggle-uuids')
     },
-  },
-  watch: {
-    '$route' (to, from) {
+    revokeRoot () {
+      let  terminate = confirm('Are you sure you want to terminate this FireX run?')
+      if (terminate) {
+        obj.notification('Waiting for celery...');
+        $.getJSON('../api/task/revoke/' + root_uuid, function (data) {
+          if (data.revoked == null) {
+            obj.notification('UNSUCCESSFUL RUN TERMINATION', bg_color = '#BBB');
+          } else {
+            obj.notification('Run terminated', bg_color = '#F40');
+          }
+          setTimeout(function () {
+            location.reload();
+          }, 1000);
+        });
+      }
+      console.log('revoke')
+    },
+    terminate () {
+      // var terminate = confirm('Are you sure you want to terminate this FireX run?');
+      //       if (terminate) {
+      //           obj.notification('Waiting for celery...');
+      //           $.getJSON('../api/task/revoke/' + root_uuid, function(data) {
+      //               if (data.revoked == null) {
+      //                   obj.notification('UNSUCCESSFUL RUN TERMINATION', bg_color='#BBB');
+      //               } else {
+      //                   obj.notification('Run terminated', bg_color='#F40');
+      //               }
+      //               setTimeout(function() {
+      //                   location.reload();
+      //               }, 1000);
+      //           });
+      //       }
+    },
+    fetchTaskDetails (uuid) {
+      if (this.useRecFile) {
+        this.taskDetails = this.recFileNodesByUuid[uuid]
+      } else {
+        let eventName = 'task-details-' + uuid
+        this.socket.on(eventName, (data) => {
+          this.taskDetails = data
+          this.socket.off(eventName)
+          // TODO: add timeout on failure and  handle already disconntected.
+        })
+        this.socket.emit('send-task-details', uuid)
+      }
+    },
+    clearSupportedChildInfo () {
       this.childSupportListLink = false
       this.childSupportCenter = false
       this.childSupportShowUuids = false
@@ -228,8 +281,25 @@ export default {
       this.supportLocation = false
       this.title = this.uid
       this.logsUrl = this.logDir
+    },
+  },
+  beforeRouteEnter (to, from, next) {
+    next(vm => {
+      vm.clearSupportedChildInfo()
+      if (to.name === 'XNodeAttributes') {
+        vm.fetchTaskDetails(to.params.uuid)
+      }
+    })
+  },
+  watch: {
+    '$route' (to, from) {
+      this.clearSupportedChildInfo()
+      // TODO: specify more supported actions in this way.
       if (to.meta.supportedActions) {
         to.meta.supportedActions.forEach(a => eventHub.$emit(a))
+      }
+      if (to.name === 'XNodeAttributes') {
+        this.fetchTaskDetails(to.params.uuid)
       }
     },
   },
@@ -288,6 +358,15 @@ a {
 
 a:hover {
     color: #2980ff;
+}
+
+.kill-button {
+  color: #900;
+}
+
+.kill-button:hover {
+  color: #fff;
+  background: #900;
 }
 
 @keyframes spinner {

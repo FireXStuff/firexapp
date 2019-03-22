@@ -35,27 +35,7 @@
 
 <script>
 import _ from 'lodash'
-
-let nodeAttributes = [
-  'hostname',
-  'task_num',
-  'retries',
-  'uuid',
-  'name',
-  'state',
-  'children_uuids',
-]
-
-// let inProgressAnimationStyle = {
-//   'animation-name': 'taskRunning',
-//   'animation-duration': '1.5s',
-//   'animation-timing-function': 'ease',
-//   'animation-delay': '0s',
-//   'animation-iteration-count': 'infinite',
-//   'animation-direction': 'normal',
-//   'animation-fill-mode': 'none',
-//   'animation-play-state': 'running'
-// }
+import {xNodeAttributeTo} from '../utils'
 
 export default {
   name: 'XNode',
@@ -64,12 +44,8 @@ export default {
       type: Object,
       required: true,
       validator: function (value) {
-        let missing = _.difference(nodeAttributes, _.keys(value))
-        if (missing.length !== 0) {
-          console.error('Missing following required properties: ' + missing)
-          console.error(value)
-        }
-        return missing.length === 0
+        // TODO: is it possible to validate node input? Since events are sent, nodes might always be partial.
+        return true
       },
     },
     allowCollapse: {
@@ -160,18 +136,16 @@ export default {
       // TODO: this is gross. There must be a better way to get height and width dynamically.
       this.$nextTick(function () {
         let r = this.$el.getBoundingClientRect()
-        if (r && (this.intrinsicDimensions.width !== r.width || this.intrinsicDimensions.height !== r.height)) {
+        let isFirst = this.intrinsicDimensions.width === null || this.intrinsicDimensions.height === null
+        let dimensionChanged = this.intrinsicDimensions.width !== r.width || this.intrinsicDimensions.height !== r.height
+        if (r && (isFirst || dimensionChanged)) {
           this.$emit('node-dimensions', {uuid: this.node.uuid, height: r.height, width: r.width})
           this.intrinsicDimensions = {width: r.width, height: r.height}
         }
       })
     },
     routeToAttribute (uuid) {
-      return {
-        name: 'XNodeAttributes',
-        params: {'uuid': uuid},
-        query: {logDir: this.$route.query.logDir,
-          flameServer: this.$route.query.flameServer}}
+      return xNodeAttributeTo(uuid, this)
     },
   },
 }

@@ -38,6 +38,10 @@ const router = new Router({
       ],
     },
   ],
+  // always scroll to top.
+  scrollBehavior (to, from, savedPosition) {
+    return {x: 0, y: 0}
+  },
 })
 
 // TODO: doesn't affect clicking to open a new tab.
