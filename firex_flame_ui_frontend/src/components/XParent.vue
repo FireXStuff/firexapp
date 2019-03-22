@@ -2,6 +2,10 @@
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
     <div class="header">
 
+      <div v-if="displayMessage.content" class='notification' :style="'background: ' + displayMessage.color">
+        <span style="top: 50%">{{displayMessage.content}}</span>
+      </div>
+
       <div style="text-align: center; padding: 0 10px">
         Flame Server:
         <input type="text" size=20 :value="flameServer"
@@ -22,6 +26,12 @@
           </router-link>
         </div>
         <div class="uid">{{title ? title : uid}}</div>
+
+        <a :href="flameServer" class="flame-link">
+          <font-awesome-icon icon="fire"></font-awesome-icon>
+            Legacy
+          <font-awesome-icon icon="fire"></font-awesome-icon>
+        </a>
 
         <div style="margin-left: auto; display: flex;">
           <div v-if="false" class="header-icon-button">
@@ -52,7 +62,8 @@
               <font-awesome-icon icon="sitemap"></font-awesome-icon>
             </router-link>
           </div>
-          <div v-if="true" class="header-icon-button kill-button" v-on:click="revokeRoot">
+          <!-- TODO: attribute view likely shouldn't be able to revoke entire run -->
+          <div v-if="canRevoke" class="header-icon-button kill-button" v-on:click="revokeRoot">
               <font-awesome-icon icon="times"></font-awesome-icon>
           </div>
           <a :href="logsUrl" class="flame-link">View Logs</a>
@@ -68,6 +79,7 @@
     <template v-if="hasTasks">
       <!-- TODO: is logDir still used by any children? If not, remove it.-->
       <router-view :nodesByUuid="nodesByUuid"
+                   :firexUid="uid"
                    :logDir="logDir"
                    :taskDetails="taskDetails"></router-view>
     </template>
@@ -104,6 +116,8 @@ export default {
       socketNodesByUuid: {},
       socketUpdateInProgress: false,
       taskDetails: {},
+      displayMessage: {content: '', color: ''},
+      receivedRevokeResponse: false,
     }
   },
   computed: {
@@ -143,6 +157,9 @@ export default {
     },
     liveUpdateAllowed () {
       return this.childSupportLiveUpdate && !this.useRecFile && this.hasIncompleteTasks
+    },
+    canRevoke () {
+      return !this.useRecFile && this.hasIncompleteTasks && this.socket.connected
     },
   },
   asyncComputed: {
@@ -205,6 +222,7 @@ export default {
     stopSocketListening (socket) {
       // Stop listening on everything.
       socket.off('graph-state')
+      socket.off('full-state')
       socket.off('tasks-update')
     },
     startSocketListening (socket) {
@@ -225,37 +243,37 @@ export default {
       eventHub.$emit('toggle-uuids')
     },
     revokeRoot () {
-      let  terminate = confirm('Are you sure you want to terminate this FireX run?')
-      if (terminate) {
-        obj.notification('Waiting for celery...');
-        $.getJSON('../api/task/revoke/' + root_uuid, function (data) {
-          if (data.revoked == null) {
-            obj.notification('UNSUCCESSFUL RUN TERMINATION', bg_color = '#BBB');
-          } else {
-            obj.notification('Run terminated', bg_color = '#F40');
-          }
-          setTimeout(function () {
-            location.reload();
-          }, 1000);
-        });
+      if (!this.canRevoke) {
+        return
       }
-      console.log('revoke')
+      let terminate = confirm('Are you sure you want to terminate this FireX run?')
+      if (terminate) {
+        this.socket.on('revoke-success', () => {
+          this.displayMessage = {content: 'Run terminated', color: '#F40'}
+          this.receivedRevokeResponse = true
+          this.socket.off('revoke-success')
+          this.socket.off('revoke-failed')
+          setTimeout(() => { this.displayMessage = {content: '', color: ''} }, 4000)
+        })
+        this.socket.on('revoke-failed', () => {
+          this.displayMessage = {content: 'UNSUCCESSFUL TERMINATION', color: '#BBB'}
+          this.receivedRevokeResponse = true
+          this.socket.off('revoke-success')
+          this.socket.off('revoke-failed')
+          setTimeout(() => { this.displayMessage = {content: '', color: ''} }, 6000)
+        })
+        this.socket.emit('revoke-task', this.root())
+        this.displayMessage = {content: 'Waiting for celery...', color: 'deepskyblue'}
+
+        setTimeout(() => {
+          if (!this.receivedRevokeResponse) {
+            this.displayMessage = {content: 'No response from server.', color: '#BBB'}
+          }
+        }, 3000)
+      }
     },
-    terminate () {
-      // var terminate = confirm('Are you sure you want to terminate this FireX run?');
-      //       if (terminate) {
-      //           obj.notification('Waiting for celery...');
-      //           $.getJSON('../api/task/revoke/' + root_uuid, function(data) {
-      //               if (data.revoked == null) {
-      //                   obj.notification('UNSUCCESSFUL RUN TERMINATION', bg_color='#BBB');
-      //               } else {
-      //                   obj.notification('Run terminated', bg_color='#F40');
-      //               }
-      //               setTimeout(function() {
-      //                   location.reload();
-      //               }, 1000);
-      //           });
-      //       }
+    root () {
+      return _.head(_.filter(this.nodesByUuid, {'parent_id': null})).uuid
     },
     fetchTaskDetails (uuid) {
       if (this.useRecFile) {
@@ -389,6 +407,18 @@ a:hover {
   border-top: 2px solid #07d;
   border-right: 2px solid transparent;
   animation: spinner .6s linear infinite;
+}
+
+.notification {
+  position: absolute;
+  z-index: unset;
+  display: inline-block;
+  background: deepskyblue;
+  border-bottom: 1px solid #000;
+  width: 100%;
+  text-align: center;
+  height: 4em;
+  line-height: 4em
 }
 
 </style>

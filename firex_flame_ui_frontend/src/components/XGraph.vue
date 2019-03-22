@@ -67,6 +67,7 @@ export default {
   components: {XSvgNode, XNode, XLink},
   props: {
     nodesByUuid: {required: true, type: Object},
+    firexUid: {required: true, type: String},
   },
   data () {
     let zoom = d3.behavior.zoom()
@@ -82,9 +83,7 @@ export default {
       //  gross per-node intrinsic size calculation, and another that always has nodes with full rect defined.
       isFirstLoad: true,
       // TODO: read & write transform to local storage to save view port.
-      transform: {
-        x: 0, y: 0, scale: 1,
-      },
+      transform: this.getLocalStorageTransform(),
       showUuids: false,
     }
   },
@@ -139,20 +138,19 @@ export default {
   },
   methods: {
     zoomed () {
-      this.setTransform(d3.event.translate, d3.event.scale)
+      this.setTransform({x: d3.event.translate[0], y: d3.event.translate[1], scale: d3.event.scale})
     },
-    setTransformUpdateZoom (translate, scale) {
+    setTransformUpdateZoom (transform) {
       // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent with current position.
-      if (!_.isNil(scale)) {
-        this.zoom.scale(scale)
+      if (!_.isNil(transform.scale)) {
+        this.zoom.scale(transform.scale)
       }
-      if (!_.isNil(translate)) {
-        this.zoom.translate(translate)
-      }
-      this.setTransform(translate, scale)
+      this.zoom.translate([transform.x, transform.y])
+      this.setTransform(transform)
     },
-    setTransform (translate, scale) {
-      this.transform = {x: translate[0], y: translate[1], scale: scale}
+    setTransform (transform) {
+      this.transform = transform
+      this.setLocalStorageTransform(this.transform)
     },
     getCurrentRelPos (nodeUuid) {
       let laidOutNode = this.nodeLayoutsByUuid[nodeUuid]
@@ -164,8 +162,11 @@ export default {
     toggleShowUuids () {
       this.showUuids = !this.showUuids
     },
-    // TODO: externalize meat of this function as getCenterTransform(innerRect, outerRect).
     center () {
+      this.setTransformUpdateZoom(this.getCenterTransform())
+    },
+    // TODO: externalize meat of this function as getCenterTransform(innerRect, outerRect).
+    getCenterTransform () {
       // Not available during re-render.
       if (this.$refs['graph-svg']) {
         let boundingRect = this.$refs['graph-svg'].getBoundingClientRect()
@@ -193,9 +194,9 @@ export default {
           let remainingVertical = boundingRect.height - scaledExtendHeight
           yTranslate = yTranslate - remainingVertical / 2
         }
-        let translate = [ -xTranslate, -yTranslate ]
-        this.setTransformUpdateZoom(translate, scale)
+        return {x: -xTranslate, y: -yTranslate, scale: scale}
       }
+      return {x: 0, y: 0, scale: 1}
     },
     toggleCollapseChildren (parentNodeId) {
       let initialRelPos = this.getCurrentRelPos(parentNodeId)
@@ -215,8 +216,7 @@ export default {
         let xShift = (initialRelPos.x - nextRelPos.x) * this.transform.scale
         let finalTranslateX = this.transform.x + xShift
         // Since we're viewing hierarchies, the y position shouldn't ever change when children are collapsed.
-        let translated = [finalTranslateX, this.transform.y]
-        this.setTransformUpdateZoom(translated, this.transform.scale)
+        this.setTransformUpdateZoom({x: finalTranslateX, y: this.transform.y, scale: this.transform.scale})
       })
     },
     updateNodeDimensions (event) {
@@ -242,15 +242,34 @@ export default {
     hideSucessPaths () {
       this.hiddenNodeIds = this.hiddenNodeIds.concat(nodesWithAncestorOrDescendantFailure(this.nodesByUuid))
     },
+    isTransformValid (transform) {
+      let vals = [transform.x, transform.y, transform.scale]
+      return _.every(_.map(vals, v => !_.isNaN(v) && _.isNumber(v)))
+    },
+    setLocalStorageTransform (newTransform) {
+      localStorage[this.firexUid] = JSON.stringify(newTransform)
+    },
+    getLocalStorageTransform () {
+      try {
+        let storedTransform = JSON.parse(localStorage[this.firexUid])
+        if (this.isTransformValid(storedTransform)) {
+          return storedTransform
+        }
+      } catch (e) {
+        localStorage.removeItem(this.firexUid)
+      }
+      return this.getCenterTransform()
+    },
   },
   watch: {
     nodeLayoutsByUuid (_, __) {
       // This is somewhat gross. Maybe there should be another component that does the SVG rendering that always
       // has dimensions populated. It could then center on mounted or similar.
-      if (this.isFirstLoad) {
-        this.isFirstLoad = false
-        this.center()
-      }
+
+      // if (this.isFirstLoad && !this.isTransformValid(this.getLocalStorageTransform())) {
+      //   this.isFirstLoad = false
+      // }
+      this.setTransformUpdateZoom(this.getLocalStorageTransform())
     },
   },
 }

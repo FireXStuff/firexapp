@@ -7,11 +7,11 @@ import AsyncComputed from 'vue-async-computed'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faEye } from '@fortawesome/free-regular-svg-icons'
 import { faBullseye, faSearch, faListUl, faPlusCircle, faWindowMaximize,
-  faWindowMinimize, faSitemap, faFileCode, faTimes } from '@fortawesome/free-solid-svg-icons'
+  faWindowMinimize, faSitemap, faFileCode, faTimes, faFire } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 library.add(faBullseye, faEye, faSearch, faListUl, faPlusCircle, faWindowMaximize, faWindowMinimize, faSitemap,
-  faFileCode, faTimes)
+  faFileCode, faTimes, faFire)
 Vue.use(AsyncComputed)
 Vue.config.productionTip = false
 

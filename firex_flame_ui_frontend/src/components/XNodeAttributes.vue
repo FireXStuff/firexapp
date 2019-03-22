@@ -20,7 +20,8 @@
       <div v-else-if="key === 'children_uuids'">
         <strong>children:</strong>
         <div v-for="child_uuid in displayNode[key]" :key="child_uuid" style="margin-left: 25px">
-          {{nodesByUuid[child_uuid].name}} <router-link :to="linkToUuid(child_uuid)">{{child_uuid}}</router-link>
+          <strong>{{nodesByUuid[child_uuid].name}}: </strong>
+          <router-link :to="linkToUuid(child_uuid)">{{child_uuid}}</router-link>
         </div>
       </div>
       <div v-else-if="key === 'support_location'">
