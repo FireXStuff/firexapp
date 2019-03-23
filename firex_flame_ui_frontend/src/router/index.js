@@ -5,6 +5,7 @@ import XGraph from '@/components/XGraph'
 import XList from '@/components/XList'
 import XNodeAttributes from '@/components/XNodeAttributes'
 import _ from 'lodash'
+import XHelp from '@/components/XHelp'
 
 Vue.use(Router)
 
@@ -25,6 +26,12 @@ const router = new Router({
           path: 'tasks/:uuid',
           name: 'XNodeAttributes',
           component: XNodeAttributes,
+          props: true,
+        },
+        {
+          path: 'help',
+          name: 'XHelp',
+          component: XHelp,
           props: true,
         },
         // default path must be last.

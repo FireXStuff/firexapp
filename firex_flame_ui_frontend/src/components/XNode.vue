@@ -1,6 +1,6 @@
 <template>
   <div :style="topLevelStyle" class="node">
-    <router-link :to="routeToAttribute(node.uuid)">
+    <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()">
       <div style="overflow: hidden; text-overflow: ellipsis">
         <div v-if="allowCollapse && node.children_uuids.length" style="float: right;">
           <!-- Use prevent to avoid activating node-wide attribute link -->
@@ -55,6 +55,7 @@ export default {
     showUuid: {default: false},
     width: {required: true},
     height: {required: true},
+    allowClickToAttributes: {default: true},
   },
   data () {
     return {
@@ -146,6 +147,9 @@ export default {
     },
     routeToAttribute (uuid) {
       return xNodeAttributeTo(uuid, this)
+    },
+    currentRoute () {
+      return _.clone(this.$router.currentRoute)
     },
   },
 }

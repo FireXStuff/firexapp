@@ -69,7 +69,8 @@
           </div>
           <a :href="logsUrl" class="flame-link">View Logs</a>
           <a  v-if="supportLocation" :href="supportLocation" class="flame-link">Support</a>
-          <a v-if="childSupportHelpLink" class="flame-link" href="help">Help</a>
+          <router-link v-if="childSupportHelpLink" class="flame-link" :to="{ name: 'XHelp',
+            query: {logDir: $route.query.logDir, flameServer: $route.query.flameServer}}">Help</router-link>
           <a v-if="codeUrl" class="flame-link" :href="codeUrl">
             <font-awesome-icon icon="file-code"></font-awesome-icon>
           </a>
@@ -77,13 +78,12 @@
       </div>
     </div>
     <!-- Only show main panel after data is loaded -->
-    <template v-if="hasTasks">
-      <!-- TODO: is logDir still used by any children? If not, remove it.-->
-      <router-view :nodesByUuid="nodesByUuid"
-                   :firexUid="uid"
-                   :logDir="logDir"
-                   :taskDetails="taskDetails"></router-view>
-    </template>
+    <!-- TODO: is logDir still used by any children? If not, remove it.-->
+    <router-view v-if="hasTasks"
+                 :nodesByUuid="nodesByUuid"
+                 :firexUid="uid"
+                 :logDir="logDir"
+                 :taskDetails="taskDetails"></router-view>
   </div>
 </template>
 
