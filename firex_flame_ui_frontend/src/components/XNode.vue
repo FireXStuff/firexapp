@@ -26,7 +26,7 @@
           <div v-if="node.flame_additional_data" v-html="node.flame_additional_data"></div>
         </div>
 
-        <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}} {{node.state}}</div>
+        <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
         <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
       </div>
     </router-link>

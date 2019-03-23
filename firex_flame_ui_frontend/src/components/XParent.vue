@@ -7,16 +7,17 @@
       </div>
 
       <div style="text-align: center; padding: 0 10px">
-        Flame Server:
-        <input type="text" size=20 :value="flameServer"
-               @keyup.enter="$router.push({ name: 'XGraph', query: { flameServer: $event.target.value.trim() } })"
-               :style="socketUpdateInProgress || socket.connected ? 'border-color: lightgreen;' : 'border-color: red;'">
+        <!--Flame Server:-->
+        <!--<input type="text" size=20 :value="flameServer"-->
+               <!--@keyup.enter="$router.push({ name: 'XGraph', query: { flameServer: $event.target.value.trim() } })"-->
+               <!--:style="socketUpdateInProgress || socket.connected ? 'border-color: lightgreen;' : 'border-color: red;'">-->
 
-        Logs Directory:
-        <input type="text" size="100" :value="logDir"
-               :style="$asyncComputed.recFileNodesByUuid.error ? 'border-color: red;' : ''"
-               @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value.trim() } })">
+        <!--Logs Directory:-->
+        <!--<input type="text" size="100" :value="logDir"-->
+               <!--:style="$asyncComputed.recFileNodesByUuid.error ? 'border-color: red;' : ''"-->
+               <!--@keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value.trim() } })">-->
 
+        <div v-show="false">{{socket.connected}}</div>
         <div :class="{spinner: $asyncComputed.recFileNodesByUuid.updating || socketUpdateInProgress}"></div>
       </div>
       <div style="display: flex; flex-direction: row;">
@@ -29,7 +30,7 @@
 
         <a :href="flameServer" class="flame-link">
           <font-awesome-icon icon="fire"></font-awesome-icon>
-            Legacy
+            Back to Legacy
           <font-awesome-icon icon="fire"></font-awesome-icon>
         </a>
 
@@ -235,7 +236,16 @@ export default {
           socket.on('tasks-update', this.mergeNodesByUuid)
         }
       })
+      socket.on('full-state', (nodesByUuid) => {
+        this.setSocketNodesByUuid(nodesByUuid)
+        this.socketUpdateInProgress = false
+        if (this.hasIncompleteTasks) {
+          // Only start listening for incremental updates after we've processed the full state.
+          socket.on('tasks-update', this.mergeNodesByUuid)
+        }
+      })
       socket.emit('send-graph-state')
+      socket.emit('send-full-state')
       this.socketUpdateInProgress = true
     },
     toggleShowUuids () {

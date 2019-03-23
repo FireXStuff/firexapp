@@ -1,16 +1,27 @@
 <template>
   <div style="display:flex; flex-direction: column; margin-left: 5px">
     <div>Sort by:
-      <div style="display:flex;">
-        <div v-for="option in sortOptions" :key="option.value" style="margin: 0 15px;">
+      <div style="display:flex; margin-left: 20px">
+        <div v-for="option in sortOptions" :key="option.value" style="margin: 0 10px;">
           <input type="radio" :id="option.value" name="list-order" :value="option.value" v-model="selectedSortOption">
           <label :for="option.value">{{option.text}}</label>
+        </div>
+
+        <div style="margin-left: 25px;">
+          <input type="radio" id="ascending" name="list-order-direction" value="ascending"
+                 v-model="selectedSortOptionDirection">
+          <label for="ascending">Ascending</label>
+        </div>
+        <div>
+          <input type="radio" id="descending" name="list-order-direction" value="descending"
+                 v-model="selectedSortOptionDirection">
+          <label for="descending">Descending</label>
         </div>
       </div>
     </div>
 
     <div>Filter by task type:
-      <div style="display:flex;">
+      <div style="display:flex; margin-left: 20px">
         <div style="display: inline-block; margin: 0 15px;">
           <input type="checkbox" id="all" v-on:change="toggleShowAll" :checked="allFiltersSelected">
           <label for="all">all</label>
@@ -52,11 +63,11 @@ export default {
     return {
       // TODO: consider having these as URL parameters, so we can link to failures only.
       selectedSortOption: 'time-received',
+      selectedSortOptionDirection: 'ascending',
       sortOptions: [
-        {value: 'time-received', text: 'Time Received (default)'},
+        {value: 'time-received', text: 'Time Received'},
         {value: 'alphabetical', text: 'Alphabetical'},
-        {value: 'runtime-ascending', text: 'Runtime (Asc)'},
-        {value: 'runtime-descending', text: 'Runtime (Desc)'},
+        {value: 'runtime', text: 'Runtime'},
       ],
       selectedFilterOptions: _.clone(filterOptions),
       filterOptions: filterOptions,
@@ -71,12 +82,11 @@ export default {
       let optionsToSortFields = {
         'time-received': 'task_num',
         'alphabetical': 'name',
-        'runtime-ascending': 'actual_runtime', // TODO: what is this field isn't defined yet?
-        'runtime-descending': 'actual_runtime',
+        'runtime': 'actual_runtime', // TODO: what is this field isn't defined yet?
       }
       let sortField = optionsToSortFields[this.selectedSortOption]
       let sortedNodes = _.sortBy(resultNodes, sortField)
-      if (this.selectedSortOption === 'runtime-descending') {
+      if (this.selectedSortOptionDirection === 'descending') {
         sortedNodes = _.reverse(sortedNodes)
       }
       return sortedNodes
