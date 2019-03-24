@@ -1,11 +1,10 @@
 <template>
-  <g :transform="transform"
-     :width="computedDimensions.width" :height="computedDimensions.height">
-    <foreignObject :width="computedDimensions.width" :height="computedDimensions.height">
+  <g :transform="transform" :width="dimensions.width" :height="dimensions.height">
+    <foreignObject :width="dimensions.width" :height="dimensions.height">
       <div>
         <x-node :node="node"
                 :showUuid="showUuid"
-                :width="width" :height="height"
+                :style="'opacity: ' + opacity"
                 v-on:collapse-node="$emit('collapse-node')"></x-node>
       </div>
     </foreignObject>
@@ -56,20 +55,15 @@ export default {
       },
     },
     showUuid: {},
-    width: {required: true, type: Number},
-    height: {required: true, type: Number},
-    xPosition: {required: true, type: Number},
-    yPosition: {required: true, type: Number},
+    position: {required: true, type: Object},
+    dimensions: {required: true, type: Object},
+    // xPosition: {required: true, type: Number},
+    // yPosition: {required: true, type: Number},
+    opacity: {default: 1},
   },
   computed: {
-    computedDimensions () {
-      return {
-        width: this.width + 10,
-        height: this.height + 10,
-      }
-    },
     transform () {
-      return 'translate(' + this.xPosition + ',' + this.yPosition + ')'
+      return 'translate(' + this.position.x + ',' + this.position.y + ')'
     },
   },
 }

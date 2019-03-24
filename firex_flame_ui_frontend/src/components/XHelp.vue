@@ -4,37 +4,37 @@
     <div style="display: flex; text-align: center; margin-left: 100px">
       <div style="margin: 15px">
         <h2>Started</h2>
-        <div style="display: inline-block">
-          <x-node :node="startedNode" height="auto" width="200px" :allow-click-to-attributes="false"></x-node>
+        <div style="display: inline-block; width: 200px;">
+          <x-node :node="startedNode" :allow-click-to-attributes="false"></x-node>
         </div>
       </div>
       <div style="margin: 15px">
         <h2>Succeeded</h2>
-        <div style="display: inline-block">
-          <x-node :node="succeededNode" height="auto" width="200px" :allow-click-to-attributes="false"></x-node>
+        <div style="display: inline-block; width: 200px;">
+          <x-node :node="succeededNode" :allow-click-to-attributes="false"></x-node>
         </div>
       </div>
       <div style="margin: 15px">
         <h2>Failed</h2>
-        <div style="display: inline-block">
-          <x-node :node="failedNode" height="auto" width="200px" :allow-click-to-attributes="false"></x-node>
+        <div style="display: inline-block; width: 200px;">
+          <x-node :node="failedNode" :allow-click-to-attributes="false"></x-node>
         </div>
       </div>
       <div style="margin: 15px">
         <h2>Revoked</h2>
-        <div style="display: inline-block">
-          <x-node :node="revokedNode" height="auto" width="200px" :allow-click-to-attributes="false"></x-node>
+        <div style="display: inline-block; width: 200px;">
+          <x-node :node="revokedNode" :allow-click-to-attributes="false"></x-node>
         </div>
       </div>
       <div style="margin: 15px">
         <h2>Plugin with Success</h2>
-        <div style="display: inline-block">
-          <x-node :node="pluginSucceededNode" height="auto" width="200px" :allow-click-to-attributes="false"></x-node>
+        <div style="display: inline-block; width: 200px;">
+          <x-node :node="pluginSucceededNode" :allow-click-to-attributes="false"></x-node>
         </div>
       </div>
     </div>
     <h1>Difference between round and square corners</h1>
-    <div class="orgchart">
+    <div>
       <ul>
         <li>
           <h2>Round cornered tasks are tasks which are spawned from within another task. The task which spawns them

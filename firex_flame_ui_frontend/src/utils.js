@@ -13,6 +13,8 @@ export {
   nodesWithAncestorOrDescendantFailure,
   calculateNodesPositionByUuid,
   xNodeAttributeTo,
+  getCenteringTransform,
+  socketRequestResponse,
 }
 
 // function invokePerNode (root, fn) {
@@ -183,4 +185,59 @@ function xNodeAttributeTo (uuid, vm) {
       flameServer: vm.$route.query.flameServer,
     },
   }
+}
+
+function getCenteringTransform (rectToCenter, container, scaleBounds, verticalPadding) {
+  // TODO: padding as percentage of available area.
+  let widthToCenter = rectToCenter.right - rectToCenter.left
+  let heightToCenter = rectToCenter.bottom - rectToCenter.top + verticalPadding
+  let xScale = container.width / widthToCenter
+  let yScale = container.height / heightToCenter
+  let scale = _.clamp(_.min([xScale, yScale]), scaleBounds.min, scaleBounds.max)
+
+  let scaledWidthToCenter = widthToCenter * scale
+  let xTranslate = rectToCenter.left * scale
+
+  // Center based on (scaled) extra horizontal or vertical space.
+  if (Math.round(container.width) > Math.round(scaledWidthToCenter)) {
+    let remainingHorizontal = container.width - scaledWidthToCenter
+    xTranslate = xTranslate - remainingHorizontal / 2
+  }
+
+  let scaledHeightToCenter = heightToCenter * scale
+  let yTranslate = (rectToCenter.top - verticalPadding / 2) * scale
+  if (Math.round(container.height) > Math.round(scaledHeightToCenter)) {
+    let remainingVertical = container.height - scaledHeightToCenter
+    yTranslate = yTranslate - remainingVertical / 2
+  }
+  return {x: -xTranslate, y: -yTranslate, scale: scale}
+}
+
+function socketRequestResponse (socket, requestEvent, successEvent, failedEvent, timeout) {
+  let responseReceived = false
+  socket.on(successEvent.name, (data) => {
+    responseReceived = true
+    successEvent.fn(data)
+    socket.off(successEvent.name)
+    if (!_.isNil(failedEvent)) {
+      socket.off(failedEvent.name)
+    }
+  })
+  if (!_.isNil(failedEvent)) {
+    socket.on(failedEvent.name, (data) => {
+      responseReceived = true
+      failedEvent.fn(data)
+      socket.off(successEvent.name)
+      socket.off(failedEvent.name)
+    })
+  }
+
+  if (!_.isNil(timeout)) {
+    setTimeout(() => {
+      if (!responseReceived) {
+        timeout.fn()
+      }
+    }, timeout.waitTime)
+  }
+  socket.emit(requestEvent.name, requestEvent.data)
 }

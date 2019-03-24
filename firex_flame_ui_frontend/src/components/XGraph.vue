@@ -19,12 +19,11 @@
 
             <x-svg-node v-for="(nodeLayout, uuid) in nodeLayoutsByUuid"
                         :node="nodesByUuid[uuid]"
-                        :width="dimensionsByUuid[uuid].width"
-                        :height="dimensionsByUuid[uuid].height"
-                        :xPosition="nodeLayout.x"
-                        :yPosition="nodeLayout.y"
+                        :dimensions="dimensionsByUuid[uuid]"
+                        :position="nodeLayout"
                         :key="uuid"
                         :showUuid="showUuids"
+                        :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
                         v-on:collapse-node="toggleCollapseChildren(uuid)"></x-svg-node>
           </g>
         </g>
@@ -43,7 +42,7 @@
       <div v-for="n in nodesByUuid" :key="n.uuid"
            style="display: inline-block; position: absolute; top: 0;  z-index: -1000;">
         <x-node :emitDimensions="true" :allowCollapse="false" :showUuid="showUuids"
-                :node="n" width='auto' height='auto'
+                :node="n"
                 v-on:node-dimensions="updateNodeDimensions($event)"></x-node>
       </div>
     </div>
@@ -60,7 +59,9 @@ import _ from 'lodash'
 import XNode from './XNode'
 import XLink from './XLinks'
 import {eventHub, nodesWithAncestorOrDescendantFailure,
-  calculateNodesPositionByUuid} from '../utils'
+  calculateNodesPositionByUuid, getCenteringTransform} from '../utils'
+
+let scaleBounds = {max: 1.3, min: 0.01}
 
 export default {
   name: 'XGraph',
@@ -71,7 +72,7 @@ export default {
   },
   data () {
     let zoom = d3.behavior.zoom()
-      .scaleExtent([0.01, 1])
+      .scaleExtent([scaleBounds.min, scaleBounds.max])
       .on('zoom', this.zoomed)
     return {
       // Default to hiding paths that don't include a failure by default.
@@ -85,6 +86,7 @@ export default {
       // TODO: read & write transform to local storage to save view port.
       transform: this.getLocalStorageTransform(),
       showUuids: false,
+      focusedNodeUuid: null,
     }
   },
   computed: {
@@ -127,6 +129,7 @@ export default {
   created () {
     eventHub.$on('center', this.center)
     eventHub.$on('toggle-uuids', this.toggleShowUuids)
+    eventHub.$on('node-focus', this.focusOnNode)
 
     // TODO: clean up child route support communication by moving it to route definition.
     let supportedParentButtons = ['support-list-link', 'support-center', 'support-help-link', 'support-watch',
@@ -138,6 +141,7 @@ export default {
   },
   methods: {
     zoomed () {
+      this.focusedNodeUuid = null
       this.setTransform({x: d3.event.translate[0], y: d3.event.translate[1], scale: d3.event.scale})
     },
     setTransformUpdateZoom (transform) {
@@ -165,36 +169,29 @@ export default {
     center () {
       this.setTransformUpdateZoom(this.getCenterTransform())
     },
-    // TODO: externalize meat of this function as getCenterTransform(innerRect, outerRect).
+    focusOnNode (uuid) {
+      this.focusedNodeUuid = uuid
+      this.setTransformUpdateZoom(this.getCenterOnNodeTransform(uuid))
+    },
     getCenterTransform () {
       // Not available during re-render.
       if (this.$refs['graph-svg']) {
         let boundingRect = this.$refs['graph-svg'].getBoundingClientRect()
-
-        // TODO: padding as percentage of available area.
-        let verticalPadding = 200
-        let visibleExtentWidth = this.nonHiddenNodesExtent.right - this.nonHiddenNodesExtent.left
-        let visibleExtentHeight = this.nonHiddenNodesExtent.bottom - this.nonHiddenNodesExtent.top + verticalPadding
-        let xScale = boundingRect.width / visibleExtentWidth
-        let yScale = boundingRect.height / visibleExtentHeight
-        let scale = _.min([xScale, yScale]) // TODO: include absolute scale min.
-
-        let scaledExtendWidth = visibleExtentWidth * scale
-        let xTranslate = this.nonHiddenNodesExtent.left * scale
-
-        // Center the graph based on (scaled) extra horizontal or vertical space.
-        if (Math.round(boundingRect.width) > Math.round(scaledExtendWidth)) {
-          let remainingHorizontal = boundingRect.width - scaledExtendWidth
-          xTranslate = xTranslate - remainingHorizontal / 2
+        return getCenteringTransform(this.nonHiddenNodesExtent, boundingRect, scaleBounds, 200)
+      }
+      return {x: 0, y: 0, scale: 1}
+    },
+    getCenterOnNodeTransform (uuid) {
+      // Not available during re-render.
+      if (this.$refs['graph-svg']) {
+        let boundingRect = this.$refs['graph-svg'].getBoundingClientRect()
+        let nodeRect = {
+          left: this.nodeLayoutsByUuid[uuid].x,
+          right: this.nodeLayoutsByUuid[uuid].x + this.dimensionsByUuid[uuid].width,
+          top: this.nodeLayoutsByUuid[uuid].y,
+          bottom: this.nodeLayoutsByUuid[uuid].y + this.dimensionsByUuid[uuid].height,
         }
-
-        let scaledExtendHeight = visibleExtentHeight * scale
-        let yTranslate = (this.nonHiddenNodesExtent.top - verticalPadding / 2) * scale
-        if (Math.round(boundingRect.height) > Math.round(scaledExtendHeight)) {
-          let remainingVertical = boundingRect.height - scaledExtendHeight
-          yTranslate = yTranslate - remainingVertical / 2
-        }
-        return {x: -xTranslate, y: -yTranslate, scale: scale}
+        return getCenteringTransform(nodeRect, boundingRect, scaleBounds, 0)
       }
       return {x: 0, y: 0, scale: 1}
     },
@@ -220,11 +217,9 @@ export default {
       })
     },
     updateNodeDimensions (event) {
-      let newEntry = {}
-      newEntry[event.uuid] = {width: event.width, height: event.height}
+      let dimensions = {width: event.width, height: event.height}
       // Vue doesn't deep watch, so create a new object for every update.
-      // this.$set(this.dimensionsByUuid, event.uuid, newEntry)
-      this.dimensionsByUuid = _.merge({}, this.dimensionsByUuid, newEntry)
+      this.$set(this.dimensionsByUuid, event.uuid, dimensions)
     },
     getDescendantUuids (nodeId) {
       let resultUuids = []

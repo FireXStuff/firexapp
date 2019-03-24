@@ -7,15 +7,15 @@
       </div>
 
       <div style="text-align: center; padding: 0 10px">
-        <!--Flame Server:-->
-        <!--<input type="text" size=20 :value="flameServer"-->
-               <!--@keyup.enter="$router.push({ name: 'XGraph', query: { flameServer: $event.target.value.trim() } })"-->
-               <!--:style="socketUpdateInProgress || socket.connected ? 'border-color: lightgreen;' : 'border-color: red;'">-->
+        Flame Server:
+        <input type="text" size=20 :value="flameServer"
+               @keyup.enter="$router.push({ name: 'XGraph', query: { flameServer: $event.target.value.trim() } })"
+               :style="socketUpdateInProgress || socket.connected ? 'border-color: lightgreen;' : 'border-color: red;'">
 
-        <!--Logs Directory:-->
-        <!--<input type="text" size="100" :value="logDir"-->
-               <!--:style="$asyncComputed.recFileNodesByUuid.error ? 'border-color: red;' : ''"-->
-               <!--@keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value.trim() } })">-->
+        Logs Directory:
+        <input type="text" size="100" :value="logDir"
+               :style="$asyncComputed.recFileNodesByUuid.error ? 'border-color: red;' : ''"
+               @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value.trim() } })">
 
         <div v-show="false">{{socket.connected}}</div>
         <div :class="{spinner: $asyncComputed.recFileNodesByUuid.updating || socketUpdateInProgress}"></div>
@@ -28,15 +28,15 @@
         </div>
         <div class="uid">{{title ? title : uid}}</div>
 
-        <a :href="flameServer" class="flame-link">
+        <a :href="flameServer" class="flame-link" style="font-size: 16px;">
           <font-awesome-icon icon="fire"></font-awesome-icon>
             Back to Legacy
           <font-awesome-icon icon="fire"></font-awesome-icon>
         </a>
 
         <div style="margin-left: auto; display: flex;">
-          <div v-if="false" class="header-icon-button">
-            <font-awesome-icon icon="search"></font-awesome-icon>
+          <div v-if="true" class="header-icon-button">
+            <x-task-node-search></x-task-node-search>
           </div>
 
           <div v-if="childSupportCenter" class="header-icon-button" v-on:click="eventHub.$emit('center')">
@@ -78,22 +78,22 @@
       </div>
     </div>
     <!-- Only show main panel after data is loaded -->
-    <!-- TODO: is logDir still used by any children? If not, remove it.-->
     <router-view v-if="hasTasks"
                  :nodesByUuid="nodesByUuid"
                  :firexUid="uid"
-                 :logDir="logDir"
                  :taskDetails="taskDetails"></router-view>
   </div>
 </template>
 
 <script>
 import _ from 'lodash'
-import {parseRecFileContentsToNodesByUuid, eventHub} from '../utils'
+import {parseRecFileContentsToNodesByUuid, eventHub, socketRequestResponse} from '../utils'
 import io from 'socket.io-client'
+import XTaskNodeSearch from './XTaskNodeSearch'
 
 export default {
   name: 'XParent',
+  components: {XTaskNodeSearch},
   props: {
     logDir: {required: false, type: String},
     flameServer: {required: false, type: String},
@@ -153,7 +153,7 @@ export default {
       return socket
     },
     hasIncompleteTasks () {
-      let incompleteStates = ['task-blocked', 'task-started', 'task-received']
+      let incompleteStates = ['task-blocked', 'task-started', 'task-received', 'task-unblocked']
       return _.some(this.nodesByUuid, n => _.includes(incompleteStates, n.state))
     },
     liveUpdateAllowed () {
@@ -169,7 +169,7 @@ export default {
         if (!this.useRecFile) {
           return null
         }
-        return this.fetchTreeData(this.logDir)
+        return this.fetchNodesByUuidFromRecFile(this.logDir + '/flame.rec')
       },
       // default: {},
     },
@@ -186,10 +186,22 @@ export default {
     eventHub.$on('support_location', (l) => { this.supportLocation = l })
     eventHub.$on('title', (t) => { this.title = t })
     eventHub.$on('logs_url', (l) => { this.logsUrl = l })
+    eventHub.$on('task-search', (q) => {
+      socketRequestResponse(
+        this.socket,
+        {name: 'task-search', data: q},
+        {
+          name: 'search-results',
+          fn: (searchResult) => {
+            eventHub.$emit('task-search-result', searchResult)
+          },
+        },
+        null, null)
+    })
   },
   methods: {
-    fetchTreeData (logsDir) {
-      return fetch(logsDir + '/flame.rec')
+    fetchNodesByUuidFromRecFile (recFileUrl) {
+      return fetch(recFileUrl)
         .then(function (r) {
           return r.text()
         })
@@ -258,28 +270,26 @@ export default {
       }
       let terminate = confirm('Are you sure you want to terminate this FireX run?')
       if (terminate) {
-        this.socket.on('revoke-success', () => {
-          this.displayMessage = {content: 'Run terminated', color: '#F40'}
-          this.receivedRevokeResponse = true
-          this.socket.off('revoke-success')
-          this.socket.off('revoke-failed')
-          setTimeout(() => { this.displayMessage = {content: '', color: ''} }, 4000)
-        })
-        this.socket.on('revoke-failed', () => {
-          this.displayMessage = {content: 'UNSUCCESSFUL TERMINATION', color: '#BBB'}
-          this.receivedRevokeResponse = true
-          this.socket.off('revoke-success')
-          this.socket.off('revoke-failed')
-          setTimeout(() => { this.displayMessage = {content: '', color: ''} }, 6000)
-        })
-        this.socket.emit('revoke-task', this.root())
+        socketRequestResponse(
+          this.socket,
+          {name: 'revoke-task', data: this.root()},
+          {
+            name: 'revoke-success',
+            fn: () => {
+              this.displayMessage = {content: 'Run terminated', color: '#F40'}
+              setTimeout(() => { this.displayMessage = {content: '', color: ''} }, 4000)
+            },
+          },
+          {
+            name: 'revoke-failed',
+            fn: () => {
+              this.displayMessage = {content: 'UNSUCCESSFUL TERMINATION', color: '#BBB'}
+              setTimeout(() => { this.displayMessage = {content: '', color: ''} }, 6000)
+            },
+          },
+          {waitTime: 3000, fn: () => { this.displayMessage = {content: 'No response from server.', color: '#BBB'} }},
+        )
         this.displayMessage = {content: 'Waiting for celery...', color: 'deepskyblue'}
-
-        setTimeout(() => {
-          if (!this.receivedRevokeResponse) {
-            this.displayMessage = {content: 'No response from server.', color: '#BBB'}
-          }
-        }, 3000)
       }
     },
     root () {
@@ -343,9 +353,8 @@ export default {
 
 .uid {
   font-family: 'Source Sans Pro',sans-serif;
-  margin: 0;
+  margin: 0 8px;
   padding: 0;
-  margin-left: 6px;
   white-space: nowrap;
   font-size: 20px;
   line-height: 40px;

@@ -53,8 +53,6 @@ export default {
     },
     emitDimensions: {default: false},
     showUuid: {default: false},
-    width: {required: true},
-    height: {required: true},
     allowClickToAttributes: {default: true},
   },
   data () {
@@ -82,9 +80,6 @@ export default {
     topLevelStyle () {
       return {
         background: this.statusToColour[this.node.state],
-        // width/height could be 'auto'
-        width: _.isNumber(this.width) ? this.width + 'px' : this.width,
-        height: _.isNumber(this.height) ? this.height + 'px' : this.height,
         'border-radius': !this.node.chain_depth ? '8px' : '',
         border: this.node.from_plugin ? '2px dashed #000' : '',
       }
@@ -122,7 +117,6 @@ export default {
     }
   },
   updated () {
-    // TODO: this is pretty gross. Maybe check if the dimensions have changed before emitting.
     if (this.emitDimensions) {
       this.emit_dimensions()
     }
@@ -131,11 +125,12 @@ export default {
     emit_collapse_toggle () {
       this.expanded = !this.expanded
       this.$emit('collapse-node')
-      // Gross hack since if the event propagates, the node-wide link to NodeAttributes is followed.
     },
     emit_dimensions () {
-      // TODO: this is gross. There must be a better way to get height and width dynamically.
       this.$nextTick(function () {
+        // TODO: the bounding rect includes border-width and padding, but when we set the height and width
+        //  of nodes these values get added again, meaning the SVG rendered size is different from this emitted
+        // size. This makes some alignment off by the padding + border width (~10px)
         let r = this.$el.getBoundingClientRect()
         let isFirst = this.intrinsicDimensions.width === null || this.intrinsicDimensions.height === null
         let dimensionChanged = this.intrinsicDimensions.width !== r.width || this.intrinsicDimensions.height !== r.height
@@ -149,6 +144,7 @@ export default {
       return xNodeAttributeTo(uuid, this)
     },
     currentRoute () {
+      // The 'to' supplied to a router-link must be mutable for some reason.
       return _.clone(this.$router.currentRoute)
     },
   },
@@ -194,6 +190,8 @@ a {
   font-size: 14px;
   color: white;
   padding: 3px;
+  width: auto;
+  height: auto;
 }
 
 .node:hover {
