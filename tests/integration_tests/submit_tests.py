@@ -1,9 +1,10 @@
 import os
+from firexapp.engine.celery import app
 
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.arguments import InputConverter
 from firexapp.submit.submit import SUBMISSION_FILE_REGISTRY_KEY
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
+from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexkit.argument_conversion import SingleArgDecorator
 
 
@@ -49,3 +50,19 @@ class SubmitConvertFailureStillHasLogs(FlowTestConfiguration):
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
+
+
+@app.task
+def noop():
+    pass
+
+
+class NormalNoop(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "noop"]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        pass
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
