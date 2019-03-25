@@ -147,10 +147,10 @@ class SubmitBaseApp:
         # Start any tracking services to monitor, track, and present the state of the run
         self.start_tracking_services(args)
 
-        # todo:   Start Celery
+        # Start Celery
         self.start_celery(args)
 
-        # todo:   Execute chain
+        # Execute chain
         chain_result = c.delay()
 
         # todo: do sync
@@ -160,8 +160,9 @@ class SubmitBaseApp:
     def start_celery(self, args):
         from firexapp.celery_manager import CeleryManager
         import multiprocessing
-        self.celery_manager = CeleryManager(logs_dir=self.uid.logs_dir, plugins=args.plugins)
-        self.celery_manager.start('mc', wait=True, concurrency=multiprocessing.cpu_count()*4)
+        celery_manager = CeleryManager(logs_dir=self.uid.logs_dir, plugins=args.plugins)
+        celery_manager.start('mc', wait=True, concurrency=multiprocessing.cpu_count()*4)
+        self.celery_manager = celery_manager
 
     def process_other_chain_args(self, args, other_args)-> {}:
         chain_args = {}
@@ -189,7 +190,8 @@ class SubmitBaseApp:
             self.copy_submission_log()
 
     def self_destruct(self, expedite=False):
-        app.control.broadcast('shutdown')
+        if self.celery_manager:
+            app.control.broadcast('shutdown')
         try:
             self.broker.shutdown()
         except Exception as e:
