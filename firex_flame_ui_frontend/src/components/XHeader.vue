@@ -75,17 +75,6 @@ export default {
       link.on(this.linkState[link.name])
     },
   },
-  // watch: {
-  //   links (newVal, oldVal) {
-  //     let addedLinks = _.difference(_.map(newVal, 'name'), _.map(oldVal, 'name'))
-  //     addedLinks.forEach(linkName => {
-  //       let link = _.find(newVal, {'name': linkName})
-  //       if (_.has(link, 'initialState')) {
-  //         this.$set(this.linkState, link.name, link.initialState)
-  //       }
-  //     })
-  //   },
-  // },
 }
 </script>
 
@@ -149,12 +138,6 @@ a:hover {
 .kill-button:hover {
   color: #fff;
   background: #900;
-}
-
-@keyframes spinner {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 </style>

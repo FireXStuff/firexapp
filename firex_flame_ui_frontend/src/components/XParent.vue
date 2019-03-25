@@ -21,62 +21,6 @@
         <div v-show="false">{{socket.connected}}</div>
         <div :class="{spinner: $asyncComputed.recFileNodesByUuid.updating || socketUpdateInProgress}"></div>
       </div>
-      <!--<div style="display: flex; flex-direction: row;">-->
-        <!--<div>-->
-          <!--<router-link :to="{ name: 'XGraph', params: { nodesByUuid: nodesByUuid }}">-->
-            <!--<img style='height: 36px;' src="../assets/firex_logo.png">-->
-          <!--</router-link>-->
-        <!--</div>-->
-        <!--<div class="uid">{{displayTitle}}</div>-->
-
-        <!--<a :href="flameServer + '?noUpgrade=true'" class="flame-link" style="font-size: 16px;">-->
-          <!--<font-awesome-icon icon="fire"></font-awesome-icon>-->
-            <!--Back to Legacy-->
-          <!--<font-awesome-icon icon="fire"></font-awesome-icon>-->
-        <!--</a>-->
-
-        <!--<div style="margin-left: auto; display: flex;">-->
-          <!--<div v-if="true" class="header-icon-button">-->
-            <!--<x-task-node-search></x-task-node-search>-->
-          <!--</div>-->
-
-          <!--<div v-if="childSupportCenter" class="header-icon-button" v-on:click="eventHub.$emit('center')">-->
-            <!--<font-awesome-icon icon="bullseye"></font-awesome-icon>-->
-          <!--</div>-->
-
-          <!--<div v-if="liveUpdateAllowed" class="header-icon-button" :style="liveUpdate ? 'color: #2B2;' : ''"-->
-               <!--v-on:click="setLiveUpdate">-->
-            <!--<font-awesome-icon :icon="['far', 'eye']"></font-awesome-icon>-->
-          <!--</div>-->
-
-          <!--<div v-if="childSupportShowUuids" class="header-icon-button" :style="showUuids ? 'color: #2B2;' : ''"-->
-               <!--v-on:click="toggleShowUuids">-->
-            <!--<font-awesome-icon icon="plus-circle"></font-awesome-icon>-->
-          <!--</div>-->
-
-          <!--<div v-if="childSupportListLink" class="header-icon-button">-->
-            <!--<router-link :to="{ name: 'XList', params: { nodesByUuid: nodesByUuid }}">-->
-              <!--<font-awesome-icon icon="list-ul"></font-awesome-icon>-->
-            <!--</router-link>-->
-          <!--</div>-->
-          <!--<div v-if="childSupportGraphLink" class="header-icon-button">-->
-            <!--<router-link :to="{ name: 'XGraph', params: { nodesByUuid: nodesByUuid }}">-->
-              <!--<font-awesome-icon icon="sitemap"></font-awesome-icon>-->
-            <!--</router-link>-->
-          <!--</div>-->
-          <!--&lt;!&ndash; TODO: attribute view likely shouldn't be able to revoke entire run &ndash;&gt;-->
-          <!--<div v-if="canRevoke" class="header-icon-button kill-button" v-on:click="revokeRoot">-->
-              <!--<font-awesome-icon icon="times"></font-awesome-icon>-->
-          <!--</div>-->
-          <!--<a :href="logsUrl" class="flame-link">View Logs</a>-->
-          <!--<a v-if="supportLocation" :href="supportLocation" class="flame-link">Support</a>-->
-          <!--<router-link v-if="childSupportHelpLink" class="flame-link" :to="{ name: 'XHelp',-->
-            <!--query: {logDir: $route.query.logDir, flameServer: $route.query.flameServer}}">Help</router-link>-->
-          <!--<a v-if="codeUrl" class="flame-link" :href="codeUrl">-->
-            <!--<font-awesome-icon icon="file-code"></font-awesome-icon>-->
-          <!--</a>-->
-        <!--</div>-->
-      <!--</div>-->
     </div>
     <!-- Only show main panel after data is loaded -->
     <!-- TODO: remove firexUid from downstream, replace with firexRunMetadata. Make sure metadata exists for all sources
@@ -107,26 +51,11 @@ export default {
   },
   data () {
     return {
-      childTitle: '',
-      eventHub: eventHub,
-      // TODO: clean this up by mapping event names, enablement variables, and components in a single structure.
-      childSupportListLink: false,
-      childSupportCenter: false,
-      childSupportShowUuids: false,
-      showUuids: false,
-      childSupportLiveUpdate: false,
-      liveUpdate: true,
-      childSupportGraphLink: false,
-      codeUrl: false,
-      childSupportHelpLink: false,
-      supportLocation: false,
       socketNodesByUuid: {},
       socketUpdateInProgress: false,
       taskDetails: {},
       displayMessage: {content: '', color: ''},
-      receivedRevokeResponse: false,
       flameRunMetadata: {uid: ''},
-      childLogUrl: '',
     }
   },
   computed: {
@@ -159,7 +88,7 @@ export default {
       if (this.useRecFile) {
         return {connected: false}
       }
-      // TODO: should probably timeot trying to reconnect after some time.
+      // TODO: should probably timeout trying to reconnect after some time.
       let socket = io(this.flameServer, {reconnection: true})
       this.setSocketNodesByUuid({}) // Clear data from previous socket.
       // TODO handle not connected after 5 seconds.
@@ -173,23 +102,8 @@ export default {
       let incompleteStates = ['task-blocked', 'task-started', 'task-received', 'task-unblocked']
       return _.some(this.nodesByUuid, n => _.includes(incompleteStates, n.state))
     },
-    liveUpdateAllowed () {
-      return this.childSupportLiveUpdate && !this.useRecFile && this.hasIncompleteTasks
-    },
     canRevoke () {
       return !this.useRecFile && this.hasIncompleteTasks && this.socket.connected
-    },
-    displayTitle () {
-      if (this.childTitle) {
-        return this.childTitle
-      }
-      return this.uid
-    },
-    logsUrl () {
-      if (this.childLogUrl) {
-        return this.childLogUrl
-      }
-      return this.flameRunMetadata.logs_dir ? this.flameRunMetadata.logs_dir : this.inputLogDir
     },
   },
   asyncComputed: {
@@ -204,17 +118,6 @@ export default {
     },
   },
   created () {
-    // TODO: clean this up by mapping event names, enablement variables, and components in a single structure.
-    eventHub.$on('support-list-link', () => { this.childSupportListLink = true })
-    eventHub.$on('support-graph-link', () => { this.childSupportGraphLink = true })
-    eventHub.$on('support-help-link', () => { this.childSupportHelpLink = true })
-    eventHub.$on('support-center', () => { this.childSupportCenter = true })
-    eventHub.$on('support-add', () => { this.childSupportShowUuids = true })
-    eventHub.$on('support-watch', () => { this.childSupportLiveUpdate = true })
-    eventHub.$on('code_url', (c) => { this.codeUrl = c })
-    eventHub.$on('support_location', (l) => { this.supportLocation = l })
-    eventHub.$on('title', (t) => { this.childTitle = t })
-    eventHub.$on('logs_url', (l) => { this.childLogUrl = l })
     eventHub.$on('task-search', (q) => {
       socketRequestResponse(
         this.socket,
@@ -258,7 +161,6 @@ export default {
       })
     },
     setLiveUpdate (val) {
-      console.log('Setting live update: ' + val)
       this.liveUpdate = val
       if (this.liveUpdate) {
         this.startSocketListening(this.socket)
@@ -295,10 +197,6 @@ export default {
       // for backwards compatability with older flame servers. TODO: Delete in april 2018
       socket.emit('send-full-state')
       this.socketUpdateInProgress = true
-    },
-    toggleShowUuids () {
-      this.showUuids = !this.showUuids
-      eventHub.$emit('toggle-uuids')
     },
     revokeRoot () {
       if (!this.canRevoke) {
@@ -345,18 +243,6 @@ export default {
         this.socket.emit('send-task-details', uuid)
       }
     },
-    clearSupportedChildInfo () {
-      this.childSupportListLink = false
-      this.childSupportCenter = false
-      this.childSupportShowUuids = false
-      this.childSupportLiveUpdate = false
-      this.childSupportGraphLink = false
-      this.childSupportHelpLink = false
-      this.codeUrl = false
-      this.supportLocation = false
-      this.childTitle = ''
-      this.childLogUrl = ''
-    },
     setFlameRunMetadata (socket) {
       if (!this.useRecFile) {
         socketRequestResponse(socket,
@@ -373,7 +259,6 @@ export default {
   },
   beforeRouteEnter (to, from, next) {
     next(vm => {
-      vm.clearSupportedChildInfo()
       if (to.name === 'XNodeAttributes') {
         vm.fetchTaskDetails(to.params.uuid)
       }
@@ -381,11 +266,6 @@ export default {
   },
   watch: {
     '$route' (to, from) {
-      this.clearSupportedChildInfo()
-      // TODO: specify more supported actions in this way.
-      if (to.meta.supportedActions) {
-        to.meta.supportedActions.forEach(a => eventHub.$emit(a))
-      }
       if (to.name === 'XNodeAttributes') {
         this.fetchTaskDetails(to.params.uuid)
       }
@@ -405,61 +285,6 @@ export default {
 .header {
   background-color: #EEE;
   border-bottom: 1px solid #000;
-}
-
-.uid {
-  font-family: 'Source Sans Pro',sans-serif;
-  margin: 0 8px;
-  padding: 0;
-  white-space: nowrap;
-  font-size: 20px;
-  line-height: 40px;
-  font-weight: normal;
-}
-
-.flame-link {
-  font-family: 'Source Sans Pro',sans-serif;
-  vertical-align: top;
-  border-left: 1px solid #000;
-  line-height: 40px;
-  text-align: center;
-  padding: 0 8px;
-  text-decoration: none;
-  color: #000;
-  border-radius: 0;
-  font-size: 20px;
-  justify-content: flex-end;
-}
-
-.header-icon-button {
-  padding: 0 8px;
-  border-left: 1px solid #000;
-  justify-content: end;
-  font-size: 20px;
-  line-height: 40px;
-  cursor: pointer;
-  color: #000;
-}
-
-.header-icon-button:hover {
-    color: #2980ff;
-}
-
-a {
-  color: #000;
-}
-
-a:hover {
-    color: #2980ff;
-}
-
-.kill-button {
-  color: #900;
-}
-
-.kill-button:hover {
-  color: #fff;
-  background: #900;
 }
 
 @keyframes spinner {

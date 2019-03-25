@@ -36,6 +36,7 @@ export default {
       this.searchResultUuids = searchResult.task_list
       this.emitFocusCurrentNode()
     })
+    eventHub.$on('find-focus', () => { this.toggleSearchOpen() })
   },
   computed: {
     totalResultsCount () {
