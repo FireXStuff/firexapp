@@ -12,9 +12,9 @@ export {
   eventHub,
   nodesWithAncestorOrDescendantFailure,
   calculateNodesPositionByUuid,
-  xNodeAttributeTo,
   getCenteringTransform,
   socketRequestResponse,
+  routeTo,
 }
 
 // function invokePerNode (root, fn) {
@@ -176,15 +176,18 @@ function calculateNodesPositionByUuid (nodesByUuid) {
   return calcedDimensionsByUuid
 }
 
-function xNodeAttributeTo (uuid, vm) {
-  return {
-    name: 'XNodeAttributes',
-    params: {'uuid': uuid},
+function routeTo (vm, name, params) {
+  let route = {
+    name: name,
     query: {
       logDir: vm.$route.query.logDir,
       flameServer: vm.$route.query.flameServer,
     },
   }
+  if (params) {
+    route['params'] = params
+  }
+  return route
 }
 
 function getCenteringTransform (rectToCenter, container, scaleBounds, verticalPadding) {
@@ -239,5 +242,9 @@ function socketRequestResponse (socket, requestEvent, successEvent, failedEvent,
       }
     }, timeout.waitTime)
   }
-  socket.emit(requestEvent.name, requestEvent.data)
+  if (requestEvent.data !== undefined) {
+    socket.emit(requestEvent.name, requestEvent.data)
+  } else {
+    socket.emit(requestEvent.name)
+  }
 }

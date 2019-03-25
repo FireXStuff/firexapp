@@ -35,7 +35,7 @@
 
 <script>
 import _ from 'lodash'
-import {xNodeAttributeTo} from '../utils'
+import {routeTo} from '../utils'
 
 export default {
   name: 'XNode',
@@ -141,7 +141,7 @@ export default {
       })
     },
     routeToAttribute (uuid) {
-      return xNodeAttributeTo(uuid, this)
+      return routeTo(this, 'XNodeAttributes', {uuid: uuid})
     },
     currentRoute () {
       // The 'to' supplied to a router-link must be mutable for some reason.

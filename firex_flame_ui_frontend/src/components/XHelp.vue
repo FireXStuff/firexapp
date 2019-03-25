@@ -1,4 +1,7 @@
 <template>
+  <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
+    <x-header :title="headerParams.title" :links="headerParams.links" :legacyPath="headerParams.legacyPath"></x-header>
+
   <div class="help-content">
     <h1>Types of Tasks</h1>
     <div style="display: flex; text-align: center; margin-left: 100px">
@@ -47,16 +50,18 @@
       </ul>
     </div>
   </div>
+    </div>
 </template>
 
 <script>
 
 import XNode from './XNode'
 import _ from 'lodash'
+import XHeader from './XHeader'
 
 export default {
   name: 'XHelp',
-  components: {XNode},
+  components: {XHeader, XNode},
   data () {
     let baseNode = {
       name: 'noop',
@@ -72,6 +77,26 @@ export default {
       failedNode: _.merge({}, baseNode, {'state': 'task-failed'}),
       revokedNode: _.merge({}, baseNode, {'state': 'task-revoked'}),
       pluginSucceededNode: _.merge({}, baseNode, {'state': 'task-succeeded', 'from_plugin': true}),
+      headerParams: {
+        title: 'Help',
+        links: [
+          {
+            name: 'shortcuts',
+            to: {
+              name: 'XShortcuts',
+              query: {logDir: this.$route.query.logDir, flameServer: this.$route.query.flameServer},
+            },
+            text: 'Shortcuts',
+          },
+          {name: 'documentation', href: 'http://firex.cisco.com', text: 'Documentation'},
+          {
+            name: 'help',
+            to: {name: 'XHelp', query: {logDir: this.$route.query.logDir, flameServer: this.$route.query.flameServer}},
+            text: 'Help',
+          },
+        ],
+        legacyPath: '/help',
+      },
     }
   },
 }

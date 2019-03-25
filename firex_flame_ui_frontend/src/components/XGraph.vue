@@ -84,7 +84,7 @@ export default {
       //  gross per-node intrinsic size calculation, and another that always has nodes with full rect defined.
       isFirstLoad: true,
       // TODO: read & write transform to local storage to save view port.
-      transform: this.getLocalStorageTransform(),
+      transform: {x: 0, y: 0, scale: 1},
       showUuids: false,
       focusedNodeUuid: null,
     }
@@ -138,6 +138,7 @@ export default {
   },
   mounted () {
     d3.select('div#chart-container svg').call(this.zoom).on('dblclick.zoom', null)
+    this.setTransformUpdateZoom(this.getLocalStorageTransform())
   },
   methods: {
     zoomed () {
@@ -257,13 +258,14 @@ export default {
     },
   },
   watch: {
-    nodeLayoutsByUuid (_, __) {
+    firexUid () {
       // This is somewhat gross. Maybe there should be another component that does the SVG rendering that always
       // has dimensions populated. It could then center on mounted or similar.
 
       // if (this.isFirstLoad && !this.isTransformValid(this.getLocalStorageTransform())) {
       //   this.isFirstLoad = false
       // }
+      // TODO: this should be on firexRunMetadata change (keys on UID).
       this.setTransformUpdateZoom(this.getLocalStorageTransform())
     },
   },

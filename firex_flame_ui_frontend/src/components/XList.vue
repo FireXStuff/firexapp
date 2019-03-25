@@ -1,46 +1,50 @@
 <template>
-  <div style="display:flex; flex-direction: column; margin-left: 5px">
-    <div>Sort by:
-      <div style="display:flex; margin-left: 20px">
-        <div v-for="option in sortOptions" :key="option.value" style="margin: 0 10px;">
-          <input type="radio" :id="option.value" name="list-order" :value="option.value" v-model="selectedSortOption">
-          <label :for="option.value">{{option.text}}</label>
-        </div>
+  <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
+    <x-header :title="headerParams.title" :links="headerParams.links" :legacyPath="headerParams.legacyPath"></x-header>
 
-        <div style="margin-left: 25px;">
-          <input type="radio" id="ascending" name="list-order-direction" value="ascending"
-                 v-model="selectedSortOptionDirection">
-          <label for="ascending">Ascending</label>
-        </div>
-        <div>
-          <input type="radio" id="descending" name="list-order-direction" value="descending"
-                 v-model="selectedSortOptionDirection">
-          <label for="descending">Descending</label>
+    <div style="display:flex; flex-direction: column; margin-left: 5px">
+      <div>Sort by:
+        <div style="display:flex; margin-left: 20px">
+          <div v-for="option in sortOptions" :key="option.value" style="margin: 0 10px;">
+            <input type="radio" :id="option.value" name="list-order" :value="option.value" v-model="selectedSortOption">
+            <label :for="option.value">{{option.text}}</label>
+          </div>
+
+          <div style="margin-left: 25px;">
+            <input type="radio" id="ascending" name="list-order-direction" value="ascending"
+                   v-model="selectedSortOptionDirection">
+            <label for="ascending">Ascending</label>
+          </div>
+          <div>
+            <input type="radio" id="descending" name="list-order-direction" value="descending"
+                   v-model="selectedSortOptionDirection">
+            <label for="descending">Descending</label>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div>Filter by task type:
-      <div style="display:flex; margin-left: 20px">
-        <div style="display: inline-block; margin: 0 15px;">
-          <input type="checkbox" id="all" v-on:change="toggleShowAll" :checked="allFiltersSelected">
-          <label for="all">all</label>
-        </div>
-        <div v-for="option in filterOptions" :key="option" style="display: inline-block; margin: 0 15px;">
-          <input type="checkbox" :id="option" name="list-filter" :value="option" v-model="selectedFilterOptions">
-          <label :for="option">{{option}}</label>
+      <div>Filter by task type:
+        <div style="display:flex; margin-left: 20px">
+          <div style="display: inline-block; margin: 0 15px;">
+            <input type="checkbox" id="all" v-on:change="toggleShowAll" :checked="allFiltersSelected">
+            <label for="all">all</label>
+          </div>
+          <div v-for="option in filterOptions" :key="option" style="display: inline-block; margin: 0 15px;">
+            <input type="checkbox" :id="option" name="list-filter" :value="option" v-model="selectedFilterOptions">
+            <label :for="option">{{option}}</label>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div>
-      <hr>
-    </div>
+      <div>
+        <hr>
+      </div>
 
-    <!-- TODO: Add no nodes matching filters result. -->
-    <div class="list-container">
+      <!-- TODO: Add no nodes matching filters result. -->
+      <div class="list-container">
         <x-node v-for="n in displayNodesByUuid" :key="n.uuid"
                 :node="n" style="margin: 10px" :allowCollapse="false"></x-node>
+      </div>
     </div>
   </div>
 </template>
@@ -49,13 +53,15 @@
 import _ from 'lodash'
 
 import XNode from './XNode'
-import {eventHub} from '../utils'
+import XHeader from './XHeader'
+import {eventHub, routeTo} from '../utils'
 
 export default {
   name: 'XList',
-  components: {XNode},
+  components: {XNode, XHeader},
   props: {
     nodesByUuid: {required: true, type: Object},
+    runMetadata: {default: () => { return {uid: '', 'logs_dir': ''} }, type: Object},
   },
   data () {
     let filterOptions = ['task-received', 'task-blocked', 'task-started', 'task-succeeded', 'task-shutdown',
@@ -71,6 +77,15 @@ export default {
       ],
       selectedFilterOptions: _.clone(filterOptions),
       filterOptions: filterOptions,
+      headerParams: {
+        title: this.runMetadata.uid,
+        legacyPath: '/list',
+        links: [
+          {name: 'graph', to: routeTo(this, 'XGraph'), icon: 'sitemap'},
+          {name: 'logs', href: '#', text: 'View Logs'},
+          {name: 'help', to: routeTo(this, 'XHelp'), text: 'Help'},
+        ],
+      },
     }
   },
   computed: {

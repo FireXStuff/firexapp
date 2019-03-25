@@ -1,7 +1,7 @@
 import Vue from 'vue'
 import Router from 'vue-router'
 import XParent from '@/components/XParent'
-import XGraph from '@/components/XGraph'
+import XHeaderedGraph from '@/components/XHeaderedGraph'
 import XList from '@/components/XList'
 import XNodeAttributes from '@/components/XNodeAttributes'
 import _ from 'lodash'
@@ -15,7 +15,7 @@ const router = new Router({
     {
       path: '/',
       component: XParent,
-      props: (route) => ({logDir: route.query.logDir, flameServer: route.query.flameServer}),
+      props: (route) => ({inputLogDir: route.query.logDir, flameServer: route.query.flameServer}),
       children: [
         {
           path: 'list',
@@ -39,9 +39,8 @@ const router = new Router({
         {
           path: '',
           name: 'XGraph',
-          component: XGraph,
+          component: XHeaderedGraph,
           props: true,
-          meta: { supportedActions: ['support-list-link', 'support-center', 'support-help-link', 'support-watch'] },
         },
       ],
     },
