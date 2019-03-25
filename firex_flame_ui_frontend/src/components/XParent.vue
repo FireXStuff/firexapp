@@ -7,15 +7,15 @@
       </div>
 
       <div style="text-align: center; padding: 0 10px">
-        Flame Server:
-        <input type="text" size=20 :value="flameServer"
-               @keyup.enter="$router.push({ name: 'XGraph', query: { flameServer: $event.target.value.trim() } })"
-               :style="socketUpdateInProgress || socket.connected ? 'border-color: lightgreen;' : 'border-color: red;'">
+        <!--Flame Server:-->
+        <!--<input type="text" size=20 :value="flameServer"-->
+               <!--@keyup.enter="$router.push({ name: 'XGraph', query: { flameServer: $event.target.value.trim() } })"-->
+               <!--:style="socketUpdateInProgress || socket.connected ? 'border-color: lightgreen;' : 'border-color: red;'">-->
 
-        Logs Directory:
-        <input type="text" size="100" :value="logDir"
-               :style="$asyncComputed.recFileNodesByUuid.error ? 'border-color: red;' : ''"
-               @keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value.trim() } })">
+        <!--Logs Directory:-->
+        <!--<input type="text" size="100" :value="logDir"-->
+               <!--:style="$asyncComputed.recFileNodesByUuid.error ? 'border-color: red;' : ''"-->
+               <!--@keyup.enter="$router.push({ name: 'XGraph', query: { logDir: $event.target.value.trim() } })">-->
 
         <div v-show="false">{{socket.connected}}</div>
         <div :class="{spinner: $asyncComputed.recFileNodesByUuid.updating || socketUpdateInProgress}"></div>
@@ -28,7 +28,7 @@
         </div>
         <div class="uid">{{title ? title : uid}}</div>
 
-        <a :href="flameServer" class="flame-link" style="font-size: 16px;">
+        <a :href="flameServer + '?noUpgrade=true'" class="flame-link" style="font-size: 16px;">
           <font-awesome-icon icon="fire"></font-awesome-icon>
             Back to Legacy
           <font-awesome-icon icon="fire"></font-awesome-icon>
@@ -124,7 +124,13 @@ export default {
   computed: {
     uid () {
       // TODO: super gross, get from server or as external param.
-      return this.logDir.match(/.*(FireX-.*)\/?$/)[1]
+      if (this.logDir) {
+        let matches = this.logDir.match(/.*(FireX-.*)\/?$/)
+        if (matches.length) {
+          return matches[1]
+        }
+      }
+      return 'Unknown'
     },
     nodesByUuid () {
       if (this.useRecFile) {

@@ -6,6 +6,7 @@ import XList from '@/components/XList'
 import XNodeAttributes from '@/components/XNodeAttributes'
 import _ from 'lodash'
 import XHelp from '@/components/XHelp'
+import XSettings from '@/components/XSettings'
 
 Vue.use(Router)
 
@@ -43,6 +44,10 @@ const router = new Router({
           meta: { supportedActions: ['support-list-link', 'support-center', 'support-help-link', 'support-watch'] },
         },
       ],
+    },
+    {
+      path: '/settings',
+      component: XSettings,
     },
   ],
   // always scroll to top.
