@@ -85,15 +85,20 @@ export default {
       }
     },
     duration () {
-      let actualRuntime = this.node.actual_runtime
-      if (!actualRuntime) {
+      let runtime = this.node.actual_runtime
+
+      if (!runtime && this.node.local_received) {
+        runtime = (Date.now() / 1000) - this.node.local_received
+      }
+      if (!runtime) {
         return ''
       }
-      let hours = Math.floor(actualRuntime / (60 * 60))
+
+      let hours = Math.floor(runtime / (60 * 60))
       let hoursInSecs = hours * 60 * 60
-      let mins = Math.floor((actualRuntime - hoursInSecs) / 60)
+      let mins = Math.floor((runtime - hoursInSecs) / 60)
       let minsInSecs = mins * 60
-      let secs = Math.floor(actualRuntime - hoursInSecs - minsInSecs)
+      let secs = Math.floor(runtime - hoursInSecs - minsInSecs)
 
       let result = 'time: '
       if (hours > 0) {
