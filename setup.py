@@ -17,7 +17,8 @@ setup(name='firexapp',
           "firexkit",
           "tqdm<=4.29.1",
           "xmlrunner",
-          "celery[redis]"
+          "celery[redis]",
+          "psutil"
       ],
       classifiers=[
           "Programming Language :: Python :: 3",
