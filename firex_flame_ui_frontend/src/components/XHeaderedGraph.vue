@@ -1,4 +1,5 @@
 <template>
+  <!-- ctrl.70 is ctrl-f. -->
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
        @keydown.ctrl.70.prevent="focusOnFind"  tabindex="0">
     <x-header :title="headerParams.title"

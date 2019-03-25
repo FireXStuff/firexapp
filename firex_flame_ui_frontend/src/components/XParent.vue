@@ -177,26 +177,30 @@ export default {
     startSocketListening (socket) {
       // full state refresh plus subscribe to incremental updates.
       socket.on('graph-state', (nodesByUuid) => {
-        this.setSocketNodesByUuid(nodesByUuid)
-        this.socketUpdateInProgress = false
-        if (this.hasIncompleteTasks) {
-          // Only start listening for incremental updates after we've processed the full state.
-          socket.on('tasks-update', this.mergeNodesByUuid)
-        }
+        this.handleFullStateFromSocket(socket, nodesByUuid)
       })
       // for backwards compatability with older flame servers. TODO: Delete in april 2018
       socket.on('full-state', (nodesByUuid) => {
-        this.setSocketNodesByUuid(nodesByUuid)
-        this.socketUpdateInProgress = false
-        if (this.hasIncompleteTasks) {
-          // Only start listening for incremental updates after we've processed the full state.
-          socket.on('tasks-update', this.mergeNodesByUuid)
-        }
+        this.handleFullStateFromSocket(socket, nodesByUuid)
       })
       socket.emit('send-graph-state')
-      // for backwards compatability with older flame servers. TODO: Delete in april 2018
+      // for backwards comparability with older flame servers. TODO: Delete in april 2018
       socket.emit('send-full-state')
       this.socketUpdateInProgress = true
+      setTimeout(() => {
+        if (_.isEmpty(this.socketNodesByUuid) && this.socket.connected) {
+          // How to handle no data? Fallback to rec?
+          window.location.href = this.flameServer + '?noUpgrade=true'
+        }
+      }, 4000)
+    },
+    handleFullStateFromSocket (socket, nodesByUuid) {
+      this.setSocketNodesByUuid(nodesByUuid)
+      this.socketUpdateInProgress = false
+      if (this.hasIncompleteTasks) {
+        // Only start listening for incremental updates after we've processed the full state.
+        socket.on('tasks-update', this.mergeNodesByUuid)
+      }
     },
     revokeRoot () {
       if (!this.canRevoke) {

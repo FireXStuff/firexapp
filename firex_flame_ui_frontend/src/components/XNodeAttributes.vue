@@ -57,7 +57,7 @@ export default {
       let base = _.isEmpty(this.taskDetails) ? this.nodesByUuid[this.uuid] : this.taskDetails
       let node = _.clone(base)
       let attributeBlacklist = ['children', 'long_name', 'name', 'parent', 'flame_additional_data',
-        'height', 'width', 'x', 'y', 'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url']
+        'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url']
       return _.omit(node, attributeBlacklist)
     },
     sortedDisplayNodeKeys () {
