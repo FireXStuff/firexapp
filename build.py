@@ -74,9 +74,9 @@ def run_flow_tests(source, output_dir):
     return os.path.join(results_dir, ".coverage")
 
 
-def upload_coverage_to_codecov(output_dir):
+def upload_coverage_to_codecov(source, output_dir):
     print('--> Uploading coverage report to codecov')
-    check_call(['codecov'], cwd=output_dir)
+    check_call(['codecov', '-f', os.path.join(output_dir, '.coverage')], cwd=source)
 
 
 def generate_htmlcov(source, output_dir, git_hash=None):
@@ -111,7 +111,7 @@ def run(source='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None, tw
         generate_htmlcov(source, output_dir, git_hash)
 
     if upload_codecov:
-        upload_coverage_to_codecov(output_dir)
+        upload_coverage_to_codecov(source, output_dir)
 
     if upload_pip or (upload_pip_if_tag and git_tags):
         upload_pip_pkg_to_pypi(twine_username, source)
