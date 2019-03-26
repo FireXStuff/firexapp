@@ -4,12 +4,12 @@
         <div>
           <router-link :to="{ name: 'XGraph',
             query: {logDir: $route.query.logDir, flameServer: $route.query.flameServer}}">
-            <img style='height: 36px;' src="../assets/firex_logo.png">
+            <img style='height: 36px;' src="../assets/firex_logo.png" alt="firex logo">
           </router-link>
         </div>
         <div class="uid">{{title}}</div>
 
-        <!-- not great reading flame server directly from route -->
+        <!-- TODO: Not great reading flame server directly from route -->
         <a :href="$route.query.flameServer + legacyPath + '?noUpgrade=true'" class="flame-link" style="font-size: 16px;">
           <font-awesome-icon icon="fire"></font-awesome-icon>
             Back to Legacy

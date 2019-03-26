@@ -16,7 +16,7 @@
 <script>
 import XGraph from './XGraph'
 import XHeader from './XHeader'
-import {eventHub, routeTo} from '../utils'
+import {eventHub, routeTo, hasIncompleteTasks} from '../utils'
 import _ from 'lodash'
 
 export default {
@@ -38,14 +38,10 @@ export default {
       return this.isConnected && this.hasIncompleteTasks
     },
     hasIncompleteTasks () {
-      let incompleteStates = ['task-blocked', 'task-started', 'task-received', 'task-unblocked']
-      return _.some(this.nodesByUuid, n => _.includes(incompleteStates, n.state))
+      return hasIncompleteTasks(this.nodesByUuid)
     },
     headerParams () {
       let links = [
-
-        //   <x-task-node-search></x-task-node-search>
-        //
         {
           name: 'liveUpdate',
           on: (state) => eventHub.$emit('set-live-update', state),
@@ -62,14 +58,11 @@ export default {
           icon: 'plus-circle',
         },
         {name: 'list', to: routeTo(this, 'XList'), icon: 'list-ul'},
-        // <!-- TODO: attribute view likely shouldn't be able to revoke entire run -->
-        // <div v-if="canRevoke" class="header-icon-button kill-button" v-on:click="revokeRoot">
-        //     <font-awesome-icon icon="times"></font-awesome-icon>
-        // </div>
         {name: 'kill', on: () => eventHub.$emit('revoke-root'), _class: 'kill-button', icon: 'times'},
         {name: 'logs', href: this.runMetadata.logs_dir, text: 'View logs'},
         {name: 'help', to: routeTo(this, 'XHelp'), text: 'Help'},
       ]
+      // Remove live update and kill options if the run isn't alive.
       if (!this.isAlive) {
         links = _.filter(links, l => !_.includes(['liveUpdate', 'kill'], l.name))
       }

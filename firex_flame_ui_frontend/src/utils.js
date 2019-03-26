@@ -15,6 +15,8 @@ export {
   getCenteringTransform,
   socketRequestResponse,
   routeTo,
+  isTaskStateIncomplete,
+  hasIncompleteTasks,
 }
 
 // function invokePerNode (root, fn) {
@@ -247,4 +249,13 @@ function socketRequestResponse (socket, requestEvent, successEvent, failedEvent,
   } else {
     socket.emit(requestEvent.name)
   }
+}
+
+function isTaskStateIncomplete (state) {
+  let incompleteStates = ['task-blocked', 'task-started', 'task-received', 'task-unblocked']
+  return _.includes(incompleteStates, state)
+}
+
+function hasIncompleteTasks (nodesByUuid) {
+  return _.some(nodesByUuid, n => isTaskStateIncomplete(n.state))
 }

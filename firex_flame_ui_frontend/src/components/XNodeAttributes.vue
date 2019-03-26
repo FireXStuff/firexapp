@@ -39,7 +39,7 @@
 
 <script>
 import _ from 'lodash'
-import {routeTo} from '../utils'
+import {routeTo, eventHub, isTaskStateIncomplete} from '../utils'
 import XHeader from './XHeader'
 
 export default {
@@ -53,6 +53,7 @@ export default {
   },
   computed: {
     displayNode () {
+      // If we haven't fetched the details for some reason, just show the base properties.
       let base = _.isEmpty(this.taskDetails) ? this.nodesByUuid[this.uuid] : this.taskDetails
       let node = _.clone(base)
       let attributeBlacklist = ['children', 'long_name', 'name', 'parent', 'flame_additional_data',
@@ -78,6 +79,12 @@ export default {
         {name: 'support', href: this.taskDetails.support_location, text: 'Support'},
         {name: 'code', href: this.taskDetails.code_url, icon: 'file-code'},
       ]
+
+      if (isTaskStateIncomplete(this.nodesByUuid[this.uuid].state)) {
+        links = [
+          {name: 'kill', on: () => eventHub.$emit('revoke-task', this.uuid), _class: 'kill-button', icon: 'times'},
+        ].concat(links)
+      }
 
       return {
         title: this.taskDetails['long_name'],

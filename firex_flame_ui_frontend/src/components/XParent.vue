@@ -38,7 +38,7 @@
 
 <script>
 import _ from 'lodash'
-import {parseRecFileContentsToNodesByUuid, eventHub, socketRequestResponse} from '../utils'
+import {parseRecFileContentsToNodesByUuid, eventHub, socketRequestResponse, hasIncompleteTasks} from '../utils'
 import io from 'socket.io-client'
 import XTaskNodeSearch from './XTaskNodeSearch'
 
@@ -99,8 +99,7 @@ export default {
       return socket
     },
     hasIncompleteTasks () {
-      let incompleteStates = ['task-blocked', 'task-started', 'task-received', 'task-unblocked']
-      return _.some(this.nodesByUuid, n => _.includes(incompleteStates, n.state))
+      return hasIncompleteTasks(this.nodesByUuid)
     },
     canRevoke () {
       return !this.useRecFile && this.hasIncompleteTasks && this.socket.connected
@@ -132,7 +131,8 @@ export default {
     })
 
     eventHub.$on('set-live-update', this.setLiveUpdate)
-    eventHub.$on('revoke-root', this.revokeRoot)
+    eventHub.$on('revoke-root', () => { this.revokeTask(this.rootUuid()) })
+    eventHub.$on('revoke-task', (uuid) => { this.revokeTask(uuid) })
     this.setFlameRunMetadata(this.socket)
   },
   methods: {
@@ -202,20 +202,24 @@ export default {
         socket.on('tasks-update', this.mergeNodesByUuid)
       }
     },
-    revokeRoot () {
+    revokeTask (uuid) {
       if (!this.canRevoke) {
         return
       }
-      let terminate = confirm('Are you sure you want to terminate this FireX run?')
+      let isRoot = uuid === this.rootUuid()
+      let messageDetail = isRoot ? 'this FireX run' : 'this task'
+
+      let terminate = confirm('Are you sure you want to terminate ' + messageDetail + '?')
       if (terminate) {
         // TODO: replace this messaging with something like toastr
         socketRequestResponse(
           this.socket,
-          {name: 'revoke-task', data: this.root()},
+          {name: 'revoke-task', data: uuid},
           {
             name: 'revoke-success',
             fn: () => {
-              this.displayMessage = {content: 'Run terminated', color: '#F40'}
+              let confirmationDetail = isRoot ? 'Run' : 'Task'
+              this.displayMessage = {content: confirmationDetail + ' terminated', color: '#F40'}
               setTimeout(() => { this.displayMessage = {content: '', color: ''} }, 4000)
             },
           },
@@ -231,7 +235,7 @@ export default {
         this.displayMessage = {content: 'Waiting for celery...', color: 'deepskyblue'}
       }
     },
-    root () {
+    rootUuid () {
       return _.head(_.filter(this.nodesByUuid, {'parent_id': null})).uuid
     },
     fetchTaskDetails (uuid) {
