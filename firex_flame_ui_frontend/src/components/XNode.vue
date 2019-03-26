@@ -1,21 +1,29 @@
 <template>
   <div :style="topLevelStyle" class="node">
     <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()">
-      <div style="overflow: hidden; text-overflow: ellipsis">
-        <div v-if="allowCollapse && node.children_uuids.length" style="float: right;">
-          <!-- Use prevent to avoid activating node-wide attribute link -->
-          <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
-            <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
-            <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
-          </i>
-        </div>
-        <div v-if="node.retries" style="float: right; position: relative;">
-          <img src="../assets/retry.png" class="retries-img">
-          <div title="Retries" class="retries">{{node.retries}}</div>
-        </div>
-        <div style="float: left; font-size: 12px">{{node.task_num}}</div>
-        <div style="text-align: center; padding: 3px; ">
-          <strong>{{node.name}}</strong>
+      <div style="overflow: hidden; text-overflow: ellipsis;">
+        <div style="display: flex;">
+
+          <div style="align-self: start; font-size: 12px">{{node.task_num}}</div>
+
+          <div style="text-align: center; padding: 3px; align-self: center; flex: 1;">
+            <strong>{{node.name}}</strong>
+          </div>
+
+          <div v-if="node.retries" style="align-self: end; position: relative;">
+            <img src="../assets/retry.png" class="retries-img">
+            <div title="Retries" class="retries">{{node.retries}}</div>
+          </div>
+
+          <!-- visibility: collapsed to include space for collapse button, even when allowCollapse is false. -->
+          <div v-if="node.children_uuids.length" style="align-self: end;"
+                :style="allowCollapse ? 'visibility: collapsed': ''">
+            <!-- Use prevent to avoid activating node-wide attribute link -->
+            <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
+              <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
+              <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
+            </i>
+          </div>
         </div>
         <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid navigating to
              task node attribute page. Should likely find a better way.-->

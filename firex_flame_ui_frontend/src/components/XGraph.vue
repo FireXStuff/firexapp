@@ -80,10 +80,6 @@ export default {
       // very unfortunate we need to track this manually. TODO: look for a better way.
       dimensionsByUuid: {},
       zoom: zoom,
-      // TODO: this is gross. This state isn't necessary. Split this component in to two: one that does
-      //  gross per-node intrinsic size calculation, and another that always has nodes with full rect defined.
-      isFirstLoad: true,
-      // TODO: read & write transform to local storage to save view port.
       transform: {x: 0, y: 0, scale: 1},
       showUuids: false,
       focusedNodeUuid: null,
@@ -130,11 +126,6 @@ export default {
     eventHub.$on('center', this.center)
     eventHub.$on('toggle-uuids', this.toggleShowUuids)
     eventHub.$on('node-focus', this.focusOnNode)
-
-    // TODO: clean up child route support communication by moving it to route definition.
-    let supportedParentButtons = ['support-list-link', 'support-center', 'support-help-link', 'support-watch',
-      'support-add']
-    supportedParentButtons.forEach(e => { eventHub.$emit(e) })
   },
   mounted () {
     d3.select('div#chart-container svg').call(this.zoom).on('dblclick.zoom', null)
@@ -262,9 +253,6 @@ export default {
       // This is somewhat gross. Maybe there should be another component that does the SVG rendering that always
       // has dimensions populated. It could then center on mounted or similar.
 
-      // if (this.isFirstLoad && !this.isTransformValid(this.getLocalStorageTransform())) {
-      //   this.isFirstLoad = false
-      // }
       // TODO: this should be on firexRunMetadata change (keys on UID).
       this.setTransformUpdateZoom(this.getLocalStorageTransform())
     },
