@@ -20,7 +20,7 @@ class BrokerFactory:
         os.environ[cls.broker_env_variable] = broker_url
 
     @classmethod
-    def get_broker_manager(cls)->BrokerManager:
+    def get_broker_manager(cls, *args, **kwargs)->BrokerManager:
         if cls._broker:
             return cls._broker
 
@@ -34,7 +34,7 @@ class BrokerFactory:
                 pass
 
         from firexapp.broker_manager.redis_manager import RedisManager
-        broker = RedisManager(redis_bin_base=redis_bin_dir)
+        broker = RedisManager(*args, redis_bin_base=redis_bin_dir, **kwargs)
         app.conf.result_backend = broker.get_url()
         cls.set_broker_manager(broker)
         return broker
