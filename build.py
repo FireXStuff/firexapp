@@ -5,7 +5,7 @@ from subprocess import check_call, check_output
 import os
 
 
-def build(workspace):
+def build(workspace, sudo=False):
     print('--> Remove any old build or sdist folders')
     for subfolder in ['build', 'dist']:
         folder = os.path.join(workspace, subfolder)
@@ -20,7 +20,10 @@ def build(workspace):
     wheel = os.path.join('dist', wheels[0])
 
     print('--> Install the wheel')
-    check_call(['pip3', 'install', wheel], cwd=workspace)    
+    cmd = ['pip3', 'install', wheel]
+    if sudo:
+        cmd = ['sudo'] + cmd
+    check_call(cmd, cwd=workspace)
 
 
 def get_git_hash_tags_and_files(workspace):
@@ -127,6 +130,7 @@ def main():
     do_all.add_argument('--skip_htmlcov', action='store_true')
     do_all.add_argument('--upload_codecov', action='store_true')
     do_all.add_argument('--skip_docs_build', action='store_true')
+    do_all.add_argument('--sudo', action='store_true')
     do_all.set_defaults(func=run)
 
     upload = sub_parser.add_parser("upload_pip")
