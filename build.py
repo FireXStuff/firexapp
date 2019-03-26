@@ -125,8 +125,6 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--source', default='.')
-    parser.add_argument('--output_dir', default='.')
-    parser.add_argument('--sudo', action='store_true')
     parser.set_defaults(func=run)
     sub_parser = parser.add_subparsers()
     do_all = sub_parser.add_parser("all")
@@ -137,6 +135,8 @@ def main():
     do_all.add_argument('--skip_htmlcov', action='store_true')
     do_all.add_argument('--upload_codecov', action='store_true')
     do_all.add_argument('--skip_docs_build', action='store_true')
+    do_all.add_argument('--output_dir', default='.')
+    do_all.add_argument('--sudo', action='store_true')
     do_all.set_defaults(func=run)
 
     upload = sub_parser.add_parser("upload_pip")
