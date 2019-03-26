@@ -200,7 +200,11 @@ class CeleryManager(object):
             cmd += ' --concurrency=%d' % self.cap_cpu_count(concurrency, cap_concurrency)
 
         # piping to ts is helpful for debugging if available
-        if subprocess.check_output(["which", "ts"]):
+        try:
+            subprocess.check_call(["which", "ts"])
+        except subprocess.CalledProcessError:
+            pass
+        else:
             cmd += " | ts '[%Y-%m-%d %H:%M:%S]'"
         cmd += ' &'
 
