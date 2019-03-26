@@ -72,7 +72,7 @@ export default {
     firexUid: {required: true, type: String},
   },
   data () {
-    let zoom = d3.behavior.zoom()
+    let zoom = d3.zoom()
       .scaleExtent([scaleBounds.min, scaleBounds.max])
       .on('zoom', this.zoomed)
     return {
@@ -134,16 +134,17 @@ export default {
   },
   methods: {
     zoomed () {
+      // console.log(d3.event)
       this.focusedNodeUuid = null
-      this.setTransform({x: d3.event.translate[0], y: d3.event.translate[1], scale: d3.event.scale})
+      this.setTransform({x: d3.event.transform.x, y: d3.event.transform.y, scale: d3.event.transform.k})
     },
     setTransformUpdateZoom (transform) {
       // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent with current position.
-      if (!_.isNil(transform.scale)) {
-        this.zoom.scale(transform.scale)
-      }
-      this.zoom.translate([transform.x, transform.y])
-      this.setTransform(transform)
+      // console.log(this.zoom)
+      // this.zoom.transform({x: transform.x, y: transform.y, k: transform.scale})
+      this.zoom.scaleTo(d3.select('div#chart-container svg'), transform.scale)
+      this.zoom.translateTo(d3.select('div#chart-container svg'), transform.x, transform.y)
+      // this.setTransform(transform)
     },
     setTransform (transform) {
       this.transform = transform
