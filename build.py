@@ -11,7 +11,8 @@ def build(source, sudo=False):
     for subfolder in ['build', 'dist']:
         folder = os.path.join(source, subfolder)
         if os.path.exists(folder):
-            shutil.rmtree(folder)
+            cmd = sudo_cmd + ['rm', '-rf', folder]
+            check_call(cmd, cwd=source)
 
     print('-->  Build the wheel')
     cmd = sudo_cmd + ['python3', 'setup.py', 'sdist', 'bdist_wheel']
