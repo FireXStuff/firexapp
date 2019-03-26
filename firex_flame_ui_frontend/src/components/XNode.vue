@@ -1,47 +1,49 @@
 <template>
-  <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()"
-               style="display: inline-block;">
-    <div :style="topLevelStyle" class="node">
+  <div>
+    <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()"
+                 style="display: inline-block;">
+      <div :style="topLevelStyle" class="node">
 
-      <div style="overflow: hidden; text-overflow: ellipsis;">
-        <div style="display: flex;">
+        <div style="overflow: hidden; text-overflow: ellipsis;">
+          <div style="display: flex;">
 
-          <div style="align-self: start; font-size: 12px">{{node.task_num}}</div>
+            <div style="align-self: start; font-size: 12px">{{node.task_num}}</div>
 
-          <div style="text-align: center; padding: 3px; align-self: center; flex: 1;">
-            {{node.name}}
+            <div style="text-align: center; padding: 3px; align-self: center; flex: 1;">
+              {{node.name}}
+            </div>
+
+            <div v-if="node.retries" style="align-self: end; position: relative;">
+              <img src="../assets/retry.png" class="retries-img">
+              <div title="Retries" class="retries">{{node.retries}}</div>
+            </div>
+
+            <!-- visibility: collapsed to include space for collapse button, even when allowCollapse is false. -->
+            <div v-if="node.children_uuids.length && !isChained" style="align-self: end;"
+                 :style="allowCollapse ? 'visibility: collapsed': ''">
+              <!-- Use prevent to avoid activating node-wide attribute link -->
+              <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
+                <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
+                <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
+              </i>
+            </div>
+          </div>
+          <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid navigating to
+               task node attribute page. Should likely find a better way.-->
+          <div class="flame-data" v-on:click="flameDataClick">
+            <div v-if="showUuid">{{node.uuid}}</div>
+            <!-- We're really trusting data from the server here (rendering raw HTML) -->
+            <!-- TODO: verify flame_additional_data is always accumulative -->
+            <div v-if="node.flame_additional_data" v-html="node.flame_additional_data"></div>
           </div>
 
-          <div v-if="node.retries" style="align-self: end; position: relative;">
-            <img src="../assets/retry.png" class="retries-img">
-            <div title="Retries" class="retries">{{node.retries}}</div>
-          </div>
-
-          <!-- visibility: collapsed to include space for collapse button, even when allowCollapse is false. -->
-          <div v-if="node.children_uuids.length && !isChained" style="align-self: end;"
-               :style="allowCollapse ? 'visibility: collapsed': ''">
-            <!-- Use prevent to avoid activating node-wide attribute link -->
-            <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
-              <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
-              <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
-            </i>
-          </div>
+          <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
+          <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
         </div>
-        <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid navigating to
-             task node attribute page. Should likely find a better way.-->
-        <div class="flame-data" v-on:click="flameDataClick">
-          <div v-if="showUuid">{{node.uuid}}</div>
-          <!-- We're really trusting data from the server here (rendering raw HTML) -->
-          <!-- TODO: verify flame_additional_data is always accumulative -->
-          <div v-if="node.flame_additional_data" v-html="node.flame_additional_data"></div>
-        </div>
 
-        <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
-        <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
       </div>
-
-    </div>
-  </router-link>
+    </router-link>
+  </div>
 </template>
 
 <script>

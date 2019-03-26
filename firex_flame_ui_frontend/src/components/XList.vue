@@ -130,5 +130,8 @@ export default {
     padding: 10px;
     flex: 1;
     overflow: auto;
+    align-items: center;
+    display: flex;
+    flex-direction: column;
   }
 </style>
