@@ -118,7 +118,7 @@ class SubmitBaseApp:
             sys.exit(-1)
 
         # Post import converters
-        self.convert_chain_args(chain_args)
+        chain_args = self.convert_chain_args(chain_args)
 
         # check argument applicability to detect useless input arguments
         if not self.validate_argument_applicability(chain_args, args, all_tasks):
