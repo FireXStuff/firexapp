@@ -93,12 +93,12 @@ def build_sphinx_docs(workspace):
 
 
 def run(workspace='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None, twine_username=None, skip_htmlcov=None,
-        upload_codecov=None, skip_docs_build=None):
+        upload_codecov=None, skip_docs_build=None, sudo=False):
 
     git_hash, git_tags, files = get_git_hash_tags_and_files(workspace)
 
     if not skip_build:
-        build(workspace)
+        build(workspace, sudo)
 
     run_tests(workspace)
 
