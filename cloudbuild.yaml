@@ -7,9 +7,6 @@ steps:
          '--upload_codecov', '--skip_htmlcov', '--skip_docs_build']
   dir: '$BUILD_ID/firexapp'
   secretEnv: ['TWINE_PASSWORD']
-#- name: gcr.io/cloud-builders/gsutil
-#  args: ['rsync', '-r', 'html', 'gs://www.firexapp.com']
-#  dir: '$BUILD_ID/firexapp'
 
 secrets:
 - kmsKeyName: projects/firex-kit-documentation/locations/global/keyRings/secrets/cryptoKeys/TWINE_PASSWORD
