@@ -177,8 +177,6 @@ export default {
       return _.clone(this.$router.currentRoute)
     },
     flameDataClick (event) {
-      console.log('flame data clicked.')
-      console.log(event)
       event.stopPropagation()
     },
   },
