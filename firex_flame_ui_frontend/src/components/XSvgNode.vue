@@ -57,8 +57,6 @@ export default {
     showUuid: {},
     position: {required: true, type: Object},
     dimensions: {required: true, type: Object},
-    // xPosition: {required: true, type: Number},
-    // yPosition: {required: true, type: Number},
     opacity: {default: 1},
   },
   computed: {

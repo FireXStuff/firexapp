@@ -54,7 +54,7 @@ import _ from 'lodash'
 
 import XNode from './XNode'
 import XHeader from './XHeader'
-import {eventHub, routeTo} from '../utils'
+import {routeTo} from '../utils'
 
 export default {
   name: 'XList',
@@ -97,7 +97,7 @@ export default {
       let optionsToSortFields = {
         'time-received': 'task_num',
         'alphabetical': 'name',
-        'runtime': 'actual_runtime', // TODO: what is this field isn't defined yet?
+        'runtime': 'actual_runtime', // TODO: what is this field isn't defined yet or in progress?
       }
       let sortField = optionsToSortFields[this.selectedSortOption]
       let sortedNodes = _.sortBy(resultNodes, sortField)
@@ -121,10 +121,6 @@ export default {
         this.selectedFilterOptions = this.filterOptions
       }
     },
-  },
-  created () {
-    let supportedParentButtons = ['support-graph-link', 'support-help-link']
-    supportedParentButtons.forEach(e => { eventHub.$emit(e) })
   },
 }
 </script>

@@ -7,7 +7,9 @@
               :legacyPath="headerParams.legacyPath"
               :enableSearch="true"
     ></x-header>
-    <x-graph :nodesByUuid="nodesByUuid" :firexUid="runMetadata.uid"></x-graph>
+    <x-graph
+      :nodesByUuid="nodesByUuid"
+      :firexUid="runMetadata.uid"></x-graph>
   </div>
 </template>
 
@@ -88,65 +90,4 @@ export default {
 </script>
 
 <style scoped>
-
-.header {
-  background-color: #EEE;
-  border-bottom: 1px solid #000;
-}
-
-.uid {
-  font-family: 'Source Sans Pro',sans-serif;
-  margin: 0 8px;
-  padding: 0;
-  white-space: nowrap;
-  font-size: 20px;
-  line-height: 40px;
-  font-weight: normal;
-}
-
-.flame-link {
-  font-family: 'Source Sans Pro',sans-serif;
-  vertical-align: top;
-  border-left: 1px solid #000;
-  line-height: 40px;
-  text-align: center;
-  padding: 0 8px;
-  text-decoration: none;
-  color: #000;
-  border-radius: 0;
-  font-size: 20px;
-  justify-content: flex-end;
-}
-
-.header-icon-button {
-  padding: 0 8px;
-  border-left: 1px solid #000;
-  justify-content: end;
-  font-size: 20px;
-  line-height: 40px;
-  cursor: pointer;
-  color: #000;
-}
-
-.header-icon-button:hover {
-    color: #2980ff;
-}
-
-a {
-  color: #000;
-}
-
-a:hover {
-    color: #2980ff;
-}
-
-.kill-button {
-  color: #900;
-}
-
-.kill-button:hover {
-  color: #fff;
-  background: #900;
-}
-
 </style>
