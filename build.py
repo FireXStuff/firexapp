@@ -6,6 +6,7 @@ import os
 
 
 def build(workspace, sudo=False):
+    sudo_cmd = ['sudo'] if sudo else []
     print('--> Remove any old build or sdist folders')
     for subfolder in ['build', 'dist']:
         folder = os.path.join(workspace, subfolder)
@@ -13,16 +14,15 @@ def build(workspace, sudo=False):
             shutil.rmtree(folder)
 
     print('-->  Build the wheel')
-    check_call(['python3', 'setup.py', 'sdist', 'bdist_wheel'], cwd=workspace)
+    cmd = sudo_cmd + ['python3', 'setup.py', 'sdist', 'bdist_wheel']
+    check_call(cmd, cwd=workspace)
 
     wheels = [w for w in os.listdir(os.path.join(workspace, 'dist')) if w.endswith('whl')]
     assert len(wheels) == 1
     wheel = os.path.join('dist', wheels[0])
 
     print('--> Install the wheel')
-    cmd = ['pip3', 'install', wheel]
-    if sudo:
-        cmd = ['sudo'] + cmd
+    cmd = sudo_cmd + ['pip3', 'install', wheel]
     check_call(cmd, cwd=workspace)
 
 
