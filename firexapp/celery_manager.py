@@ -6,7 +6,7 @@ import subprocess
 import psutil
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from socket import gethostname
-from firexapp.common import poll_until_file_exist, poll_until_file_not_empty
+from firexapp.common import poll_until_file_not_empty
 from firexapp.plugins import PLUGGING_ENV_NAME, cdl2list
 from firexapp.fileregistry import FileRegistry
 
@@ -198,7 +198,10 @@ class CeleryManager(object):
             cmd += ' --queues=%s' % queues
         if concurrency:
             cmd += ' --concurrency=%d' % self.cap_cpu_count(concurrency, cap_concurrency)
-        cmd += " | ts '[%Y-%m-%d %H:%M:%S]'"
+
+        # piping to ts is helpful for debugging if available
+        if subprocess.check_output(["which", "ts"]):
+            cmd += " | ts '[%Y-%m-%d %H:%M:%S]'"
         cmd += ' &'
 
         self.log('Starting %s on %s...' % (workername, self.hostname))
