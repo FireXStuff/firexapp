@@ -13,7 +13,6 @@
     </div>
     <div id="chart-container" style="width: 100%; height: 100%" ref="graph-svg">
       <svg width="100%" height="100%" preserveAspectRatio="xMinYMin"  style="background-color: white;">
-        <g>
           <g :transform="svgGraphTransform">
             <x-link :onlyVisibleIntrinsicDimensionNodesByUuid="onlyVisibleIntrinsicDimensionNodesByUuid"
                     :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
@@ -26,7 +25,6 @@
                         :showUuid="showUuids"
                         :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
                         v-on:collapse-node="toggleCollapseChildren(uuid)"></x-svg-node>
-          </g>
         </g>
       </svg>
     </div>
@@ -52,8 +50,6 @@
 
 <script>
 
-//  TODO: specify what to import from d3 more precisely (select, zoom).
-// TODO: maybe use a more recent version of d3.
 import * as d3 from 'd3'
 import XSvgNode from './XSvgNode'
 import _ from 'lodash'
@@ -74,6 +70,7 @@ export default {
   data () {
     let zoom = d3.zoom()
       .scaleExtent([scaleBounds.min, scaleBounds.max])
+      .clickDistance(4) // Only consider a click a pan if it moves a couple pixels, since this blocks event prop.
       .on('zoom', this.zoomed)
     return {
       // Default to hiding paths that don't include a failure by default.
@@ -134,17 +131,15 @@ export default {
   },
   methods: {
     zoomed () {
-      // console.log(d3.event)
+      // Clear focus node on pan/zoom.
       this.focusedNodeUuid = null
       this.setTransform({x: d3.event.transform.x, y: d3.event.transform.y, scale: d3.event.transform.k})
     },
     setTransformUpdateZoom (transform) {
       // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent with current position.
-      // console.log(this.zoom)
-      // this.zoom.transform({x: transform.x, y: transform.y, k: transform.scale})
-      this.zoom.scaleTo(d3.select('div#chart-container svg'), transform.scale)
-      this.zoom.translateTo(d3.select('div#chart-container svg'), transform.x, transform.y)
-      // this.setTransform(transform)
+      let d3Transform = d3.zoomIdentity.translate(transform.x, transform.y).scale(transform.scale)
+      d3.select('div#chart-container svg').call(this.zoom.transform, d3Transform)
+      this.setTransform(transform)
     },
     setTransform (transform) {
       this.transform = transform
@@ -255,9 +250,6 @@ export default {
   },
   watch: {
     firexUid () {
-      // This is somewhat gross. Maybe there should be another component that does the SVG rendering that always
-      // has dimensions populated. It could then center on mounted or similar.
-
       // TODO: this should be on firexRunMetadata change (keys on UID).
       this.setTransformUpdateZoom(this.getLocalStorageTransform())
     },
