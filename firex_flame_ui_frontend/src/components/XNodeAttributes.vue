@@ -25,6 +25,10 @@
         <div v-else-if="key === 'support_location'" style="display: inline">
           <a :href="displayKeyNodes[key]">{{displayKeyNodes[key]}}</a>
         </div>
+        <div v-else-if="key === 'traceback'" style="display: inline">
+          <pre style="overflow: auto; color: darkred; margin-top: 0">{{displayKeyNodes[key].trim()}}
+          </pre>
+        </div>
         <span v-else>
           {{displayKeyNodes[key]}}
         </span>
@@ -69,14 +73,16 @@ export default {
       return _.sortBy(_.keys(this.displayKeyNodes))
     },
     headerParams () {
+      let links = [
+        {name: 'logs', href: this.taskDetails.logs_url, text: 'View Logs'},
+        {name: 'support', href: this.taskDetails.support_location, text: 'Support'},
+        {name: 'code', href: this.taskDetails.code_url, icon: 'file-code'},
+      ]
+
       return {
         title: this.taskDetails['long_name'],
         legacyPath: '/task/' + this.uuid,
-        links: [
-          {name: 'logs', href: this.taskDetails.logs_url, text: 'View Logs'},
-          {name: 'support', href: this.taskDetails.support_location, text: 'Support'},
-          {name: 'code', href: this.taskDetails.code_url, icon: 'file-code'},
-        ],
+        links: links,
       }
     },
   },
