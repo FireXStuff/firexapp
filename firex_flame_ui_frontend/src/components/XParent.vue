@@ -31,7 +31,7 @@
                  :nodesByUuid="nodesByUuid"
                  :firexUid="uid"
                  :isConnected="socket.connected"
-                 :runMetadata="flameRunMetadata"
+                 :runMetadata="firexRunMetadata"
                  :taskDetails="taskDetails"></router-view>
   </div>
 </template>
@@ -51,6 +51,7 @@ export default {
   },
   data () {
     return {
+      logDir: this.inputLogDir,
       socketNodesByUuid: {},
       socketUpdateInProgress: false,
       taskDetails: {},
@@ -64,12 +65,26 @@ export default {
         return this.flameRunMetadata.uid
       }
       if (this.logDir) {
-        let matches = this.logDir.match(/.*(FireX-.*)\/?$/)
-        if (matches.length) {
-          return matches[1]
-        }
+        return this.logUid
       }
       return 'Unknown'
+    },
+    logUid () {
+      let matches = this.logDir.match(/.*(FireX-.*)\/?$/)
+      if (matches.length) {
+        return matches[1]
+      }
+      return 'Unknown'
+    },
+    logRunMetadata () {
+      return {
+        uid: this.logUid,
+        logs_dir: this.logDir,
+        root_uuid: this.rootUuid,
+      }
+    },
+    firexRunMetadata () {
+      return this.flameServer ? this.flameRunMetadata : this.logRunMetadata
     },
     nodesByUuid () {
       if (this.useRecFile) {

@@ -1,13 +1,15 @@
 <template>
   <!-- ctrl.70 is ctrl-f. Need prevent to avoid default browser behaviour.  -->
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
-       @keydown.ctrl.70.prevent="focusOnFind"  tabindex="0">
+       @keydown.ctrl.70.prevent="focusOnFind" tabindex="0">
     <x-header :title="headerParams.title"
               :links="headerParams.links"
               :legacyPath="headerParams.legacyPath"
               :enableSearch="true"
     ></x-header>
+    <!-- TODO: not sure where the best level to gate on UID is, but need UID to key on localStorage -->
     <x-graph
+      v-if="runMetadata.uid"
       :nodesByUuid="nodesByUuid"
       :firexUid="runMetadata.uid"></x-graph>
   </div>
@@ -34,6 +36,12 @@ export default {
     }
   },
   computed: {
+    isUidValid () {
+      if (!this.runMetadata.uid) {
+        return false
+      }
+      return this.runMetadata.uid.startsWith('FireX-')
+    },
     isAlive () {
       return this.isConnected && this.hasIncompleteTasks
     },

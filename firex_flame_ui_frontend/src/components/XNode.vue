@@ -7,7 +7,7 @@
           <div style="align-self: start; font-size: 12px">{{node.task_num}}</div>
 
           <div style="text-align: center; padding: 3px; align-self: center; flex: 1;">
-            <strong>{{node.name}}</strong>
+            {{node.name}}
           </div>
 
           <div v-if="node.retries" style="align-self: end; position: relative;">
@@ -45,6 +45,19 @@
 import _ from 'lodash'
 import {routeTo} from '../utils'
 
+let statusToColour = {
+  'task-received': '#888',
+  'task-blocked': '#888',
+  'task-started': 'cornflowerblue', // animate?
+  'task-succeeded': '#2A2',
+  'task-shutdown': '#2A2',
+  'task-failed': '#900',
+  'task-revoked': '#F40',
+  'task-incomplete': 'repeating-linear-gradient(45deg,#888,#888 5px,#444 5px,#444 10px)',
+  'task-completed': '#2A2',
+  'task-unblocked': 'cornflowerblue',
+}
+
 export default {
   name: 'XNode',
   props: {
@@ -66,28 +79,20 @@ export default {
   data () {
     return {
       expanded: true,
-      statusToColour: {
-        'task-received': '#888',
-        'task-blocked': '#888',
-        'task-started': 'cornflowerblue', // animate?
-        'task-succeeded': '#2A2',
-        'task-shutdown': '#2A2',
-        'task-failed': '#900',
-        'task-revoked': '#F40',
-        'task-incomplete': 'repeating-linear-gradient(45deg,#888,#888 5px,#444 5px,#444 10px)',
-        // TODO: is this correct? completed means incompleted??
-        //  No, this isn't right. But events to happen this way (revoked then completed, even though we want to show
-        //  revoked.) sometimes completed means incomplete! I hope this is only at the end of a run.
-        'task-completed': '#2A2',
-        'task-unblocked': 'cornflowerblue',
-      },
+
       intrinsicDimensions: {width: null, height: null},
     }
   },
   computed: {
+    background () {
+      if (this.node.exception && this.node.exception.trim().startsWith('ChainInterruptedException')) {
+        return 'repeating-linear-gradient(45deg,#888,#888 5px,#893C3C 5px,#893C3C  10px)'
+      }
+      return statusToColour[this.node.state]
+    },
     topLevelStyle () {
       return {
-        background: this.statusToColour[this.node.state],
+        background: this.background,
         'border-radius': !this.node.chain_depth ? '8px' : '',
         border: this.node.from_plugin ? '2px dashed #000' : '',
       }
@@ -95,6 +100,9 @@ export default {
     duration () {
       let runtime = this.node.actual_runtime
 
+      if (!runtime && this.node.first_started) {
+        runtime = (Date.now() / 1000) - this.node.local_received
+      }
       if (!runtime && this.node.local_received) {
         runtime = (Date.now() / 1000) - this.node.local_received
       }
@@ -200,7 +208,7 @@ a {
 .node {
   font-family: 'Source Sans Pro',sans-serif;
   font-weight: normal;
-  font-size: 14px;
+  font-style: normal;
   color: white;
   padding: 3px;
   width: auto;

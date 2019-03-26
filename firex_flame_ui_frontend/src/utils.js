@@ -37,7 +37,7 @@ function parseRecFileContentsToNodesByUuid (recFileContents) {
   let taskNum = 1
   let tasksByUuid = {}
   recFileContents.split(/\r?\n/).forEach(function (line) {
-    if (line) {
+    if (line && line.trim()) {
       let isNewTask = captureEventState(JSON.parse(line), tasksByUuid, taskNum)
       if (isNewTask) {
         taskNum += 1
@@ -70,7 +70,7 @@ function captureEventState (event, tasksByUuid, taskNum) {
 
   let copyFields = ['hostname', 'parent_id', 'type', 'retries', 'firex_bound_args', 'flame_additional_data',
     'local_received', 'actual_runtime', 'support_location', 'utcoffset', 'type', 'code_url', 'firex_default_bound_args',
-    'from_plugin', 'chain_depth', 'firex_result']
+    'from_plugin', 'chain_depth', 'firex_result', 'exception', 'traceback']
   copyFields.forEach(function (field) {
     if (_.has(event, field)) {
       task[field] = event[field]

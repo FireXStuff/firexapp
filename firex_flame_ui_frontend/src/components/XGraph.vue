@@ -1,5 +1,6 @@
 <template>
-  <div style="width: 100%; height: 100%; overflow: hidden;">
+  <div style="width: 100%; height: 100%; overflow: hidden;" tabindex="1"
+       @keydown.c="center">
     <div v-if="hiddenNodeIds.length > 0" class="user-message" style="background: lightblue; ">
       {{hiddenNodeIds.length}} tasks are hidden
       <a href="#" @click.prevent="hiddenNodeIds = []"> (Show All)</a>
@@ -169,7 +170,10 @@ export default {
       // Not available during re-render.
       if (this.$refs['graph-svg']) {
         let boundingRect = this.$refs['graph-svg'].getBoundingClientRect()
-        return getCenteringTransform(this.nonHiddenNodesExtent, boundingRect, scaleBounds, 200)
+        // Visible extent might not be initialized before first graph draw, so fall back here.
+        if (_.every(this.nonHiddenNodesExtent, _.negate(_.isNil))) {
+          return getCenteringTransform(this.nonHiddenNodesExtent, boundingRect, scaleBounds, 200)
+        }
       }
       return {x: 0, y: 0, scale: 1}
     },
@@ -231,7 +235,7 @@ export default {
     },
     isTransformValid (transform) {
       let vals = [transform.x, transform.y, transform.scale]
-      return _.every(_.map(vals, v => !_.isNaN(v) && _.isNumber(v)))
+      return _.every(_.map(vals, v => !_.isNil(v) && _.isNumber(v)))
     },
     setLocalStorageTransform (newTransform) {
       localStorage[this.firexUid] = JSON.stringify(newTransform)

@@ -5,7 +5,7 @@
     <div class="node-attributes">
       <div v-for="(key, i) in sortedDisplayNodeKeys" :key="key"
            :style="{'background-color': i % 2 === 0 ? '#EEE': '#CCC', 'padding': '4px' }">
-        <strong>{{key}}:</strong>
+        <label style="font-weight: 700;">{{key}}:</label>
         <div v-if="key === 'arguments' || key === 'arguments_defaults'">
           <div v-for="(arg_value, arg_key) in displayKeyNodes[key]" :key="arg_key"
                style="margin-left: 25px; padding: 3px;">
@@ -17,7 +17,7 @@
           <router-link :to="linkToUuid(displayKeyNodes[key])">{{displayKeyNodes[key]}}</router-link>
         </div>
         <div v-else-if="key === 'children'">
-          <div v-for="child_uuid in displayKeyNodes[key]" :key="child_uuid" style="margin-left: 25px">
+          <div v-for="child_uuid in displayKeyNodes[key]" :key="child_uuid" style="margin-left: 25px; padding: 3px;">
             <strong>{{nodesByUuid[child_uuid].name}}: </strong>
             <router-link :to="linkToUuid(child_uuid)">{{child_uuid}}</router-link>
           </div>
@@ -53,6 +53,7 @@ export default {
   },
   computed: {
     displayNode () {
+      // TODO: if an attribute is in nodesByUuid, that value should be rendered since it's auto-updated.
       // If we haven't fetched the details for some reason, just show the base properties.
       let base = _.isEmpty(this.taskDetails) ? this.nodesByUuid[this.uuid] : this.taskDetails
       let node = _.clone(base)
@@ -104,7 +105,7 @@ export default {
 <style scoped>
 
 .node-attributes {
-  font-family: 'Source Code Pro',monospace;
+  font-family: 'Source Code Pro', monospace;
   font-size: 14px;
   margin: 10px;
 }

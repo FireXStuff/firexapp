@@ -7,6 +7,7 @@ import XNodeAttributes from '@/components/XNodeAttributes'
 import _ from 'lodash'
 import XHelp from '@/components/XHelp'
 import XSettings from '@/components/XSettings'
+import XShortcuts from '@/components/XShortcuts'
 
 Vue.use(Router)
 
@@ -33,6 +34,12 @@ const router = new Router({
           path: 'help',
           name: 'XHelp',
           component: XHelp,
+          props: true,
+        },
+        {
+          path: 'shortcuts',
+          name: 'XShortcuts',
+          component: XShortcuts,
           props: true,
         },
         // default path must be last.
