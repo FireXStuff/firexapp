@@ -4,6 +4,7 @@ from firexapp.engine.celery import app
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.arguments import InputConverter
 from firexapp.submit.submit import SUBMISSION_FILE_REGISTRY_KEY
+from firexapp.submit.uid import Uid
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexkit.argument_conversion import SingleArgDecorator
 
@@ -39,6 +40,7 @@ class SubmitConvertFailureStillHasLogs(FlowTestConfiguration):
         logs_dir = get_log_dir_from_output(cmd_output)
         submission_file = FileRegistry().get_file(SUBMISSION_FILE_REGISTRY_KEY, logs_dir)
         assert os.path.isfile(submission_file), "submission file missing not there"
+
         # open submission
         with open(submission_file) as f:
             # find Barf in submission
@@ -53,16 +55,21 @@ class SubmitConvertFailureStillHasLogs(FlowTestConfiguration):
 
 
 @app.task
-def noop():
-    pass
+def write_a_test_file(uid: Uid):
+    test_file_path = os.path.join(uid.logs_dir, "success")
+    with open(test_file_path, "w+") as f:
+        f.write("success")
 
 
-class NormalNoop(FlowTestConfiguration):
+class SubmitHighRunnerCase(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "noop"]
+        return ["submit", "--chain", "write_a_test_file"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        pass
+        logs_dir = get_log_dir_from_output(cmd_output)
+        test_file_path = os.path.join(logs_dir, "success")
+        assert os.path.isfile(os.path.join(test_file_path)), "Test file was not created in the logs directory, " \
+                                                             "therefor the microservice did not run"
 
     def assert_expected_return_code(self, ret_value):
         assert_is_good_run(ret_value)
