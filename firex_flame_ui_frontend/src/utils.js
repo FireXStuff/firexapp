@@ -17,6 +17,7 @@ export {
   routeTo,
   isTaskStateIncomplete,
   hasIncompleteTasks,
+  isChainInterrupted,
 }
 
 // function invokePerNode (root, fn) {
@@ -128,8 +129,17 @@ function flatGraphToTree (tasksByUuid) {
   return root
 }
 
+function isChainInterrupted (exception) {
+  if (!exception) {
+    return false
+  }
+  return exception.trim().startsWith('ChainInterruptedException')
+}
+
 function nodesWithAncestorOrDescendantFailure (nodesByUuid) {
-  let failurePredicate = {'state': 'task-failed'}
+  let failurePredicate = (node) => {
+    return node.state === 'task-failed' && !isChainInterrupted(node.exception)
+  }
   if (_.some(_.values(nodesByUuid), failurePredicate)) {
     let parentIds = _.map(_.values(nodesByUuid), 'parent_id')
     let leafNodes = _.filter(_.values(nodesByUuid), n => !_.includes(parentIds, n.uuid))

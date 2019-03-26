@@ -16,7 +16,7 @@
           </div>
 
           <!-- visibility: collapsed to include space for collapse button, even when allowCollapse is false. -->
-          <div v-if="node.children_uuids.length" style="align-self: end;"
+          <div v-if="node.children_uuids.length && !isChained" style="align-self: end;"
                 :style="allowCollapse ? 'visibility: collapsed': ''">
             <!-- Use prevent to avoid activating node-wide attribute link -->
             <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
@@ -43,7 +43,7 @@
 
 <script>
 import _ from 'lodash'
-import {routeTo} from '../utils'
+import {routeTo, isChainInterrupted} from '../utils'
 
 let statusToColour = {
   'task-received': '#888',
@@ -85,15 +85,18 @@ export default {
   },
   computed: {
     background () {
-      if (this.node.exception && this.node.exception.trim().startsWith('ChainInterruptedException')) {
+      if (isChainInterrupted(this.node.exception)) {
         return 'repeating-linear-gradient(45deg,#888,#888 5px,#893C3C 5px,#893C3C  10px)'
       }
       return statusToColour[this.node.state]
     },
+    isChained () {
+      return Boolean(this.node.chain_depth)
+    },
     topLevelStyle () {
       return {
         background: this.background,
-        'border-radius': !this.node.chain_depth ? '8px' : '',
+        'border-radius': !this.isChained ? '8px' : '',
         border: this.node.from_plugin ? '2px dashed #000' : '',
       }
     },
