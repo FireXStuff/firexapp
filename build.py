@@ -5,86 +5,90 @@ from subprocess import check_call, check_output
 import os
 
 
-def build(workspace, sudo=False):
+def build(source, sudo=False):
     sudo_cmd = ['sudo'] if sudo else []
     print('--> Remove any old build or sdist folders')
     for subfolder in ['build', 'dist']:
-        folder = os.path.join(workspace, subfolder)
+        folder = os.path.join(source, subfolder)
         if os.path.exists(folder):
             shutil.rmtree(folder)
 
     print('-->  Build the wheel')
     cmd = sudo_cmd + ['python3', 'setup.py', 'sdist', 'bdist_wheel']
-    check_call(cmd, cwd=workspace)
+    check_call(cmd, cwd=source)
 
-    wheels = [w for w in os.listdir(os.path.join(workspace, 'dist')) if w.endswith('whl')]
+    wheels = [w for w in os.listdir(os.path.join(source, 'dist')) if w.endswith('whl')]
     assert len(wheels) == 1
     wheel = os.path.join('dist', wheels[0])
 
     print('--> Install the wheel')
     cmd = sudo_cmd + ['pip3', 'install', wheel]
-    check_call(cmd, cwd=workspace)
+    check_call(cmd, cwd=source)
 
 
-def get_git_hash_tags_and_files(workspace):
-    git_hash = check_output(['git', 'rev-parse', '--short', 'HEAD'], cwd=workspace).decode().strip()
+def get_git_hash_tags_and_files(source):
+    git_hash = check_output(['git', 'rev-parse', '--short', 'HEAD'], cwd=source).decode().strip()
     print('Git Hash @ HEAD: %s' % git_hash)
     git_tags = [tag.decode() for tag in check_output(['git', 'tag', '-l', '--points-at', 'HEAD'],
-                                                     cwd=workspace).splitlines()]
+                                                     cwd=source).splitlines()]
     if git_tags:
         print('Git tags @ HEAD: %s' % git_tags)
     files = [file.decode() for file in check_output(['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'],
-                                                    cwd=workspace).splitlines()]
+                                                    cwd=source).splitlines()]
     print('Files @ HEAD: %s' % '\n'.join(files))
     return git_hash, git_tags, files
 
 
-def run_tests(workspace):
-    unit_cov_file = run_unit_tests(workspace)
-    flow_cov_file = run_flow_tests(workspace)
+def run_tests(source, output_dir):
+    unit_cov_file = run_unit_tests(source, output_dir)
+    flow_cov_file = run_flow_tests(source, output_dir)
 
     if flow_cov_file and os.path.exists(flow_cov_file):
         print('--> Merge coverage data')
-        check_call(['coverage', 'combine', unit_cov_file, flow_cov_file], cwd=workspace)
+        check_call(['coverage', 'combine', unit_cov_file, flow_cov_file], cwd=output_dir)
 
 
-def run_unit_tests(workspace):
+def run_unit_tests(source, output_dir):
+    coverage_file = os.path.join(output_dir, '.coverage')
+    env=os.environ.copy()
+    env['COVERAGE_FILE'] = coverage_file
     print('--> Run unit-tests and coverage')
-    unit_test_dir = os.path.join(workspace, "tests", "unit_tests")
+    unit_test_dir = os.path.join(source, "tests", "unit_tests")
     check_call(['coverage', 'run', '-m', 'unittest', 'discover', '-s', unit_test_dir, '-p', '*_tests.py'],
-               cwd=workspace)
+               cwd=source, env=env)
 
     # unit test coverage file is located in the cwd
-    return os.path.join(workspace, '.coverage')
+    return coverage_file
 
 
-def run_flow_tests(workspace):
+def run_flow_tests(source, output_dir):
+    results_dir = os.path.join(output_dir, 'flow_test_results')
     print('--> Run flow-tests and coverage')
-    flow_test_dir = os.path.join(workspace, "tests", "integration_tests")
+    flow_test_dir = os.path.join(source, "tests", "integration_tests")
     if not os.path.exists(flow_test_dir):
         return None
-    check_call(['flow_tests', "--coverage", "--tests", flow_test_dir], cwd=workspace)
+    check_call(['flow_tests', "--logs", results_dir, "--coverage", "--tests", flow_test_dir], cwd=source)
 
     # flow test coverage file is located in the results dir
-    return os.path.join(workspace, "results", ".coverage")
+    return os.path.join(results_dir, ".coverage")
 
 
-def upload_coverage_to_codecov(workspace):
+def upload_coverage_to_codecov(output_dir):
     print('--> Uploading coverage report to codecov')
-    check_call(['codecov'], cwd=workspace)
+    check_call(['codecov'], cwd=output_dir)
 
 
-def generate_htmlcov(workspace, git_hash=None):
+def generate_htmlcov(source, output_dir, git_hash=None):
     if not git_hash:
-        git_hash, _, __ = get_git_hash_tags_and_files(workspace)
+        git_hash, _, __ = get_git_hash_tags_and_files(source)
     print('--> Generate the coverage html')
-    check_call(['coverage', 'html', '--title', 'Code Coverage for %s' % git_hash], cwd=workspace)
-    print('View Coverage at: %s' % os.path.abspath(os.path.os.path.join(workspace, 'htmlcov/index.html')))
+    check_call(['coverage', 'html', '--title', 'Code Coverage for %s' % git_hash], cwd=output_dir)
+    print('View Coverage at: %s' % os.path.abspath(os.path.os.path.join(output_dir, 'htmlcov/index.html')))
 
 
-def upload_pip_pkg_to_pypi(twine_username, workspace):
+def upload_pip_pkg_to_pypi(twine_username, source):
     print('--> Uploading pip package')
-    check_call(['twine', 'upload', '--verbose', '--username', twine_username, 'dist/*'], cwd=workspace)    
+    check_call(['twine', 'upload', '--verbose', '--username', twine_username, 'dist/*'], cwd=source)
 
 
 def build_sphinx_docs(workspace):
@@ -92,34 +96,34 @@ def build_sphinx_docs(workspace):
     check_call(['sphinx-build', '-b', 'html', 'docs', 'html'], cwd=workspace)
 
 
-def run(workspace='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None, twine_username=None, skip_htmlcov=None,
-        upload_codecov=None, skip_docs_build=None, sudo=False):
+def run(source='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None, twine_username=None, skip_htmlcov=None,
+        upload_codecov=None, skip_docs_build=None, sudo=False, output_dir='.'):
 
-    git_hash, git_tags, files = get_git_hash_tags_and_files(workspace)
+    git_hash, git_tags, files = get_git_hash_tags_and_files(source)
 
     if not skip_build:
-        build(workspace, sudo)
+        build(source, sudo)
 
-    run_tests(workspace)
+    run_tests(source, output_dir)
 
     if not skip_htmlcov:
-        generate_htmlcov(workspace, git_hash)
+        generate_htmlcov(source, output_dir, git_hash)
 
     if upload_codecov:
-        upload_coverage_to_codecov(workspace)
+        upload_coverage_to_codecov(output_dir)
 
     if upload_pip or (upload_pip_if_tag and git_tags):
-        upload_pip_pkg_to_pypi(twine_username, workspace)
+        upload_pip_pkg_to_pypi(twine_username, source)
 
     if not skip_docs_build:
-        build_sphinx_docs(workspace)
+        build_sphinx_docs(source)
 
 
 def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--workspace', default='.')
+    parser.add_argument('--source', default='.')
     parser.set_defaults(func=run)
     sub_parser = parser.add_subparsers()
     do_all = sub_parser.add_parser("all")
@@ -131,6 +135,7 @@ def main():
     do_all.add_argument('--upload_codecov', action='store_true')
     do_all.add_argument('--skip_docs_build', action='store_true')
     do_all.add_argument('--sudo', action='store_true')
+    do_all.add_argument('--output_dir', default='.')
     do_all.set_defaults(func=run)
 
     upload = sub_parser.add_parser("upload_pip")

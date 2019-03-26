@@ -3,7 +3,8 @@ steps:
   args: ['clone', 'https://github.com/FireXStuff/firexapp.git']
   dir: '$BUILD_ID'
 - name: gcr.io/$PROJECT_ID/firex-alpine-build
-  args: ['python3', 'build.py', 'all', '--sudo', '--upload_pip_if_tag', '--upload_codecov', '--skip_htmlcov', '--skip_docs_build']
+  args: ['python3', 'build.py', 'all', '--output_dir', '/home/firex', '--sudo', '--upload_pip_if_tag',
+         '--upload_codecov', '--skip_htmlcov', '--skip_docs_build']
   dir: '$BUILD_ID/firexapp'
   secretEnv: ['TWINE_PASSWORD']
 #- name: gcr.io/cloud-builders/gsutil
