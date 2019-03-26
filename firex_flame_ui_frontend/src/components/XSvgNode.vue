@@ -1,12 +1,10 @@
 <template>
   <g :transform="transform" :width="dimensions.width" :height="dimensions.height">
     <foreignObject :width="dimensions.width" :height="dimensions.height">
-      <div>
-        <x-node :node="node"
-                :showUuid="showUuid"
-                :style="'opacity: ' + opacity"
-                v-on:collapse-node="$emit('collapse-node')"></x-node>
-      </div>
+      <x-node :node="node"
+              :showUuid="showUuid"
+              :style="'opacity: ' + opacity"
+              v-on:collapse-node="$emit('collapse-node')"></x-node>
     </foreignObject>
 
     <!-- could use this shadow for animation of in-progress nodes -->

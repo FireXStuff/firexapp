@@ -1,6 +1,8 @@
 <template>
-  <div :style="topLevelStyle" class="node">
-    <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()">
+  <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()"
+               style="display: inline-block;">
+    <div :style="topLevelStyle" class="node">
+
       <div style="overflow: hidden; text-overflow: ellipsis;">
         <div style="display: flex;">
 
@@ -17,7 +19,7 @@
 
           <!-- visibility: collapsed to include space for collapse button, even when allowCollapse is false. -->
           <div v-if="node.children_uuids.length && !isChained" style="align-self: end;"
-                :style="allowCollapse ? 'visibility: collapsed': ''">
+               :style="allowCollapse ? 'visibility: collapsed': ''">
             <!-- Use prevent to avoid activating node-wide attribute link -->
             <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
               <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
@@ -27,7 +29,7 @@
         </div>
         <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid navigating to
              task node attribute page. Should likely find a better way.-->
-        <div class="flame-data" v-on:click="$event.stopPropagation()">
+        <div class="flame-data" v-on:click="flameDataClick">
           <div v-if="showUuid">{{node.uuid}}</div>
           <!-- We're really trusting data from the server here (rendering raw HTML) -->
           <!-- TODO: verify flame_additional_data is always accumulative -->
@@ -37,24 +39,27 @@
         <div style="float: left; font-size: 12px; margin-top: 4px">{{node.hostname}}</div>
         <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
       </div>
-    </router-link>
-  </div>
+
+    </div>
+  </router-link>
 </template>
 
 <script>
 import _ from 'lodash'
 import {routeTo, isChainInterrupted} from '../utils'
 
+let successGreen = '#2A2'
+
 let statusToColour = {
   'task-received': '#888',
   'task-blocked': '#888',
   'task-started': 'cornflowerblue', // animate?
-  'task-succeeded': '#2A2',
-  'task-shutdown': '#2A2',
+  'task-succeeded': successGreen,
+  'task-shutdown': successGreen,
   'task-failed': '#900',
   'task-revoked': '#F40',
   'task-incomplete': 'repeating-linear-gradient(45deg,#888,#888 5px,#444 5px,#444 10px)',
-  'task-completed': '#2A2',
+  'task-completed': '#AAA',
   'task-unblocked': 'cornflowerblue',
 }
 
@@ -170,6 +175,11 @@ export default {
     currentRoute () {
       // The 'to' supplied to a router-link must be mutable for some reason.
       return _.clone(this.$router.currentRoute)
+    },
+    flameDataClick (event) {
+      console.log('flame data clicked.')
+      console.log(event)
+      event.stopPropagation()
     },
   },
 }
