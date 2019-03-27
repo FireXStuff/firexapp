@@ -1,13 +1,12 @@
 <template>
   <g :transform="transform" :width="dimensions.width" :height="dimensions.height">
     <foreignObject :width="dimensions.width" :height="dimensions.height">
-      <div>
+      <!--:style="'width: ' + dimensions.width + 'px; height: ' + dimensions.height + ';'"-->
         <x-node :node="node"
                 :showUuid="showUuid"
                 :liveUpdate="liveUpdate"
-                :style="'opacity: ' + opacity"
+                :style="style"
                 v-on:collapse-node="$emit('collapse-node')"></x-node>
-      </div>
     </foreignObject>
 
     <!-- could use this shadow for animation of in-progress nodes -->
@@ -64,6 +63,17 @@ export default {
   computed: {
     transform () {
       return 'translate(' + this.position.x + ',' + this.position.y + ')'
+    },
+    style () {
+      return {
+        // Super gross, we want to size the node excluding its padding + border width, so we fudge 10 here.
+        // This 10 will be taken up by padding + border width.
+        // TODO: should actually emitt the inner and out box dimensions, and use both here to set outer (foreignObject)
+        // and inner (node) rect sizes.
+        'width': (this.dimensions.width - 10) + 'px',
+        'height': (this.dimensions.height - 10) + 'px',
+        'opacity': this.opacity,
+      }
     },
   },
 }

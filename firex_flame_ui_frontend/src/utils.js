@@ -10,7 +10,7 @@ export {
   parseRecFileContentsToNodesByUuid,
   // flatGraphToTree,
   eventHub,
-  nodesWithAncestorOrDescendantFailure,
+  nodesInRootLeafPathWithFailureOrInProgress,
   calculateNodesPositionByUuid,
   getCenteringTransform,
   socketRequestResponse,
@@ -139,7 +139,7 @@ function isChainInterrupted (exception) {
   return exception.trim().startsWith('ChainInterruptedException')
 }
 
-function nodesWithAncestorOrDescendantFailure (nodesByUuid) {
+function nodesInRootLeafPathWithFailureOrInProgress (nodesByUuid) {
   let failurePredicate = (node) => {
     return (node.state === 'task-failed' && !isChainInterrupted(node.exception)) || node.state === 'task-started'
   }

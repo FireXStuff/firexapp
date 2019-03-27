@@ -29,22 +29,15 @@
         </g>
       </svg>
     </div>
-    <!-- TODO: FIND A BETTER WAY! visiblity:collapse prevents table height from being calculated, so instead
-    draw everything at z-index=-1000 and make sure the SVG & header cover these nodes.-->
+
     <div style="overflow: hidden;">
       <!-- This is very gross, but the nodes that will be put on the graph are rendered invisibly in order
         for the browser to calculate their intrinsic size. Each node's size is then passed to the graph layout
         algorithm before the actual graph is rendered.-->
-
-      <!--
-        Need inline-block display per node to get each node's intrinsic width (i.e. don't want it to force fill parent).
-      -->
-      <div v-for="n in nodesByUuid" :key="n.uuid"
-           style="display: inline-block; position: absolute; top: 0;  z-index: -1000;">
-        <x-node :emitDimensions="true" :allowCollapse="false" :showUuid="showUuids"
-                :node="n"
-                v-on:node-dimensions="updateNodeDimensions($event)"></x-node>
-      </div>
+      <template v-for="n in nodesByUuid">
+        <x-size-capturing-node :showUuid="showUuids" :node="n" :key="n.uuid"
+                               v-on:node-dimensions="updateNodeDimensions($event)"></x-size-capturing-node>
+      </template>
     </div>
   </div>
 </template>
@@ -56,14 +49,15 @@ import XSvgNode from './XSvgNode'
 import _ from 'lodash'
 import XNode from './XNode'
 import XLink from './XLinks'
-import {eventHub, nodesWithAncestorOrDescendantFailure,
+import {eventHub, nodesInRootLeafPathWithFailureOrInProgress,
   calculateNodesPositionByUuid, getCenteringTransform, getDescendantUuids} from '../utils'
+import XSizeCapturingNode from './XSizeCapturingNode'
 
 let scaleBounds = {max: 1.3, min: 0.01}
 
 export default {
   name: 'XGraph',
-  components: {XSvgNode, XNode, XLink},
+  components: {XSizeCapturingNode, XSvgNode, XNode, XLink},
   props: {
     nodesByUuid: {required: true, type: Object},
     firexUid: {required: true, type: String},
@@ -76,8 +70,9 @@ export default {
       .clickDistance(4) // Only consider a click a pan if it moves a couple pixels, since this blocks event prop.
       .on('zoom', this.zoomed)
     return {
-      // Default to hiding paths that don't include a failure by default.
-      hiddenNodeIds: nodesWithAncestorOrDescendantFailure(this.nodesByUuid),
+      // Default to hiding paths that don't include a failure or in progress by default.
+      // TODO: this setting should be state, and this filter should be applied as data is coming in.
+      hiddenNodeIds: nodesInRootLeafPathWithFailureOrInProgress(this.nodesByUuid),
       // very unfortunate we need to track this manually. TODO: look for a better way.
       dimensionsByUuid: {},
       zoom: zoom,
@@ -218,7 +213,7 @@ export default {
       this.$set(this.dimensionsByUuid, event.uuid, dimensions)
     },
     hideSucessPaths () {
-      this.hiddenNodeIds = this.hiddenNodeIds.concat(nodesWithAncestorOrDescendantFailure(this.nodesByUuid))
+      this.hiddenNodeIds = this.hiddenNodeIds.concat(nodesInRootLeafPathWithFailureOrInProgress(this.nodesByUuid))
     },
     isTransformValid (transform) {
       let vals = [transform.x, transform.y, transform.scale]
