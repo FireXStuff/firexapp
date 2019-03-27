@@ -30,6 +30,13 @@ def get_log_dir_from_output(cmd_output: str)->str:
         return ""
 
 
+def get_submission_file(cmd_output: str):
+    logs_dir = get_log_dir_from_output(cmd_output)
+    submission_file = FileRegistry().get_file(SUBMISSION_FILE_REGISTRY_KEY, logs_dir)
+    assert os.path.isfile(submission_file), "submission file missing not there"
+    return submission_file
+
+
 class SubmitConvertFailureStillHasLogs(FlowTestConfiguration):
 
     def initial_firex_options(self) -> list:
@@ -37,9 +44,7 @@ class SubmitConvertFailureStillHasLogs(FlowTestConfiguration):
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert "barf: Barf" in cmd_err, "Error in converter did not show up"
-        logs_dir = get_log_dir_from_output(cmd_output)
-        submission_file = FileRegistry().get_file(SUBMISSION_FILE_REGISTRY_KEY, logs_dir)
-        assert os.path.isfile(submission_file), "submission file missing not there"
+        submission_file = get_submission_file(cmd_output)
 
         # open submission
         with open(submission_file) as f:
@@ -107,3 +112,54 @@ class ArgConverterCheck(FlowTestConfiguration):
 
     def assert_expected_return_code(self, ret_value):
         assert_is_good_run(ret_value)
+
+
+class MisspelledChainError(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "does_not_exist"]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        assert "Could not find task 'does_not_exist" in cmd_err
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_bad_run(ret_value)
+
+
+@app.task
+def need_an_argument(i_need_me_some_of_this):
+    assert i_need_me_some_of_this
+
+
+class MissingChainArgumentError(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "need_an_argument"]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        assert "Chain missing the following parameters" in cmd_err
+        assert "submit_tests.need_an_argument: i_need_me_some_of_this" in cmd_err
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_bad_run(ret_value)
+
+
+class InvalidArgumentError(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "need_an_argument", "--but_it_is_not_this_one", "nope"]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        assert "The following arguments are not used by any microservices" in cmd_err
+        assert "--but_it_is_not_this_one" in cmd_err
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_bad_run(ret_value)
+
+
+class InvalidPluginArgumentError(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "write_a_test_file", "--plugins", "does_not_exist.py"]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        assert "File does_not_exist.py is not found" in cmd_err
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_bad_run(ret_value)
