@@ -12,4 +12,3 @@ def sleep(sleep=None):
     if sleep:
         time.sleep(int(sleep))
     return
-
