@@ -201,7 +201,7 @@ class CeleryManager(object):
 
         # piping to ts is helpful for debugging if available
         try:
-            subprocess.check_call(["which", "ts"])
+            subprocess.check_call(["which", "ts"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
         except subprocess.CalledProcessError:
             pass
         else:
