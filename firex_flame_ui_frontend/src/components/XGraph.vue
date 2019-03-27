@@ -12,20 +12,20 @@
       </a>
     </div>
     <div id="chart-container" style="width: 100%; height: 100%" ref="graph-svg">
-      <svg width="100%" height="100%" preserveAspectRatio="xMinYMin"  style="background-color: white;">
-          <g :transform="svgGraphTransform">
-            <x-link :onlyVisibleIntrinsicDimensionNodesByUuid="onlyVisibleIntrinsicDimensionNodesByUuid"
-                    :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
+      <svg width="100%" height="100%" preserveAspectRatio="xMinYMin" style="background-color: white;">
+        <g :transform="svgGraphTransform">
+          <x-link :onlyVisibleIntrinsicDimensionNodesByUuid="onlyVisibleIntrinsicDimensionNodesByUuid"
+                  :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
 
-            <x-svg-node v-for="(nodeLayout, uuid) in nodeLayoutsByUuid"
-                        :node="nodesByUuid[uuid]"
-                        :dimensions="dimensionsByUuid[uuid]"
-                        :position="nodeLayout"
-                        :key="uuid"
-                        :showUuid="showUuids"
-                        :liveUpdate="liveUpdate"
-                        :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
-                        v-on:collapse-node="toggleCollapseChildren(uuid)"></x-svg-node>
+          <x-svg-node v-for="(nodeLayout, uuid) in nodeLayoutsByUuid"
+                      :node="nodesByUuid[uuid]"
+                      :dimensions="dimensionsByUuid[uuid]"
+                      :position="nodeLayout"
+                      :key="uuid"
+                      :showUuid="showUuids"
+                      :liveUpdate="liveUpdate"
+                      :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
+                      v-on:collapse-node="toggleCollapseChildren(uuid)"></x-svg-node>
         </g>
       </svg>
     </div>

@@ -2,6 +2,7 @@
   <!-- Need prevent to avoid default browser behaviour.  -->
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
        @keydown.ctrl.f.prevent="focusOnFind"
+       @keydown.47="focusOnFind"
        @keydown.u="toggleButtonState('liveUpdate')"
        @keydown.d="toggleButtonState('showTaskDetails')"
        @keydown.r="refreshGraph"

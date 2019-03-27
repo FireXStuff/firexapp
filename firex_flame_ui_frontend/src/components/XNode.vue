@@ -77,7 +77,6 @@ export default {
     allowCollapse: {
       default: true,
     },
-    emitDimensions: {default: false},
     showUuid: {default: false},
     liveUpdate: {default: false},
     allowClickToAttributes: {default: true},
@@ -85,7 +84,6 @@ export default {
   data () {
     return {
       expanded: true,
-      intrinsicDimensions: {width: null, height: null},
       liveRunTime: 0,
     }
   },
@@ -117,31 +115,10 @@ export default {
   created () {
     this.scheduleLiveRuntimeUpdate()
   },
-  mounted () {
-    if (this.emitDimensions) {
-      this.emit_dimensions()
-    }
-  },
-  updated () {
-    if (this.emitDimensions) {
-      this.emit_dimensions()
-    }
-  },
   methods: {
     emit_collapse_toggle () {
       this.expanded = !this.expanded
       this.$emit('collapse-node')
-    },
-    emit_dimensions () {
-      this.$nextTick(function () {
-        let r = this.$el.getBoundingClientRect()
-        let isFirst = this.intrinsicDimensions.width === null || this.intrinsicDimensions.height === null
-        let dimensionChanged = this.intrinsicDimensions.width !== r.width || this.intrinsicDimensions.height !== r.height
-        if (r && (isFirst || dimensionChanged)) {
-          this.$emit('node-dimensions', {uuid: this.node.uuid, height: r.height, width: r.width})
-          this.intrinsicDimensions = {width: r.width, height: r.height}
-        }
-      })
     },
     scheduleLiveRuntimeUpdate () {
       if (this.liveUpdate && !this.node.actual_runtime && (this.node.first_started || this.node.local_received)) {
@@ -174,22 +151,6 @@ export default {
 </script>
 
 <style scoped>
-
-/*@keyframes taskRunning {*/
-  /*from {*/
-      /*box-shadow: 0 0 10px #888;*/
-  /*}*/
-  /*50% {*/
-      /*box-shadow: 0 0 50px #05F;*/
-  /*}*/
-  /*to {*/
-      /*box-shadow: 0 0 10px #888;*/
-  /*}*/
-/*}*/
-
-/*.progress {*/
-  /*animation: taskRunning 1.5s ease 0s infinite normal none running;*/
-/*}*/
 
 .flame-data {
   background: white;
