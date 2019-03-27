@@ -46,7 +46,7 @@
 
 <script>
 import _ from 'lodash'
-import {routeTo, isChainInterrupted} from '../utils'
+import {routeTo, isChainInterrupted, durationString} from '../utils'
 
 let successGreen = '#2A2'
 
@@ -79,13 +79,14 @@ export default {
     },
     emitDimensions: {default: false},
     showUuid: {default: false},
+    liveUpdate: {default: false},
     allowClickToAttributes: {default: true},
   },
   data () {
     return {
       expanded: true,
-
       intrinsicDimensions: {width: null, height: null},
+      liveRunTime: 0,
     }
   },
   computed: {
@@ -107,38 +108,14 @@ export default {
     },
     duration () {
       let runtime = this.node.actual_runtime
-
-      if (!runtime && this.node.first_started) {
-        runtime = (Date.now() / 1000) - this.node.local_received
+      if (!runtime && (this.node.local_received || this.node.first_started)) {
+        runtime = this.liveRunTime
       }
-      if (!runtime && this.node.local_received) {
-        runtime = (Date.now() / 1000) - this.node.local_received
-      }
-      if (!runtime) {
-        return ''
-      }
-
-      let hours = Math.floor(runtime / (60 * 60))
-      let hoursInSecs = hours * 60 * 60
-      let mins = Math.floor((runtime - hoursInSecs) / 60)
-      let minsInSecs = mins * 60
-      let secs = Math.floor(runtime - hoursInSecs - minsInSecs)
-
-      let result = 'time: '
-      if (hours > 0) {
-        result += hours + 'h '
-      }
-      if (mins > 0) {
-        result += mins + 'm '
-      }
-      if (secs > 0) {
-        result += secs + 's'
-      }
-      if (hours === 0 && mins === 0 && secs === 0) {
-        result += '<1s'
-      }
-      return result
+      return durationString(runtime)
     },
+  },
+  created () {
+    this.scheduleLiveRuntimeUpdate()
   },
   mounted () {
     if (this.emitDimensions) {
@@ -157,9 +134,6 @@ export default {
     },
     emit_dimensions () {
       this.$nextTick(function () {
-        // TODO: the bounding rect includes border-width and padding, but when we set the height and width
-        //  of nodes these values get added again, meaning the SVG rendered size is different from this emitted
-        // size. This makes some alignment off by the padding + border width (~10px)
         let r = this.$el.getBoundingClientRect()
         let isFirst = this.intrinsicDimensions.width === null || this.intrinsicDimensions.height === null
         let dimensionChanged = this.intrinsicDimensions.width !== r.width || this.intrinsicDimensions.height !== r.height
@@ -168,6 +142,17 @@ export default {
           this.intrinsicDimensions = {width: r.width, height: r.height}
         }
       })
+    },
+    scheduleLiveRuntimeUpdate () {
+      if (this.liveUpdate && !this.node.actual_runtime && (this.node.first_started || this.node.local_received)) {
+        setTimeout(() => {
+          if (this.liveUpdate) {
+            let start = this.node.first_started ? this.node.first_started : this.node.local_received
+            this.liveRunTime = (Date.now() / 1000) - start
+            this.scheduleLiveRuntimeUpdate()
+          }
+        }, 3000)
+      }
     },
     routeToAttribute (uuid) {
       return routeTo(this, 'XNodeAttributes', {uuid: uuid})
@@ -180,7 +165,9 @@ export default {
       event.stopPropagation()
     },
     nodeShiftClick () {
-      this.$router.push(routeTo(this, 'custom-root', {rootUuid: this.node.uuid}))
+      if (this.allowClickToAttributes) {
+        this.$router.push(routeTo(this, 'custom-root', {rootUuid: this.node.uuid}))
+      }
     },
   },
 }

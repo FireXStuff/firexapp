@@ -19,6 +19,8 @@ export {
   hasIncompleteTasks,
   isChainInterrupted,
   getDescendantUuids,
+  durationString,
+  orderByTaskNum,
 }
 
 // function invokePerNode (root, fn) {
@@ -283,4 +285,35 @@ function getDescendantUuids (nodeUuid, nodesByUuid) {
     }
   }
   return resultUuids
+}
+
+function durationString (duractionSecs) {
+  if (!_.isNumber(duractionSecs)) {
+    return ''
+  }
+
+  let hours = Math.floor(duractionSecs / (60 * 60))
+  let hoursInSecs = hours * 60 * 60
+  let mins = Math.floor((duractionSecs - hoursInSecs) / 60)
+  let minsInSecs = mins * 60
+  let secs = Math.floor(duractionSecs - hoursInSecs - minsInSecs)
+
+  let result = 'time: '
+  if (hours > 0) {
+    result += hours + 'h '
+  }
+  if (mins > 0) {
+    result += mins + 'm '
+  }
+  if (secs > 0) {
+    result += secs + 's'
+  }
+  if (hours === 0 && mins === 0 && secs === 0) {
+    result += '<1s'
+  }
+  return result
+}
+
+function orderByTaskNum (nodesByUuid) {
+  return _.mapValues(_.groupBy(_.sortBy(nodesByUuid, 'task_num'), 'uuid'), _.head)
 }

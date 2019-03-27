@@ -16,6 +16,7 @@
       v-if="runMetadata.uid"
       :nodesByUuid="rootDescendantsByUuid"
       :showUuids="toggleStates.showTaskDetails"
+      :liveUpdate="toggleStates.liveUpdate"
       :firexUid="runMetadata.uid"></x-graph>
   </div>
 </template>
@@ -23,7 +24,7 @@
 <script>
 import XGraph from './XGraph'
 import XHeader from './XHeader'
-import {eventHub, routeTo, hasIncompleteTasks, getDescendantUuids} from '../utils'
+import {eventHub, routeTo, hasIncompleteTasks, getDescendantUuids, orderByTaskNum} from '../utils'
 import _ from 'lodash'
 
 export default {
@@ -74,7 +75,7 @@ export default {
         return this.nodesByUuid
       }
       let rootDescendantUuids = getDescendantUuids(this.rootUuid, this.nodesByUuid)
-      return _.pick(this.nodesByUuid, [this.rootUuid].concat(rootDescendantUuids))
+      return orderByTaskNum(_.pick(this.nodesByUuid, [this.rootUuid].concat(rootDescendantUuids)))
     },
     headerParams () {
       let links = [

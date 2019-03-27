@@ -1,7 +1,7 @@
 <template>
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
     <div class="header">
-
+      <!-- TODO: replace with toastr or similar -->
       <div v-if="displayMessage.content" class='notification' :style="'background: ' + displayMessage.color">
         <span style="top: 50%">{{displayMessage.content}}</span>
       </div>
@@ -25,7 +25,7 @@
     <!-- Only show main panel after data is loaded -->
     <!-- TODO: remove firexUid from downstream, replace with firexRunMetadata. Make sure metadata exists for all sources
     -->
-    <!-- TODO: canKill is too specific to supply to all children. Consider communicating this another way. -->
+    <!-- TODO: isConnected is too specific to supply to all children. Consider communicating this another way. -->
     <!-- TODO: will jump because UID is lazy loaded. Consider not rendering until we have the UID -->
     <router-view v-if="hasTasks"
                  :nodesByUuid="nodesByUuid"
@@ -38,7 +38,8 @@
 
 <script>
 import _ from 'lodash'
-import {parseRecFileContentsToNodesByUuid, eventHub, socketRequestResponse, hasIncompleteTasks} from '../utils'
+import {parseRecFileContentsToNodesByUuid, eventHub, socketRequestResponse, hasIncompleteTasks,
+  orderByTaskNum} from '../utils'
 import io from 'socket.io-client'
 import XTaskNodeSearch from './XTaskNodeSearch'
 
@@ -168,7 +169,7 @@ export default {
     },
     setSocketNodesByUuid (newNodesByUuid) {
       // Order UUID keys by task_num.
-      this.socketNodesByUuid = _.mapValues(_.groupBy(_.sortBy(newNodesByUuid, 'task_num'), 'uuid'), _.head)
+      this.socketNodesByUuid = orderByTaskNum(newNodesByUuid)
     },
     mergeNodesByUuid (newDataByUuid) {
       _.each(newDataByUuid, (newData, uuid) => {
@@ -216,7 +217,7 @@ export default {
           // How to handle no data? Fallback to rec?
           window.location.href = this.flameServer + '?noUpgrade=true'
         }
-      }, 4000)
+      }, 7000)
     },
     handleFullStateFromSocket (socket, nodesByUuid, startListenForUpdates) {
       this.setSocketNodesByUuid(nodesByUuid)

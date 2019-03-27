@@ -4,6 +4,7 @@
       <div>
         <x-node :node="node"
                 :showUuid="showUuid"
+                :liveUpdate="liveUpdate"
                 :style="'opacity: ' + opacity"
                 v-on:collapse-node="$emit('collapse-node')"></x-node>
       </div>
@@ -58,6 +59,7 @@ export default {
     position: {required: true, type: Object},
     dimensions: {required: true, type: Object},
     opacity: {default: 1},
+    liveUpdate: {required: true, type: Boolean},
   },
   computed: {
     transform () {

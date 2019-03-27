@@ -23,6 +23,7 @@
                         :position="nodeLayout"
                         :key="uuid"
                         :showUuid="showUuids"
+                        :liveUpdate="liveUpdate"
                         :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
                         v-on:collapse-node="toggleCollapseChildren(uuid)"></x-svg-node>
         </g>
@@ -67,6 +68,7 @@ export default {
     nodesByUuid: {required: true, type: Object},
     firexUid: {required: true, type: String},
     showUuids: {default: false, type: Boolean},
+    liveUpdate: {required: true, type: Boolean},
   },
   data () {
     let zoom = d3.zoom()
