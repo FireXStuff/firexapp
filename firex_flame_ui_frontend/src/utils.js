@@ -160,7 +160,7 @@ function getUuidsToRoot (node, nodesByUuid) {
   let resultUuids = []
   while (true) {
     resultUuids.push(curNode.uuid)
-    if (_.isNull(curNode.parent_id)) {
+    if (_.isNil(curNode.parent_id)) {
       break
     }
     curNode = nodesByUuid[curNode.parent_id]
