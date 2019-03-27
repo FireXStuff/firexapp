@@ -19,10 +19,10 @@
         <li>[ALT] → set the current task as root</li>
         <li>[ESC] → exit the search mode</li>
       </ul>
-      <!--<h1>Chart Manipulation</h1>-->
-      <!--<ul class="shortcuts">-->
-        <!--<li>[SHIFT] + [LEFT MOUSE CLICK] on task → make selected task the "root"</li>-->
-      <!--</ul>-->
+      <h1>Chart Manipulation</h1>
+      <ul class="shortcuts">
+        <li>[SHIFT] + [LEFT MOUSE CLICK] on task → make selected task the "root"</li>
+      </ul>
     </div>
 
   </div>
