@@ -83,6 +83,7 @@ export default {
       zoom: zoom,
       transform: {x: 0, y: 0, scale: 1},
       focusedNodeUuid: null,
+      isFirstLayout: true,
     }
   },
   computed: {
@@ -133,7 +134,6 @@ export default {
   },
   mounted () {
     d3.select('div#chart-container svg').call(this.zoom).on('dblclick.zoom', null)
-    this.updateTransformViaZoom(this.getLocalStorageTransform())
   },
   methods: {
     zoomed () {
@@ -170,6 +170,7 @@ export default {
       if (this.$refs['graph-svg']) {
         let boundingRect = this.$refs['graph-svg'].getBoundingClientRect()
         // Visible extent might not be initialized before first graph draw, so fall back here.
+        console.log(this.nonHiddenNodesExtent)
         if (_.every(this.nonHiddenNodesExtent, _.negate(_.isNil))) {
           return getCenteringTransform(this.nonHiddenNodesExtent, boundingRect, scaleBounds, 200)
         }
@@ -235,13 +236,20 @@ export default {
       } catch (e) {
         localStorage.removeItem(this.firexUid)
       }
+      console.log('initial centered transform.')
       return this.getCenterTransform()
     },
   },
   watch: {
     firexUid () {
       // TODO: this should be on firexRunMetadata change (keys on UID).
-      this.updateTransformViaZoom(this.getLocalStorageTransform())
+      this.isFirstLayout = true
+    },
+    nodeLayoutsByUuid () {
+      if (this.isFirstLayout) {
+        this.isFirstLayout = false
+        this.updateTransformViaZoom(this.getLocalStorageTransform())
+      }
     },
   },
 }

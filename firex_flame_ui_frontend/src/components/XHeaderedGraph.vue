@@ -123,7 +123,9 @@ export default {
   watch: {
     rootUuid () {
       // Center new graph when root node changes on next render (after nodes for only the new root are shown).
-      this.$nextTick(() => { eventHub.$emit('center') })
+      if (this.rootUuid !== null) {
+        this.$nextTick(() => { eventHub.$emit('center') })
+      }
     },
     'toggleStates.liveUpdate' () {
       eventHub.$emit('set-live-update', this.toggleStates['liveUpdate'])

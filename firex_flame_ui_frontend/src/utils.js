@@ -141,7 +141,7 @@ function isChainInterrupted (exception) {
 
 function nodesWithAncestorOrDescendantFailure (nodesByUuid) {
   let failurePredicate = (node) => {
-    return node.state === 'task-failed' && !isChainInterrupted(node.exception)
+    return (node.state === 'task-failed' && !isChainInterrupted(node.exception)) || node.state === 'task-started'
   }
   if (_.some(_.values(nodesByUuid), failurePredicate)) {
     let parentIds = _.map(_.values(nodesByUuid), 'parent_id')
