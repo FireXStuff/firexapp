@@ -81,7 +81,7 @@ def upload_coverage_to_codecov(source, output_dir, sudo=False):
     check_call(cmd)
 
     print('--> Uploading coverage report to codecov')
-    check_call(['codecov'], cwd=source)
+    check_call(sudo_cmd + ['codecov'], cwd=source)
 
 
 def generate_htmlcov(source, output_dir, git_hash=None):
