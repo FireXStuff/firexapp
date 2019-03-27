@@ -73,10 +73,15 @@ def run_flow_tests(source, output_dir):
     return os.path.join(results_dir, ".coverage")
 
 
-def upload_coverage_to_codecov(source, output_dir):
-    print('--> Uploading coverage report to codecov')
+def upload_coverage_to_codecov(source, output_dir, sudo=False):
+    print('--> Copying .coverage into source directory')
+    sudo_cmd = ['sudo'] if sudo else []
     coverage_report = os.path.join(output_dir, '.coverage')
-    check_call(['codecov', '-f', coverage_report, '--root', source], cwd=source)
+    cmd = sudo_cmd + ['cp', coverage_report, source]
+    check_call(cmd)
+
+    print('--> Uploading coverage report to codecov')
+    check_call(['codecov'], cwd=source)
 
 
 def generate_htmlcov(source, output_dir, git_hash=None):
@@ -114,7 +119,7 @@ def run(source='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None, tw
         generate_htmlcov(source, output_dir, git_hash)
 
     if upload_codecov:
-        upload_coverage_to_codecov(source, output_dir)
+        upload_coverage_to_codecov(source, output_dir, sudo)
 
     if upload_pip or (upload_pip_if_tag and git_tags):
         upload_pip_pkg_to_pypi(source, twine_username)
@@ -161,6 +166,7 @@ def main():
     sudo_functions = {
         "build": build,
         "docs": build_sphinx_docs,
+        "upload_codecov": upload_coverage_to_codecov,
     }
     for name, func in sudo_functions.items():
         sub = sub_parser.add_parser(name)
