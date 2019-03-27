@@ -18,6 +18,7 @@ export {
   isTaskStateIncomplete,
   hasIncompleteTasks,
   isChainInterrupted,
+  getDescendantUuids,
 }
 
 // function invokePerNode (root, fn) {
@@ -268,4 +269,18 @@ function isTaskStateIncomplete (state) {
 
 function hasIncompleteTasks (nodesByUuid) {
   return _.some(nodesByUuid, n => isTaskStateIncomplete(n.state))
+}
+
+function getDescendantUuids (nodeUuid, nodesByUuid) {
+  let resultUuids = []
+  let uuidsToCheck = _.clone(nodesByUuid[nodeUuid]['children_uuids'])
+  while (uuidsToCheck.length > 0) {
+    let nodeUuid = uuidsToCheck.pop()
+    if (!_.includes(resultUuids, nodeUuid)) {
+      let childrenIds = nodesByUuid[nodeUuid]['children_uuids']
+      uuidsToCheck = uuidsToCheck.concat(childrenIds)
+      resultUuids.push(nodeUuid)
+    }
+  }
+  return resultUuids
 }

@@ -56,7 +56,7 @@ import _ from 'lodash'
 import XNode from './XNode'
 import XLink from './XLinks'
 import {eventHub, nodesWithAncestorOrDescendantFailure,
-  calculateNodesPositionByUuid, getCenteringTransform} from '../utils'
+  calculateNodesPositionByUuid, getCenteringTransform, getDescendantUuids} from '../utils'
 
 let scaleBounds = {max: 1.3, min: 0.01}
 
@@ -84,8 +84,13 @@ export default {
     }
   },
   computed: {
+    allUuids () {
+      return _.keys(this.nodesByUuid)
+    },
     intrinsicNodeDimensionsByUuid () {
-      return _.mapValues(this.dimensionsByUuid, (node, uuid) => {
+      // Note that since dimensionsByUuid is never deleted from, we need to filter by allUuids
+      // in case nodesByUuid changes. this is a bit gross, maybe use a watcher instead.
+      return _.mapValues(_.pick(this.dimensionsByUuid, this.allUuids), (node, uuid) => {
         return {
           uuid: uuid,
           width: this.dimensionsByUuid[uuid].width,
@@ -190,7 +195,7 @@ export default {
     toggleCollapseChildren (parentNodeId) {
       let initialRelPos = this.getCurrentRelPos(parentNodeId)
 
-      let descendantIds = this.getDescendantUuids(parentNodeId)
+      let descendantIds = getDescendantUuids(parentNodeId, this.nodesByUuid)
       if (_.difference(descendantIds, this.hiddenNodeIds).length === 0) {
         // These UUIDs are currently hidden, so remove them.
         this.hiddenNodeIds = _.difference(this.hiddenNodeIds, descendantIds)
@@ -212,19 +217,6 @@ export default {
       let dimensions = {width: event.width, height: event.height}
       // Vue doesn't deep watch, so create a new object for every update.
       this.$set(this.dimensionsByUuid, event.uuid, dimensions)
-    },
-    getDescendantUuids (nodeId) {
-      let resultUuids = []
-      let uuidsToCheck = _.clone(this.nodesByUuid[nodeId]['children_uuids'])
-      while (uuidsToCheck.length > 0) {
-        let nodeUuid = uuidsToCheck.pop()
-        if (!_.includes(resultUuids, nodeUuid)) {
-          let childrenIds = this.nodesByUuid[nodeUuid]['children_uuids']
-          uuidsToCheck = uuidsToCheck.concat(childrenIds)
-          resultUuids.push(nodeUuid)
-        }
-      }
-      return resultUuids
     },
     hideSucessPaths () {
       this.hiddenNodeIds = this.hiddenNodeIds.concat(nodesWithAncestorOrDescendantFailure(this.nodesByUuid))

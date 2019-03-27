@@ -1,16 +1,19 @@
 <template>
-  <!-- ctrl.70 is ctrl-f. Need prevent to avoid default browser behaviour.  -->
+  <!-- Need prevent to avoid default browser behaviour.  -->
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
-       @keydown.ctrl.70.prevent="focusOnFind" tabindex="0">
+       @keydown.ctrl.f.prevent="focusOnFind"
+       @keydown.ctrl.d.prevent="focusOnFind"
+       @keydown.ctrl.u.prevent="focusOnFind"
+       tabindex="0">
     <x-header :title="headerParams.title"
               :links="headerParams.links"
               :legacyPath="headerParams.legacyPath"
               :enableSearch="true"
     ></x-header>
-    <!-- TODO: not sure where the best level to gate on UID is, but need UID to key on localStorage -->
+    <!-- TODO: not sure where the best level to gate on UID is, but need UID to key on localStorage within x-graph-->
     <x-graph
       v-if="runMetadata.uid"
-      :nodesByUuid="nodesByUuid"
+      :nodesByUuid="rootDescendantsByUuid"
       :firexUid="runMetadata.uid"></x-graph>
   </div>
 </template>
@@ -18,7 +21,7 @@
 <script>
 import XGraph from './XGraph'
 import XHeader from './XHeader'
-import {eventHub, routeTo, hasIncompleteTasks} from '../utils'
+import {eventHub, routeTo, hasIncompleteTasks, getDescendantUuids} from '../utils'
 import _ from 'lodash'
 
 export default {
@@ -28,6 +31,7 @@ export default {
     nodesByUuid: {required: true, type: Object},
     runMetadata: {required: true, type: Object},
     isConnected: {required: true, type: Boolean},
+    rootUuid: {default: null},
   },
   created () {
     let liveUpdate = _.find(this.headerParams.links, {'name': 'liveUpdate'})
@@ -46,7 +50,14 @@ export default {
       return this.isConnected && this.hasIncompleteTasks
     },
     hasIncompleteTasks () {
-      return hasIncompleteTasks(this.nodesByUuid)
+      return hasIncompleteTasks(this.rootDescendantsByUuid)
+    },
+    rootDescendantsByUuid () {
+      if (this.rootUuid === null) {
+        return this.nodesByUuid
+      }
+      let rootDescendantUuids = getDescendantUuids(this.rootUuid, this.nodesByUuid)
+      return _.pick(this.nodesByUuid, [this.rootUuid].concat(rootDescendantUuids))
     },
     headerParams () {
       let links = [
@@ -85,6 +96,11 @@ export default {
   methods: {
     focusOnFind (event) {
       eventHub.$emit('find-focus')
+    },
+  },
+  watch: {
+    rootUuid () {
+      this.$nextTick(() => { eventHub.$emit('center') })
     },
   },
 }

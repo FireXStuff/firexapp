@@ -1,6 +1,6 @@
 <template>
   <!-- top level must be block, otherwise layout calculation is incorrect.-->
-  <div :style="topLevelStyle" class="node">
+  <div :style="topLevelStyle" class="node" v-on:click.shift.prevent="nodeShiftClick">
     <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()">
 
         <div style="overflow: hidden; text-overflow: ellipsis;">
@@ -178,6 +178,9 @@ export default {
     },
     flameDataClick (event) {
       event.stopPropagation()
+    },
+    nodeShiftClick () {
+      this.$router.push(routeTo(this, 'custom-root', {rootUuid: this.node.uuid}))
     },
   },
 }

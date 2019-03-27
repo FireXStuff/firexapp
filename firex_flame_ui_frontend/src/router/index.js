@@ -31,6 +31,12 @@ const router = new Router({
           props: true,
         },
         {
+          path: 'root/:rootUuid',
+          name: 'custom-root',
+          component: XHeaderedGraph,
+          props: true,
+        },
+        {
           path: 'help',
           name: 'XHelp',
           component: XHelp,
