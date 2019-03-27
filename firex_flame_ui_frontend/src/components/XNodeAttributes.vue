@@ -6,13 +6,8 @@
       <div v-for="(key, i) in sortedDisplayNodeKeys" :key="key"
            :style="{'background-color': i % 2 === 0 ? '#EEE': '#CCC', 'padding': '4px' }">
         <label style="font-weight: 700;">{{key}}:</label>
-        <div v-if="key === 'arguments' || key === 'arguments_defaults'">
-          <div v-for="(arg_value, arg_key) in displayKeyNodes[key]" :key="arg_key"
-               style="margin-left: 25px; padding: 3px;">
-            <strong>{{arg_key}}:</strong> {{arg_value}}
-          </div>
-        </div>
-        <div v-else-if="key === 'parent' && displayKeyNodes[key]" style="display: inline">
+
+        <div v-if="key === 'parent' && displayKeyNodes[key]" style="display: inline">
           {{nodesByUuid[displayKeyNodes[key]].name}}
           <router-link :to="linkToUuid(displayKeyNodes[key])">{{displayKeyNodes[key]}}</router-link>
         </div>
@@ -26,8 +21,16 @@
           <a :href="displayKeyNodes[key]">{{displayKeyNodes[key]}}</a>
         </div>
         <div v-else-if="key === 'traceback'" style="display: inline">
-          <pre style="overflow: auto; color: darkred; margin-top: 0">{{displayKeyNodes[key].trim()}}
-          </pre>
+          <pre style="overflow: auto; color: darkred; margin-top: 0">{{displayKeyNodes[key].trim()}}</pre>
+        </div>
+        <div v-else-if="isObject(displayKeyNodes[key])" style="overflow: auto">
+          <div v-for="(arg_value, arg_key) in displayKeyNodes[key]" :key="arg_key"
+               style="margin-left: 25px; padding: 3px;">
+            <strong>{{arg_key}}:
+            </strong><pre v-if="shouldPrettyPrint(arg_value)" style="margin: 0 0 0 40px"
+              >{{prettyPrint(arg_value)}}</pre>
+            <template v-else>{{arg_value === null ? 'None' : arg_value}}</template>
+          </div>
         </div>
         <span v-else>
           {{displayKeyNodes[key]}}
@@ -64,7 +67,7 @@ export default {
     displayKeyNodes () {
       let origKeysToDisplayKeys = {
         'firex_bound_args': 'arguments',
-        'firex_default_bound_args': 'arguments_defaults',
+        'firex_default_bound_args': 'argument_defaults',
         'firex_result': 'task_result',
         'parent_id': 'parent',
         'children_uuids': 'children',
@@ -97,6 +100,28 @@ export default {
   methods: {
     linkToUuid (uuid) {
       return routeTo(this, 'XNodeAttributes', {'uuid': uuid})
+    },
+    isObject (val) {
+      return _.isObject(val)
+    },
+    shouldPrettyPrint (val) {
+      if (!_.isObject(val)) {
+        return false
+      }
+      let asJson = JSON.stringify(val, null, 2)
+      // Don't bother pretty printing if the object is small.
+      return asJson.length > 100
+    },
+    prettyPrint (val) {
+      if (val === null) {
+        return 'None'
+      }
+      let prettyJson = JSON.stringify(val, null, 2)
+      if (prettyJson.length < 40) {
+        // If the string is short enough, don't show a pretty version.
+        return JSON.stringify(val)
+      }
+      return prettyJson
     },
   },
 }

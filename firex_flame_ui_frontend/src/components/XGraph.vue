@@ -127,23 +127,23 @@ export default {
   },
   mounted () {
     d3.select('div#chart-container svg').call(this.zoom).on('dblclick.zoom', null)
-    this.setTransformUpdateZoom(this.getLocalStorageTransform())
+    this.updateTransformViaZoom(this.getLocalStorageTransform())
   },
   methods: {
     zoomed () {
-      // Clear focus node on pan/zoom.
-      this.focusedNodeUuid = null
-      this.setTransform({x: d3.event.transform.x, y: d3.event.transform.y, scale: d3.event.transform.k})
+      // Null source events mean programatic zoom. We don't want to clear for programatic zooms.
+      if (d3.event.sourceEvent !== null) {
+        // Clear focus node on non-programatic pan/zoom.
+        this.focusedNodeUuid = null
+      }
+      this.transform = {x: d3.event.transform.x, y: d3.event.transform.y, scale: d3.event.transform.k}
+      this.setLocalStorageTransform(this.transform)
     },
-    setTransformUpdateZoom (transform) {
+    updateTransformViaZoom (transform) {
       // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent with current position.
       let d3Transform = d3.zoomIdentity.translate(transform.x, transform.y).scale(transform.scale)
+      // This call will create a d3.event and pipe it through, just like manual pan/zooms.
       d3.select('div#chart-container svg').call(this.zoom.transform, d3Transform)
-      this.setTransform(transform)
-    },
-    setTransform (transform) {
-      this.transform = transform
-      this.setLocalStorageTransform(this.transform)
     },
     getCurrentRelPos (nodeUuid) {
       let laidOutNode = this.nodeLayoutsByUuid[nodeUuid]
@@ -156,11 +156,11 @@ export default {
       this.showUuids = !this.showUuids
     },
     center () {
-      this.setTransformUpdateZoom(this.getCenterTransform())
+      this.updateTransformViaZoom(this.getCenterTransform())
     },
     focusOnNode (uuid) {
       this.focusedNodeUuid = uuid
-      this.setTransformUpdateZoom(this.getCenterOnNodeTransform(uuid))
+      this.updateTransformViaZoom(this.getCenterOnNodeTransform(uuid))
     },
     getCenterTransform () {
       // Not available during re-render.
@@ -205,7 +205,7 @@ export default {
         let xShift = (initialRelPos.x - nextRelPos.x) * this.transform.scale
         let finalTranslateX = this.transform.x + xShift
         // Since we're viewing hierarchies, the y position shouldn't ever change when children are collapsed.
-        this.setTransformUpdateZoom({x: finalTranslateX, y: this.transform.y, scale: this.transform.scale})
+        this.updateTransformViaZoom({x: finalTranslateX, y: this.transform.y, scale: this.transform.scale})
       })
     },
     updateNodeDimensions (event) {
@@ -251,7 +251,7 @@ export default {
   watch: {
     firexUid () {
       // TODO: this should be on firexRunMetadata change (keys on UID).
-      this.setTransformUpdateZoom(this.getLocalStorageTransform())
+      this.updateTransformViaZoom(this.getLocalStorageTransform())
     },
   },
 }

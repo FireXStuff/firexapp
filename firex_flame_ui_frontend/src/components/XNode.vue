@@ -1,4 +1,5 @@
 <template>
+  <!-- top level must be block, otherwise layout calculation is incorrect.-->
   <div style="display: block">
     <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()"
                  style="display: inline-block;">
