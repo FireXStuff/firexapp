@@ -106,7 +106,6 @@ export default {
       // TODO: should probably timeout trying to reconnect after some time.
       let socket = io(this.flameServer, {reconnection: true})
       this.setSocketNodesByUuid({}) // Clear data from previous socket.
-      // TODO handle not connected after 5 seconds.
       this.startSocketListening(socket)
       // socket.on('disconnect', () => {
       //   console.log('Connection lost.')
@@ -148,6 +147,13 @@ export default {
     eventHub.$on('set-live-update', this.setLiveUpdate)
     eventHub.$on('revoke-root', () => { this.revokeTask(this.rootUuid()) })
     eventHub.$on('revoke-task', (uuid) => { this.revokeTask(uuid) })
+    eventHub.$on('graph-refresh', () => {
+      if (this.useRecFile) {
+        this.$asyncComputed.recFileNodesByUuid.update()
+      } else {
+        this.updateSocketFullState(this.socket, false)
+      }
+    })
     this.setFlameRunMetadata(this.socket)
   },
   methods: {
@@ -176,8 +182,7 @@ export default {
       })
     },
     setLiveUpdate (val) {
-      this.liveUpdate = val
-      if (this.liveUpdate) {
+      if (val) {
         this.startSocketListening(this.socket)
       } else {
         this.stopSocketListening(this.socket)
@@ -189,19 +194,23 @@ export default {
       socket.off('full-state')
       socket.off('tasks-update')
     },
-    startSocketListening (socket) {
+    updateSocketFullState (socket, startListenForUpdates) {
       // full state refresh plus subscribe to incremental updates.
       socket.on('graph-state', (nodesByUuid) => {
-        this.handleFullStateFromSocket(socket, nodesByUuid)
+        this.handleFullStateFromSocket(socket, nodesByUuid, startListenForUpdates)
       })
       // for backwards compatability with older flame servers. TODO: Delete in april 2018
       socket.on('full-state', (nodesByUuid) => {
-        this.handleFullStateFromSocket(socket, nodesByUuid)
+        this.handleFullStateFromSocket(socket, nodesByUuid, startListenForUpdates)
       })
       socket.emit('send-graph-state')
       // for backwards comparability with older flame servers. TODO: Delete in april 2018
       socket.emit('send-full-state')
+    },
+    startSocketListening (socket) {
+      this.updateSocketFullState(socket, true)
       this.socketUpdateInProgress = true
+      // TODO: going back to old flame isn't necessarily the right thing to do.
       setTimeout(() => {
         if (_.isEmpty(this.socketNodesByUuid) && this.socket.connected) {
           // How to handle no data? Fallback to rec?
@@ -209,13 +218,15 @@ export default {
         }
       }, 4000)
     },
-    handleFullStateFromSocket (socket, nodesByUuid) {
+    handleFullStateFromSocket (socket, nodesByUuid, startListenForUpdates) {
       this.setSocketNodesByUuid(nodesByUuid)
       this.socketUpdateInProgress = false
-      if (this.hasIncompleteTasks) {
-        // Only start listening for incremental updates after we've processed the full state.
+      // Only start listening for incremental updates after we've processed the full state.
+      if (startListenForUpdates && this.hasIncompleteTasks) {
         socket.on('tasks-update', this.mergeNodesByUuid)
       }
+      socket.off('send-graph-state')
+      socket.off('send-full-state')
     },
     revokeTask (uuid) {
       if (!this.canRevoke) {
@@ -245,7 +256,7 @@ export default {
               setTimeout(() => { this.displayMessage = {content: '', color: ''} }, 6000)
             },
           },
-          {waitTime: 3000, fn: () => { this.displayMessage = {content: 'No response from server.', color: '#BBB'} }},
+          {waitTime: 5000, fn: () => { this.displayMessage = {content: 'No response from server.', color: '#BBB'} }},
         )
         this.displayMessage = {content: 'Waiting for celery...', color: 'deepskyblue'}
       }

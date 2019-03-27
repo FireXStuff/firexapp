@@ -66,6 +66,7 @@ export default {
   props: {
     nodesByUuid: {required: true, type: Object},
     firexUid: {required: true, type: String},
+    showUuids: {default: false, type: Boolean},
   },
   data () {
     let zoom = d3.zoom()
@@ -79,7 +80,6 @@ export default {
       dimensionsByUuid: {},
       zoom: zoom,
       transform: {x: 0, y: 0, scale: 1},
-      showUuids: false,
       focusedNodeUuid: null,
     }
   },
@@ -127,7 +127,6 @@ export default {
   },
   created () {
     eventHub.$on('center', this.center)
-    eventHub.$on('toggle-uuids', this.toggleShowUuids)
     eventHub.$on('node-focus', this.focusOnNode)
   },
   mounted () {
@@ -156,9 +155,6 @@ export default {
         x: laidOutNode.x + this.transform.x,
         y: laidOutNode.y + this.transform.y,
       }
-    },
-    toggleShowUuids () {
-      this.showUuids = !this.showUuids
     },
     center () {
       this.updateTransformViaZoom(this.getCenterTransform())

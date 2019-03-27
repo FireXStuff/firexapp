@@ -2,8 +2,9 @@
   <!-- Need prevent to avoid default browser behaviour.  -->
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
        @keydown.ctrl.f.prevent="focusOnFind"
-       @keydown.ctrl.d.prevent="focusOnFind"
-       @keydown.ctrl.u.prevent="focusOnFind"
+       @keydown.u="toggleButtonState('liveUpdate')"
+       @keydown.d="toggleButtonState('showTaskDetails')"
+       @keydown.r="refreshGraph"
        tabindex="0">
     <x-header :title="headerParams.title"
               :links="headerParams.links"
@@ -14,6 +15,7 @@
     <x-graph
       v-if="runMetadata.uid"
       :nodesByUuid="rootDescendantsByUuid"
+      :showUuids="toggleStates.showTaskDetails"
       :firexUid="runMetadata.uid"></x-graph>
   </div>
 </template>
@@ -30,14 +32,29 @@ export default {
   props: {
     nodesByUuid: {required: true, type: Object},
     runMetadata: {required: true, type: Object},
+    // The connected state of the socket data is being received from. False if there is no socket.
     isConnected: {required: true, type: Boolean},
+    // The root UUID to show, not necessarily the root UUID from the runMetadata.
     rootUuid: {default: null},
   },
+  data () {
+    return {
+      toggleStates: {
+        'liveUpdate': true,
+        'showTaskDetails': false,
+      },
+    }
+  },
   created () {
+    // Set initial live update state.
     let liveUpdate = _.find(this.headerParams.links, {'name': 'liveUpdate'})
     if (liveUpdate) {
-      liveUpdate.on(true)
+      liveUpdate.on(this.toggleStates['liveUpdate'])
     }
+    eventHub.$on('toggle-live-update', () => {
+      this.toggleButtonState('liveUpdate')
+    })
+    eventHub.$on('toggle-uuids', () => { this.toggleButtonState('showTaskDetails') })
   },
   computed: {
     isUidValid () {
@@ -63,17 +80,15 @@ export default {
       let links = [
         {
           name: 'liveUpdate',
-          on: (state) => eventHub.$emit('set-live-update', state),
-          toggleState: true,
-          initialState: true,
+          on: () => { eventHub.$emit('toggle-live-update') },
+          toggleState: this.toggleStates['liveUpdate'],
           icon: ['far', 'eye'],
         },
         {name: 'center', on: () => eventHub.$emit('center'), icon: 'bullseye'},
         {
           name: 'showTaskDetails',
           on: () => eventHub.$emit('toggle-uuids'),
-          toggleState: true,
-          initialState: false,
+          toggleState: this.toggleStates['showTaskDetails'],
           icon: 'plus-circle',
         },
         {name: 'list', to: routeTo(this, 'XList'), icon: 'list-ul'},
@@ -94,13 +109,23 @@ export default {
     },
   },
   methods: {
-    focusOnFind (event) {
+    focusOnFind () {
       eventHub.$emit('find-focus')
+    },
+    toggleButtonState (stateKey) {
+      this.toggleStates[stateKey] = !this.toggleStates[stateKey]
+    },
+    refreshGraph () {
+      eventHub.$emit('graph-refresh')
     },
   },
   watch: {
     rootUuid () {
+      // Center new graph when root node changes on next render (after nodes for only the new root are shown).
       this.$nextTick(() => { eventHub.$emit('center') })
+    },
+    'toggleStates.liveUpdate' () {
+      eventHub.$emit('set-live-update', this.toggleStates['liveUpdate'])
     },
   },
 }

@@ -18,7 +18,7 @@
 
         <div style="margin-left: auto; display: flex;">
 
-          <!-- TODO: generalize this with a slot or something.-->
+          <!-- TODO: generalize this with a slot or something instead of hardcoding this component.-->
           <x-task-node-search v-if="enableSearch" class="header-icon-button"></x-task-node-search>
 
           <template v-for="link in links">
@@ -32,9 +32,9 @@
             </a>
             <div v-else-if="link.on"
                  class="header-icon-button"
-                 v-on:click="executeLinkCallback(link)"
+                 v-on:click="link.on()"
                  :class="link._class"
-                 :style="linkState[link.name] ? 'color: #2B2;' : ''"
+                 :style="link.toggleState ? 'color: #2B2;' : ''"
                  :key="link.name">
               <font-awesome-icon v-if="link.icon" :icon="link.icon"></font-awesome-icon>
               <template v-if="link.text">{{link.text}}</template>
@@ -46,7 +46,6 @@
 </template>
 
 <script>
-import _ from 'lodash'
 import XTaskNodeSearch from './XTaskNodeSearch'
 
 export default {
@@ -57,23 +56,6 @@ export default {
     links: {default: () => [], type: Array},
     legacyPath: {default: ''},
     enableSearch: {default: false},
-  },
-  data () {
-    let linkState = _.mapValues(_.keyBy(_.filter(this.links, {'toggleState': true}), 'name'), 'initialState')
-    return {
-      linkState: linkState,
-    }
-  },
-  methods: {
-    executeLinkCallback (link) {
-      if (link.toggleState) {
-        if (!_.has(this.linkState, link.name)) {
-          this.$set(this.linkState, link.name, link.initialState)
-        }
-        this.linkState[link.name] = !this.linkState[link.name]
-      }
-      link.on(this.linkState[link.name])
-    },
   },
 }
 </script>
