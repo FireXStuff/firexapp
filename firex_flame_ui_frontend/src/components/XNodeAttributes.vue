@@ -104,6 +104,7 @@ export default {
     isObject (val) {
       return _.isObject(val)
     },
+    // TODO: doesn't make sense to string twice, combine with prettyPrint.
     shouldPrettyPrint (val) {
       if (!_.isObject(val)) {
         return false

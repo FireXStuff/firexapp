@@ -1,9 +1,7 @@
 <template>
   <!-- top level must be block, otherwise layout calculation is incorrect.-->
-  <div style="display: block">
-    <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()"
-                 style="display: inline-block;">
-      <div :style="topLevelStyle" class="node">
+  <div :style="topLevelStyle" class="node">
+    <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()">
 
         <div style="overflow: hidden; text-overflow: ellipsis;">
           <div style="display: flex;">
@@ -42,7 +40,6 @@
           <div style="float: right; font-size: 12px; margin-top: 4px">{{duration}}</div>
         </div>
 
-      </div>
     </router-link>
   </div>
 </template>
@@ -225,8 +222,8 @@ a {
   font-style: normal;
   color: white;
   padding: 3px;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
 }
 
 .node:hover {
