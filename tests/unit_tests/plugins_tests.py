@@ -207,10 +207,12 @@ class MergePluginsTests(unittest.TestCase):
             merged = ','.join(merge_plugins(plugins_list_1, plugins_list_2))
             self.assertEqual(merged, plugins_list_2)
 
+
 class CDLActionTest(unittest.TestCase):
     def test_cdla(self):
         arguments, _ = plugin_support_parser.parse_known_args(["--plugins", "p1.py", "--plugins", "p2.py"])
         self.assertEqual(arguments.plugins, "p1.py,p2.py")
+
     def test_cdla_normalization(self):
         arguments, _ = plugin_support_parser.parse_known_args(["--plugins", "p1.py",
                                                                "--plugins", "p2.py",
