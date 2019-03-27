@@ -3,7 +3,7 @@ import time
 
 
 @app.task()
-def noop():
+def nop():
     return
 
 
