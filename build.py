@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import shutil
 from subprocess import check_call, check_output
 import os
 
@@ -51,7 +50,7 @@ def run_tests(source, output_dir):
 
 def run_unit_tests(source, output_dir):
     coverage_file = os.path.join(output_dir, '.coverage')
-    env=os.environ.copy()
+    env = os.environ.copy()
     env['COVERAGE_FILE'] = coverage_file
     print('--> Run unit-tests and coverage')
     unit_test_dir = os.path.join(source, "tests", "unit_tests")
@@ -88,7 +87,7 @@ def generate_htmlcov(source, output_dir, git_hash=None):
     print('View Coverage at: %s' % os.path.abspath(os.path.os.path.join(output_dir, 'htmlcov/index.html')))
 
 
-def upload_pip_pkg_to_pypi(twine_username, source):
+def upload_pip_pkg_to_pypi(source, twine_username):
     print('--> Uploading pip package')
     cmd = ['twine', 'upload', '--verbose', '--username', twine_username, 'dist/*']
     check_call(cmd, cwd=source)
@@ -118,7 +117,7 @@ def run(source='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None, tw
         upload_coverage_to_codecov(source, output_dir)
 
     if upload_pip or (upload_pip_if_tag and git_tags):
-        upload_pip_pkg_to_pypi(twine_username, source)
+        upload_pip_pkg_to_pypi(source, twine_username)
 
     if not skip_docs_build:
         build_sphinx_docs(source, sudo)
@@ -139,25 +138,33 @@ def main():
     do_all.add_argument('--skip_htmlcov', action='store_true')
     do_all.add_argument('--upload_codecov', action='store_true')
     do_all.add_argument('--skip_docs_build', action='store_true')
-    do_all.add_argument('--output_dir', default='.')
     do_all.add_argument('--sudo', action='store_true')
+    do_all.add_argument('--output_dir', default='.')
     do_all.set_defaults(func=run)
 
     upload = sub_parser.add_parser("upload_pip")
     upload.add_argument('--twine_username', default='firexdev')
     upload.set_defaults(func=upload_pip_pkg_to_pypi)
 
-    functions = {
-        "build": build,
+    output_functions = {
         "tests": run_tests,
-        "unit_test": run_unit_tests,
+        "unit_tests": run_unit_tests,
         "integration_tests": run_flow_tests,
         "cov_report": generate_htmlcov,
         "upload_codecov": upload_coverage_to_codecov,
-        "docs": build_sphinx_docs
     }
-    for name, func in functions.items():
+    for name, func in output_functions.items():
         sub = sub_parser.add_parser(name)
+        sub.add_argument('--output_dir', default='.')
+        sub.set_defaults(func=func)
+
+    sudo_functions = {
+        "build": build,
+        "docs": build_sphinx_docs,
+    }
+    for name, func in sudo_functions.items():
+        sub = sub_parser.add_parser(name)
+        sub.add_argument('--sudo', action='store_true')
         sub.set_defaults(func=func)
 
     args, unknown = parser.parse_known_args()
