@@ -76,7 +76,8 @@ def run_flow_tests(source, output_dir):
 
 def upload_coverage_to_codecov(source, output_dir):
     print('--> Uploading coverage report to codecov')
-    check_call(['codecov', '-f', os.path.join(output_dir, '.coverage', '--root', source)], cwd=source)
+    coverage_report = os.path.join(output_dir, '.coverage')
+    check_call(['codecov', '-f', coverage_report, '--root', source], cwd=source)
 
 
 def generate_htmlcov(source, output_dir, git_hash=None):
