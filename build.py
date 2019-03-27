@@ -89,12 +89,15 @@ def generate_htmlcov(source, output_dir, git_hash=None):
 
 def upload_pip_pkg_to_pypi(twine_username, source):
     print('--> Uploading pip package')
-    check_call(['twine', 'upload', '--verbose', '--username', twine_username, 'dist/*'], cwd=source)
+    cmd = ['twine', 'upload', '--verbose', '--username', twine_username, 'dist/*']
+    check_call(cmd, cwd=source)
 
 
-def build_sphinx_docs(workspace):
+def build_sphinx_docs(source, sudo=False):
+    sudo_cmd = ['sudo'] if sudo else []
     print('--> Building the Docs')
-    check_call(['sphinx-build', '-b', 'html', 'docs', 'html'], cwd=workspace)
+    cmd = sudo_cmd + ['sphinx-build', '-b', 'html', 'docs', 'html']
+    check_call(cmd, cwd=source)
 
 
 def run(source='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None, twine_username=None, skip_htmlcov=None,
@@ -117,7 +120,7 @@ def run(source='.', skip_build=None, upload_pip=None, upload_pip_if_tag=None, tw
         upload_pip_pkg_to_pypi(twine_username, source)
 
     if not skip_docs_build:
-        build_sphinx_docs(source)
+        build_sphinx_docs(source, sudo)
 
 
 def main():
