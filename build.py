@@ -151,26 +151,24 @@ def main():
     upload.add_argument('--twine_username', default='firexdev')
     upload.set_defaults(func=upload_pip_pkg_to_pypi)
 
-    output_functions = {
-        "tests": run_tests,
-        "unit_tests": run_unit_tests,
-        "integration_tests": run_flow_tests,
-        "cov_report": generate_htmlcov,
-        "upload_codecov": upload_coverage_to_codecov,
-    }
-    for name, func in output_functions.items():
-        sub = sub_parser.add_parser(name)
-        sub.add_argument('--output_dir', default='.')
-        sub.set_defaults(func=func)
+    output_dir_parser = argparse.ArgumentParser(add_help=False)
+    output_dir_parser.add_argument('--output_dir', default='.')
 
-    sudo_functions = {
-        "build": build,
-        "docs": build_sphinx_docs,
-        "upload_codecov": upload_coverage_to_codecov,
+    sudo_parser = argparse.ArgumentParser(add_help=False)
+    sudo_parser.add_argument('--sudo', action='store_true')
+
+    output_functions = {
+        "tests": (run_tests, output_dir_parser),
+        "unit_tests": (run_unit_tests, output_dir_parser),
+        "integration_tests": (run_flow_tests, output_dir_parser),
+        "cov_report": (generate_htmlcov, output_dir_parser),
+        "upload_codecov": (upload_coverage_to_codecov, output_dir_parser, sudo_parser),
+        "build": (build, sudo_parser),
+        "docs": (build_sphinx_docs, sudo_parser),
     }
-    for name, func in sudo_functions.items():
-        sub = sub_parser.add_parser(name)
-        sub.add_argument('--sudo', action='store_true')
+    for name, data in output_functions.items():
+        func = data[0]
+        sub = sub_parser.add_parser(name, parents=data[1:])
         sub.set_defaults(func=func)
 
     args, unknown = parser.parse_known_args()
