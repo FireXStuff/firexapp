@@ -68,7 +68,7 @@ def write_a_test_file(uid: Uid):
 
 class SubmitHighRunnerCase(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "write_a_test_file"]
+        return ["submit", "--chain", "nop,sleep,write_a_test_file"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_dir = get_log_dir_from_output(cmd_output)
