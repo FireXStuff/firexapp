@@ -111,7 +111,7 @@ class SubmitBaseApp:
         # IMPORT ALL THE MICROSERVICES
         # ONLY AFTER BROKER HAD STARTED
         try:
-            all_tasks = import_microservices(chain_args["plugins"])
+            all_tasks = import_microservices(chain_args.get("plugins", args.plugins))
         except FileNotFoundError as e:
             logger.error("\nError: FireX run failed. File %s is not found." % e)
             self.main_error_exit_handler()
@@ -148,7 +148,7 @@ class SubmitBaseApp:
         self.start_tracking_services(args)
 
         # Start Celery
-        self.start_celery(args, chain_args["plugins"])
+        self.start_celery(args, chain_args.get("plugins", args.plugins))
 
         # Execute chain
         chain_result = c.delay()
@@ -173,7 +173,8 @@ class SubmitBaseApp:
             self.parser.exit(-1,  'Aborting...')
 
         # 'plugins' is a necessary element of the chain args, so that they can be handled by converters
-        chain_args['plugins'] = args.plugins
+        if args.plugins:
+            chain_args['plugins'] = args.plugins
         return chain_args
 
     def start_broker(self, args):
