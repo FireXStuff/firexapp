@@ -122,10 +122,10 @@ export default {
     },
     scheduleLiveRuntimeUpdate () {
       if (this.liveUpdate && !this.node.actual_runtime && (this.node.first_started || this.node.local_received)) {
+        let start = this.node.first_started ? this.node.first_started : this.node.local_received
+        this.liveRunTime = (Date.now() / 1000) - start
         setTimeout(() => {
           if (this.liveUpdate) {
-            let start = this.node.first_started ? this.node.first_started : this.node.local_received
-            this.liveRunTime = (Date.now() / 1000) - start
             this.scheduleLiveRuntimeUpdate()
           }
         }, 3000)
