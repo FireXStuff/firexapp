@@ -171,9 +171,11 @@ function getUuidsToRoot (node, nodesByUuid) {
 function calculateNodesPositionByUuid (nodesByUuid) {
   let newRootForLayout = flatGraphToTree(_.cloneDeep(nodesByUuid))
   // This calculates the layout (x, y per node) with dynamic node sizes.
+  let verticalSpacing = 50
+  let horizontalSpacing = 25
   let flextreeLayout = flextree({
-    spacing: 75,
-    nodeSize: node => [node.data.width, node.data.height],
+    spacing: horizontalSpacing,
+    nodeSize: node => [node.data.width, node.data.height + verticalSpacing],
   })
   let laidOutTree = flextreeLayout.hierarchy(newRootForLayout)
   // Modify the input tree, adding x, y, left, top attributes to each node. This is the computed layout.
@@ -185,7 +187,7 @@ function calculateNodesPositionByUuid (nodesByUuid) {
   laidOutTree.each(dimensionNode => {
     calcedDimensionsByUuid[dimensionNode.data.uuid] = {
       x: dimensionNode.left,
-      y: dimensionNode.top + dimensionNode.depth * 50, // Separate each node by some fixed amount (e.g. 50).
+      y: dimensionNode.top,
     }
   })
   return calcedDimensionsByUuid
