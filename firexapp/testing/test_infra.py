@@ -71,7 +71,20 @@ def main(default_results_dir, default_test_dir):
     extras.add_argument("--profile", action='store_true', help="Turn on profiling")
     extras.add_argument("--coverage", action='store_true', help="Turn on code coverage. A .coverage file will be "
                                                                 "generated in the logs directory")
+    parser.add_argument("--no_html", action='store_true', help="Do not generate an html code coverage report. "
+                                                               "Used in combination with --coverage")
     args = parser.parse_args()
+
+    if args.coverage:
+        # coverage requires eventlet, but firexapp does not
+        try:
+            import eventlet
+        except ModuleNotFoundError:
+            print("eventlet is not installed. eventlet is necessary to get code coverage."
+                  "Please run again without the --coverage option", file=sys.stderr)
+            exit(-1)
+    elif args.no_html:
+        parser.error("--no_html cannot be used without --coverage")
 
     # prepare logging directory
     results_directory = args.logs
@@ -96,14 +109,6 @@ def main(default_results_dir, default_test_dir):
         orig_output = os.path.join(args.logs, xunit_file_name)
 
     if args.coverage:
-        # coverage requires eventlet, but firexapp does not
-        try:
-            import eventlet
-        except ModuleNotFoundError:
-            print("eventlet is not installed. eventlet is necessary to get code coverage."
-                  "Please run again without the --coverage option", file=sys.stderr)
-            exit(-1)
-
         os.environ["COVERAGE_FILE"] = os.path.join(results_directory, ".coverage")
 
     import xmlrunner
@@ -123,11 +128,12 @@ def main(default_results_dir, default_test_dir):
         subprocess.check_output(["coverage", "combine"] + coverage_files,
                                 cwd=results_directory)
 
-        cov_report = os.path.join(results_directory, "coverage")
-        print("Generating Coverage Report...", file=sys.stderr)
-        subprocess.check_output(["coverage", "html", "-d", cov_report],
-                                cwd=results_directory)
-        print(cov_report, file=sys.stderr)
+        if not args.no_html:
+            cov_report = os.path.join(results_directory, "coverage")
+            print("Generating Coverage Report...", file=sys.stderr)
+            subprocess.check_output(["coverage", "html", "-d", cov_report],
+                                    cwd=results_directory)
+            print(cov_report, file=sys.stderr)
 
     sys.exit(not success)
 
