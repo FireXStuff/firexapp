@@ -38,9 +38,9 @@ export default {
   methods: {
     emit_dimensions () {
       this.$nextTick(function () {
-        // let r = this.$el.getBoundingClientRect()
-        let renderedWidth = this.$el.clientWidth + 10
-        let renderedHeight = this.$el.clientHeight + 10
+        let r = this.$el.getBoundingClientRect()
+        let renderedWidth = r.width // this.$el.clientWidth
+        let renderedHeight = r.height // this.$el.clientHeight
         if (renderedWidth && renderedHeight) {
           let dimensionChanged = this.intrinsicDimensions.width !== renderedWidth || this.intrinsicDimensions.height !== renderedHeight
           if (dimensionChanged) {

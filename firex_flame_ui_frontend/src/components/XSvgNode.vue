@@ -1,5 +1,5 @@
 <template>
-  <g :transform="transform" :width="dimensions.width" :height="dimensions.height"
+  <g :transform="transform" :width="dimensions.width + 10" :height="dimensions.height + 10"
       :style="groupStyle">
     <defs v-if="isInProgress">
       <filter id="shadow" x="-40%" y="-40%" height="200%" width="200%">
@@ -11,12 +11,12 @@
              values="0;10;0" dur="4s" begin="0s" repeatCount="indefinite"/>
     </defs>
 
-    <foreignObject :width="dimensions.width" :height="dimensions.height">
-      <x-node :node="node"
-              :showUuid="showUuid"
-              :liveUpdate="liveUpdate"
-              :style="style"
-              v-on:collapse-node="$emit('collapse-node')"></x-node>
+    <foreignObject :width="dimensions.width + 10" :height="dimensions.height + 10">
+         <x-node :node="node"
+                 :showUuid="showUuid"
+                 :liveUpdate="liveUpdate"
+                 :style="style"
+                 v-on:collapse-node="$emit('collapse-node')"></x-node>
     </foreignObject>
 
   </g>

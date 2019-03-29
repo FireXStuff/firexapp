@@ -100,6 +100,8 @@ export default {
     onlyVisibleIntrinsicDimensionNodesByUuid () {
       return _.omit(this.intrinsicNodeDimensionsByUuid, this.hiddenNodeIds)
     },
+    // TODO: should consider limiting layout recalculations to once per second instead of being reactive.
+    //  This will probably slow down for large graphs (untested).
     nodeLayoutsByUuid () {
       if (!_.isEmpty(this.intrinsicNodeDimensionsByUuid)) {
         return calculateNodesPositionByUuid(this.onlyVisibleIntrinsicDimensionNodesByUuid)

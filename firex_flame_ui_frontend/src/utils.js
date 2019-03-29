@@ -141,7 +141,10 @@ function isChainInterrupted (exception) {
 
 function nodesInRootLeafPathWithFailureOrInProgress (nodesByUuid) {
   let failurePredicate = (node) => {
-    return (node.state === 'task-failed' && !isChainInterrupted(node.exception)) || node.state === 'task-started'
+    return (node.state === 'task-failed' &&
+              // Show leaf nodes that are chain interrupted exceptions (e.g. RunChildFireX).
+              (!isChainInterrupted(node.exception) || node.children_uuids.length === 0)) ||
+            node.state === 'task-started'
   }
   if (_.some(_.values(nodesByUuid), failurePredicate)) {
     let parentIds = _.map(_.values(nodesByUuid), 'parent_id')
