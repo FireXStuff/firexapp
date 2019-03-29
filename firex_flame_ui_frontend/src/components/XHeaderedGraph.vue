@@ -1,8 +1,9 @@
 <template>
   <!-- Need prevent to avoid default browser behaviour.  -->
+  <!-- 191 is the '/' keycode -->
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
        @keydown.ctrl.f.prevent="focusOnFind"
-       @keydown.47="focusOnFind"
+       @keyup.191.prevent="focusOnFind"
        @keydown.u="toggleButtonState('liveUpdate')"
        @keydown.d="toggleButtonState('showTaskDetails')"
        @keydown.r="refreshGraph"
