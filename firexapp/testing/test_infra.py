@@ -96,6 +96,14 @@ def main(default_results_dir, default_test_dir):
         orig_output = os.path.join(args.logs, xunit_file_name)
 
     if args.coverage:
+        # coverage requires eventlet, but firexapp does not
+        try:
+            import eventlet
+        except ModuleNotFoundError:
+            print("eventlet is not installed. eventlet is necessary to get code coverage."
+                  "Please run again without the --coverage option", file=sys.stderr)
+            exit(-1)
+
         os.environ["COVERAGE_FILE"] = os.path.join(results_directory, ".coverage")
 
     import xmlrunner
