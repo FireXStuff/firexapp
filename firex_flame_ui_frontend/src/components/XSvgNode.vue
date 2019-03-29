@@ -8,7 +8,7 @@
         <feBlend in="SourceGraphic" in2="blurOut" mode="normal"/>
       </filter>
       <animate xlink:href="#blur" attributeName="stdDeviation"
-             values="0;10;0" dur="4s" begin="0s" repeatCount="indefinite"/>
+             values="2;12;2" dur="3s" begin="0s" repeatCount="indefinite"/>
     </defs>
 
     <foreignObject :width="dimensions.width + 10" :height="dimensions.height + 10">
@@ -58,8 +58,8 @@ export default {
         // This 10 will be taken up by padding + border width.
         // TODO: should actually emitt the inner and out box dimensions, and use both here to set outer (foreignObject)
         // and inner (node) rect sizes.
-        'width': (this.dimensions.width - 10) + 'px',
-        'height': (this.dimensions.height - 10) + 'px',
+        'width': (this.dimensions.width) + 'px',
+        'height': (this.dimensions.height) + 'px',
         'opacity': this.opacity,
       }
     },

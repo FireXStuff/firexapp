@@ -6,9 +6,7 @@ import {flextree} from 'd3-flextree'
 let eventHub = new Vue()
 
 export {
-  // invokePerNode,
   parseRecFileContentsToNodesByUuid,
-  // flatGraphToTree,
   eventHub,
   nodesInRootLeafPathWithFailureOrInProgress,
   calculateNodesPositionByUuid,
@@ -23,20 +21,6 @@ export {
   orderByTaskNum,
   getAncestorUuids,
 }
-
-// function invokePerNode (root, fn) {
-//   let doneUuids = []
-//   let nodesToCheck = [root]
-//   while (nodesToCheck.length > 0) {
-//     let node = nodesToCheck.pop()
-//     // Avoid loops in graph.
-//     if (!_.includes(doneUuids, node.uuid)) {
-//       doneUuids.push(node.uuid)
-//       fn(node)
-//       nodesToCheck = nodesToCheck.concat(node.children)
-//     }
-//   }
-// }
 
 function parseRecFileContentsToNodesByUuid (recFileContents) {
   let taskNum = 1
@@ -182,7 +166,7 @@ function calculateNodesPositionByUuid (nodesByUuid) {
   let newRootForLayout = flatGraphToTree(_.cloneDeep(nodesByUuid))
   // This calculates the layout (x, y per node) with dynamic node sizes.
   let verticalSpacing = 50
-  let horizontalSpacing = 25
+  let horizontalSpacing = 50
   let flextreeLayout = flextree({
     spacing: horizontalSpacing,
     nodeSize: node => [node.data.width, node.data.height + verticalSpacing],

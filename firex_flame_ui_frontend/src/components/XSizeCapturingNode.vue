@@ -13,6 +13,7 @@
 
 <script>
 import XNode from './XNode'
+import _ from 'lodash'
 
 export default {
   name: 'XSizeCapturingNode',
@@ -26,13 +27,10 @@ export default {
   },
   data () {
     return {
-      intrinsicDimensions: {width: null, height: null},
+      latestEmittedDimensions: {width: null, height: null},
     }
   },
   mounted () {
-    this.emit_dimensions()
-  },
-  updated () {
     this.emit_dimensions()
   },
   methods: {
@@ -42,13 +40,20 @@ export default {
         let renderedWidth = r.width // this.$el.clientWidth
         let renderedHeight = r.height // this.$el.clientHeight
         if (renderedWidth && renderedHeight) {
-          let dimensionChanged = this.intrinsicDimensions.width !== renderedWidth || this.intrinsicDimensions.height !== renderedHeight
-          if (dimensionChanged) {
-            this.$emit('node-dimensions', {uuid: this.node.uuid, height: renderedHeight, width: renderedWidth})
-            this.intrinsicDimensions = {width: renderedWidth, height: renderedHeight}
+          let renderedDimensions = {width: r.width, height: r.height}
+          if (!_.isEqual(this.latestEmittedDimensions, renderedDimensions)) {
+            this.$emit('node-dimensions', _.merge({uuid: this.node.uuid}, renderedDimensions))
+            this.latestEmittedDimensions = renderedDimensions
           }
         }
       })
+    },
+  },
+  watch: {
+    // TODO: Gross that this comp needs to know where x-node's size variability comes from. This is likely an argument
+    //  for putting the size capturing back in x-node and using Vue's 'updated' lifecycle hook.
+    'node.flame_additional_data': function () {
+      this.emit_dimensions()
     },
   },
 }

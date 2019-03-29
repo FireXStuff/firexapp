@@ -30,7 +30,7 @@
         <div class="flame-data" v-on:click="flameDataClick">
           <div v-if="showUuid">{{node.uuid}}</div>
           <!-- We're really trusting data from the server here (rendering raw HTML) -->
-          <!-- TODO: verify flame_additional_data is always accumulative -->
+          <!-- TODO: find out why <br /> is randomly in flame data. .replace(new RegExp('<br />', 'g'), '') -->
           <div v-if="node.flame_additional_data" v-html="node.flame_additional_data"></div>
         </div>
 
