@@ -16,6 +16,7 @@
                  :showUuid="showUuid"
                  :liveUpdate="liveUpdate"
                  :style="style"
+                 :isAnyChildCollapsed="isAnyChildCollapsed"
                  v-on:collapse-node="$emit('collapse-node')"></x-node>
     </foreignObject>
 
@@ -42,6 +43,7 @@ export default {
     dimensions: {required: true, type: Object},
     opacity: {default: 1},
     liveUpdate: {required: true, type: Boolean},
+    isAnyChildCollapsed: {required: true, type: Boolean},
   },
   computed: {
     transform () {

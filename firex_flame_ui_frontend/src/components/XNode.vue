@@ -20,7 +20,7 @@
                :style="allowCollapse ? 'visibility: collapsed': ''">
             <!-- Use prevent to avoid activating node-wide attribute link -->
             <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
-              <font-awesome-icon v-if="expanded" icon="window-minimize"></font-awesome-icon>
+              <font-awesome-icon v-if="!isAnyChildCollapsed" icon="window-minimize"></font-awesome-icon>
               <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
             </i>
           </div>
@@ -80,17 +80,17 @@ export default {
     showUuid: {default: false},
     liveUpdate: {default: false},
     allowClickToAttributes: {default: true},
+    isAnyChildCollapsed: {default: false},
   },
   data () {
     return {
-      expanded: true,
       liveRunTime: 0,
     }
   },
   computed: {
     background () {
       if (isChainInterrupted(this.node.exception)) {
-        return 'repeating-linear-gradient(45deg,#888,#888 5px,#893C3C 5px,#893C3C  10px)'
+        return 'repeating-linear-gradient(45deg,#888,#888 5px,#893C3C 5px,#F71818  10px)'
       }
       return statusToColour[this.node.state]
     },
@@ -113,20 +113,20 @@ export default {
     },
   },
   created () {
-    this.scheduleLiveRuntimeUpdate()
+    this.updateLiveRuntimeAndSchedule()
   },
   methods: {
     emit_collapse_toggle () {
-      this.expanded = !this.expanded
       this.$emit('collapse-node')
     },
-    scheduleLiveRuntimeUpdate () {
+    updateLiveRuntimeAndSchedule () {
       if (this.liveUpdate && !this.node.actual_runtime && (this.node.first_started || this.node.local_received)) {
         let start = this.node.first_started ? this.node.first_started : this.node.local_received
         this.liveRunTime = (Date.now() / 1000) - start
         setTimeout(() => {
+          // Note liveUpdate may have changed since this timeout was set, so double check.
           if (this.liveUpdate) {
-            this.scheduleLiveRuntimeUpdate()
+            this.updateLiveRuntimeAndSchedule()
           }
         }, 3000)
       }

@@ -1,22 +1,21 @@
 <template>
   <div style="width: 100%; height: 100%; overflow: hidden;" tabindex="1"
        @keydown.c="center">
-    <div v-if="hiddenNodeIds.length > 0" class="user-message" style="background: lightblue; ">
-      {{hiddenNodeIds.length}} tasks are hidden
-      <a href="#" @click.prevent="hiddenNodeIds = []"> (Show All)</a>
+    <div v-if="collapsedNodeUuids.length > 0" class="user-message" style="background: lightblue; ">
+      {{collapsedNodeUuids.length}} tasks are hidden
+      <a href="#" @click.prevent="clearAllCollapseFilters"> (Show All)</a>
     </div>
     <div v-else-if="hasFailures" class="user-message" style="background: orange">
       Some tasks have failed.
-      <a href="#" @click.prevent="hideSucessPaths()">
+      <a href="#" @click.prevent="hideSucessPaths = true">
         Show only failed paths
       </a>
     </div>
     <div id="chart-container" style="width: 100%; height: 100%" ref="graph-svg">
       <svg width="100%" height="100%" preserveAspectRatio="xMinYMin" style="background-color: white;">
         <g :transform="svgGraphTransform">
-          <x-link :onlyVisibleIntrinsicDimensionNodesByUuid="onlyVisibleIntrinsicDimensionNodesByUuid"
+          <x-link :uncollapsedIntrinsicDimensionNodesByUuid="uncollapsedIntrinsicDimensionNodesByUuid"
                   :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
-
           <x-svg-node v-for="(nodeLayout, uuid) in nodeLayoutsByUuid"
                       :node="nodesByUuid[uuid]"
                       :dimensions="dimensionsByUuid[uuid]"
@@ -24,8 +23,9 @@
                       :key="uuid"
                       :showUuid="showUuids"
                       :liveUpdate="liveUpdate"
+                      :isAnyChildCollapsed="isAnyChildCollapsedByUuid[uuid]"
                       :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
-                      v-on:collapse-node="toggleCollapseChildren(uuid)"></x-svg-node>
+                      v-on:collapse-node="toggleCollapseDescendants(uuid)"></x-svg-node>
         </g>
       </svg>
     </div>
@@ -50,7 +50,7 @@ import _ from 'lodash'
 import XNode from './XNode'
 import XLink from './XLinks'
 import {eventHub, nodesInRootLeafPathWithFailureOrInProgress,
-  calculateNodesPositionByUuid, getCenteringTransform, getDescendantUuids} from '../utils'
+  calculateNodesPositionByUuid, getCenteringTransform, getAncestorUuids} from '../utils'
 import XSizeCapturingNode from './XSizeCapturingNode'
 
 let scaleBounds = {max: 1.3, min: 0.01}
@@ -59,6 +59,8 @@ export default {
   name: 'XGraph',
   components: {XSizeCapturingNode, XSvgNode, XNode, XLink},
   props: {
+    // TODO: it might be worth making a computed property of just the graph structure (parent/child relationships),
+    //  to avoid re-calcs in some context were only structure (not data content) is relied on.
     nodesByUuid: {required: true, type: Object},
     firexUid: {required: true, type: String},
     showUuids: {default: false, type: Boolean},
@@ -70,15 +72,19 @@ export default {
       .clickDistance(4) // Only consider a click a pan if it moves a couple pixels, since this blocks event prop.
       .on('zoom', this.zoomed)
     return {
-      // Default to hiding paths that don't include a failure or in progress by default.
-      // TODO: this setting should be state, and this filter should be applied as data is coming in.
-      hiddenNodeIds: nodesInRootLeafPathWithFailureOrInProgress(this.nodesByUuid),
       // very unfortunate we need to track this manually. TODO: look for a better way.
       dimensionsByUuid: {},
       zoom: zoom,
       transform: {x: 0, y: 0, scale: 1},
+      // When set, fades-out other nodes. Is reset by pan/zoom events.
       focusedNodeUuid: null,
+      // Only want to center on first layout, then we'll rely on stored transform.
       isFirstLayout: true,
+      // This is just a container for states that have been touched by the user -- it doesn't contain an entry
+      // for every node's UUID (there is a computed property for that).
+      uiCollapseDescendantStatesByUuid: {},
+      // Default to hiding paths that don't include a failure or in progress by default.
+      hideSucessPaths: true,
     }
   },
   computed: {
@@ -97,14 +103,14 @@ export default {
         }
       })
     },
-    onlyVisibleIntrinsicDimensionNodesByUuid () {
-      return _.omit(this.intrinsicNodeDimensionsByUuid, this.hiddenNodeIds)
+    uncollapsedIntrinsicDimensionNodesByUuid () {
+      return _.omit(this.intrinsicNodeDimensionsByUuid, this.collapsedNodeUuids)
     },
     // TODO: should consider limiting layout recalculations to once per second instead of being reactive.
     //  This will probably slow down for large graphs (untested).
     nodeLayoutsByUuid () {
       if (!_.isEmpty(this.intrinsicNodeDimensionsByUuid)) {
-        return calculateNodesPositionByUuid(this.onlyVisibleIntrinsicDimensionNodesByUuid)
+        return calculateNodesPositionByUuid(this.uncollapsedIntrinsicDimensionNodesByUuid)
       }
       return {}
     },
@@ -124,6 +130,42 @@ export default {
       return 'translate(' + _.join([this.transform.x, this.transform.y], ',') + ')' +
         'scale(' + this.transform.scale + ')'
     },
+    // uuid -> boolean, true means collapsed, false means uncollapsed (expanded)
+    // Combines different data sources for collapse state (task-state, UI collapse/expand clicks) in to the rendered
+    // state.
+    resolvedCollapseStateByUuid () {
+      let runStateShouldShowUuids = []
+      if (this.hideSucessPaths) {
+        runStateShouldShowUuids = nodesInRootLeafPathWithFailureOrInProgress(this.nodesByUuid)
+      }
+      return _.mapValues(this.nodesByUuid, (node) => {
+        // TODO: create computed property with just tree structure to avoid re-calcs on tree content data change.
+        let nearestAncestorUiCollapsed = _.find(getAncestorUuids(node, this.nodesByUuid),
+          (ancestorUuid) => _.has(this.uiCollapseDescendantStatesByUuid, ancestorUuid))
+        if (!_.isUndefined(nearestAncestorUiCollapsed)) {
+          return this.uiCollapseDescendantStatesByUuid[nearestAncestorUiCollapsed]
+        }
+        // Collapse this node if it isn't in the list of UUIDs to show due to their descendant's state.
+        if (this.hideSucessPaths && !_.includes(runStateShouldShowUuids, node.uuid)) {
+          return true
+        }
+        return false // Uncollapsed.
+      })
+    },
+    collapsedNodeUuids () {
+      // TODO: does it make any sense to store uuid -> boolean map? Just store the list of uuids intially.
+      return _.keys(_.pickBy(this.resolvedCollapseStateByUuid))
+    },
+    // TODO: is this still necessary.
+    allUuidsCollapseDescendantByUuid () {
+      return _.mapValues(_.keyBy(this.allUuids),
+        (uuid) => _.get(this.uiCollapseDescendantStatesByUuid, uuid, false))
+    },
+    // Is this really necessary?
+    isAnyChildCollapsedByUuid () {
+      return _.mapValues(this.nodesByUuid,
+        (node) => _.some(node.children_uuids, (cUuid) => this.resolvedCollapseStateByUuid[cUuid]))
+    },
   },
   created () {
     eventHub.$on('center', this.center)
@@ -140,7 +182,7 @@ export default {
         this.focusedNodeUuid = null
       }
       this.transform = {x: d3.event.transform.x, y: d3.event.transform.y, scale: d3.event.transform.k}
-      this.setLocalStorageTransform(this.transform)
+      this.addLocalStorageData(this.transform)
     },
     updateTransformViaZoom (transform) {
       // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent with current position.
@@ -167,7 +209,6 @@ export default {
       if (this.$refs['graph-svg']) {
         let boundingRect = this.$refs['graph-svg'].getBoundingClientRect()
         // Visible extent might not be initialized before first graph draw, so fall back here.
-        console.log(this.nonHiddenNodesExtent)
         if (_.every(this.nonHiddenNodesExtent, _.negate(_.isNil))) {
           return getCenteringTransform(this.nonHiddenNodesExtent, boundingRect, scaleBounds, 200)
         }
@@ -188,19 +229,24 @@ export default {
       }
       return {x: 0, y: 0, scale: 1}
     },
-    toggleCollapseChildren (parentNodeId) {
+    toggleCollapseDescendants (parentNodeId) {
       let initialRelPos = this.getCurrentRelPos(parentNodeId)
 
-      let descendantIds = getDescendantUuids(parentNodeId, this.nodesByUuid)
-      if (_.difference(descendantIds, this.hiddenNodeIds).length === 0) {
-        // These UUIDs are currently hidden, so remove them.
-        this.hiddenNodeIds = _.difference(this.hiddenNodeIds, descendantIds)
+      let someChildrenCollapsed = this.isAnyChildCollapsedByUuid[parentNodeId]
+
+      let collapse
+      if (someChildrenCollapsed) {
+        collapse = false
       } else {
-        this.hiddenNodeIds = this.hiddenNodeIds.concat(descendantIds)
+        // no children collapsed
+        collapse = !_.get(this.uiCollapseDescendantStatesByUuid, parentNodeId, false)
       }
+
+      this.$set(this.uiCollapseDescendantStatesByUuid, parentNodeId, collapse)
 
       // Since we're changing the nodes being displayed, the layout might drastically change. Maintain the
       // position of the node whose decendants have been added/removed so that the user remains oriented.
+
       this.$nextTick(() => {
         let nextRelPos = this.getCurrentRelPos(parentNodeId)
         let xShift = (initialRelPos.x - nextRelPos.x) * this.transform.scale
@@ -210,43 +256,72 @@ export default {
       })
     },
     updateNodeDimensions (event) {
-      let dimensions = {width: event.width, height: event.height}
-      // Vue doesn't deep watch, so create a new object for every update.
-      this.$set(this.dimensionsByUuid, event.uuid, dimensions)
-    },
-    hideSucessPaths () {
-      this.hiddenNodeIds = this.hiddenNodeIds.concat(nodesInRootLeafPathWithFailureOrInProgress(this.nodesByUuid))
+      // Vue doesn't deep watch, so use $set to maintain reactivity.
+      this.$set(this.dimensionsByUuid, event.uuid, _.pick(event, ['width', 'height']))
     },
     isTransformValid (transform) {
+      if (_.isNil(transform)) {
+        return false
+      }
       let vals = [transform.x, transform.y, transform.scale]
       return _.every(_.map(vals, v => !_.isNil(v) && _.isNumber(v)))
     },
-    setLocalStorageTransform (newTransform) {
-      localStorage[this.firexUid] = JSON.stringify(newTransform)
+    addLocalStorageData (newData) {
+      let storedData = this.readPathsFromLocalStorage('*')
+      let toStoreData = _.assign(storedData, newData)
+      localStorage[this.firexUid] = JSON.stringify(toStoreData)
     },
-    getLocalStorageTransform () {
+    readPathFromLocalStorage (path, def) {
+      return _.get(this.readPathsFromLocalStorage([path]), path, def)
+    },
+    readPathsFromLocalStorage (paths) {
       try {
-        let storedTransform = JSON.parse(localStorage[this.firexUid])
-        if (this.isTransformValid(storedTransform)) {
-          return storedTransform
+        let runLocalData = JSON.parse(localStorage[this.firexUid])
+        if (paths === '*') {
+          return runLocalData
         }
+        return _.pick(runLocalData, paths)
       } catch (e) {
+        // Delete bad persisted state, provide default.
         localStorage.removeItem(this.firexUid)
       }
-      console.log('initial centered transform.')
+      return {}
+    },
+    getLocalStorageTransform () {
+      let storedTransform = this.readPathsFromLocalStorage(['x', 'y', 'scale'])
+      if (this.isTransformValid(storedTransform)) {
+        return storedTransform
+      }
       return this.getCenterTransform()
+    },
+    clearAllCollapseFilters () {
+      this.hideSucessPaths = false
+      this.uiCollapseDescendantStatesByUuid = {}
+      // TODO: applyFlameDataCollapseOps = false
     },
   },
   watch: {
     firexUid () {
-      // TODO: this should be on firexRunMetadata change (keys on UID).
       this.isFirstLayout = true
     },
     nodeLayoutsByUuid () {
       if (this.isFirstLayout) {
         this.isFirstLayout = false
+        // TODO: combine localstorage reads, or cache below.
         this.updateTransformViaZoom(this.getLocalStorageTransform())
+        this.hideSucessPaths = this.readPathFromLocalStorage('hideSucessPaths', false)
+        this.uiCollapseDescendantStatesByUuid = this.readPathFromLocalStorage(
+          'uiCollapseDescendantStatesByUuid', {})
       }
+    },
+    hideSucessPaths () {
+      this.addLocalStorageData({hideSucessPaths: this.hideSucessPaths})
+      if (this.hideSucessPaths) {
+        this.center()
+      }
+    },
+    uiCollapseDescendantStatesByUuid () {
+      this.addLocalStorageData({uiCollapseDescendantStatesByUuid: this.uiCollapseDescendantStatesByUuid})
     },
   },
 }

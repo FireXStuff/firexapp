@@ -21,6 +21,7 @@ export {
   getDescendantUuids,
   durationString,
   orderByTaskNum,
+  getAncestorUuids,
 }
 
 // function invokePerNode (root, fn) {
@@ -148,27 +149,33 @@ function nodesInRootLeafPathWithFailureOrInProgress (nodesByUuid) {
   }
   if (_.some(_.values(nodesByUuid), failurePredicate)) {
     let parentIds = _.map(_.values(nodesByUuid), 'parent_id')
+    // TODO: why not check node.children_uuids.length?
     let leafNodes = _.filter(_.values(nodesByUuid), n => !_.includes(parentIds, n.uuid))
     let leafUuidPathsToRoot = _.map(leafNodes, l => getUuidsToRoot(l, nodesByUuid))
-    let uuidPathsWithFailure = _.filter(leafUuidPathsToRoot,
+    let uuidPathsPassingPredicate = _.filter(leafUuidPathsToRoot,
       pathUuids => _.some(_.values(_.pick(nodesByUuid, pathUuids)), failurePredicate))
-    let keepUuids = _.flatten(uuidPathsWithFailure)
-    return _.difference(_.keys(nodesByUuid), keepUuids)
+    let keepUuids = _.flatten(uuidPathsPassingPredicate)
+    return keepUuids
   }
-  return []
+  // TODO: shouldn't be necessary.
+  return _.keys(nodesByUuid)
 }
 
-function getUuidsToRoot (node, nodesByUuid) {
+function getAncestorUuids (node, nodesByUuid) {
   let curNode = node
   let resultUuids = []
   while (true) {
-    resultUuids.push(curNode.uuid)
-    if (_.isNil(curNode.parent_id)) {
+    if (_.isNil(curNode.parent_id) || !_.has(nodesByUuid, curNode.parent_id)) {
       break
     }
     curNode = nodesByUuid[curNode.parent_id]
+    resultUuids.push(curNode.uuid)
   }
   return resultUuids
+}
+
+function getUuidsToRoot (node, nodesByUuid) {
+  return [node.uuid].concat(getAncestorUuids(node, nodesByUuid))
 }
 
 function calculateNodesPositionByUuid (nodesByUuid) {

@@ -10,12 +10,12 @@ import _ from 'lodash'
 export default {
   name: 'XLinks',
   props: {
-    onlyVisibleIntrinsicDimensionNodesByUuid: {required: true, type: Object},
+    uncollapsedIntrinsicDimensionNodesByUuid: {required: true, type: Object},
     nodeLayoutsByUuid: {required: true, type: Object},
   },
   computed: {
     nodesByUuid () {
-      return _.mapValues(this.onlyVisibleIntrinsicDimensionNodesByUuid, n => {
+      return _.mapValues(this.uncollapsedIntrinsicDimensionNodesByUuid, n => {
         return _.merge({}, n, this.nodeLayoutsByUuid[n.uuid])
       })
     },
