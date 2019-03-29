@@ -115,6 +115,11 @@ def {0}(**kwargs):
 
         submit_test = self.is_submit_command(flow_test_config)
         if submit_test:
+            if self.coverage:
+                # add the coverage plugin to restart celery in coverage mode
+                from firexapp.testing import coverage_plugin
+                plugins.append(coverage_plugin.__file__)
+
             if self.is_instance_of_intercept(flow_test_config):
                 # create file containing mock and capture microservices
                 intercept = flow_test_config.intercept_service()

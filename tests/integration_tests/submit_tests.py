@@ -1,12 +1,13 @@
 import os
-from firexapp.engine.celery import app
 
+from firexkit.argument_conversion import SingleArgDecorator
+from firexapp.engine.celery import app
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.arguments import InputConverter
 from firexapp.submit.submit import SUBMISSION_FILE_REGISTRY_KEY
 from firexapp.submit.uid import Uid
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
-from firexkit.argument_conversion import SingleArgDecorator
+from firexapp.tasks.example import nop, sleep
 
 
 @InputConverter.register("convert_booleans")
@@ -59,16 +60,19 @@ class SubmitConvertFailureStillHasLogs(FlowTestConfiguration):
         assert_is_bad_run(ret_value)
 
 
-@app.task
-def write_a_test_file(uid: Uid):
+@app.task(bind=True)
+def write_a_test_file(self, uid: Uid):
     test_file_path = os.path.join(uid.logs_dir, "success")
     with open(test_file_path, "w+") as f:
         f.write("success")
+    self.enqueue_child(nop.s())
+    self.enqueue_child(sleep.s(sleep=0.001))
+    self.enqueue_child(sleep.s())
 
 
 class SubmitHighRunnerCase(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "nop,sleep,write_a_test_file"]
+        return ["submit", "--chain", "write_a_test_file"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_dir = get_log_dir_from_output(cmd_output)

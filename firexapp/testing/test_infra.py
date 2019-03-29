@@ -109,11 +109,16 @@ def main(default_results_dir, default_test_dir):
         os.rename(orig_output,
                   os.path.join(args.logs, os.path.basename(args.xunit_file_name)))
     if args.coverage:
+        print("combining coverage files...", file=sys.stderr)
+        coverage_files = [f for f in os.listdir(results_directory) if f.startswith(".coverage")]
+        import subprocess
+        subprocess.check_output(["coverage", "combine"] + coverage_files,
+                                cwd=results_directory)
+
         cov_report = os.path.join(results_directory, "coverage")
         print("Generating Coverage Report...", file=sys.stderr)
-        import subprocess
         subprocess.check_output(["coverage", "html", "-d", cov_report],
-                                cwd=FlowTestInfra.config_interpreter.execution_directory)
+                                cwd=results_directory)
         print(cov_report, file=sys.stderr)
 
     sys.exit(not success)
