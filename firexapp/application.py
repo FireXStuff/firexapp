@@ -37,6 +37,10 @@ def get_app_task(task_short_name: str, all_tasks=None):
         from firexapp.engine.celery import app
         all_tasks = app.tasks
 
+    # maybe it isn't a short name, but a long one
+    if task_short_name in all_tasks:
+        return all_tasks[task_short_name]
+
     # Search for an exact match first
     for key, value in all_tasks.items():
         if key.split('.')[-1] == task_short_name:

@@ -8,7 +8,10 @@ result_backend = broker_url
 
 # find default tasks
 bundles = find_firex_task_bundles()
-imports = tuple(bundles) + tuple(get_plugin_module_list()) + tuple(["firexapp.tasks.example"])
+imports = tuple(bundles) + tuple(get_plugin_module_list()) + tuple(["firexapp.tasks.example",
+                                                                    "firexapp.tasks.core_tasks"])
+
+root_task = "firexapp.tasks.core_tasks.RootTask"
 
 accept_content = ['pickle']
 task_serializer = 'pickle'

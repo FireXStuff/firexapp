@@ -14,7 +14,7 @@ from firexapp.submit.uid import Uid
 from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args, find_unused_arguments
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
-from firexapp.application import import_microservices, get_app_tasks
+from firexapp.application import import_microservices, get_app_tasks, get_app_task
 from firexapp.engine.celery import app
 
 logger = setup_console_logging(__name__)
@@ -151,10 +151,23 @@ class SubmitBaseApp:
         self.start_celery(args, chain_args.get("plugins", args.plugins))
 
         # Execute chain
-        chain_result = c.delay()
+        try:
+            root_task_name = app.conf.get("root_task")
+            if root_task_name is None:
+                raise NotRegistered("No root task configured")
+            root_task = get_app_task(root_task_name)
+        except NotRegistered as e:
+            logger.error(e)
+            self.main_error_exit_handler()
+            sys.exit(-1)
+        chain_result = root_task.s(chain=c).delay()
+
+        self.copy_submission_log()
 
         # todo: do sync
         wait_on_async_results(chain_result)
+        self.copy_submission_log()
+        chain_result.backend = None
         self.self_destruct()
 
     def start_celery(self, args, plugins):
@@ -197,6 +210,7 @@ class SubmitBaseApp:
             app.control.broadcast('shutdown')
         try:
             self.broker.shutdown()
+
         except Exception as e:
             logger.warning('Error during self_destruct')
             logger.warning(e)
