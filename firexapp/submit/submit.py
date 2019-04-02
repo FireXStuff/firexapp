@@ -215,7 +215,7 @@ class SubmitBaseApp:
             # everything is used. Good job!
             return True
 
-        logger.error("The following arguments are not used by any microservices:")
+        logger.error("Invalid arguments provided. The following arguments are not used by any microservices:")
         for arg in unused_chain_args:
             logger.error("--" + arg)
         return False
