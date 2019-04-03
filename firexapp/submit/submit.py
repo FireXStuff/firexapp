@@ -160,7 +160,7 @@ class SubmitBaseApp:
             logger.error(e)
             self.main_error_exit_handler()
             sys.exit(-1)
-        chain_result = root_task.s(**chain_args).delay()
+        chain_result = root_task.s(chain=args.chain, **chain_args).delay()
 
         self.copy_submission_log()
 
