@@ -134,6 +134,10 @@ export default {
   font-family: 'Source Code Pro', monospace;
   font-size: 14px;
   margin: 10px;
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 </style>
