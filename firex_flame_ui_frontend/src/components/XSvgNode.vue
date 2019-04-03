@@ -60,19 +60,21 @@ export default {
         // and inner (node) rect sizes.
         'width': (this.dimensions.width) + 'px',
         'height': (this.dimensions.height) + 'px',
-        'opacity': this.opacity,
       }
     },
     groupStyle () {
+      let style = {'opacity': this.opacity}
       if (this.isInProgress) {
-        return {
-          filter: 'url(#shadow)',
-          transform: 'translate3d(0, 0, 1)',
-          'backface-visibility': 'hidden',
-          'perspective': 1000,
-        }
+        _.merge(style,
+          {
+            filter: 'url(#shadow)',
+            transform: 'translate3d(0, 0, 1)',
+            'backface-visibility': 'hidden',
+            'perspective': 1000,
+            'opacity': this.opacity,
+          })
       }
-      return {}
+      return style
     },
   },
 }
