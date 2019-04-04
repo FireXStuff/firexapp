@@ -87,7 +87,7 @@ def main(default_results_dir, default_test_dir):
         parser.error("--no_html cannot be used without --coverage")
 
     # prepare logging directory
-    results_directory = args.logs
+    results_directory = os.path.realpath(args.logs)
     if os.path.isdir(results_directory):
         shutil.rmtree(results_directory)
     os.umask(0)
