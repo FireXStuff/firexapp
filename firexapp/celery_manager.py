@@ -26,7 +26,7 @@ FileRegistry().register_file(MICROSERVICE_LOGS_REGISTRY_KEY, 'microservice_logs'
 class CeleryManager(object):
     celery_bin_name = 'celery'
 
-    def __init__(self, plugins=None, logs_dir=None, worker_log_level='info', cap_concurrency=None,
+    def __init__(self, plugins=None, logs_dir=None, worker_log_level='debug', cap_concurrency=None,
                  app='firexapp.engine', celery_bin_dir='', env=None):
 
         self.broker = BrokerFactory.get_broker_url(assert_if_not_set=True)
