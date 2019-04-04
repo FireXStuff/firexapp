@@ -17,7 +17,7 @@ setup(name='firexapp',
           "firexkit",
           "tqdm<=4.29.1",
           "xmlrunner",
-          "celery[redis] == 4.2.1",
+          "celery[redis] >= 4.2.1",
           "psutil"
       ],
       classifiers=[
