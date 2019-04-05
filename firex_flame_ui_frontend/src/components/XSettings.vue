@@ -8,38 +8,38 @@
 </template>
 
 <script>
-import _ from 'lodash'
+import _ from 'lodash';
 
 export default {
   name: 'HelloWorld',
-  data () {
-    let autoUpgradeKey = 'auto-flame-upgrade'
+  data() {
+    const autoUpgradeKey = 'auto-flame-upgrade';
     return {
       displayMsg: '',
-      autoUpgradeKey: autoUpgradeKey,
+      autoUpgradeKey,
       isAutoUpgradeEnabled: localStorage.getItem(autoUpgradeKey) === 'true',
-    }
+    };
   },
   computed: {
-    changeMessage () {
-      return (this.isAutoUpgradeEnabled ? 'Disable' : 'Enable') + ' Flame Auto-Upgrade'
+    changeMessage() {
+      return `${this.isAutoUpgradeEnabled ? 'Disable' : 'Enable'} Flame Auto-Upgrade`;
     },
   },
-  created () {
+  created() {
     if (_.isNull(localStorage.getItem(this.autoUpgradeKey))) {
-      this.toggleAutoUpgrade()
+      this.toggleAutoUpgrade();
     }
   },
   methods: {
-    toggleAutoUpgrade () {
-      this.isAutoUpgradeEnabled = !this.isAutoUpgradeEnabled
-      let newVal = this.isAutoUpgradeEnabled ? 'true' : 'false'
-      localStorage.setItem(this.autoUpgradeKey, newVal)
-      let displayString = this.isAutoUpgradeEnabled ? 'enabled' : 'disabled'
-      this.displayMsg = 'Successfully ' + displayString + ' flame auto-upgrade.'
+    toggleAutoUpgrade() {
+      this.isAutoUpgradeEnabled = !this.isAutoUpgradeEnabled;
+      const newVal = this.isAutoUpgradeEnabled ? 'true' : 'false';
+      localStorage.setItem(this.autoUpgradeKey, newVal);
+      const displayString = this.isAutoUpgradeEnabled ? 'enabled' : 'disabled';
+      this.displayMsg = `Successfully ${displayString} flame auto-upgrade.`;
     },
   },
-}
+};
 </script>
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->

@@ -10,7 +10,8 @@
         <div class="uid">{{title}}</div>
 
         <!-- TODO: Not great reading flame server directly from route -->
-        <a :href="$route.query.flameServer + legacyPath + '?noUpgrade=true'" class="flame-link" style="font-size: 16px;">
+        <a :href="$route.query.flameServer + legacyPath + '?noUpgrade=true'"
+           class="flame-link" style="font-size: 16px;">
           <font-awesome-icon icon="fire"></font-awesome-icon>
             Back to Legacy
           <font-awesome-icon icon="fire"></font-awesome-icon>
@@ -18,7 +19,8 @@
 
         <div style="margin-left: auto; display: flex;">
 
-          <!-- TODO: generalize this with a slot or something instead of hardcoding this component.-->
+          <!-- TODO: generalize this with a slot or something instead of hardcoding
+            this component.-->
           <x-task-node-search v-if="enableSearch" class="header-icon-button"></x-task-node-search>
 
           <template v-for="link in links">
@@ -46,18 +48,18 @@
 </template>
 
 <script>
-import XTaskNodeSearch from './XTaskNodeSearch'
+import XTaskNodeSearch from './XTaskNodeSearch.vue';
 
 export default {
   name: 'XHeader',
-  components: {XTaskNodeSearch},
+  components: { XTaskNodeSearch },
   props: {
-    title: {default: ''},
-    links: {default: () => [], type: Array},
-    legacyPath: {default: ''},
-    enableSearch: {default: false},
+    title: { default: '' },
+    links: { default: () => [], type: Array },
+    legacyPath: { default: '' },
+    enableSearch: { default: false },
   },
-}
+};
 </script>
 
 <style scoped>

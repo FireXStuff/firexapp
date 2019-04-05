@@ -1,22 +1,22 @@
-import Vue from 'vue'
-import Router from 'vue-router'
-import XParent from '@/components/XParent'
-import XHeaderedGraph from '@/components/XHeaderedGraph'
-import XList from '@/components/XList'
-import XNodeAttributes from '@/components/XNodeAttributes'
-import _ from 'lodash'
-import XHelp from '@/components/XHelp'
-import XSettings from '@/components/XSettings'
-import XShortcuts from '@/components/XShortcuts'
+import Vue from 'vue';
+import Router from 'vue-router';
+import XParent from '@/components/XParent.vue';
+import XHeaderedGraph from '@/components/XHeaderedGraph.vue';
+import XList from '@/components/XList.vue';
+import XNodeAttributes from '@/components/XNodeAttributes.vue';
+import _ from 'lodash';
+import XHelp from '@/components/XHelp.vue';
+import XSettings from '@/components/XSettings.vue';
+import XShortcuts from '@/components/XShortcuts.vue';
 
-Vue.use(Router)
+Vue.use(Router);
 
 const router = new Router({
   routes: [
     {
       path: '/',
       component: XParent,
-      props: (route) => ({inputLogDir: route.query.logDir, flameServer: route.query.flameServer}),
+      props: route => ({ inputLogDir: route.query.logDir, flameServer: route.query.flameServer }),
       children: [
         {
           path: 'list',
@@ -63,29 +63,30 @@ const router = new Router({
     },
   ],
   // always scroll to top.
-  scrollBehavior (to, from, savedPosition) {
-    return {x: 0, y: 0}
+  scrollBehavior() {
+    return { x: 0, y: 0 };
   },
-})
+});
 
 // TODO: doesn't affect clicking to open a new tab.
 router.beforeEach((to, from, next) => {
-  // By default, keep the current logDir & flameServer. These are the central key by which data is fetched.
-  let keptQuery = {}
+  // By default, keep the current logDir & flameServer. These are the central key by which data
+  // is fetched.
+  const keptQuery = {};
   if (from.query.logDir && !to.query.logDir) {
-    keptQuery.logDir = from.query.logDir
+    keptQuery.logDir = from.query.logDir;
   }
   if (from.query.flameServer && !to.query.flameServer) {
-    keptQuery.flameServer = from.query.flameServer
+    keptQuery.flameServer = from.query.flameServer;
   }
 
   if (!_.isEmpty(keptQuery)) {
-    let newTo = _.clone(to)
-    newTo.query = _.assign({}, newTo.query, keptQuery)
-    next(newTo)
+    const newTo = _.clone(to);
+    newTo.query = _.assign({}, newTo.query, keptQuery);
+    next(newTo);
   } else {
-    next()
+    next();
   }
-})
+});
 
-export default router
+export default router;

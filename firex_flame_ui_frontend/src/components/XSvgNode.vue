@@ -24,55 +24,55 @@
 </template>
 
 <script>
-import _ from 'lodash'
-import XNode from './XNode'
+import _ from 'lodash';
+import XNode from './XNode.vue';
 
 export default {
   name: 'XSvgNode',
-  components: {XNode},
+  components: { XNode },
   props: {
     node: {
       type: Object,
       required: true,
-      validator: function (value) {
-        return _.difference(['x', 'y'], _.keys(value))
+      validator(value) {
+        return _.difference(['x', 'y'], _.keys(value));
       },
     },
     showUuid: {},
-    position: {required: true, type: Object},
-    dimensions: {required: true, type: Object},
-    opacity: {default: 1},
-    liveUpdate: {required: true, type: Boolean},
-    isAnyChildCollapsed: {required: true, type: Boolean},
+    position: { required: true, type: Object },
+    dimensions: { required: true, type: Object },
+    opacity: { default: 1 },
+    liveUpdate: { required: true, type: Boolean },
+    isAnyChildCollapsed: { required: true, type: Boolean },
   },
   computed: {
-    transform () {
-      return 'translate(' + this.position.x + ',' + this.position.y + ')'
+    transform() {
+      return `translate(${this.position.x},${this.position.y})`;
     },
-    isInProgress () {
-      return this.node.state === 'task-started'
+    isInProgress() {
+      return this.node.state === 'task-started';
     },
-    style () {
+    style() {
       return {
-        'width': this.dimensions.width + 'px',
-        'height': this.dimensions.height + 'px',
-      }
+        width: `${this.dimensions.width}px`,
+        height: `${this.dimensions.height}px`,
+      };
     },
-    groupStyle () {
-      let style = {'opacity': this.opacity}
+    groupStyle() {
+      const style = { opacity: this.opacity };
       if (this.isInProgress) {
         _.merge(style,
           {
             filter: 'url(#shadow)',
             transform: 'translate3d(0, 0, 1)',
             'backface-visibility': 'hidden',
-            'perspective': 1000,
-          })
+            perspective: 1000,
+          });
       }
-      return style
+      return style;
     },
   },
-}
+};
 </script>
 
 <style scoped>

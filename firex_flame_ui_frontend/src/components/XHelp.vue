@@ -1,6 +1,8 @@
 <template>
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
-    <x-header :title="headerParams.title" :links="headerParams.links" :legacyPath="headerParams.legacyPath"></x-header>
+    <x-header :title="headerParams.title"
+              :links="headerParams.links"
+              :legacyPath="headerParams.legacyPath"></x-header>
 
     <div class="help-content">
       <h1>Types of Tasks</h1>
@@ -40,12 +42,15 @@
       <div>
         <ul>
           <li>
-            <h2>Round cornered tasks are tasks which are spawned from within another task. The task which spawns them
+            <h2>Round cornered tasks are tasks which are spawned from within another task.
+              The task which spawns them
               appears as their parent. These tasks can be the root of a larger chain.</h2>
           </li>
           <li>
-            <h2>Square cornered tasks are tasks which are chained behind another task. The task which they are chained
-              with (or precedes them) appears as their parent. The root of a chain will always have round corners.</h2>
+            <h2>Square cornered tasks are tasks which are chained behind another task. The
+              task which they are chained
+              with (or precedes them) appears as their parent. The root of a chain
+              will always have round corners.</h2>
           </li>
         </ul>
       </div>
@@ -55,28 +60,28 @@
 
 <script>
 
-import XNode from './XNode'
-import _ from 'lodash'
-import XHeader from './XHeader'
+import _ from 'lodash';
+import XNode from './XNode.vue';
+import XHeader from './XHeader.vue';
 
 export default {
   name: 'XHelp',
-  components: {XHeader, XNode},
-  data () {
-    let baseNode = {
+  components: { XHeader, XNode },
+  data() {
+    const baseNode = {
       name: 'noop',
       hostname: 'hostname',
       children_uuids: [],
       task_num: 1,
       actual_runtime: 0.5,
       uuid: '372bcc97-36a0-45cd-a322-3253155da856',
-    }
+    };
     return {
-      startedNode: _.merge({}, baseNode, {'state': 'task-started'}),
-      succeededNode: _.merge({}, baseNode, {'state': 'task-succeeded'}),
-      failedNode: _.merge({}, baseNode, {'state': 'task-failed'}),
-      revokedNode: _.merge({}, baseNode, {'state': 'task-revoked'}),
-      pluginSucceededNode: _.merge({}, baseNode, {'state': 'task-succeeded', 'from_plugin': true}),
+      startedNode: _.merge({}, baseNode, { state: 'task-started' }),
+      succeededNode: _.merge({}, baseNode, { state: 'task-succeeded' }),
+      failedNode: _.merge({}, baseNode, { state: 'task-failed' }),
+      revokedNode: _.merge({}, baseNode, { state: 'task-revoked' }),
+      pluginSucceededNode: _.merge({}, baseNode, { state: 'task-succeeded', from_plugin: true }),
       headerParams: {
         title: 'Help',
         links: [
@@ -84,22 +89,31 @@ export default {
             name: 'shortcuts',
             to: {
               name: 'XShortcuts',
-              query: {logDir: this.$route.query.logDir, flameServer: this.$route.query.flameServer},
+              query: {
+                logDir: this.$route.query.logDir,
+                flameServer: this.$route.query.flameServer,
+              },
             },
             text: 'Shortcuts',
           },
-          {name: 'documentation', href: 'http://firex.cisco.com', text: 'Documentation'},
+          { name: 'documentation', href: 'http://firex.cisco.com', text: 'Documentation' },
           {
             name: 'help',
-            to: {name: 'XHelp', query: {logDir: this.$route.query.logDir, flameServer: this.$route.query.flameServer}},
+            to: {
+              name: 'XHelp',
+              query: {
+                logDir: this.$route.query.logDir,
+                flameServer: this.$route.query.flameServer,
+              },
+            },
             text: 'Help',
           },
         ],
         legacyPath: '/help',
       },
-    }
+    };
   },
-}
+};
 </script>
 
 <style scoped>

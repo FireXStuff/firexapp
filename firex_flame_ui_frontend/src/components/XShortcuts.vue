@@ -1,6 +1,8 @@
 <template>
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
-    <x-header :title="headerParams.title" :links="headerParams.links" :legacyPath="headerParams.legacyPath"></x-header>
+    <x-header :title="headerParams.title"
+              :links="headerParams.links"
+              :legacyPath="headerParams.legacyPath"></x-header>
 
     <div class="help-content">
       <h1>General</h1>
@@ -30,12 +32,12 @@
 
 <script>
 
-import XHeader from './XHeader'
+import XHeader from './XHeader.vue';
 
 export default {
   name: 'XShortcuts',
-  components: {XHeader},
-  data () {
+  components: { XHeader },
+  data() {
     return {
       headerParams: {
         title: 'Keyboard Shortcuts',
@@ -44,22 +46,31 @@ export default {
             name: 'shortcuts',
             to: {
               name: 'XShortcuts',
-              query: {logDir: this.$route.query.logDir, flameServer: this.$route.query.flameServer},
+              query: {
+                logDir: this.$route.query.logDir,
+                flameServer: this.$route.query.flameServer,
+              },
             },
             text: 'Shortcuts',
           },
-          {name: 'documentation', href: 'http://firex.cisco.com', text: 'Documentation'},
+          { name: 'documentation', href: 'http://firex.cisco.com', text: 'Documentation' },
           {
             name: 'help',
-            to: {name: 'XHelp', query: {logDir: this.$route.query.logDir, flameServer: this.$route.query.flameServer}},
+            to: {
+              name: 'XHelp',
+              query: {
+                logDir: this.$route.query.logDir,
+                flameServer: this.$route.query.flameServer,
+              },
+            },
             text: 'Help',
           },
         ],
         legacyPath: '/shortcuts',
       },
-    }
+    };
   },
-}
+};
 </script>
 
 <style scoped>

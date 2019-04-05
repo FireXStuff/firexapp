@@ -4,16 +4,17 @@
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
        @keydown.ctrl.f.prevent="focusOnFind"
        @keyup.191.prevent="focusOnFind"
-       @keydown.u="toggleButtonState('liveUpdate')"
-       @keydown.d="toggleButtonState('showTaskDetails')"
-       @keydown.r="refreshGraph"
+       @keydown.u.exact="toggleButtonState('liveUpdate')"
+       @keydown.d.exact="toggleButtonState('showTaskDetails')"
+       @keydown.r.exact="refreshGraph"
        tabindex="0">
     <x-header :title="headerParams.title"
               :links="headerParams.links"
               :legacyPath="headerParams.legacyPath"
               :enableSearch="true"
     ></x-header>
-    <!-- TODO: not sure where the best level to gate on UID is, but need UID to key on localStorage within x-graph-->
+    <!-- TODO: not sure where the best level to gate on UID is, but need UID to key on
+    localStorage within x-graph-->
     <x-graph
       v-if="runMetadata.uid"
       :nodesByUuid="rootDescendantsByUuid"
@@ -24,116 +25,121 @@
 </template>
 
 <script>
-import XGraph from './XGraph'
-import XHeader from './XHeader'
-import {eventHub, routeTo, hasIncompleteTasks, getDescendantUuids, orderByTaskNum} from '../utils'
-import _ from 'lodash'
+import _ from 'lodash';
+import XGraph from './XGraph.vue';
+import XHeader from './XHeader.vue';
+import {
+  eventHub, routeTo, hasIncompleteTasks, getDescendantUuids, orderByTaskNum,
+} from '../utils';
 
 export default {
   name: 'XHeaderedGraph',
-  components: {XGraph, XHeader},
+  components: { XGraph, XHeader },
   props: {
-    nodesByUuid: {required: true, type: Object},
-    runMetadata: {required: true, type: Object},
+    nodesByUuid: { required: true, type: Object },
+    runMetadata: { required: true, type: Object },
     // The connected state of the socket data is being received from. False if there is no socket.
-    isConnected: {required: true, type: Boolean},
+    isConnected: { required: true, type: Boolean },
     // The root UUID to show, not necessarily the root UUID from the runMetadata.
-    rootUuid: {default: null},
+    rootUuid: { default: null },
   },
-  data () {
+  data() {
     return {
       toggleStates: {
-        'liveUpdate': true,
-        'showTaskDetails': false,
+        liveUpdate: true,
+        showTaskDetails: false,
       },
-    }
+    };
   },
-  created () {
+  created() {
     // Set initial live update state.
-    let liveUpdate = _.find(this.headerParams.links, {'name': 'liveUpdate'})
+    const liveUpdate = _.find(this.headerParams.links, { name: 'liveUpdate' });
     if (liveUpdate) {
-      liveUpdate.on(this.toggleStates['liveUpdate'])
+      liveUpdate.on(this.toggleStates.liveUpdate);
     }
     eventHub.$on('toggle-live-update', () => {
-      this.toggleButtonState('liveUpdate')
-    })
-    eventHub.$on('toggle-uuids', () => { this.toggleButtonState('showTaskDetails') })
+      this.toggleButtonState('liveUpdate');
+    });
+    eventHub.$on('toggle-uuids', () => { this.toggleButtonState('showTaskDetails'); });
   },
   computed: {
-    isUidValid () {
+    isUidValid() {
       if (!this.runMetadata.uid) {
-        return false
+        return false;
       }
-      return this.runMetadata.uid.startsWith('FireX-')
+      return this.runMetadata.uid.startsWith('FireX-');
     },
-    isAlive () {
-      return this.isConnected && this.hasIncompleteTasks
+    isAlive() {
+      return this.isConnected && this.hasIncompleteTasks;
     },
-    hasIncompleteTasks () {
-      return hasIncompleteTasks(this.rootDescendantsByUuid)
+    hasIncompleteTasks() {
+      return hasIncompleteTasks(this.rootDescendantsByUuid);
     },
-    rootDescendantsByUuid () {
+    rootDescendantsByUuid() {
       if (this.rootUuid === null) {
-        return this.nodesByUuid
+        return this.nodesByUuid;
       }
-      let rootDescendantUuids = getDescendantUuids(this.rootUuid, this.nodesByUuid)
-      return orderByTaskNum(_.pick(this.nodesByUuid, [this.rootUuid].concat(rootDescendantUuids)))
+      const rootDescendantUuids = getDescendantUuids(this.rootUuid, this.nodesByUuid);
+      return orderByTaskNum(_.pick(this.nodesByUuid, [this.rootUuid].concat(rootDescendantUuids)));
     },
-    headerParams () {
+    headerParams() {
       let links = [
         {
           name: 'liveUpdate',
-          on: () => { eventHub.$emit('toggle-live-update') },
-          toggleState: this.toggleStates['liveUpdate'],
+          on: () => { eventHub.$emit('toggle-live-update'); },
+          toggleState: this.toggleStates.liveUpdate,
           icon: ['far', 'eye'],
         },
-        {name: 'center', on: () => eventHub.$emit('center'), icon: 'bullseye'},
+        { name: 'center', on: () => eventHub.$emit('center'), icon: 'bullseye' },
         {
           name: 'showTaskDetails',
           on: () => eventHub.$emit('toggle-uuids'),
-          toggleState: this.toggleStates['showTaskDetails'],
+          toggleState: this.toggleStates.showTaskDetails,
           icon: 'plus-circle',
         },
-        {name: 'list', to: routeTo(this, 'XList'), icon: 'list-ul'},
-        {name: 'kill', on: () => eventHub.$emit('revoke-root'), _class: 'kill-button', icon: 'times'},
-        {name: 'logs', href: this.runMetadata.logs_dir, text: 'View logs'},
-        {name: 'help', to: routeTo(this, 'XHelp'), text: 'Help'},
-      ]
+        { name: 'list', to: routeTo(this, 'XList'), icon: 'list-ul' },
+        {
+          name: 'kill', on: () => eventHub.$emit('revoke-root'), _class: 'kill-button', icon: 'times',
+        },
+        { name: 'logs', href: this.runMetadata.logs_dir, text: 'View logs' },
+        { name: 'help', to: routeTo(this, 'XHelp'), text: 'Help' },
+      ];
       // Remove live update and kill options if the run isn't alive.
       if (!this.isAlive) {
-        links = _.filter(links, l => !_.includes(['liveUpdate', 'kill'], l.name))
+        links = _.filter(links, l => !_.includes(['liveUpdate', 'kill'], l.name));
       }
 
       return {
         title: this.runMetadata.uid,
         legacyPath: '',
-        links: links,
-      }
+        links,
+      };
     },
   },
   methods: {
-    focusOnFind () {
-      eventHub.$emit('find-focus')
+    focusOnFind() {
+      eventHub.$emit('find-focus');
     },
-    toggleButtonState (stateKey) {
-      this.toggleStates[stateKey] = !this.toggleStates[stateKey]
+    toggleButtonState(stateKey) {
+      this.toggleStates[stateKey] = !this.toggleStates[stateKey];
     },
-    refreshGraph () {
-      eventHub.$emit('graph-refresh')
+    refreshGraph() {
+      eventHub.$emit('graph-refresh');
     },
   },
   watch: {
-    rootUuid () {
-      // Center new graph when root node changes on next render (after nodes for only the new root are shown).
+    rootUuid() {
+      // Center new graph when root node changes on next render
+      // (after nodes for only the new root are shown).
       if (this.rootUuid !== null) {
-        this.$nextTick(() => { eventHub.$emit('center') })
+        this.$nextTick(() => { eventHub.$emit('center'); });
       }
     },
-    'toggleStates.liveUpdate' () {
-      eventHub.$emit('set-live-update', this.toggleStates['liveUpdate'])
+    'toggleStates.liveUpdate': () => {
+      eventHub.$emit('set-live-update', this.toggleStates.liveUpdate);
     },
   },
-}
+};
 </script>
 
 <style scoped>

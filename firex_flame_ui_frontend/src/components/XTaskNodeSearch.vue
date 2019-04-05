@@ -4,7 +4,8 @@
       <div class="search-pos">
         {{ totalResultsCount === 0 ? 0 : currentResultIndex + 1 }} / {{ totalResultsCount }}
       </div>
-      <input ref='search-input' type="text" v-model.trim="currentSearchTerm" @keyup.enter="sendSearchRequest"
+      <input ref='search-input' type="text" v-model.trim="currentSearchTerm"
+             @keyup.enter="sendSearchRequest"
              class="search" placeholder="Search" style="margin-right: 8px">
     </div>
     <div class="header-icon-button"
@@ -17,65 +18,63 @@
 
 <script>
 
-import {eventHub} from '../utils'
+import { eventHub } from '../utils';
 
 export default {
   name: 'XTaskNodeSearch',
   components: {},
-  data () {
+  data() {
     return {
       searchOpen: false,
       currentResultIndex: 0,
       currentSearchTerm: '',
       latestSentSearchTerm: 0,
       searchResultUuids: [],
-    }
+    };
   },
-  created () {
+  created() {
     eventHub.$on('task-search-result', (searchResult) => {
-      this.searchResultUuids = searchResult.task_list
-      this.emitFocusCurrentNode()
-    })
-    eventHub.$on('find-focus', () => { this.toggleSearchOpen() })
+      this.searchResultUuids = searchResult.task_list;
+      this.emitFocusCurrentNode();
+    });
+    eventHub.$on('find-focus', () => { this.toggleSearchOpen(); });
   },
   computed: {
-    totalResultsCount () {
-      return this.searchResultUuids.length
+    totalResultsCount() {
+      return this.searchResultUuids.length;
     },
   },
   methods: {
-    sendSearchRequest () {
+    sendSearchRequest() {
       if (this.currentSearchTerm !== this.latestSentSearchTerm) {
         // New search term, submit new search.
-        this.latestSentSearchTerm = this.currentSearchTerm
-        this.currentResultIndex = 0
-        eventHub.$emit('task-search', this.currentSearchTerm)
-      } else {
+        this.latestSentSearchTerm = this.currentSearchTerm;
+        this.currentResultIndex = 0;
+        eventHub.$emit('task-search', this.currentSearchTerm);
+      } else if (this.totalResultsCount > 0) {
         // Same search term as before, go from current result to the next
-        if (this.totalResultsCount > 0) {
-          this.currentResultIndex = (this.currentResultIndex + 1) % this.totalResultsCount
-          this.emitFocusCurrentNode()
-        }
+        this.currentResultIndex = (this.currentResultIndex + 1) % this.totalResultsCount;
+        this.emitFocusCurrentNode();
       }
     },
-    emitFocusCurrentNode () {
-      eventHub.$emit('node-focus', this.searchResultUuids[this.currentResultIndex])
+    emitFocusCurrentNode() {
+      eventHub.$emit('node-focus', this.searchResultUuids[this.currentResultIndex]);
     },
-    toggleSearchOpen () {
-      this.searchOpen = !this.searchOpen
+    toggleSearchOpen() {
+      this.searchOpen = !this.searchOpen;
       if (this.searchOpen) {
-        this.$nextTick(() => { this.$refs['search-input'].focus() })
+        this.$nextTick(() => { this.$refs['search-input'].focus(); });
       } else {
-        this.closeSearch()
+        this.closeSearch();
       }
     },
-    closeSearch () {
-      this.searchOpen = false
-      this.currentSearchTerm = ''
-      this.searchResultUuids = []
+    closeSearch() {
+      this.searchOpen = false;
+      this.currentSearchTerm = '';
+      this.searchResultUuids = [];
     },
   },
-}
+};
 </script>
 
 <style scoped>

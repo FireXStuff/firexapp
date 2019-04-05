@@ -15,22 +15,25 @@
             <div title="Retries" class="retries">{{node.retries}}</div>
           </div>
 
-          <!-- visibility: collapsed to include space for collapse button, even when allowCollapse is false. -->
+          <!-- visibility: collapsed to include space for collapse button, even when allowCollapse
+            is false. -->
           <div v-if="node.children_uuids.length && !isChained" style="align-self: end;"
                :style="allowCollapse ? 'visibility: collapsed': ''">
             <!-- Use prevent to avoid activating node-wide attribute link -->
             <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
-              <font-awesome-icon v-if="!isAnyChildCollapsed" icon="window-minimize"></font-awesome-icon>
+              <font-awesome-icon v-if="!isAnyChildCollapsed" icon="window-minimize">
+              </font-awesome-icon>
               <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
             </i>
           </div>
         </div>
-        <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid navigating to
-             task node attribute page. Should likely find a better way.-->
+        <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid
+        navigating to task node attribute page. Should likely find a better way.-->
         <div class="flame-data" v-on:click="flameDataClick">
           <div v-if="showUuid">{{node.uuid}}</div>
           <!-- We're really trusting data from the server here (rendering raw HTML) -->
-          <!-- TODO: find out why <br /> is randomly in flame data. .replace(new RegExp('<br />', 'g'), '') -->
+          <!-- TODO: find out why <br /> is randomly in flame data.
+                .replace(new RegExp('<br />', 'g'), '') -->
           <div v-if="node.flame_additional_data" v-html="node.flame_additional_data"></div>
         </div>
 
@@ -45,12 +48,12 @@
 </template>
 
 <script>
-import _ from 'lodash'
-import {routeTo, isChainInterrupted, durationString} from '../utils'
+import _ from 'lodash';
+import { routeTo, isChainInterrupted, durationString, isTaskStateIncomplete } from '../utils';
 
-let successGreen = '#2A2'
+const successGreen = '#2A2';
 
-let statusToColour = {
+const statusToColour = {
   'task-received': '#888',
   'task-blocked': '#888',
   'task-started': 'cornflowerblue', // animate?
@@ -61,7 +64,7 @@ let statusToColour = {
   'task-incomplete': 'repeating-linear-gradient(45deg,#888,#888 5px,#444 5px,#444 10px)',
   'task-completed': '#AAA',
   'task-unblocked': 'cornflowerblue',
-}
+};
 
 export default {
   name: 'XNode',
@@ -69,85 +72,85 @@ export default {
     node: {
       type: Object,
       required: true,
-      validator: function (value) {
-        // TODO: is it possible to validate node input? Since events are sent, nodes might always be partial.
-        return true
-      },
+      // TODO: is it possible to validate node input? Since events are sent,
+      //  nodes might always be partial.
+      // validator() { },
     },
     allowCollapse: {
       default: true,
     },
-    showUuid: {default: false},
-    liveUpdate: {default: false},
-    allowClickToAttributes: {default: true},
-    isAnyChildCollapsed: {default: false},
+    showUuid: { default: false },
+    liveUpdate: { default: false },
+    allowClickToAttributes: { default: true },
+    isAnyChildCollapsed: { default: false },
   },
-  data () {
+  data() {
     return {
       liveRunTime: 0,
-    }
+    };
   },
   computed: {
-    background () {
+    background() {
       if (isChainInterrupted(this.node.exception)) {
-        return 'repeating-linear-gradient(45deg,#888,#888 5px,#893C3C 5px,#F71818  10px)'
+        return 'repeating-linear-gradient(45deg,#888,#888 5px,#893C3C 5px,#F71818  10px)';
       }
-      return statusToColour[this.node.state]
+      return statusToColour[this.node.state];
     },
-    isChained () {
-      return Boolean(this.node.chain_depth)
+    isChained() {
+      return Boolean(this.node.chain_depth);
     },
-    topLevelStyle () {
+    topLevelStyle() {
       return {
         background: this.background,
         'border-radius': !this.isChained ? '8px' : '',
         border: this.node.from_plugin ? '2px dashed #000' : '',
-      }
+      };
     },
-    duration () {
-      let runtime = this.node.actual_runtime
+    duration() {
+      let runtime = this.node.actual_runtime;
       if (!runtime && (this.node.local_received || this.node.first_started)) {
-        runtime = this.liveRunTime
+        runtime = this.liveRunTime;
       }
-      return durationString(runtime)
+      return durationString(runtime);
     },
   },
-  created () {
-    this.updateLiveRuntimeAndSchedule()
+  created() {
+    this.updateLiveRuntimeAndSchedule();
   },
   methods: {
-    emit_collapse_toggle () {
-      this.$emit('collapse-node')
+    emit_collapse_toggle() {
+      this.$emit('collapse-node');
     },
-    updateLiveRuntimeAndSchedule () {
-      if (this.liveUpdate && !this.node.actual_runtime && (this.node.first_started || this.node.local_received)) {
-        let start = this.node.first_started ? this.node.first_started : this.node.local_received
-        this.liveRunTime = (Date.now() / 1000) - start
+    updateLiveRuntimeAndSchedule() {
+      if (this.liveUpdate && !this.node.actual_runtime && !isTaskStateIncomplete(this.node.state)
+        && (this.node.first_started || this.node.local_received)) {
+        const start = this.node.first_started ? this.node.first_started : this.node.local_received;
+        this.liveRunTime = (Date.now() / 1000) - start;
         setTimeout(() => {
           // Note liveUpdate may have changed since this timeout was set, so double check.
           if (this.liveUpdate) {
-            this.updateLiveRuntimeAndSchedule()
+            this.updateLiveRuntimeAndSchedule();
           }
-        }, 3000)
+        }, 3000);
       }
     },
-    routeToAttribute (uuid) {
-      return routeTo(this, 'XNodeAttributes', {uuid: uuid})
+    routeToAttribute(uuid) {
+      return routeTo(this, 'XNodeAttributes', { uuid });
     },
-    currentRoute () {
+    currentRoute() {
       // The 'to' supplied to a router-link must be mutable for some reason.
-      return _.clone(this.$router.currentRoute)
+      return _.clone(this.$router.currentRoute);
     },
-    flameDataClick (event) {
-      event.stopPropagation()
+    flameDataClick(event) {
+      event.stopPropagation();
     },
-    nodeShiftClick () {
+    nodeShiftClick() {
       if (this.allowClickToAttributes) {
-        this.$router.push(routeTo(this, 'custom-root', {rootUuid: this.node.uuid}))
+        this.$router.push(routeTo(this, 'custom-root', { rootUuid: this.node.uuid }));
       }
     },
   },
-}
+};
 </script>
 
 <style scoped>
