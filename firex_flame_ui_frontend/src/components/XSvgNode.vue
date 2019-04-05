@@ -54,12 +54,8 @@ export default {
     },
     style () {
       return {
-        // Super gross, we want to size the node excluding its padding + border width, so we fudge 10 here.
-        // This 10 will be taken up by padding + border width.
-        // TODO: should actually emitt the inner and out box dimensions, and use both here to set outer (foreignObject)
-        // and inner (node) rect sizes.
-        'width': (this.dimensions.width) + 'px',
-        'height': (this.dimensions.height) + 'px',
+        'width': this.dimensions.width + 'px',
+        'height': this.dimensions.height + 'px',
       }
     },
     groupStyle () {
@@ -71,7 +67,6 @@ export default {
             transform: 'translate3d(0, 0, 1)',
             'backface-visibility': 'hidden',
             'perspective': 1000,
-            'opacity': this.opacity,
           })
       }
       return style
