@@ -20,7 +20,7 @@
         <div style="margin-left: auto; display: flex;">
 
           <!-- TODO: generalize this with a slot or something instead of hardcoding
-            this component.-->
+                this component.-->
           <x-task-node-search v-if="enableSearch" class="header-icon-button"></x-task-node-search>
 
           <template v-for="link in links">

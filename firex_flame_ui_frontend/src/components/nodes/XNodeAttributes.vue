@@ -46,8 +46,8 @@
 
 <script>
 import _ from 'lodash';
-import { routeTo, eventHub, isTaskStateIncomplete } from '../utils';
-import XHeader from './XHeader.vue';
+import { routeTo, eventHub, isTaskStateIncomplete } from '../../utils';
+import XHeader from '../XHeader.vue';
 
 export default {
   name: 'XNodeAttributes',

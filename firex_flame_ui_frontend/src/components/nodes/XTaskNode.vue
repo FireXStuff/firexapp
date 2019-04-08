@@ -11,7 +11,7 @@
           </div>
 
           <div v-if="node.retries" style="align-self: end; position: relative;">
-            <img src="../assets/retry.png" class="retries-img">
+            <img src="../../assets/retry.png" class="retries-img">
             <div title="Retries" class="retries">{{node.retries}}</div>
           </div>
 
@@ -49,7 +49,9 @@
 
 <script>
 import _ from 'lodash';
-import { routeTo, isChainInterrupted, durationString, isTaskStateIncomplete } from '../utils';
+import {
+  routeTo, isChainInterrupted, durationString, isTaskStateIncomplete,
+} from '../../utils';
 
 const successGreen = '#2A2';
 

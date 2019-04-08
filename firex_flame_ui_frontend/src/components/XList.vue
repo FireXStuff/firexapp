@@ -58,7 +58,7 @@
 <script>
 import _ from 'lodash';
 
-import XNode from './XTaskNode.vue';
+import XNode from './nodes/XTaskNode.vue';
 import XHeader from './XHeader.vue';
 import { routeTo } from '../utils';
 

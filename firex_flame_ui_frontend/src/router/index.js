@@ -3,7 +3,7 @@ import Router from 'vue-router';
 import XParent from '@/components/XParent.vue';
 import XHeaderedGraph from '@/components/XHeaderedGraph.vue';
 import XList from '@/components/XList.vue';
-import XNodeAttributes from '@/components/XNodeAttributes.vue';
+import XNodeAttributes from '@/components/nodes/XNodeAttributes.vue';
 import _ from 'lodash';
 import XHelp from '@/components/XHelp.vue';
 import XSettings from '@/components/XSettings.vue';

@@ -49,13 +49,13 @@
 
 import * as d3 from 'd3';
 import _ from 'lodash';
-import XSvgNode from './XSvgNode.vue';
+import XSvgNode from './nodes/XSvgTaskNode.vue';
 import XLink from './XLinks.vue';
 import {
   eventHub, nodesInRootLeafPathWithFailureOrInProgress,
   calculateNodesPositionByUuid, getCenteringTransform, getAncestorUuids,
 } from '../utils';
-import XSizeCapturingNode from './XSizeCapturingNode.vue';
+import XSizeCapturingNode from './nodes/XSizeCapturingNode.vue';
 
 const scaleBounds = { max: 1.3, min: 0.01 };
 
