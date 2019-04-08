@@ -61,7 +61,7 @@
 <script>
 
 import _ from 'lodash';
-import XNode from './XNode.vue';
+import XNode from './XTaskNode.vue';
 import XHeader from './XHeader.vue';
 
 export default {
