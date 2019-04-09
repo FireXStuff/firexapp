@@ -1,11 +1,23 @@
 import os
-
+import sys
 import logging
 from distlib.database import DistributionPath
 
 
+def _get_paths_without_cwd():
+    # This is needed because Celery temporarily adds the cwd into the sys.path via a context switcher,
+    # and our discovery takes place inside that context.
+    # Having cwd in the sys.path can slow down the discovery significantly without any benefit.
+    paths = list(sys.path)
+    try:
+        paths.remove(os.getcwd())
+    except ValueError:  # pragma: no cover
+        pass
+    return paths
+
+
 def _get_firex_dependant_package_locations()-> []:
-    distributions = DistributionPath(include_egg=True).get_distributions()
+    distributions = DistributionPath(path=_get_paths_without_cwd(), include_egg=True).get_distributions()
 
     # some packages (such as any tree) might cause exceptions in logging
     old_raise = logging.raiseExceptions
