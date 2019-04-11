@@ -47,17 +47,15 @@ class SubmitArgsTests(unittest.TestCase):
             pass
 
         with self.subTest("bad other args"):
-            def exit_app(_, __):
-                raise AppExited()
-            main.submit_app.parser.exit = exit_app
-            with self.assertRaises(AppExited):
+            with self.assertRaises(SystemExit):
                 main.submit_app.process_other_chain_args(args=None,
                                                          other_args=['--one', '--two', 'two'])
 
         with self.subTest("bad ascii"):
-            def error_app(_):
+            def exit_app(_, __):
                 raise AppExited()
-            main.arg_parser.error = error_app
+            main.arg_parser.exit = exit_app
+            main.arg_parser.print_usage = lambda _: _
             with self.assertRaises(AppExited):
                 main.run(sys_argv=['--pound', '£'])
 
