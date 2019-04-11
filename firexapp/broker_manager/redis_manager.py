@@ -85,7 +85,7 @@ class RedisManager(BrokerManager):
     def get_url(self) -> str:
         return self.broker_url
 
-    def isalive(self):
+    def is_alive(self):
         try:
             output = self.cli('PING')
         except subprocess.CalledProcessError:
@@ -96,7 +96,7 @@ class RedisManager(BrokerManager):
     def wait_until_active(self, max_trials=60):
         trials = 0
         while trials <= max_trials*10:
-            if self.isalive():
+            if self.is_alive():
                 return
             time.sleep(0.1)
             trials += 1

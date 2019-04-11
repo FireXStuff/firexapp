@@ -18,6 +18,10 @@ class BrokerManager(ABC):
     def get_url(self)->str:
         pass
 
+    @abstractmethod
+    def is_alive(self)->bool:
+        pass
+
     @classmethod
     def log(cls, msg, header=None, level=logging.DEBUG):
         if header is None:
