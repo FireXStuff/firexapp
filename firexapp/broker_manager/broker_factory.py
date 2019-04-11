@@ -34,8 +34,15 @@ class BrokerFactory:
                 pass
 
         from firexapp.broker_manager.redis_manager import RedisManager
-        broker = RedisManager(*args, redis_bin_base=redis_bin_dir, **kwargs)
-        app.conf.result_backend = broker.get_url()
+        existing_broker = os.environ.get(cls.broker_env_variable)
+        if existing_broker:
+            hostname, port = RedisManager.get_hostname_port_from_url(existing_broker)
+            broker = RedisManager(hostname=hostname,
+                                  port=port,
+                                  redis_bin_base=redis_bin_dir)
+        else:
+            broker = RedisManager(*args, redis_bin_base=redis_bin_dir, **kwargs)
+            app.conf.result_backend = broker.get_url()
         cls.set_broker_manager(broker)
         return broker
 
@@ -45,6 +52,7 @@ class BrokerFactory:
         if assert_if_not_set and not url:
             raise '%s env variable has not been set' % cls.broker_env_variable
         return url
+
 
 class BrokerManagerException(Exception):
     pass

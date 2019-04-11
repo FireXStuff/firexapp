@@ -3,13 +3,13 @@ import json
 import logging
 import os
 import argparse
-from firexapp.fileregistry import FileRegistry
-from firexkit.result import wait_on_async_results
 from shutil import copyfile
 
 from celery.exceptions import NotRegistered
 
+from firexkit.result import wait_on_async_results
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
+from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
 from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args, find_unused_arguments
 from firexapp.plugins import plugin_support_parser
@@ -30,9 +30,9 @@ FileRegistry().register_file(ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_d
 class SubmitBaseApp:
     SUBMISSION_LOGGING_FORMATTER = '[%(asctime)s %(levelname)s] %(message)s'
     DEFAULT_MICROSERVICE = None
+    PRIMARY_WORKER_NAME = "mc"
 
     def __init__(self, submission_tmp_file=None):
-        self.parser = None
         self.submission_tmp_file = submission_tmp_file
         self.uid = None
         self.broker = None
@@ -54,8 +54,6 @@ class SubmitBaseApp:
         pass
 
     def create_submit_parser(self, sub_parser):
-        if self.parser:
-            return self.parser
         submit_parser = sub_parser.add_parser("submit",
                                               help="This tool invokes a fireX run and is the most common use of "
                                                    "firex. Check out our documentation for common usage patterns",
@@ -66,8 +64,7 @@ class SubmitBaseApp:
         submit_parser.add_argument('--sync', '-sync', help='Hold console until run completes', nargs='?', const=True,
                                    default=False)
         submit_parser.set_defaults(func=self.run_submit)
-        self.parser = submit_parser
-        return self.parser
+        return submit_parser
 
     def convert_chain_args(self, chain_args) -> dict:
         try:
@@ -160,30 +157,30 @@ class SubmitBaseApp:
             logger.error(e)
             self.main_error_exit_handler()
             sys.exit(-1)
-        chain_result = root_task.s(chain=args.chain, **chain_args).delay()
+        chain_result = root_task.s(chain=args.chain, submit_app=self, sync=args.sync, **chain_args).delay()
 
         self.copy_submission_log()
 
-        # todo: do sync
-        wait_on_async_results(chain_result)
-        self.copy_submission_log()
-        chain_result.backend = None
-        self.self_destruct()
+        if args.sync:
+            logger.info("Waiting for chain to complete...")
+            wait_on_async_results(chain_result)
+            self.copy_submission_log()
+            self.self_destruct()
 
     def start_celery(self, args, plugins):
         from firexapp.celery_manager import CeleryManager
         import multiprocessing
         celery_manager = CeleryManager(logs_dir=self.uid.logs_dir, plugins=plugins)
-        celery_manager.start('mc', wait=True, concurrency=multiprocessing.cpu_count()*4)
+        celery_manager.start(workername=self.PRIMARY_WORKER_NAME, wait=True, concurrency=multiprocessing.cpu_count()*4)
         self.celery_manager = celery_manager
 
     def process_other_chain_args(self, args, other_args)-> {}:
-        chain_args = {}
         try:
             chain_args = get_chain_args(other_args)
         except ChainArgException as e:
             logger.error(str(e))
-            self.parser.exit(-1,  'Aborting...')
+            logger.error('Aborting...')
+            sys.exit(-1)
 
         # 'plugins' is a necessary element of the chain args, so that they can be handled by converters
         if args.plugins:
@@ -206,14 +203,13 @@ class SubmitBaseApp:
             self.copy_submission_log()
 
     def self_destruct(self, expedite=False):
+        logger.debug("Running FireX self destruct")
         if self.celery_manager:
-            app.control.broadcast('shutdown')
-        try:
+            logger.debug("Sending Celery shutdown")
+            app.control.shutdown()
+        elif self.broker:
+            # broker will be shut down by celery if active
             self.broker.shutdown()
-
-        except Exception as e:
-            logger.warning('Error during self_destruct')
-            logger.warning(e)
 
     @classmethod
     def validate_argument_applicability(cls, chain_args, args, all_tasks):
