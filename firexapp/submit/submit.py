@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import argparse
+import time
 from shutil import copyfile
 
 from celery.exceptions import NotRegistered
@@ -166,6 +167,7 @@ class SubmitBaseApp:
             wait_on_async_results(chain_result)
             self.copy_submission_log()
             self.self_destruct()
+            self.wait_for_broker_shutdown()
 
     def start_celery(self, args, plugins):
         from firexapp.celery_manager import CeleryManager
@@ -199,6 +201,8 @@ class SubmitBaseApp:
         logger.error('Aborting FireX submission...')
         if self.broker:
             self.self_destruct(expedite)
+            if not expedite:
+                self.wait_for_broker_shutdown()
         if self.uid:
             self.copy_submission_log()
 
@@ -210,6 +214,12 @@ class SubmitBaseApp:
         elif self.broker:
             # broker will be shut down by celery if active
             self.broker.shutdown()
+
+    def wait_for_broker_shutdown(self, timeout=10):
+        logger.debug("Waiting for broker to shut down")
+        shutdown_wait_time = time.time() + timeout
+        while self.broker.is_alive() and time.time() < shutdown_wait_time:
+            time.sleep(0.1)
 
     @classmethod
     def validate_argument_applicability(cls, chain_args, args, all_tasks):
