@@ -86,7 +86,7 @@ class SubmitHighRunnerCase(FlowTestConfiguration):
 
 @app.task
 def high_expectations(provided_one, provided_two, added_one, added_two):
-    assert provided_one == "provided_one"
+    assert provided_one is True  # converted by a pre-converter
     assert provided_two == "provided_two"
     assert added_one == "added_one"
     assert added_two == "added_two"
@@ -94,7 +94,6 @@ def high_expectations(provided_one, provided_two, added_one, added_two):
 
 @InputConverter.register
 def convert_provided_and_added_one(kwargs):
-    kwargs["provided_one"] = "provided_one"
     kwargs["added_one"] = "added_one"
 
 
@@ -107,7 +106,7 @@ def convert_provided_and_added_two(kwargs):
 class ArgConverterCheck(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
         return ["submit", "--chain", "high_expectations",
-                "--provided_one", "needs_to_change",
+                "--provided_one", "True",
                 "--provided_two", "needs_to_change"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
