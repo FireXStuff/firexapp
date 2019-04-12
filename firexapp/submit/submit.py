@@ -201,8 +201,7 @@ class SubmitBaseApp:
         logger.error('Aborting FireX submission...')
         if self.broker:
             self.self_destruct(expedite)
-            if not expedite:
-                self.wait_for_broker_shutdown()
+            self.wait_for_broker_shutdown()
         if self.uid:
             self.copy_submission_log()
 
