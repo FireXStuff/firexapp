@@ -95,7 +95,7 @@ class SubmitBaseApp:
         with open(FileRegistry().get_file(ENVIRON_FILE_REGISTRY_KEY, self.uid.logs_dir), 'w') as f:
             json.dump(dict(os.environ), fp=f, skipkeys=True, sort_keys=True, indent=4)
 
-        self.convert_chain_args(chain_args)
+        chain_args = self.convert_chain_args(chain_args)
 
         # todo: Concurrency lock
 
