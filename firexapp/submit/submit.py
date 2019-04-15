@@ -97,8 +97,31 @@ class SubmitBaseApp:
 
         chain_args = self.convert_chain_args(chain_args)
 
-        # todo: Concurrency lock
+        chain_args = self.start_engine(args=args, chain_args=chain_args, uid=uid)
 
+        # Execute chain
+        try:
+            root_task_name = app.conf.get("root_task")
+            if root_task_name is None:
+                raise NotRegistered("No root task configured")
+            root_task = get_app_task(root_task_name)
+        except NotRegistered as e:
+            logger.error(e)
+            self.main_error_exit_handler()
+            sys.exit(-1)
+        chain_result = root_task.s(chain=args.chain, submit_app=self, sync=args.sync, **chain_args).delay()
+
+        self.copy_submission_log()
+
+        if args.sync:
+            logger.info("Waiting for chain to complete...")
+            wait_on_async_results(chain_result)
+            disable_async_result(chain_result)
+            self.copy_submission_log()
+            self.self_destruct()
+            self.wait_for_broker_shutdown()
+
+    def start_engine(self, args, chain_args, uid)->{}:
         # Start Broker
         self.start_broker(args=args)
 
@@ -147,28 +170,7 @@ class SubmitBaseApp:
 
         # Start Celery
         self.start_celery(args, chain_args.get("plugins", args.plugins))
-
-        # Execute chain
-        try:
-            root_task_name = app.conf.get("root_task")
-            if root_task_name is None:
-                raise NotRegistered("No root task configured")
-            root_task = get_app_task(root_task_name)
-        except NotRegistered as e:
-            logger.error(e)
-            self.main_error_exit_handler()
-            sys.exit(-1)
-        chain_result = root_task.s(chain=args.chain, submit_app=self, sync=args.sync, **chain_args).delay()
-
-        self.copy_submission_log()
-
-        if args.sync:
-            logger.info("Waiting for chain to complete...")
-            wait_on_async_results(chain_result)
-            disable_async_result(chain_result)
-            self.copy_submission_log()
-            self.self_destruct()
-            self.wait_for_broker_shutdown()
+        return chain_args
 
     def start_celery(self, args, plugins):
         from firexapp.celery_manager import CeleryManager
