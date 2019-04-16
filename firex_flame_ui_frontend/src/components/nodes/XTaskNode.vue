@@ -18,7 +18,7 @@
           <!-- visibility: collapsed to include space for collapse button, even when allowCollapse
             is false. -->
           <div v-if="node.children_uuids.length && !isChained" style="align-self: end;"
-               :style="allowCollapse ? 'visibility: collapsed': ''">
+               :style="allowCollapse ? '' : 'visibility: collapse;'">
             <!-- Use prevent to avoid activating node-wide attribute link -->
             <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
               <font-awesome-icon v-if="!isAnyChildCollapsed" icon="window-minimize">
@@ -85,6 +85,7 @@ export default {
     liveUpdate: { default: false },
     allowClickToAttributes: { default: true },
     isAnyChildCollapsed: { default: false },
+    emitDimensions: { default: false },
   },
   data() {
     return {
@@ -119,12 +120,18 @@ export default {
   created() {
     this.updateLiveRuntimeAndSchedule();
   },
+  mounted() {
+    this.emit_dimensions();
+  },
+  updated() {
+    this.emit_dimensions();
+  },
   methods: {
     emit_collapse_toggle() {
       this.$emit('collapse-node');
     },
     updateLiveRuntimeAndSchedule() {
-      if (this.liveUpdate && !this.node.actual_runtime && !isTaskStateIncomplete(this.node.state)
+      if (this.liveUpdate && !isTaskStateIncomplete(this.node.state)
         && (this.node.first_started || this.node.local_received)) {
         const start = this.node.first_started ? this.node.first_started : this.node.local_received;
         this.liveRunTime = (Date.now() / 1000) - start;
@@ -149,6 +156,22 @@ export default {
     nodeShiftClick() {
       if (this.allowClickToAttributes) {
         this.$router.push(routeTo(this, 'custom-root', { rootUuid: this.node.uuid }));
+      }
+    },
+    emit_dimensions() {
+      if (this.emitDimensions) {
+        this.$nextTick(() => {
+          const r = this.$el.getBoundingClientRect();
+          const renderedWidth = r.width; // this.$el.clientWidth
+          const renderedHeight = r.height; // this.$el.clientHeight
+          if (renderedWidth && renderedHeight) {
+            const renderedDimensions = { width: r.width, height: r.height };
+            if (!_.isEqual(this.latestEmittedDimensions, renderedDimensions)) {
+              this.$emit('node-dimensions', _.merge({ uuid: this.node.uuid }, renderedDimensions));
+              this.latestEmittedDimensions = renderedDimensions;
+            }
+          }
+        });
       }
     },
   },

@@ -18,7 +18,7 @@
           <x-link
             :uncollapsedIntrinsicDimensionNodesByUuid="uncollapsedIntrinsicDimensionNodesByUuid"
             :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
-          <x-svg-node v-for="(nodeLayout, uuid) in nodeLayoutsByUuid"
+          <x-svg-task-node v-for="(nodeLayout, uuid) in nodeLayoutsByUuid"
                       :node="nodesByUuid[uuid]"
                       :dimensions="dimensionsByUuid[uuid]"
                       :position="nodeLayout"
@@ -27,7 +27,7 @@
                       :liveUpdate="liveUpdate"
                       :isAnyChildCollapsed="isAnyChildCollapsedByUuid[uuid]"
                       :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
-                      v-on:collapse-node="toggleCollapseDescendants(uuid)"></x-svg-node>
+                      v-on:collapse-node="toggleCollapseDescendants(uuid)"></x-svg-task-node>
         </g>
       </svg>
     </div>
@@ -36,11 +36,17 @@
       <!-- This is very gross, but the nodes that will be put on the graph are rendered
       invisibly in order for the browser to calculate their intrinsic size. Each node's size is
       then passed to the graph layout algorithm before the actual graph is rendered.-->
-      <template v-for="n in nodesByUuid">
-        <x-size-capturing-node
-          :showUuid="showUuids" :node="n" :key="n.uuid"
-          v-on:node-dimensions="updateNodeDimensions($event)"></x-size-capturing-node>
-      </template>
+      <!--
+        Need inline-block display per node to get each node's intrinsic width (i.e. don't want it
+        to force fill parent).
+      -->
+      <div v-for="n in nodesByUuid" :key="n.uuid"
+           style="display: inline-block; position: absolute; top: 0; z-index: -1000;">
+        <x-task-node
+          :node="n"
+          :emitDimensions="true" :showUuid="showUuids"
+          v-on:node-dimensions="updateTaskNodeDimensions($event)"></x-task-node>
+      </div>
     </div>
   </div>
 </template>
@@ -49,20 +55,20 @@
 
 import * as d3 from 'd3';
 import _ from 'lodash';
-import XSvgNode from './nodes/XSvgTaskNode.vue';
+import XSvgTaskNode from './nodes/XSvgTaskNode.vue';
+import XTaskNode from './nodes/XTaskNode.vue'
 import XLink from './XLinks.vue';
 import {
   eventHub, nodesInRootLeafPathWithFailureOrInProgress,
   calculateNodesPositionByUuid, getCenteringTransform, getAncestorUuids,
 } from '../utils';
-import XSizeCapturingNode from './nodes/XSizeCapturingNode.vue';
 
 const scaleBounds = { max: 1.3, min: 0.01 };
 
 export default {
   name: 'XGraph',
   components: {
-    XSizeCapturingNode, XSvgNode, XLink,
+    XSvgTaskNode, XLink, XTaskNode,
   },
   props: {
     // TODO: it might be worth making a computed property of just the graph structure
@@ -277,7 +283,7 @@ export default {
         });
       });
     },
-    updateNodeDimensions(event) {
+    updateTaskNodeDimensions(event) {
       // Vue doesn't deep watch, so use $set to maintain reactivity.
       this.$set(this.dimensionsByUuid, event.uuid, _.pick(event, ['width', 'height']));
     },
@@ -314,6 +320,7 @@ export default {
       if (this.isTransformValid(storedTransform)) {
         return storedTransform;
       }
+      // Default to the centering transform.
       return this.getCenterTransform();
     },
     clearAllCollapseFilters() {
@@ -340,13 +347,17 @@ export default {
     hideSucessPaths() {
       this.addLocalStorageData({ hideSucessPaths: this.hideSucessPaths });
       if (this.hideSucessPaths) {
+        // Since hiding success path usually excludes many nodes, we center the graph.
         this.center();
       }
     },
-    uiCollapseDescendantStatesByUuid() {
-      this.addLocalStorageData({
-        uiCollapseDescendantStatesByUuid: this.uiCollapseDescendantStatesByUuid,
-      });
+    uiCollapseDescendantStatesByUuid: {
+      handler() {
+        this.addLocalStorageData({
+          uiCollapseDescendantStatesByUuid: this.uiCollapseDescendantStatesByUuid,
+        });
+      },
+      deep: true,
     },
   },
 };

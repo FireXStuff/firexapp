@@ -20,7 +20,9 @@ export default {
     },
     displayLinks() {
       const links = [];
-      _.each(this.nodesByUuid, (c) => {
+      // We only want to show links for nodes with a layout.
+      _.each(this.nodeLayoutsByUuid, (__, cUuid) => {
+        const c = this.nodesByUuid[cUuid];
         const parentId = c.parent_id;
         if (!_.isNull(parentId) && _.has(this.nodesByUuid, parentId)) {
           const p = this.nodesByUuid[parentId];
