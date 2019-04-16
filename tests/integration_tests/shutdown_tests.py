@@ -1,6 +1,7 @@
 import os
 import abc
 
+from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
 
@@ -42,7 +43,11 @@ class NoBrokerLeakBase(FlowTestConfiguration):
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         broker = get_leaked_broker_process(cmd_output)
         assert not broker, "We are leaking a broker: " + str(broker)
-        assert "Could not find task 'not_exist'" in cmd_err, "Different error expected"
+        assert self.expected_error() in cmd_err, "Different error expected"
+
+    @abc.abstractmethod
+    def expected_error(self):
+        pass
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
@@ -50,12 +55,26 @@ class NoBrokerLeakBase(FlowTestConfiguration):
 
 class NoBrokerLeakOnBadTask(NoBrokerLeakBase):
     """ Broker is started but not celery. Make sure the broker is release"""
+
+    def expected_error(self):
+        return "Could not find task 'not_exist'"
+
     def initial_firex_options(self) -> list:
         return ["submit", "--chain", "not_exist"]
 
 
-# class NoBrokerLeakOnTaskFailure(NoBrokerLeakBase):
+@app.task
+def failure():
+    raise Exception("This exception is part of the test")
+
+
+class NoBrokerLeakOnTaskFailure(NoBrokerLeakBase):
     """ Broker and celery are started. Make sure the broker is release """
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "failure"]
+
+    def expected_error(self):
+        return "Failures occurred in the following tasks"
 
 # NoBrokerLeakOnCtrlC(NoBrokerLeakBase):
     """ Have the microservice send a sigint to the main """

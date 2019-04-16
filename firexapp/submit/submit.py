@@ -8,7 +8,7 @@ from shutil import copyfile
 
 from celery.exceptions import NotRegistered
 
-from firexkit.result import wait_on_async_results, disable_async_result
+from firexkit.result import wait_on_async_results, disable_async_result, find_unsuccessful
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
@@ -116,6 +116,17 @@ class SubmitBaseApp:
         if args.sync:
             logger.info("Waiting for chain to complete...")
             wait_on_async_results(chain_result)
+            failures = find_unsuccessful(chain_result)
+            if failures:
+                logger.error("Failures occurred in the following tasks:")
+                failures = sorted(failures.values())
+                for failure in failures:
+                    logger.error(failure)
+                disable_async_result(chain_result)
+                self.main_error_exit_handler()
+                sys.exit(-1)
+            else:
+                logger.info("All tasks succeeded")
             disable_async_result(chain_result)
             self.copy_submission_log()
             self.self_destruct()
