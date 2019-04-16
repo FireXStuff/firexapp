@@ -56,7 +56,7 @@
 import * as d3 from 'd3';
 import _ from 'lodash';
 import XSvgTaskNode from './nodes/XSvgTaskNode.vue';
-import XTaskNode from './nodes/XTaskNode.vue'
+import XTaskNode from './nodes/XTaskNode.vue';
 import XLink from './XLinks.vue';
 import {
   eventHub, nodesInRootLeafPathWithFailureOrInProgress,

@@ -21,11 +21,14 @@
           </div>
         </div>
         <div v-else-if="key === 'support_location'" style="display: inline">
-          <a :href="displayKeyNodes[key]">{{displayKeyNodes[key]}}</a>
+          <a :href="displayKeyNodes[key]"> {{displayKeyNodes[key]}}</a>
         </div>
         <div v-else-if="key === 'traceback'" style="display: inline">
           <pre style="overflow: auto; color: darkred; margin-top: 0"
             >{{displayKeyNodes[key].trim()}}</pre>
+        </div>
+        <div v-else-if="isTimeKey(key)" style="display: inline">
+          {{formatTime(displayKeyNodes[key])}}
         </div>
         <div v-else-if="isObject(displayKeyNodes[key])" style="overflow: auto">
           <div v-for="(arg_value, arg_key) in displayKeyNodes[key]" :key="arg_key"
@@ -46,6 +49,7 @@
 
 <script>
 import _ from 'lodash';
+import { DateTime } from 'luxon';
 import { routeTo, eventHub, isTaskStateIncomplete } from '../../utils';
 import XHeader from '../XHeader.vue';
 
@@ -130,6 +134,14 @@ export default {
         return JSON.stringify(val);
       }
       return prettyJson;
+    },
+    isTimeKey(key) {
+      return _.includes(['first_started', 'started', 'failed', 'succeeded', 'revoked',
+        'local_received', 'timestamp'], key);
+    },
+    formatTime(unixTime) {
+      const humanTime = DateTime.fromSeconds(unixTime).toLocaleString(DateTime.DATETIME_FULL);
+      return `${humanTime} (orig: ${unixTime})`;
     },
   },
 };
