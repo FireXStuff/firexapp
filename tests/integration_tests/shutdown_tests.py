@@ -1,8 +1,10 @@
 import os
 import abc
+import signal
 
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
+from firexapp.submit.arguments import InputConverter
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
 
 
@@ -76,5 +78,24 @@ class NoBrokerLeakOnTaskFailure(NoBrokerLeakBase):
     def expected_error(self):
         return "Failures occurred in the following tasks"
 
-# NoBrokerLeakOnCtrlC(NoBrokerLeakBase):
+
+@InputConverter.register
+def get_main_pid(kwargs):
+    if "pid" in kwargs:
+        return {"pid": os.getpid()}
+
+
+@app.task
+def kill_firexapp_main(pid):
+    os.kill(int(pid), signal.SIGHUP)
+
+
+class NoBrokerLeakOnCtrlC(NoBrokerLeakBase):
     """ Have the microservice send a sigint to the main """
+    timeout = 90
+
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "kill_firexapp_main", "--pid", "tbd"]
+
+    def expected_error(self):
+        return "Exiting due to signal SIGHUP"
