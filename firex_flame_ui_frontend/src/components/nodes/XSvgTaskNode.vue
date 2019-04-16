@@ -28,7 +28,7 @@ import _ from 'lodash';
 import XNode from './XTaskNode.vue';
 
 export default {
-  name: 'XSvgNode',
+  name: 'XTaskSvgNode',
   components: { XNode },
   props: {
     node: {

@@ -14,7 +14,7 @@
           <router-link :to="linkToUuid(displayKeyNodes[key])">{{displayKeyNodes[key]}}</router-link>
         </div>
         <div v-else-if="key === 'children'">
-          <div v-for="child_uuid in displayKeyNodes[key]" :key="child_uuid"
+          <div v-for="child_uuid in displayKeyNodes[key]" :key="'child-' + child_uuid"
                style="margin-left: 25px; padding: 3px;">
             <strong>{{nodesByUuid[child_uuid].name}}: </strong>
             <router-link :to="linkToUuid(child_uuid)">{{child_uuid}}</router-link>

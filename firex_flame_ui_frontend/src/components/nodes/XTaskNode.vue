@@ -34,7 +34,7 @@
           <!-- We're really trusting data from the server here (rendering raw HTML) -->
           <!-- TODO: find out why <br /> is randomly in flame data.
                 .replace(new RegExp('<br />', 'g'), '') -->
-          <div v-if="node.flame_additional_data" v-html="node.flame_additional_data"></div>
+          <div v-if="displayFlameAdditionalData" v-html="displayFlameAdditionalData"></div>
         </div>
 
         <div style="display: flex; flex-direction: row; font-size: 12px; margin-top: 4px;">
@@ -50,23 +50,8 @@
 <script>
 import _ from 'lodash';
 import {
-  routeTo, isChainInterrupted, durationString, isTaskStateIncomplete,
+  routeTo, durationString, isTaskStateIncomplete, getNodeBackground,
 } from '../../utils';
-
-const successGreen = '#2A2';
-
-const statusToColour = {
-  'task-received': '#888',
-  'task-blocked': '#888',
-  'task-started': 'cornflowerblue', // animate?
-  'task-succeeded': successGreen,
-  'task-shutdown': successGreen,
-  'task-failed': '#900',
-  'task-revoked': '#F40',
-  'task-incomplete': 'repeating-linear-gradient(45deg,#888,#888 5px,#444 5px,#444 10px)',
-  'task-completed': '#AAA',
-  'task-unblocked': 'cornflowerblue',
-};
 
 export default {
   name: 'XNode',
@@ -85,6 +70,7 @@ export default {
     liveUpdate: { default: false },
     allowClickToAttributes: { default: true },
     isAnyChildCollapsed: { default: false },
+    emitDimensions: { default: false },
   },
   data() {
     return {
@@ -92,18 +78,12 @@ export default {
     };
   },
   computed: {
-    background() {
-      if (isChainInterrupted(this.node.exception)) {
-        return 'repeating-linear-gradient(45deg,#888,#888 5px,#893C3C 5px,#F71818  10px)';
-      }
-      return statusToColour[this.node.state];
-    },
     isChained() {
       return Boolean(this.node.chain_depth);
     },
     topLevelStyle() {
       return {
-        background: this.background,
+        background: getNodeBackground(this.node.exception, this.node.state),
         'border-radius': !this.isChained ? '8px' : '',
         border: this.node.from_plugin ? '2px dashed #000' : '',
       };
@@ -115,9 +95,21 @@ export default {
       }
       return durationString(runtime);
     },
+    displayFlameAdditionalData() {
+      if (!this.node.flame_additional_data) {
+        return undefined;
+      }
+      return this.node.flame_additional_data.replace(/__start_dd.*__end_dd/g, '');
+    },
   },
   created() {
     this.updateLiveRuntimeAndSchedule();
+  },
+  mounted() {
+    this.emit_dimensions();
+  },
+  updated() {
+    this.emit_dimensions();
   },
   methods: {
     emit_collapse_toggle() {
@@ -149,6 +141,22 @@ export default {
     nodeShiftClick() {
       if (this.allowClickToAttributes) {
         this.$router.push(routeTo(this, 'custom-root', { rootUuid: this.node.uuid }));
+      }
+    },
+    emit_dimensions() {
+      if (this.emitDimensions) {
+        this.$nextTick(() => {
+          const r = this.$el.getBoundingClientRect();
+          const renderedWidth = r.width; // this.$el.clientWidth
+          const renderedHeight = r.height; // this.$el.clientHeight
+          if (renderedWidth && renderedHeight) {
+            const renderedDimensions = { width: r.width, height: r.height };
+            if (!_.isEqual(this.latestEmittedDimensions, renderedDimensions)) {
+              this.$emit('node-dimensions', _.merge({ uuid: this.node.uuid }, renderedDimensions));
+              this.latestEmittedDimensions = renderedDimensions;
+            }
+          }
+        });
       }
     },
   },
