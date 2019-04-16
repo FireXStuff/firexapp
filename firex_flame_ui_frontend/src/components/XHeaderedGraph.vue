@@ -101,7 +101,11 @@ export default {
         {
           name: 'kill', on: () => eventHub.$emit('revoke-root'), _class: 'kill-button', icon: 'times',
         },
-        { name: 'logs', href: this.runMetadata.logs_dir, text: 'View logs' },
+        {
+          name: 'logs',
+          href: `http://firex.cisco.com${this.runMetadata.logs_dir}`,
+          text: 'View logs',
+        },
         { name: 'help', to: routeTo(this, 'XHelp'), text: 'Help' },
       ];
       // Remove live update and kill options if the run isn't alive.
@@ -111,7 +115,7 @@ export default {
 
       return {
         title: this.runMetadata.uid,
-        legacyPath: '',
+        legacyPath: '/',
         links,
       };
     },

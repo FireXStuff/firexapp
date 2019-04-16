@@ -57,7 +57,7 @@ export default {
   name: 'XParent',
   props: {
     inputLogDir: { required: false, type: String },
-    flameServer: { required: false, type: String },
+    inputFlameServer: { required: false, type: String },
   },
   data() {
     return {
@@ -75,11 +75,11 @@ export default {
         return this.flameRunMetadata.uid;
       }
       if (this.logDir) {
-        return this.logUid;
+        return this.logDirUid;
       }
       return 'Unknown';
     },
-    logUid() {
+    logDirUid() {
       const matches = this.logDir.match(/.*(FireX-.*)\/?$/);
       if (matches.length) {
         return matches[1];
@@ -88,10 +88,21 @@ export default {
     },
     logRunMetadata() {
       return {
-        uid: this.logUid,
+        uid: this.logDirUid,
         logs_dir: this.logDir,
         root_uuid: this.rootUuid,
       };
+    },
+    flameServer() {
+      if (this.inputFlameServer) {
+        return this.inputFlameServer;
+      }
+      if (!this.logDir) {
+        // If we have neither an input flame server or a log dir (i.e. if we have no data source),
+        // assume we're being hosted by a flame server and use the current origin.
+        return window.location.origin;
+      }
+      return null;
     },
     firexRunMetadata() {
       return this.flameServer ? this.flameRunMetadata : this.logRunMetadata;
@@ -106,7 +117,7 @@ export default {
       return !_.isEmpty(this.nodesByUuid);
     },
     useRecFile() {
-      return _.isEmpty(this.flameServer);
+      return !this.flameServer;
     },
     socket() {
       // TODO: have UI indications of socket state (connected, connection lost, etc.).

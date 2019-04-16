@@ -73,7 +73,7 @@ export default {
   props: {
     // TODO: it might be worth making a computed property of just the graph structure
     //    (parent/child relationships),
-    //  to avoid re-calcs in some context were only structure (not data content) is relied on.
+    //  to avoid re-calcs in some context where only structure (not data content) is relied on.
     nodesByUuid: { required: true, type: Object },
     firexUid: { required: true, type: String },
     showUuids: { default: false, type: Boolean },
