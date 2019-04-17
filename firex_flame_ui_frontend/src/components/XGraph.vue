@@ -2,8 +2,8 @@
   <div style="width: 100%; height: 100%; overflow: hidden;" tabindex="1"
        @keydown.c="center">
     <div v-if="collapsedNodeUuids.length > 0" class="user-message" style="background: lightblue; ">
-      {{collapsedNodeUuids.length}} tasks are hidden
-      <a href="#" @click.prevent="clearAllCollapseFilters"> (Show All)</a>
+      {{collapsedNodeUuids.length}} tasks are collapsed
+      <a href="#" @click.prevent="clearAllCollapseFilters"> (Expand All)</a>
     </div>
     <div v-else-if="hasFailures" class="user-message" style="background: orange">
       Some tasks have failed.
@@ -189,6 +189,7 @@ export default {
   },
   mounted() {
     d3.select('div#chart-container svg').call(this.zoom).on('dblclick.zoom', null);
+    // this.$el.focus();
   },
   methods: {
     zoomed() {

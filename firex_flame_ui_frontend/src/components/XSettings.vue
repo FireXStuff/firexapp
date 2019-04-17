@@ -4,7 +4,7 @@
       <label for="auto-upgrade">Auto-upgrade:</label>
       <select id="auto-upgrade" :value="selectedAutoUpgrade"
               @input="setAutoUpgrade($event.target.value)">
-        <option value="central">Central FireX Server</option>
+        <option value="true">Central FireX Server</option>
         <option value="relative">Relative Flame Server</option>
         <option value="none">Disable Auto-Upgrade</option>
       </select>
@@ -36,7 +36,8 @@ export default {
       this.selectedAutoUpgrade = selectedValue;
       localStorage.setItem(this.autoUpgradeKey, selectedValue);
       const displayString = {
-        central: 'enabled central FireX',
+        // To be backwards compatible, 'true' means central.
+        true: 'enabled central FireX',
         relative: 'enabled relative Flame',
         none: 'disabled',
       }[selectedValue];
@@ -45,11 +46,8 @@ export default {
     },
     readAutoUpgradeFromLocalStorage(autoUpgradeKey) {
       const storedValue = localStorage.getItem(autoUpgradeKey);
-      if (_.includes(['true', 'central'], storedValue)) {
-        return 'central';
-      }
-      if (storedValue === 'relative') {
-        return 'relative';
+      if (_.includes(['true', 'relative'], storedValue)) {
+        return storedValue;
       }
       return 'none';
     },
