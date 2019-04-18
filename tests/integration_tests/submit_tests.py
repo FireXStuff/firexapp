@@ -4,7 +4,7 @@ from firexkit.argument_conversion import SingleArgDecorator
 from firexapp.engine.celery import app
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.arguments import InputConverter
-from firexapp.submit.submit import SUBMISSION_FILE_REGISTRY_KEY
+from firexapp.submit.submit import SUBMISSION_FILE_REGISTRY_KEY, get_log_dir_from_output
 from firexapp.submit.uid import Uid
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexapp.tasks.example import nop, sleep
@@ -15,20 +15,6 @@ from firexapp.tasks.example import nop, sleep
 def do_i_barf(arg_value):
     if arg_value:
         raise Exception("Barf")
-
-
-def get_log_dir_from_output(cmd_output: str)->str:
-    if not cmd_output:
-        return ""
-
-    lines = cmd_output.split("\n")
-    log_dir_key = "Logs: "
-    try:
-        logs_lines = [line.split(log_dir_key)[1] for line in lines if log_dir_key in line]
-        log_dir_line = logs_lines[-1]
-        return log_dir_line.strip()
-    except IndexError:
-        return ""
 
 
 def get_submission_file(cmd_output: str):

@@ -12,6 +12,7 @@ from firexkit.result import wait_on_async_results, disable_async_result, find_un
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
+from firexapp.submit.reporting import ReportersRegistry
 from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args, find_unused_arguments
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
@@ -99,6 +100,8 @@ class SubmitBaseApp:
 
         chain_args = self.start_engine(args=args, chain_args=chain_args, uid=uid)
 
+        ReportersRegistry.pre_run_report(chain_args)
+
         # Execute chain
         try:
             root_task_name = app.conf.get("root_task")
@@ -122,14 +125,12 @@ class SubmitBaseApp:
                 failures = sorted(failures.values())
                 for failure in failures:
                     logger.error(failure)
-                disable_async_result(chain_result)
-                self.main_error_exit_handler()
+                self.main_error_exit_handler(chain_result=chain_result)
                 sys.exit(-1)
             else:
                 logger.info("All tasks succeeded")
-            disable_async_result(chain_result)
             self.copy_submission_log()
-            self.self_destruct()
+            self.self_destruct(chain_result=chain_result)
             self.wait_for_broker_shutdown()
 
     def start_engine(self, args, chain_args, uid)->{}:
@@ -211,15 +212,22 @@ class SubmitBaseApp:
     def start_tracking_services(self, args):
         pass
 
-    def main_error_exit_handler(self, expedite=False):
+    def main_error_exit_handler(self, expedite=False, chain_result=None):
         logger.error('Aborting FireX submission...')
         if self.broker:
-            self.self_destruct(expedite)
+            self.self_destruct(expedite=expedite, chain_result=chain_result)
             self.wait_for_broker_shutdown()
         if self.uid:
             self.copy_submission_log()
 
-    def self_destruct(self, expedite=False):
+    def self_destruct(self, expedite=False, chain_result=None):
+        try:
+            logger.debug("Generating reports")
+            ReportersRegistry.post_run_report(results=chain_result)
+        finally:
+            if chain_result:
+                disable_async_result(chain_result)
+
         logger.debug("Running FireX self destruct")
         if self.celery_manager:
             logger.debug("Sending Celery shutdown")
@@ -252,3 +260,17 @@ class SubmitBaseApp:
         for arg in unused_chain_args:
             logger.error("--" + arg)
         return False
+
+
+def get_log_dir_from_output(cmd_output: str)->str:
+    if not cmd_output:
+        return ""
+
+    lines = cmd_output.split("\n")
+    log_dir_key = "Logs: "
+    try:
+        logs_lines = [line.split(log_dir_key)[1] for line in lines if log_dir_key in line]
+        log_dir_line = logs_lines[-1]
+        return log_dir_line.strip()
+    except IndexError:
+        return ""
