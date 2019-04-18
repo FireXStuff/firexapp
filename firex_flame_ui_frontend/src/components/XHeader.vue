@@ -9,9 +9,7 @@
         </div>
         <div class="uid">{{title}}</div>
 
-        <!-- TODO: Not great reading flame server directly from route -->
-        <a :href="$route.query.flameServer + legacyPath + '?noUpgrade=true'"
-           class="flame-link" style="font-size: 16px;">
+        <a :href="legacyUrl" class="flame-link" style="font-size: 16px;">
           <font-awesome-icon icon="fire"></font-awesome-icon>
             Back to Legacy
           <font-awesome-icon icon="fire"></font-awesome-icon>
@@ -48,6 +46,7 @@
 </template>
 
 <script>
+import _ from 'lodash';
 import XTaskNodeSearch from './XTaskNodeSearch.vue';
 
 export default {
@@ -58,6 +57,15 @@ export default {
     links: { default: () => [], type: Array },
     legacyPath: { default: '' },
     enableSearch: { default: false },
+  },
+  computed: {
+    legacyUrl() {
+      // If there is no flame server query parameter, assume the app is being served form a flame
+      // server and make the url relative to the server root.
+      // TODO: Not great reading flame server directly from route.
+      const start = _.get(this.$route, 'query.flameServer', '');
+      return `${start}${this.legacyPath}?noUpgrade=true`;
+    },
   },
 };
 </script>

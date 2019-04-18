@@ -88,7 +88,11 @@ export default {
         legacyPath: '/list',
         links: [
           { name: 'graph', to: routeTo(this, 'XGraph'), icon: 'sitemap' },
-          { name: 'logs', href: '#', text: 'View Logs' },
+          {
+            name: 'logs',
+            href: `http://firex.cisco.com${this.runMetadata.logs_dir}`,
+            text: 'View Logs',
+          },
           { name: 'help', to: routeTo(this, 'XHelp'), text: 'Help' },
         ],
       },

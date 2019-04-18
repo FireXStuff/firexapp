@@ -3,7 +3,7 @@
        @keydown.c="center">
     <div v-if="collapsedNodeUuids.length > 0" class="user-message" style="background: lightblue; ">
       {{collapsedNodeUuids.length}} tasks are collapsed
-      <a href="#" @click.prevent="clearAllCollapseFilters">(Expand All)</a>
+      <a href="#" @click.prevent="clearAllCollapseFilters"> (Expand All)</a>
     </div>
     <div v-else-if="hasFailures" class="user-message" style="background: orange">
       Some tasks have failed.
@@ -68,9 +68,8 @@ import XSvgTaskNode from './nodes/XSvgTaskNode.vue';
 import XTaskNode from './nodes/XTaskNode.vue';
 import XLink from './XLinks.vue';
 import {
-  eventHub, nodesInRootLeafPathWithFailureOrInProgress,
-  calculateNodesPositionByUuid, getCenteringTransform, getAncestorUuids, uuidv4,
-  getAllDescendantsUuidsInclusive, rollupTaskStatesBackground, resolveCollapseStatusByUuid,
+  eventHub, calculateNodesPositionByUuid, getCenteringTransform, uuidv4,
+  rollupTaskStatesBackground, resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid, createCollapseEvent,
 } from '../utils';
 import XSvgCollapseNode from './nodes/XSvgCollapseNode.vue';
@@ -80,15 +79,12 @@ const scaleBounds = { max: 1.3, min: 0.01 };
 export default {
   name: 'XGraph',
   components: {
-    XSvgCollapseNode,
-    XSvgTaskNode,
-    XLink,
-    XTaskNode,
+    XSvgTaskNode, XLink, XTaskNode, XSvgCollapseNode,
   },
   props: {
     // TODO: it might be worth making a computed property of just the graph structure
     //    (parent/child relationships),
-    //  to avoid re-calcs in some context were only structure (not data content) is relied on.
+    //  to avoid re-calcs in some context where only structure (not data content) is relied on.
     nodesByUuid: { required: true, type: Object },
     firexUid: { required: true, type: String },
     showUuids: { default: false, type: Boolean },
@@ -239,14 +235,11 @@ export default {
           n.flame_additional_data.replace(/<br \/>/g, ''),
         )[1]));
 
-      return _.mapValues(backendDefaultDisplayByUuid, (operationByTarget) => {
-        return _.mapValues(operationByTarget, (op) => {
-          return {
-            priority: 5, // less than UI state priority.
-            operation: op,
-          };
-        });
-      });
+      return _.mapValues(backendDefaultDisplayByUuid,
+        operationByTarget => _.mapValues(operationByTarget, op => ({
+          priority: 5, // less than UI state priority.
+          operation: op,
+        })));
     },
   },
   created() {
@@ -256,6 +249,7 @@ export default {
   },
   mounted() {
     d3.select('div#chart-container svg').call(this.zoom).on('dblclick.zoom', null);
+    // this.$el.focus();
   },
   methods: {
     zoomed() {

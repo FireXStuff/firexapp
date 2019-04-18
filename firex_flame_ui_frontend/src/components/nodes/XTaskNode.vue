@@ -18,7 +18,7 @@
           <!-- visibility: collapsed to include space for collapse button, even when allowCollapse
             is false. -->
           <div v-if="node.children_uuids.length && !isChained" style="align-self: end;"
-               :style="allowCollapse ? 'visibility: collapsed': ''">
+               :style="allowCollapse ? '' : 'visibility: collapse;'">
             <!-- Use prevent to avoid activating node-wide attribute link -->
             <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
               <font-awesome-icon v-if="!isAnyChildCollapsed" icon="window-minimize">
@@ -89,9 +89,13 @@ export default {
       };
     },
     duration() {
-      let runtime = this.node.actual_runtime;
-      if (!runtime && (this.node.local_received || this.node.first_started)) {
+      let runtime;
+      if (!isTaskStateIncomplete(this.node.state) && this.node.actual_runtime) {
+        runtime = this.node.actual_runtime;
+      } else if (!runtime && (this.node.local_received || this.node.first_started)) {
         runtime = this.liveRunTime;
+      } else {
+        return '';
       }
       return durationString(runtime);
     },
@@ -116,7 +120,9 @@ export default {
       this.$emit('collapse-node');
     },
     updateLiveRuntimeAndSchedule() {
-      if (this.liveUpdate && !this.node.actual_runtime && !isTaskStateIncomplete(this.node.state)
+      if (this.liveUpdate
+        // task-complete occurs in-between retries.
+        && (isTaskStateIncomplete(this.node.state) || this.node.state === 'task-completed')
         && (this.node.first_started || this.node.local_received)) {
         const start = this.node.first_started ? this.node.first_started : this.node.local_received;
         this.liveRunTime = (Date.now() / 1000) - start;

@@ -1,9 +1,15 @@
 <template>
-  <div>
-    <button v-on:click="toggleAutoUpgrade">{{changeMessage}}</button>
-    <div v-if="displayMsg">
-      {{displayMsg}}
+  <div style="margin: 10px">
+    <div>
+      <label for="auto-upgrade">Auto-upgrade:</label>
+      <select id="auto-upgrade" :value="selectedAutoUpgrade"
+              @input="setAutoUpgrade($event.target.value)">
+        <option value="true">Central FireX Server</option>
+        <option value="relative">Relative Flame Server</option>
+        <option value="none">Disable Auto-Upgrade</option>
+      </select>
     </div>
+    {{ displayMsg }}
   </div>
 </template>
 
@@ -11,37 +17,43 @@
 import _ from 'lodash';
 
 export default {
-  name: 'HelloWorld',
+  name: 'XSettings',
   data() {
     const autoUpgradeKey = 'auto-flame-upgrade';
     return {
       displayMsg: '',
       autoUpgradeKey,
-      isAutoUpgradeEnabled: localStorage.getItem(autoUpgradeKey) === 'true',
+      selectedAutoUpgrade: this.readAutoUpgradeFromLocalStorage(autoUpgradeKey),
     };
-  },
-  computed: {
-    changeMessage() {
-      return `${this.isAutoUpgradeEnabled ? 'Disable' : 'Enable'} Flame Auto-Upgrade`;
-    },
   },
   created() {
     if (_.isNull(localStorage.getItem(this.autoUpgradeKey))) {
-      this.toggleAutoUpgrade();
+      this.setAutoUpgrade('relative');
     }
   },
   methods: {
-    toggleAutoUpgrade() {
-      this.isAutoUpgradeEnabled = !this.isAutoUpgradeEnabled;
-      const newVal = this.isAutoUpgradeEnabled ? 'true' : 'false';
-      localStorage.setItem(this.autoUpgradeKey, newVal);
-      const displayString = this.isAutoUpgradeEnabled ? 'enabled' : 'disabled';
-      this.displayMsg = `Successfully ${displayString} flame auto-upgrade.`;
+    setAutoUpgrade(selectedValue) {
+      this.selectedAutoUpgrade = selectedValue;
+      localStorage.setItem(this.autoUpgradeKey, selectedValue);
+      const displayString = {
+        // To be backwards compatible, 'true' means central.
+        true: 'enabled central FireX',
+        relative: 'enabled relative Flame',
+        none: 'disabled',
+      }[selectedValue];
+
+      this.displayMsg = `Successfully ${displayString} auto-upgrade.`;
+    },
+    readAutoUpgradeFromLocalStorage(autoUpgradeKey) {
+      const storedValue = localStorage.getItem(autoUpgradeKey);
+      if (_.includes(['true', 'relative'], storedValue)) {
+        return storedValue;
+      }
+      return 'none';
     },
   },
 };
 </script>
 
-<!-- Add "scoped" attribute to limit CSS to this component only -->
-<style scoped>
+<style>
 </style>
