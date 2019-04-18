@@ -9,15 +9,16 @@ from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_r
 
 class CustomTestReportGenerator(ReportGenerator):
     formatters = ("good", )  # to test the filtering functionality
+    logs_dir = None
+    pre_run_called = False
 
     def __init__(self):
-        self.was_initialized = False
         self.had_entries = 0
-        self.logs_dir = None
 
-    def pre_run_report(self, kwarg):
-        self.was_initialized = True
-        self.logs_dir = kwarg["uid"].logs_dir
+    @staticmethod
+    def pre_run_report(kwarg):
+        CustomTestReportGenerator.pre_run_called = True
+        CustomTestReportGenerator.logs_dir = kwarg["uid"].logs_dir
 
     def add_entry(self, key_name, value, priority, formatters, **extra):
         assert key_name is None
@@ -30,8 +31,8 @@ class CustomTestReportGenerator(ReportGenerator):
     def post_run_report(self):
         # This would only work in --sync. In none-sync, the report generator instance is not the same.
         # One is on main, the other in celery
-        if self.was_initialized and self.had_entries == 1:
-            success_file = os.path.join(self.logs_dir, "success")
+        if CustomTestReportGenerator.pre_run_called and self.had_entries == 1:
+            success_file = os.path.join(CustomTestReportGenerator.logs_dir, "success")
             with open(success_file, 'w+'):
                 # we'll create a black report
                 pass

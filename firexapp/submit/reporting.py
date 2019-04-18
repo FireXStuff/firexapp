@@ -10,8 +10,9 @@ logger = get_task_logger(__name__)
 class ReportGenerator(ABC):
     formatters = tuple()
 
+    @staticmethod
     @abstractmethod
-    def pre_run_report(self, kwarg):
+    def pre_run_report(kwarg):
         """ This runs in the context of __main__ """
         pass
 
