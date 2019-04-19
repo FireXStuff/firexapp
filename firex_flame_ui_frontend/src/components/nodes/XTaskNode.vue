@@ -31,6 +31,7 @@
         navigating to task node attribute page. Should likely find a better way.-->
         <div class="flame-data" v-on:click="flameDataClick">
           <div v-if="showUuid">{{node.uuid}}</div>
+          <div v-if="showUuid && displayDetails">{{displayDetails}}</div>
           <!-- We're really trusting data from the server here (rendering raw HTML) -->
           <!-- TODO: find out why <br /> is randomly in flame data.
                 .replace(new RegExp('<br />', 'g'), '') -->
@@ -71,6 +72,7 @@ export default {
     allowClickToAttributes: { default: true },
     isAnyChildCollapsed: { default: false },
     emitDimensions: { default: false },
+    displayDetails: { require: false },
   },
   data() {
     return {

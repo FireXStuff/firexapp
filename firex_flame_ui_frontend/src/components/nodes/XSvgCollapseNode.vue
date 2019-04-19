@@ -4,12 +4,14 @@
     <foreignObject :width="collapseNode.width + 10" :height="collapseNode.height + 10">
       <div :style="style">
         <div v-if="!allDescendantsAreChildren" style="padding: 5px">
-          <a class='collapse-action' href="#" @click.prevent="emitExpandChildren">&plus;
+          <a class='collapse-action' href="#"
+             @click.prevent="emitExpandUuids(collapseNode.representedChildrenUuids)">&plus;
             {{collapseNode.representedChildrenUuids.length}} Top
             {{collapseNode.representedChildrenUuids.length === 1 ? 'Task': 'Tasks'}}</a>
         </div>
         <div style="padding: 5px">
-          <a class='collapse-action' href="#" @click.prevent="emitExpandDescendants">&plus;&plus;
+          <a class='collapse-action' href="#"
+             @click.prevent="emitExpandUuids(collapseNode.allRepresentedNodeUuids)">&plus;&plus;
             {{collapseNode.allRepresentedNodeUuids.length}}
             {{collapseNode.allRepresentedNodeUuids.length === 1 ? 'Task': 'Total Tasks'}}</a>
         </div>
@@ -63,28 +65,11 @@ export default {
     },
   },
   methods: {
-    emitExpandDescendants() {
-      // TODO: should there be a descendantsInclusive (selfAndDescendants) target?
-      const expandChildrenEvents = createCollapseEvent(this.collapseNode.representedChildrenUuids,
-        'expand', 'self');
-      const expandDescendantEvents = createCollapseEvent(this.collapseNode.representedChildrenUuids, 'expand',
-        'descendants');
+    emitExpandUuids(uuids) {
+      const expandDescendantEvents = createCollapseEvent(uuids, 'expand', 'self');
       eventHub.$emit('ui-collapse', {
         keep_rel_position_task_uuid: this.collapseNode.parent_id,
-        operationsByUuid: _.merge(expandChildrenEvents, expandDescendantEvents),
-      });
-    },
-    emitExpandChildren() {
-      const expandChildrenEvents = createCollapseEvent(this.collapseNode.representedChildrenUuids,
-        'expand', 'self');
-      const collapseNonChildrenDescendantEvents = {};
-      // createCollapseEvent(
-      //   this.collapseNode.representedChildrenUuids, 'collapse', 'descendants',
-      // );
-      // TODO: maybe this should be {[[parent_id]]: { grandchildren: 'collapse' }}
-      eventHub.$emit('ui-collapse', {
-        keep_rel_position_task_uuid: this.collapseNode.parent_id,
-        operationsByUuid: _.merge(expandChildrenEvents, collapseNonChildrenDescendantEvents),
+        operationsByUuid: expandDescendantEvents,
       });
     },
   },

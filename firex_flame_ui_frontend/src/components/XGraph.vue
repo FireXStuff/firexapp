@@ -28,7 +28,9 @@
                         :liveUpdate="liveUpdate"
                         :isAnyChildCollapsed="anyChildCollapsedByUuid[uuid]"
                         :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
-                        v-on:collapse-node="toggleCollapseDescendants(uuid)"></x-svg-task-node>
+                        v-on:collapse-node="toggleCollapseDescendants(uuid)"
+                        :displayDetails="resolvedCollapseStateByUuid[uuid].minPriorityOp">
+            </x-svg-task-node>
             <!-- TODO: this is no longer correct -- collapseGraphByNodeUuid doesn't exclusively
                    contain collapsed nodes.-->
             <x-svg-collapse-node
@@ -54,6 +56,7 @@
         <x-task-node
           :node="n"
           :emitDimensions="true" :showUuid="showUuids"
+          :displayDetails="getDisplauDetails(resolvedCollapseStateByUuid, n.uuid)"
           v-on:node-dimensions="updateTaskNodeDimensions($event)"></x-task-node>
       </div>
     </div>
@@ -338,18 +341,7 @@ export default {
 
       _.each(event.operationsByUuid, (ops, uuid) => {
         const stateByTarget = _.get(this.uiCollapseStatesByUuid, uuid, {});
-        // if incoming value is 'expand', that means 'remove any UI collapse'
-        // collapse, on the other hand, adds a high-priority 'collapse' operation.
-        // const newStateByTarget = _.pickBy(
-        //  _.merge(stateByTarget, ops), s => s.operation !== 'expand');
-        // Note this means that when a node is expanded, it stays expanded.
-
-        // for incoming targets that already have a value, just drop the value (toggle).
-        const droppedTogglingValues = _.pickBy(stateByTarget, (s, t) => !_.has(ops, t));
-        // If it's a value for a new key, add it.
-        const newValues = _.pickBy(ops, (s, t) => !_.has(stateByTarget, t));
-
-        this.$set(this.uiCollapseStatesByUuid, uuid, _.merge(droppedTogglingValues, newValues));
+        this.$set(this.uiCollapseStatesByUuid, uuid, _.merge({}, stateByTarget, ops));
       });
 
       if (initialRelPos) {
@@ -415,12 +407,8 @@ export default {
       this.uiCollapseStatesByUuid = {};
       // TODO: applyFlameDataCollapseOps = false
     },
-    loadLocalStorageState() {
-      this.updateTransformViaZoom(this.getLocalStorageTransform());
-      this.hideSucessPaths = this.readPathFromLocalStorage('hideSucessPaths', false);
-      this.uiCollapseStatesByUuid = this.readPathFromLocalStorage(
-        'uiCollapseStatesByUuid', {},
-      );
+    getDisplauDetails(resolvedCollapseStateByUuid, uuid) {
+      return _.get(resolvedCollapseStateByUuid, [uuid, 'minPriorityOp'], null);
     },
   },
   watch: {

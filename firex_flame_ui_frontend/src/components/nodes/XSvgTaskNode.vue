@@ -17,6 +17,7 @@
                  :liveUpdate="liveUpdate"
                  :style="style"
                  :isAnyChildCollapsed="isAnyChildCollapsed"
+                 :displayDetails="displayDetails"
                  v-on:collapse-node="$emit('collapse-node')"></x-node>
     </foreignObject>
 
@@ -44,6 +45,7 @@ export default {
     opacity: { default: 1 },
     liveUpdate: { required: true, type: Boolean },
     isAnyChildCollapsed: { required: true, type: Boolean },
+    displayDetails: { required: true },
   },
   computed: {
     transform() {

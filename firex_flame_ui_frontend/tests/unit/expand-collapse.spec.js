@@ -136,7 +136,20 @@ describe('utils.js', () => {
     };
 
     const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
-    console.log(result)
+    expect(_.size(result)).toEqual(3);
+    expect(result['1'].collapsed).toBe(true);
+    expect(result['2'].collapsed).toBe(false);
+    // since 2 isn't collapsed, there is no reason for 3 to be collapsed.
+    expect(result['3'].collapsed).toBe(false);
+  });
+
+  it('considers priority trivial descendants', () => {
+    const collapseOpsByUuid = {
+      2: { self: { operation: 'expand', priority: 1 } },
+      3: { ancestors: { operation: 'collapse', priority: 10 } },
+    };
+
+    const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
     expect(_.size(result)).toEqual(3);
     expect(result['1'].collapsed).toBe(true);
     expect(result['2'].collapsed).toBe(false);

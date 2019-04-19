@@ -340,22 +340,6 @@ function rollupTaskStatesBackground(states) {
   return getNodeBackground(null, minState);
 }
 
-function isCollapsed(nodesByUuid, uiCollapseStatesByUuid) {
-  const isCollapsedByParent = _.get(uiCollapseStatesByUuid,
-    [node.parent_id, 'children'], 'expanded') === 'collapse';
-  if (isCollapsedByParent) {
-    return true;
-  }
-  const nearestAncestorUiCollapsed = _.find(getAncestorUuids(node, nodesByUuid),
-    ancestorUuid => _.has(uiCollapseStatesByUuid, [ancestorUuid, 'descendants']));
-  // Undefined if unfound (no ancestor has ui collapsed/expanded state).
-  if (!_.isUndefined(nearestAncestorUiCollapsed)) {
-    const s = uiCollapseStatesByUuid[nearestAncestorUiCollapsed].descendants;
-    return s === 'collapse';
-  }
-  return false;
-}
-
 function getNodesByParentId(nodesByUuid) {
   const nodesByParentId = _.groupBy(_.values(nodesByUuid), 'parent_id');
   return _.merge(_.mapValues(nodesByUuid, n => []), nodesByParentId);
@@ -391,23 +375,23 @@ function _getAllAffectingCollapseState(
   isParentCollapsed) {
 
   const expandCollapseInfluences = {
-    selfOperations: _.has(collapseOpsByUuid, [curNodeUuid, 'self'])
-      ? [_.get(collapseOpsByUuid, [curNodeUuid, 'self'])] : [],
+    self: _.has(collapseOpsByUuid, [curNodeUuid, 'self'])
+      ? [_.merge({distance: 0}, _.get(collapseOpsByUuid, [curNodeUuid, 'self']))] : [],
 
-    ancestorOperations:
+    ancestor:
       _getOpsAndDistanceForTarget(ancestorUuidsByUuid[curNodeUuid], collapseOpsByUuid, 'descendants'),
 
-    descendantOperations:
+    descendant:
       _getOpsAndDistanceForTarget(descendantUuidsByUuid[curNodeUuid], collapseOpsByUuid, 'ancestors'),
 
     // If no reason to show, and parent is collapsed, have a very low-priority collapse.
-    parentCollapseStates: isParentCollapsed ? [{ operation: 'collapse', priority: 10 }] : [],
+    parentCollapse: isParentCollapsed ? [{ operation: 'collapse', priority: 10 }] : [],
   }
   const targetNameToPriority = {
-    selfOperations: 1,
-    ancestorOperations: 2,
-    descendantOperations: 3,
-    parentCollapseStates: 4
+    self: 1,
+    ancestor: 2,
+    descendant: 3,
+    parentCollapse: 4
   }
 
   return _.flatMap(expandCollapseInfluences,
@@ -419,8 +403,7 @@ function _getAllAffectingCollapseState(
 }
 
 function _findMinPriorityOp(affectingOps) {
-
-  // Unfortunately need to sort, since minBy doesn't work like sortBy.
+  // Unfortunately need to sort since minBy doesn't work like sortBy w.r.t. array of properties.
   const sorted = _.sortBy(affectingOps, ['priority', 'targetPriority', 'distance']);
   return _.head(sorted);
 }
@@ -433,13 +416,17 @@ function resolveCollapseStatusByUuid(nodesByUuid, collapseOpsByUuid) {
   const descendantUuidsByUuid = getDescendantsByUuid(nodesByUuid);
   while (toCheck.length > 0) {
     const curNode = toCheck.pop();
+
+    const isParentCollapsed = _.get(resultNodesByUuid, [curNode.parent_id, 'collapsed'], false)
     const affectingOps = _getAllAffectingCollapseState(
       curNode.uuid, collapseOpsByUuid, ancestorUuidsByUuid, descendantUuidsByUuid,
-      _.get(resultNodesByUuid, [curNode.parent_id, 'collapsed'], false));
+      isParentCollapsed);
+
     const minPriorityOp = _findMinPriorityOp(affectingOps);
     resultNodesByUuid[curNode.uuid] = {
       uuid: curNode.uuid,
       parent_id: curNode.parent_id,
+      // If no rules affect this node (minPriorityOp undefined), default to false.
       collapsed: _.isUndefined(minPriorityOp) ? false : minPriorityOp.operation === 'collapse',
       affectingOps,
       minPriorityOp,
@@ -454,7 +441,9 @@ function createSimpleCollapsedNode(taskUuid, parentId, uuidFn) {
     uuid: uuidFn(),
     parent_id: parentId,
     collapsed: true,
+    // TODO: this should be allContainedCollapsedNodeUuids
     allRepresentedNodeUuids: [taskUuid],
+    // TODO: Needs a better name. 'rootRepresentedUuids'.
     representedChildrenUuids: [taskUuid],
   }
 }
@@ -536,9 +525,9 @@ function createCollapseNodesByUuid(nodesByUuid, collapseOpsByUuid) {
 }
 
 function createCollapseEvent(uuids, operation, target) {
+  const priority = -(new Date).getTime();
   return _.mapValues(_.keyBy(uuids),
-    // TODO: ui collapse event creation should be centralized, since priority should
-    () => _.identity({[[target]]: {operation: operation, priority: 1}}));
+    () => _.identity({[[target]]: {operation: operation, priority: priority, stateSource: 'ui'}}));
 }
 
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
