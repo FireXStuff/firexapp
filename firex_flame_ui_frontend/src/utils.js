@@ -130,13 +130,36 @@ function nodesInRootLeafPathWithFailureOrInProgress(nodesByUuid) {
     const parentIds = _.map(_.values(nodesByUuid), 'parent_id');
     // TODO: why not check node.children_uuids.length?
     const leafNodes = _.filter(_.values(nodesByUuid), n => !_.includes(parentIds, n.uuid));
+
     const leafUuidPathsToRoot = _.map(leafNodes, l => getUuidsToRoot(l, nodesByUuid));
     const uuidPathsPassingPredicate = _.filter(leafUuidPathsToRoot,
       pathUuids => _.some(_.values(_.pick(nodesByUuid, pathUuids)), failurePredicate));
+
     return _.flatten(uuidPathsPassingPredicate);
   }
-  // TODO: shouldn't be necessary.
   return _.keys(nodesByUuid);
+}
+
+function createRunStateCollapseOperations(nodesByUuid) {
+  const showPredicate = node => (node.state === 'task-failed'
+    // Show leaf nodes that are chain interrupted exceptions (e.g. RunChildFireX).
+    && (!isChainInterrupted(node.exception) || node.children_uuids.length === 0))
+    || node.state === 'task-started';
+  const showUuidsToUuids = _.keyBy(_.map(_.filter(nodesByUuid, showPredicate), 'uuid'));
+  const operationsByUuid = _.mapValues(showUuidsToUuids, uuid => ({
+    [[uuid]]: {
+      ancestors: { operation: 'expand', priority: 3, stateSource: 'run-state' },
+      self: { operation: 'expand', priority: 3, stateSource: 'run-state' },
+      descendants: { operation: 'expand', priority: 3, stateSource: 'run-state' },
+    },
+  }));
+  const rootUuid = getRoot(nodesByUuid).uuid;
+  const rootOp = {
+    [[rootUuid]]: { descendants: { operation: 'collapse', priority: 4, stateSource: 'run-state' } },
+  };
+
+  // Keys are unique, so expect no overwritting from _.merge.
+  return _.reduce(operationsByUuid, _.merge, rootOp);
 }
 
 function calculateNodesPositionByUuid(nodesByUuid) {
@@ -556,4 +579,5 @@ export {
   getCollapsedGraphByNodeUuid,
   createCollapseNodesByUuid,
   createCollapseEvent,
+  createRunStateCollapseOperations,
 };

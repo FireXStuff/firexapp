@@ -3,11 +3,11 @@
        @keydown.c="center">
     <div v-if="collapsedNodeUuids.length > 0" class="user-message" style="background: lightblue; ">
       {{collapsedNodeUuids.length}} tasks are collapsed
-      <a href="#" @click.prevent="clearAllCollapseFilters"> (Expand All)</a>
+      <a href="#" @click.prevent="setCollapseFilterState({})"> (Expand All)</a>
     </div>
     <div v-else-if="hasFailures" class="user-message" style="background: orange">
       Some tasks have failed.
-      <a href="#" @click.prevent="hideSucessPaths = true">
+      <a href="#" @click.prevent="setCollapseFilterState({ hideSuccessPaths: true })">
         Show only failed paths
       </a>
     </div>
@@ -73,7 +73,7 @@ import XLink from './XLinks.vue';
 import {
   eventHub, calculateNodesPositionByUuid, getCenteringTransform, uuidv4,
   rollupTaskStatesBackground, resolveCollapseStatusByUuid,
-  getCollapsedGraphByNodeUuid, createCollapseEvent,
+  getCollapsedGraphByNodeUuid, createCollapseEvent, createRunStateCollapseOperations,
 } from '../utils';
 import XSvgCollapseNode from './nodes/XSvgCollapseNode.vue';
 
@@ -113,7 +113,9 @@ export default {
       // UUIDs map to a list of states: 'ui-{collapse|expand}-{children|grandChildren|ancestors}'
       uiCollapseStatesByUuid: {},
       // Default to hiding paths that don't include a failure or in progress by default.
-      hideSucessPaths: true,
+      hideSuccessPaths: true,
+      // Default to apply backend default display state.
+      applyFlameDataCollapseOps: true,
     };
   },
   computed: {
@@ -205,14 +207,17 @@ export default {
       const xy = _.join([this.transform.x, this.transform.y], ',');
       return `translate(${xy})scale(${this.transform.scale})`;
     },
-    mergedCollapseState() {
-      return _.merge({}, this.flameDataDisplayOperationsByUuid, this.uiCollapseStatesByUuid);
+    mergedCollapseStateSources() {
+      return _.merge({},
+        this.flameDataDisplayOperationsByUuid,
+        this.runStateCollapseOperationsByUuid,
+        this.uiCollapseStatesByUuid);
     },
     // uuid -> boolean, true means collapsed, false means uncollapsed (expanded)
     // Combines different data sources for collapse state (task-state, UI collapse/expand clicks)
     // in to the rendered state.
     resolvedCollapseStateByUuid() {
-      return resolveCollapseStatusByUuid(this.nodesByUuid, this.mergedCollapseState);
+      return resolveCollapseStatusByUuid(this.nodesByUuid, this.mergedCollapseStateSources);
     },
     collapsedNodeUuids() {
       // TODO: does it make any sense to store uuid -> boolean map? Just store the list of
@@ -230,6 +235,9 @@ export default {
         collapsedChildren => !_.isEmpty(collapsedChildren));
     },
     flameDataDisplayOperationsByUuid() {
+      if (!this.applyFlameDataCollapseOps) {
+        return {};
+      }
       const displayFlameDataRegex = /__start_dd(.*)__end_dd/;
       const nodesWithDisplayFlameDataByUUid = _.pickBy(this.nodesByUuid,
         n => _.get(n, 'flame_additional_data', '').match(displayFlameDataRegex));
@@ -243,6 +251,12 @@ export default {
           priority: 5, // less than UI state priority.
           operation: op,
         })));
+    },
+    runStateCollapseOperationsByUuid() {
+      if (!this.hideSuccessPaths) {
+        return {};
+      }
+      return createRunStateCollapseOperations(this.nodesByUuid);
     },
   },
   created() {
@@ -287,6 +301,7 @@ export default {
       this.updateTransformViaZoom(this.getCenterTransform());
     },
     focusOnNode(uuid) {
+      // TODO: handle focusing on nodes that are collapsed.
       this.focusedNodeUuid = uuid;
       this.updateTransformViaZoom(this.getCenterOnNodeTransform(uuid));
     },
@@ -322,13 +337,12 @@ export default {
      * @param parentNodeId
      */
     toggleCollapseDescendants(parentNodeId) {
-      const allCollapsed = this.collapsedChildrenByUuid[parentNodeId].length
-        === this.nodesByUuid[parentNodeId].children_uuids.length;
+      const anyCollapsed = this.collapsedChildrenByUuid[parentNodeId].length;
       this.handleUiCollapseEvent(
         {
           keep_rel_position_task_uuid: parentNodeId,
           operationsByUuid: createCollapseEvent(
-            [parentNodeId], allCollapsed ? 'expand' : 'collapse',
+            [parentNodeId], anyCollapsed ? 'expand' : 'collapse',
             'descendants',
           ),
         },
@@ -402,10 +416,10 @@ export default {
       // Default to the centering transform.
       return this.getCenterTransform();
     },
-    clearAllCollapseFilters() {
-      this.hideSucessPaths = false;
-      this.uiCollapseStatesByUuid = {};
-      // TODO: applyFlameDataCollapseOps = false
+    setCollapseFilterState(obj) {
+      this.hideSuccessPaths = _.get(obj, 'hideSuccessPaths', false);
+      this.uiCollapseStatesByUuid = _.get(obj, 'uiCollapseStatesByUuid', {});
+      this.applyFlameDataCollapseOps = _.get(obj, 'applyFlameDataCollapseOps', false);
     },
     getDisplauDetails(resolvedCollapseStateByUuid, uuid) {
       return _.get(resolvedCollapseStateByUuid, [uuid, 'minPriorityOp'], null);
@@ -420,15 +434,15 @@ export default {
         this.isFirstLayout = false;
         // TODO: combine localstorage reads, or cache below.
         this.updateTransformViaZoom(this.getLocalStorageTransform());
-        this.hideSucessPaths = this.readPathFromLocalStorage('hideSucessPaths', false);
+        this.hideSuccessPaths = this.readPathFromLocalStorage('hideSuccessPaths', false);
         this.uiCollapseStatesByUuid = this.readPathFromLocalStorage(
           'uiCollapseStatesByUuid', {},
         );
       }
     },
-    hideSucessPaths() {
-      this.addLocalStorageData({ hideSucessPaths: this.hideSucessPaths });
-      if (this.hideSucessPaths) {
+    hideSuccessPaths() {
+      this.addLocalStorageData({ hideSuccessPaths: this.hideSuccessPaths });
+      if (this.hideSuccessPaths) {
         // Since hiding success path usually excludes many nodes, we center the graph.
         this.center();
       }

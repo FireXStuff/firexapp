@@ -22,7 +22,6 @@
 </template>
 
 <script>
-import _ from 'lodash';
 import { eventHub, createCollapseEvent } from '../../utils';
 
 export default {
