@@ -12,7 +12,6 @@ from firexkit.result import wait_on_async_results, disable_async_result, find_un
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
-from firexapp.submit.reporting import ReportersRegistry
 from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args, find_unused_arguments
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
@@ -99,8 +98,6 @@ class SubmitBaseApp:
         chain_args = self.convert_chain_args(chain_args)
 
         chain_args = self.start_engine(args=args, chain_args=chain_args, uid=uid)
-
-        ReportersRegistry.pre_run_report(chain_args)
 
         # Execute chain
         try:
@@ -223,6 +220,7 @@ class SubmitBaseApp:
     def self_destruct(self, expedite=False, chain_result=None):
         try:
             logger.debug("Generating reports")
+            from firexapp.submit.reporting import ReportersRegistry
             ReportersRegistry.post_run_report(results=chain_result)
         finally:
             if chain_result:

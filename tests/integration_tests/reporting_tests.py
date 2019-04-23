@@ -10,15 +10,15 @@ from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_r
 class CustomTestReportGenerator(ReportGenerator):
     formatters = ("good", )  # to test the filtering functionality
     logs_dir = None
-    pre_run_called = False
 
     def __init__(self):
         self.had_entries = 0
 
     @staticmethod
     def pre_run_report(uid, **kwarg):
-        CustomTestReportGenerator.pre_run_called = True
-        CustomTestReportGenerator.logs_dir = uid.logs_dir
+        # plant a flag for pre-run-reports
+        with open(os.path.join(uid.logs_dir, "initial_success"), "w+"):
+            pass
 
     def add_entry(self, key_name, value, priority, formatters, **extra):
         assert key_name is None
@@ -28,13 +28,11 @@ class CustomTestReportGenerator(ReportGenerator):
         assert formatters["good"](value["the_secret_to_success"]) == "perseverance", "Formatter did not work"
         self.had_entries += 1
 
-    def post_run_report(self, **kwargs):
-        # This would only work in --sync. In none-sync, the report generator instance is not the same.
-        # One is on main, the other in celery
-        if CustomTestReportGenerator.pre_run_called and self.had_entries == 1:
-            success_file = os.path.join(CustomTestReportGenerator.logs_dir, "success")
+    def post_run_report(self, uid, **kwargs):
+        if self.had_entries == 1:
+            success_file = os.path.join(uid.logs_dir, "success")
             with open(success_file, 'w+'):
-                # we'll create a black report
+                # plant a flag for post-run-reports
                 pass
 
 
@@ -61,6 +59,10 @@ class CreateCustomReportType(FlowTestConfiguration):
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_dir = get_log_dir_from_output(cmd_output)
+        initial_test_file_path = os.path.join(logs_dir, "initial_success")
+        assert os.path.isfile(os.path.join(initial_test_file_path)), "Initial Test file was not created in the logs " \
+                                                                     "directory, therefor the report was not generated"
+
         test_file_path = os.path.join(logs_dir, "success")
         assert os.path.isfile(os.path.join(test_file_path)), "Test file was not created in the logs directory, " \
                                                              "therefor the report was not generated"

@@ -2,7 +2,10 @@ from abc import ABC, abstractmethod
 from celery.states import SUCCESS
 from celery.utils.log import get_task_logger
 
+from firexkit.argument_conversion import ConverterRegister
 from firexkit.result import get_task_name_from_result
+from firexapp.engine.celery import app
+from firexapp.tasks.core_tasks import get_configured_root_task
 
 logger = get_task_logger(__name__)
 
@@ -11,7 +14,6 @@ class ReportGenerator(ABC):
     formatters = tuple()
 
     @staticmethod
-    @abstractmethod
     def pre_run_report(**kwarg):
         """ This runs in the context of __main__ """
         pass
@@ -96,6 +98,23 @@ def recurse_results_tree(results):
     for child in results.children:
         for child_result in recurse_results_tree(child):
             yield child_result
+
+
+@ConverterRegister.register_for_task(get_configured_root_task())
+def run_initial_reporting(kwargs):
+    # only run task if necessary; generators implement pre-load overloads
+    generators = ReportersRegistry.get_generators()
+    generators_with_pre_run = [g for g in generators if g.__class__.__dict__.get("pre_run_report")]
+    if not generators_with_pre_run:
+        return
+
+    RunInitialReport.s(**kwargs).enqueue(block=False)
+
+
+# noinspection PyPep8Naming
+@app.task
+def RunInitialReport(**kwargs):
+    ReportersRegistry.pre_run_report(kwargs)
 
 
 def report(key_name=None, priority=-1, **formatters):

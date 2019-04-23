@@ -21,21 +21,22 @@ def RootTask(self, chain, **chain_args):
     self.enqueue_child(c, block=True)
 
 
-# determine the configured root_task
-root_task_long_name = app.conf.get("root_task")
-root_module_name, root_task_name = os.path.splitext(root_task_long_name)
-if root_module_name != __name__:
-    # Root task has been overridden
-    root_task_name = root_task_name.lstrip(".")
-    root_module = import_module(root_module_name)
-    root_task = getattr(root_module, root_task_name)
-else:
-    # default FireXApp root task
-    root_task = RootTask
+def get_configured_root_task():
+    # determine the configured root_task
+    root_task_long_name = app.conf.get("root_task")
+    root_module_name, root_task_name = os.path.splitext(root_task_long_name)
+    if root_module_name != __name__:
+        # Root task has been overridden
+        root_task_name = root_task_name.lstrip(".")
+        root_module = import_module(root_module_name)
+        return getattr(root_module, root_task_name)
+    else:
+        # default FireXApp root task
+        return RootTask
 
 
 # noinspection PyUnusedLocal
-@task_postrun.connect(sender=root_task)
+@task_postrun.connect(sender=get_configured_root_task())
 def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_care):
     logger.info("Root task completed.")
     if kwargs.get("sync", False):
