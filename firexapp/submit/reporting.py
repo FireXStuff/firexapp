@@ -12,7 +12,7 @@ class ReportGenerator(ABC):
 
     @staticmethod
     @abstractmethod
-    def pre_run_report(kwarg):
+    def pre_run_report(**kwarg):
         """ This runs in the context of __main__ """
         pass
 
@@ -21,7 +21,7 @@ class ReportGenerator(ABC):
         pass
 
     @abstractmethod
-    def post_run_report(self):
+    def post_run_report(self, **kwargs):
         """ This could runs in the context of __main__ if --sync, other in the context of celery.
             So the instance cannot be assumed be the same as in pre_run_report() """
         pass
@@ -47,7 +47,7 @@ class ReportersRegistry:
     @classmethod
     def pre_run_report(cls, kwargs):
         for report_gen in cls.get_generators():
-            report_gen.pre_run_report(kwargs)
+            report_gen.pre_run_report(**kwargs)
 
     @classmethod
     def post_run_report(cls, results):
@@ -87,7 +87,8 @@ class ReportersRegistry:
                             task_uuid=task_result.id)
 
         for report_gen in cls.get_generators():
-            report_gen.post_run_report()
+            root_task_results = results.result if results else {}
+            report_gen.post_run_report(**root_task_results)
 
 
 def recurse_results_tree(results):

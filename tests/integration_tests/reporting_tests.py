@@ -16,9 +16,9 @@ class CustomTestReportGenerator(ReportGenerator):
         self.had_entries = 0
 
     @staticmethod
-    def pre_run_report(kwarg):
+    def pre_run_report(uid, **kwarg):
         CustomTestReportGenerator.pre_run_called = True
-        CustomTestReportGenerator.logs_dir = kwarg["uid"].logs_dir
+        CustomTestReportGenerator.logs_dir = uid.logs_dir
 
     def add_entry(self, key_name, value, priority, formatters, **extra):
         assert key_name is None
@@ -28,7 +28,7 @@ class CustomTestReportGenerator(ReportGenerator):
         assert formatters["good"](value["the_secret_to_success"]) == "perseverance", "Formatter did not work"
         self.had_entries += 1
 
-    def post_run_report(self):
+    def post_run_report(self, **kwargs):
         # This would only work in --sync. In none-sync, the report generator instance is not the same.
         # One is on main, the other in celery
         if CustomTestReportGenerator.pre_run_called and self.had_entries == 1:
