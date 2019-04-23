@@ -5,15 +5,19 @@
       <div :style="style">
         <div v-if="!allDescendantsAreChildren" style="padding: 5px">
           <a class='collapse-action' href="#"
-             @click.prevent="emitExpandUuids(collapseNode.representedChildrenUuids)">&plus;
+             @click.prevent="emitExpandUuids(collapseNode.representedChildrenUuids)">
+            <font-awesome-icon icon="chevron-up"></font-awesome-icon><br>
             {{collapseNode.representedChildrenUuids.length}} Top
-            {{collapseNode.representedChildrenUuids.length === 1 ? 'Task': 'Tasks'}}</a>
+            {{collapseNode.representedChildrenUuids.length === 1 ? 'Task': 'Tasks'}}
+          </a>
         </div>
         <div style="padding: 5px">
           <a class='collapse-action' href="#"
-             @click.prevent="emitExpandUuids(collapseNode.allRepresentedNodeUuids)">&plus;&plus;
+             @click.prevent="emitExpandUuids(collapseNode.allRepresentedNodeUuids)">
             {{collapseNode.allRepresentedNodeUuids.length}}
-            {{collapseNode.allRepresentedNodeUuids.length === 1 ? 'Task': 'Total Tasks'}}</a>
+            {{collapseNode.allRepresentedNodeUuids.length === 1 ? 'Task': 'Total Tasks'}}
+            <br/><font-awesome-icon icon="angle-double-up" size="x"></font-awesome-icon>
+          </a>
         </div>
       </div>
     </foreignObject>
@@ -44,7 +48,7 @@ export default {
     style() {
       return {
         'border-radius': `${this.radius}px`,
-        'font-size': '12px',
+        'font-size': `${this.collapseNode.fontSize}px`,
         background: this.collapseNode.background,
         width: `${this.collapseNode.width}px`,
         height: `${this.collapseNode.height}px`,

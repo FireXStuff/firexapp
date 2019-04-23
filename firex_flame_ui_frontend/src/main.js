@@ -6,14 +6,15 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import { faEye } from '@fortawesome/free-regular-svg-icons';
 import {
   faBullseye, faSearch, faListUl, faPlusCircle, faWindowMaximize,
-  faWindowMinimize, faSitemap, faFileCode, faTimes, faFire,
+  faWindowMinimize, faSitemap, faFileCode, faTimes, faFire, faTrash,
+  faChevronUp, faAngleDoubleUp,
 } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import router from './router';
 import App from './App.vue';
 
 library.add(faBullseye, faEye, faSearch, faListUl, faPlusCircle, faWindowMaximize, faWindowMinimize,
-  faSitemap, faFileCode, faTimes, faFire);
+  faSitemap, faFileCode, faTimes, faFire, faTrash, faChevronUp, faAngleDoubleUp);
 Vue.use(AsyncComputed);
 Vue.config.productionTip = false;
 

@@ -3,7 +3,13 @@
        @keydown.c="center">
     <div v-if="collapsedNodeUuids.length > 0" class="user-message" style="background: lightblue; ">
       {{collapsedNodeUuids.length}} tasks are collapsed
-      <a href="#" @click.prevent="setCollapseFilterState({})"> (Expand All)</a>
+      <a href="#" @click.prevent="setCollapseFilterState({})">
+        Expand All
+      </a>
+      /<a href="#" @click.prevent="setCollapseFilterState(
+        {applyUserConfigCollapseOps: true, applyUserConfigCollapseOps: true})">
+        Restore Default
+      </a>
     </div>
     <div v-else-if="hasFailures" class="user-message" style="background: orange">
       Some tasks have failed.
@@ -56,7 +62,7 @@
         <x-task-node
           :node="n"
           :emitDimensions="true" :showUuid="showUuids"
-          :displayDetails="getDisplauDetails(resolvedCollapseStateByUuid, n.uuid)"
+          :displayDetails="getDisplayDetails(resolvedCollapseStateByUuid, n.uuid)"
           v-on:node-dimensions="updateTaskNodeDimensions($event)"></x-task-node>
       </div>
     </div>
@@ -74,6 +80,7 @@ import {
   eventHub, calculateNodesPositionByUuid, getCenteringTransform, uuidv4,
   rollupTaskStatesBackground, resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid, createCollapseEvent, createRunStateCollapseOperations,
+  loadDisplayConfigs,
 } from '../utils';
 import XSvgCollapseNode from './nodes/XSvgCollapseNode.vue';
 
@@ -116,6 +123,8 @@ export default {
       hideSuccessPaths: true,
       // Default to apply backend default display state.
       applyFlameDataCollapseOps: true,
+      // Default to apply user config display state.
+      applyUserConfigCollapseOps: true,
     };
   },
   computed: {
@@ -145,23 +154,30 @@ export default {
           }
           // Properies for collapse nodes.
           const collapsedCount = n.allRepresentedNodeUuids.length;
-          let radius;
+          let size;
           if (collapsedCount === 1) {
-            radius = 30;
+            size = '1';
           } else if (collapsedCount < 15) {
-            radius = 50;
+            size = 'small';
           } else if (collapsedCount < 50) {
-            radius = 90;
+            size = 'medium';
           } else {
-            radius = 120;
+            size = 'large';
           }
+          const sizeToProps = {
+            1: { radius: 25, fontSize: 10 },
+            small: { radius: 50, fontSize: 13 },
+            medium: { radius: 90, fontSize: 20 },
+            large: { radius: 120, fontSize: 25 },
+          };
           return _.merge(n, {
             background: rollupTaskStatesBackground(
               _.map(n.allRepresentedNodeUuids, u => _.get(this.nodesByUuid, [u, 'state'])),
             ),
-            radius,
-            width: radius * 2,
-            height: radius * 2,
+            radius: sizeToProps[size].radius,
+            width: sizeToProps[size].radius * 2,
+            height: sizeToProps[size].radius * 2,
+            fontSize: sizeToProps[size].fontSize,
           });
         });
     },
@@ -208,8 +224,12 @@ export default {
       return `translate(${xy})scale(${this.transform.scale})`;
     },
     mergedCollapseStateSources() {
+      // TODO: no longer using 'target' keys for override, need to aggregate lists of ops
+      //  and make sure priority is applied. Ideally data source info would be added here,
+      //  since it should be centralized.
       return _.merge({},
         this.flameDataDisplayOperationsByUuid,
+        this.userDisplayConfigOperationsByUuid,
         this.runStateCollapseOperationsByUuid,
         this.uiCollapseStatesByUuid);
     },
@@ -251,6 +271,13 @@ export default {
           priority: 5, // less than UI state priority.
           operation: op,
         })));
+    },
+    userDisplayConfigOperationsByUuid() {
+      if (!this.applyUserConfigCollapseOps) {
+        return {};
+      }
+      const displayConfigs = loadDisplayConfigs();
+      return this.resolveDisplayConfigsToOpsByUuid(displayConfigs, this.nodesByUuid);
     },
     runStateCollapseOperationsByUuid() {
       if (!this.hideSuccessPaths) {
@@ -420,9 +447,39 @@ export default {
       this.hideSuccessPaths = _.get(obj, 'hideSuccessPaths', false);
       this.uiCollapseStatesByUuid = _.get(obj, 'uiCollapseStatesByUuid', {});
       this.applyFlameDataCollapseOps = _.get(obj, 'applyFlameDataCollapseOps', false);
+      this.applyUserConfigCollapseOps = _.get(obj, 'applyUserConfigCollapseOps', false);
     },
-    getDisplauDetails(resolvedCollapseStateByUuid, uuid) {
+    getDisplayDetails(resolvedCollapseStateByUuid, uuid) {
       return _.get(resolvedCollapseStateByUuid, [uuid, 'minPriorityOp'], null);
+    },
+    resolveDisplayConfigsToOpsByUuid(displayConfigs, nodesByUuid) {
+      const resolvedByNameConfigs = _.flatMap(displayConfigs, (displayConfig) => {
+        let uuids;
+        if (displayConfig.relative_to_nodes.type === 'task_name') {
+          // const soughtNameParts = displayConfig.relative_to_nodes.value.split('.');
+          const tasksWithName = _.filter(nodesByUuid, (n) => {
+            // TODO: long_name isn't in main graph. Should it be just for this purpose?
+            // For now, just allow queries on end name.
+            // if (_.has(n, 'long_name')) {
+            //   const taskNameParts = n.long_name.split('.');
+            //   return _.isEqual(soughtNameParts, _.takeRight(taskNameParts,
+            //   soughtNameParts.length));
+            // }
+            return n.name === displayConfig.relative_to_nodes.value;
+          });
+          uuids = _.map(tasksWithName, 'uuid');
+        } else if (displayConfig.relative_to_nodes.type === 'task_uuid') {
+          uuids = [displayConfig.relative_to_nodes.type];
+        } else {
+          console.error(`Found unknown relative_to_nodes.type:
+          ${displayConfig.relative_to_nodes.type}`);
+          uuids = [];
+        }
+        return _.map(uuids, u => _.merge({ task_uuid: u, priority: 4 },
+          _.pick(displayConfig, ['operation', 'targets'])));
+      });
+      return _.mapValues(_.groupBy(resolvedByNameConfigs, 'task_uuid'),
+        ops => _.map(ops, o => _.pick(o, ['operation', 'targets', 'priority'])));
     },
   },
   watch: {

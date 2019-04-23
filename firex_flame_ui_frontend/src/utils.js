@@ -147,15 +147,23 @@ function createRunStateCollapseOperations(nodesByUuid) {
     || node.state === 'task-started';
   const showUuidsToUuids = _.keyBy(_.map(_.filter(nodesByUuid, showPredicate), 'uuid'));
   const operationsByUuid = _.mapValues(showUuidsToUuids, uuid => ({
-    [[uuid]]: {
-      ancestors: { operation: 'expand', priority: 3, stateSource: 'run-state' },
-      self: { operation: 'expand', priority: 3, stateSource: 'run-state' },
-      descendants: { operation: 'expand', priority: 3, stateSource: 'run-state' },
-    },
+    [[uuid]]: [
+      {
+        targets: ['ancestors', 'self', 'descendants'],
+        operation: 'expand',
+        priority: 3,
+        stateSource: 'run-state',
+      },
+    ],
   }));
   const rootUuid = getRoot(nodesByUuid).uuid;
   const rootOp = {
-    [[rootUuid]]: { descendants: { operation: 'collapse', priority: 4, stateSource: 'run-state' } },
+    [[rootUuid]]: [{
+      targets: ['descendants'],
+      operation: 'collapse',
+      priority: 4,
+      stateSource: 'run-state',
+    }],
   };
 
   // Keys are unique, so expect no overwritting from _.merge.
@@ -387,10 +395,14 @@ function _findCollapsedAncestors(ancestorUuids, calcedAncestorCollapseStateByUui
 function _getOpsAndDistanceForTarget(uuids, collapseOpsByUuid, target) {
   // Note we map before we filter so that we have the real distance, not the distance of only
   // nodes with operations.
-  return _.filter(
-    _.map(uuids, (u, i) => _.merge({distance: i + 1}, _.get(collapseOpsByUuid, [u, target], {}))),
-    // Only keep entries that had data an operation to begin with.
-    u => _.has(u, 'operation'))
+  const uuidsToDistance = _.keyBy(_.map(uuids, (u, i) => ({uuid: u, distance: i + 1})),
+    'uuid');
+  const opsWithTargetByUuid = _.mapValues(collapseOpsByUuid,
+      ops => _.filter(ops, o => _.includes(o.targets, target)));
+  const opsAndDistancesByUuid = _.mapValues(opsWithTargetByUuid,
+    (ops, uuid) => _.map(ops,
+        o => _.merge({distance: uuidsToDistance[uuid].distance}, o)));
+  return _.flatten(_.values(opsAndDistancesByUuid))
 }
 
 function _getAllAffectingCollapseState(
@@ -398,14 +410,20 @@ function _getAllAffectingCollapseState(
   isParentCollapsed) {
 
   const expandCollapseInfluences = {
-    self: _.has(collapseOpsByUuid, [curNodeUuid, 'self'])
-      ? [_.merge({distance: 0}, _.get(collapseOpsByUuid, [curNodeUuid, 'self']))] : [],
+    self: _.filter(_.get(collapseOpsByUuid, curNodeUuid, []),
+    op => _.includes(op.targets, 'self')),
 
     ancestor:
-      _getOpsAndDistanceForTarget(ancestorUuidsByUuid[curNodeUuid], collapseOpsByUuid, 'descendants'),
+      _getOpsAndDistanceForTarget(ancestorUuidsByUuid[curNodeUuid],
+        _.pick(collapseOpsByUuid, ancestorUuidsByUuid[curNodeUuid]), 'descendants'),
 
     descendant:
-      _getOpsAndDistanceForTarget(descendantUuidsByUuid[curNodeUuid], collapseOpsByUuid, 'ancestors'),
+      _getOpsAndDistanceForTarget(descendantUuidsByUuid[curNodeUuid],
+        _.pick(collapseOpsByUuid, descendantUuidsByUuid[curNodeUuid]), 'ancestors'),
+
+    grandparent:
+      _getOpsAndDistanceForTarget(_.tail(ancestorUuidsByUuid[curNodeUuid]),
+        _.pick(collapseOpsByUuid, _.tail(ancestorUuidsByUuid[curNodeUuid])), 'grandchildren'),
 
     // If no reason to show, and parent is collapsed, have a very low-priority collapse.
     parentCollapse: isParentCollapsed ? [{ operation: 'collapse', priority: 10 }] : [],
@@ -414,7 +432,8 @@ function _getAllAffectingCollapseState(
     self: 1,
     ancestor: 2,
     descendant: 3,
-    parentCollapse: 4
+    grandparent: 4,
+    parentCollapse: 5
   }
 
   return _.flatMap(expandCollapseInfluences,
@@ -550,7 +569,23 @@ function createCollapseNodesByUuid(nodesByUuid, collapseOpsByUuid) {
 function createCollapseEvent(uuids, operation, target) {
   const priority = -(new Date).getTime();
   return _.mapValues(_.keyBy(uuids),
-    () => _.identity({[[target]]: {operation: operation, priority: priority, stateSource: 'ui'}}));
+    () => [{
+      targets: [target],
+      operation: operation,
+      priority: priority,
+      stateSource: 'ui'}]);
+}
+
+function loadDisplayConfigs() {
+  if (_.has(localStorage, 'displayConfigs')) {
+    try {
+      return JSON.parse(localStorage.getItem('displayConfigs'));
+    } catch (e) {
+      // Delete bad persisted state, provide default.
+      localStorage.removeItem('displayConfigs');
+    }
+  }
+  return [];
 }
 
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
@@ -580,4 +615,5 @@ export {
   createCollapseNodesByUuid,
   createCollapseEvent,
   createRunStateCollapseOperations,
+  loadDisplayConfigs,
 };

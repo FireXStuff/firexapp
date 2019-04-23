@@ -10,9 +10,7 @@
         <div class="uid">{{title}}</div>
 
         <a :href="legacyUrl" class="flame-link" style="font-size: 16px;">
-          <font-awesome-icon icon="fire"></font-awesome-icon>
-            Back to Legacy
-          <font-awesome-icon icon="fire"></font-awesome-icon>
+          🔥 Back to Legacy 🔥
         </a>
 
         <div style="margin-left: auto; display: flex;">

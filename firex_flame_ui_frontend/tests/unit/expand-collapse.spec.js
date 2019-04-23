@@ -25,7 +25,7 @@ describe('utils.js', () => {
 
   it('collapses trivial node via self', () => {
     const collapseOpsByUuid = {
-      2: { self: { operation: 'collapse', priority: 1 } },
+      2: [{ operation: 'collapse', priority: 1, targets: ['self'] }],
     };
 
     const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
@@ -36,7 +36,7 @@ describe('utils.js', () => {
 
   it('collapses trivial descendants', () => {
     const collapseOpsByUuid = {
-      1: { descendants: { operation: 'collapse', priority: 1 } },
+      1: [{ operation: 'collapse', priority: 1, targets: ['descendants'] }],
     };
 
     const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
@@ -47,8 +47,8 @@ describe('utils.js', () => {
 
   it('expands self even when ancestor collapses descendants', () => {
     const collapseOpsByUuid = {
-      1: { descendants: { operation: 'collapse', priority: 1 } },
-      3: { self: { operation: 'expand', priority: 1 } },
+      1: [{ operation: 'collapse', priority: 1, targets: ['descendants'] }],
+      3: [{ operation: 'expand', priority: 1, targets: ['self'] }],
     };
 
     const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
@@ -60,10 +60,10 @@ describe('utils.js', () => {
 
   it('collapses ancestors and not self', () => {
     const collapseOpsByUuid = {
-      3: {
-        ancestors: { operation: 'collapse', priority: 1 },
-        self: { operation: 'expand', priority: 1 },
-      },
+      3: [
+        { operation: 'collapse', priority: 1, targets: ['ancestors'] },
+        { operation: 'expand', priority: 1, targets: ['self'] },
+      ],
     };
 
     const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
@@ -75,8 +75,8 @@ describe('utils.js', () => {
 
   it('expands self even when descendant collapses ancestors', () => {
     const collapseOpsByUuid = {
-      1: { self: { operation: 'expand', priority: 1 } },
-      3: { ancestors: { operation: 'collapse', priority: 1 } },
+      1: [{ operation: 'expand', priority: 1, targets: ['self'] }],
+      3: [{ operation: 'collapse', priority: 1, targets: ['ancestors'] }],
     };
 
     const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
@@ -88,8 +88,8 @@ describe('utils.js', () => {
 
   it('ancestor trumps descendant on conflicting states', () => {
     const collapseOpsByUuid = {
-      1: { descendants: { operation: 'expand', priority: 1 } },
-      3: { ancestors: { operation: 'collapse', priority: 1 } },
+      1: [{ operation: 'expand', priority: 1, targets: ['descendants'] }],
+      3: [{ operation: 'collapse', priority: 1, targets: ['ancestors'] }],
     };
 
     const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
@@ -101,8 +101,9 @@ describe('utils.js', () => {
 
   it('nearer descendant trumps farther descendant on conflicting states', () => {
     const collapseOpsByUuid = {
-      2: { ancestors: { operation: 'expand', priority: 1 } }, // expect 1 to be expanded for this reason.
-      3: { ancestors: { operation: 'collapse', priority: 1 } },
+      // expect 1 to be expanded for this reason.
+      2: [{ operation: 'expand', priority: 1, targets: ['ancestors'] }],
+      3: [{ operation: 'collapse', priority: 1, targets: ['ancestors'] }],
     };
 
     const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
@@ -114,7 +115,7 @@ describe('utils.js', () => {
 
   it('children are collapsed if parent is collapsed', () => {
     const collapseOpsByUuid = {
-      1: { self: { operation: 'collapse', priority: 1 } },
+      1: [{ operation: 'collapse', priority: 1, targets: ['self'] }],
     };
     const nodesByUuid = {
       1: { uuid: '1', parent_id: null },
@@ -131,8 +132,8 @@ describe('utils.js', () => {
 
   it('considers priority trivial descendants', () => {
     const collapseOpsByUuid = {
-      2: { self: { operation: 'expand', priority: 1 } },
-      3: { ancestors: { operation: 'collapse', priority: 10 } },
+      2: [{ operation: 'expand', priority: 1, targets: ['self'] }],
+      3: [{ operation: 'collapse', priority: 10, targets: ['ancestors'] }],
     };
 
     const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
@@ -145,8 +146,8 @@ describe('utils.js', () => {
 
   it('considers priority trivial descendants', () => {
     const collapseOpsByUuid = {
-      2: { self: { operation: 'expand', priority: 1 } },
-      3: { ancestors: { operation: 'collapse', priority: 10 } },
+      2: [{ operation: 'expand', priority: 1, targets: ['self'] }],
+      3: [{ operation: 'collapse', priority: 10, targets: ['ancestors'] }],
     };
 
     const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
@@ -155,6 +156,18 @@ describe('utils.js', () => {
     expect(result['2'].collapsed).toBe(false);
     // since 2 isn't collapsed, there is no reason for 3 to be collapsed.
     expect(result['3'].collapsed).toBe(false);
+  });
+
+  it('collapses grandchildren', () => {
+    const collapseOpsByUuid = {
+      1: [{ operation: 'collapse', priority: 1, targets: ['grandchildren'] }],
+    };
+
+    const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
+    expect(_.size(result)).toEqual(3);
+    expect(result['1'].collapsed).toBe(false);
+    expect(result['2'].collapsed).toBe(false);
+    expect(result['3'].collapsed).toBe(true);
   });
 
   it('collapses root node', () => {
