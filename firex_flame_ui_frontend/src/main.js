@@ -10,12 +10,15 @@ import {
   faChevronUp, faAngleDoubleUp,
 } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import VueClipboard from 'vue-clipboard2'
+
 import router from './router';
 import App from './App.vue';
 
 library.add(faBullseye, faEye, faSearch, faListUl, faPlusCircle, faWindowMaximize, faWindowMinimize,
   faSitemap, faFileCode, faTimes, faFire, faTrash, faChevronUp, faAngleDoubleUp);
 Vue.use(AsyncComputed);
+Vue.use(VueClipboard);
 Vue.config.productionTip = false;
 
 Vue.component('font-awesome-icon', FontAwesomeIcon);

@@ -8,23 +8,6 @@
       </div>
 
       <div style="text-align: center; padding: 0 10px">
-        <!--Flame Server:-->
-        <!--<input type="text" size=20 :value="flameServer"-->
-               <!--@keyup.enter="$router.push({ name: 'XGraph',
-               query: { flameServer: $event.target.value.trim() } })"-->
-               <!--:style="socketUpdateInProgress || socket.connected ?
-               'border-color: lightgreen;' : 'border-color: red;'">-->
-
-        <!--Logs Directory:-->
-        <!--<input type="text" size="100" :value="inputLogDir"-->
-               <!--:style="$asyncComputed.recFileNodesByUuid.error ?
-               'border-color: red;' : ''"-->
-               <!--@keyup.enter="$router.push({ name: 'XGraph',
-               query: { logDir: $event.target.value.trim() } })">-->
-
-        <!-- TODO: hack hack hack: this reference is necessary to populate the socket
-        computed property -->
-        <div v-show="false">{{socket.connected}}</div>
         <div :class="{spinner: updating}"></div>
       </div>
     </div>
@@ -67,6 +50,7 @@ export default {
       taskDetails: {},
       displayMessage: { content: '', color: '' },
       flameRunMetadata: { uid: '' },
+      socket: null,
     };
   },
   computed: {
@@ -93,7 +77,7 @@ export default {
         root_uuid: this.rootUuid,
       };
     },
-    flameServer() {
+    flameServerUrl() {
       if (this.inputFlameServer) {
         return this.inputFlameServer;
       }
@@ -105,7 +89,7 @@ export default {
       return null;
     },
     firexRunMetadata() {
-      return this.flameServer ? this.flameRunMetadata : this.logRunMetadata;
+      return this.flameServerUrl ? this.flameRunMetadata : this.logRunMetadata;
     },
     nodesByUuid() {
       if (this.useRecFile) {
@@ -117,21 +101,7 @@ export default {
       return !_.isEmpty(this.nodesByUuid);
     },
     useRecFile() {
-      return !this.flameServer;
-    },
-    socket() {
-      // TODO: have UI indications of socket state (connected, connection lost, etc.).
-      if (this.useRecFile) {
-        return { connected: false };
-      }
-      // TODO: should probably timeout trying to reconnect after some time.
-      const socket = io(this.flameServer, { reconnection: true });
-      this.setSocketNodesByUuid({}); // Clear data from previous socket.
-      this.startSocketListening(socket);
-      // socket.on('disconnect', () => {
-      //   console.log('Connection lost.')
-      // })
-      return socket;
+      return !this.flameServerUrl;
     },
     hasIncompleteTasks() {
       return hasIncompleteTasks(this.nodesByUuid);
@@ -196,7 +166,13 @@ export default {
         // Note Vue can't deep watch for new properties, or watch nested objects automatically,
         // so it's necessary to use this.$set: https://vuejs.org/v2/api/#Vue-set
         if (!_.has(this.socketNodesByUuid, uuid)) {
-          this.$set(this.socketNodesByUuid, uuid, newData);
+          // Ignore tasks that are revoked before they are started, since we'll never get any
+          // data for them.
+          if (_.get(newData, 'state', '') === 'task-revoked') {
+            console.log(`Found initial revoked event ${newData.uuid}`);
+          } else {
+            this.$set(this.socketNodesByUuid, uuid, newData);
+          }
         } else {
           _.each(newData, (v, k) => { this.$set(this.socketNodesByUuid[uuid], k, v); });
         }
@@ -212,7 +188,6 @@ export default {
     stopSocketListening(socket) {
       // Stop listening on everything.
       socket.off('graph-state');
-      socket.off('full-state');
       socket.off('tasks-update');
     },
     updateSocketFullState(socket, startListenForUpdates) {
@@ -220,13 +195,7 @@ export default {
       socket.on('graph-state', (nodesByUuid) => {
         this.handleFullStateFromSocket(socket, nodesByUuid, startListenForUpdates);
       });
-      // for backwards compatability with older flame servers. TODO: Delete in april 2018
-      socket.on('full-state', (nodesByUuid) => {
-        this.handleFullStateFromSocket(socket, nodesByUuid, startListenForUpdates);
-      });
       socket.emit('send-graph-state');
-      // for backwards comparability with older flame servers. TODO: Delete in april 2018
-      socket.emit('send-full-state');
     },
     startSocketListening(socket) {
       this.updateSocketFullState(socket, true);
@@ -235,19 +204,20 @@ export default {
       setTimeout(() => {
         if (_.isEmpty(this.socketNodesByUuid) && this.socket.connected) {
           // How to handle no data? Fallback to rec?
-          window.location.href = `${this.flameServer}?noUpgrade=true`;
+          window.location.href = `${this.flameServerUrl}?noUpgrade=true`;
         }
       }, 7000);
     },
     handleFullStateFromSocket(socket, nodesByUuid, startListenForUpdates) {
-      this.setSocketNodesByUuid(nodesByUuid);
+      const prunedNodesByUuid = _.keyBy(_.reject(nodesByUuid,
+        n => _.get(n, 'state', '') === 'task-revoked' && !_.has(n, 'parent_id')), 'uuid');
+      this.setSocketNodesByUuid(prunedNodesByUuid);
       this.socketUpdateInProgress = false;
       // Only start listening for incremental updates after we've processed the full state.
       if (startListenForUpdates && this.hasIncompleteTasks) {
         socket.on('tasks-update', this.mergeNodesByUuid);
       }
       socket.off('send-graph-state');
-      socket.off('send-full-state');
     },
     revokeTask(uuid) {
       if (!this.canRevoke) {
@@ -325,11 +295,27 @@ export default {
         this.fetchTaskDetails(to.params.uuid);
       }
     },
-    socket(newSocket) {
-      this.flameRunMetadata = { uid: '' };
-      if (newSocket) {
-        this.setFlameRunMetadata(newSocket);
-      }
+    flameServerUrl: {
+      immediate: true,
+      handler(newFlameServerUrl) {
+        // Clear data from previous socket.
+        this.setSocketNodesByUuid({});
+        this.flameRunMetadata = { uid: '' };
+
+        if (this.useRecFile) {
+          this.socket = { connected: false };
+        } else {
+          // TODO: have UI indications of socket state (connected, connection lost, etc.).
+          // TODO: should probably timeout trying to reconnect after some time.
+          this.socket = io(newFlameServerUrl);
+
+          this.startSocketListening(this.socket);
+          this.setFlameRunMetadata(this.socket);
+          // socket.on('disconnect', () => {
+          //   console.log('Connection lost.')
+          // })
+        }
+      },
     },
   },
 };

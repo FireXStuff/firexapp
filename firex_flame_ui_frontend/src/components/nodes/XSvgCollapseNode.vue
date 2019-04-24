@@ -1,7 +1,8 @@
 <template>
-  <g :transform="transform">
-
-    <foreignObject :width="collapseNode.width + 10" :height="collapseNode.height + 10">
+    <foreignObject :x="this.position.x"
+                   :y="this.position.y"
+                   :width="collapseNode.width + 10"
+                   :height="collapseNode.height + 10">
       <div :style="style">
         <div v-if="!allDescendantsAreChildren" style="padding: 5px">
           <a class='collapse-action' href="#"
@@ -16,13 +17,11 @@
              @click.prevent="emitExpandUuids(collapseNode.allRepresentedNodeUuids)">
             {{collapseNode.allRepresentedNodeUuids.length}}
             {{collapseNode.allRepresentedNodeUuids.length === 1 ? 'Task': 'Total Tasks'}}
-            <br/><font-awesome-icon icon="angle-double-up" size="x"></font-awesome-icon>
+            <br/><font-awesome-icon icon="angle-double-up"></font-awesome-icon>
           </a>
         </div>
       </div>
     </foreignObject>
-
-  </g>
 </template>
 
 <script>

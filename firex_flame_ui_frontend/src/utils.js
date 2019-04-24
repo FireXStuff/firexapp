@@ -140,34 +140,24 @@ function nodesInRootLeafPathWithFailureOrInProgress(nodesByUuid) {
   return _.keys(nodesByUuid);
 }
 
-function createRunStateCollapseOperations(nodesByUuid) {
-  const showPredicate = node => (node.state === 'task-failed'
+function runStatePredicate(node) {
+  return (node.state === 'task-failed'
     // Show leaf nodes that are chain interrupted exceptions (e.g. RunChildFireX).
     && (!isChainInterrupted(node.exception) || node.children_uuids.length === 0))
     || node.state === 'task-started';
-  const showUuidsToUuids = _.keyBy(_.map(_.filter(nodesByUuid, showPredicate), 'uuid'));
-  const operationsByUuid = _.mapValues(showUuidsToUuids, uuid => ({
-    [[uuid]]: [
-      {
-        targets: ['ancestors', 'self', 'descendants'],
-        operation: 'expand',
-        priority: 3,
-        stateSource: 'run-state',
-      },
-    ],
-  }));
-  const rootUuid = getRoot(nodesByUuid).uuid;
-  const rootOp = {
-    [[rootUuid]]: [{
-      targets: ['descendants'],
-      operation: 'collapse',
-      priority: 4,
-      stateSource: 'run-state',
-    }],
-  };
+}
 
-  // Keys are unique, so expect no overwritting from _.merge.
-  return _.reduce(operationsByUuid, _.merge, rootOp);
+function createRunStateExpandOperations(nodesByUuid) {
+  const showUuidsToUuids = _.keyBy(_.map(_.filter(nodesByUuid, runStatePredicate), 'uuid'));
+  return _.mapValues(showUuidsToUuids,
+    () => [{ targets: ['ancestors', 'self', 'descendants'], operation: 'expand' }]);
+}
+
+function createCollapseRootOperation(nodesByUuid) {
+  const rootUuid = getRoot(nodesByUuid).uuid;
+  return {
+    [[rootUuid]]: [{ targets: ['descendants'], operation: 'collapse' }],
+  };
 }
 
 function calculateNodesPositionByUuid(nodesByUuid) {
@@ -290,12 +280,6 @@ function getDescendantUuids(nodeUuid, nodesByUuid) {
     uuidsToCheck = _.flatten(allToCheckChildren);
   }
   return resultUuids;
-}
-
-function getAllDescendantsUuidsInclusive(uuids, nodesByUuid) {
-  return _.uniq(uuids.concat(
-    _.flatten(_.map(uuids, cc => getDescendantUuids(cc, nodesByUuid))),
-  ));
 }
 
 function durationString(duractionSecs) {
@@ -426,27 +410,33 @@ function _getAllAffectingCollapseState(
         _.pick(collapseOpsByUuid, _.tail(ancestorUuidsByUuid[curNodeUuid])), 'grandchildren'),
 
     // If no reason to show, and parent is collapsed, have a very low-priority collapse.
-    parentCollapse: isParentCollapsed ? [{ operation: 'collapse', priority: 10 }] : [],
+    parent: isParentCollapsed ? [{ operation: 'collapse', priority: 10 }] : [],
   }
   const targetNameToPriority = {
     self: 1,
     ancestor: 2,
     descendant: 3,
     grandparent: 4,
-    parentCollapse: 5
+    parent: 5
   }
+  // at otherwise equal priorities, expand beats collapse.
+  const operationToPriority = {
+    'expand': 0,
+    'collapse': 1,
+  };
 
   return _.flatMap(expandCollapseInfluences,
     (ops, targetName) => _.map(ops,
         op =>_.merge({
           target: targetName,
           targetPriority: targetNameToPriority[targetName],
-        }, op)))
+          opPriority: operationToPriority[op.operation],
+        }, _.omit(op, ['targets']))))
 }
 
 function _findMinPriorityOp(affectingOps) {
   // Unfortunately need to sort since minBy doesn't work like sortBy w.r.t. array of properties.
-  const sorted = _.sortBy(affectingOps, ['priority', 'targetPriority', 'distance']);
+  const sorted = _.sortBy(affectingOps, ['priority', 'opPriority', 'targetPriority', 'distance']);
   return _.head(sorted);
 }
 
@@ -522,10 +512,11 @@ function recursiveGetCollapseNodes(node, childrenByUuid, collapseParent, uuidFn)
   combinedDescendantsByUuid[resultNode.uuid] = resultNode
   _.each(resultDescendants, childrenDescendentsByUUid => _.each(childrenDescendentsByUUid, d => {
       if (d.uuid === resultNode.uuid) {
-        // Child node collapsed to current result node, include its descendants and children
-        // in current result node.
+        // Child node collapsed to current result node, include its represented nodes in cur node.
         resultNode.allRepresentedNodeUuids = _.uniq(
           resultNode.allRepresentedNodeUuids.concat(d.allRepresentedNodeUuids))
+        resultNode.representedChildrenUuids = _.uniq(
+          resultNode.representedChildrenUuids.concat(d.representedChildrenUuids))
       }
       else {
         // All UUIDs are unique, except possibly children that collapsed to the resultNode.
@@ -579,6 +570,7 @@ function createCollapseEvent(uuids, operation, target) {
 function loadDisplayConfigs() {
   if (_.has(localStorage, 'displayConfigs')) {
     try {
+      // TODO: validate stored configs.
       return JSON.parse(localStorage.getItem('displayConfigs'));
     } catch (e) {
       // Delete bad persisted state, provide default.
@@ -586,6 +578,12 @@ function loadDisplayConfigs() {
     }
   }
   return [];
+}
+
+function concatArrayMergeCustomizer(objValue, srcValue) {
+  if (_.isArray(objValue)) {
+    return objValue.concat(srcValue);
+  }
 }
 
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
@@ -607,13 +605,14 @@ export {
   orderByTaskNum,
   getAncestorUuids,
   uuidv4,
-  getAllDescendantsUuidsInclusive,
   getNodeBackground,
   rollupTaskStatesBackground,
   resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid,
   createCollapseNodesByUuid,
   createCollapseEvent,
-  createRunStateCollapseOperations,
+  createRunStateExpandOperations,
   loadDisplayConfigs,
+  concatArrayMergeCustomizer,
+  createCollapseRootOperation,
 };
