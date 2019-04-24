@@ -15,7 +15,8 @@ bundles = find_firex_task_bundles()
 logger.debug("Bundle discovery completed")
 
 imports = tuple(bundles) + tuple(get_plugin_module_list()) + tuple(["firexapp.tasks.example",
-                                                                    "firexapp.tasks.core_tasks"])
+                                                                    "firexapp.tasks.core_tasks",
+                                                                    "firexapp.submit.report_trigger"])
 
 root_task = "firexapp.tasks.core_tasks.RootTask"
 
