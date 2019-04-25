@@ -99,7 +99,12 @@ class ReportersRegistry:
 
 def recurse_results_tree(results):
     yield results
-    for child in results.children:
+    try:
+        children = results.children or []
+    except AttributeError:
+        return
+
+    for child in children:
         for child_result in recurse_results_tree(child):
             yield child_result
 
