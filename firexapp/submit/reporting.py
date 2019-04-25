@@ -79,14 +79,19 @@ class ReportersRegistry:
                             continue
 
                         key_name = report_entry["key_name"]
-                        report_gen.add_entry(
-                            key_name=key_name,
-                            value=task_ret[key_name] if key_name else task_ret,
-                            priority=report_entry["priority"],
-                            formatters=filtered_formatters,
-                            all_task_returns=task_ret,
-                            task_name=task_name,
-                            task_uuid=task_result.id)
+                        try:
+                            report_gen.add_entry(
+                                key_name=key_name,
+                                value=task_ret[key_name] if key_name else task_ret,
+                                priority=report_entry["priority"],
+                                formatters=filtered_formatters,
+                                all_task_returns=task_ret,
+                                task_name=task_name,
+                                task_uuid=task_result.id)
+                        except Exception as e:
+                            logger.debug("Error during report generation for task " + task_name)
+                            logger.debug(e)
+                            continue
 
         for report_gen in cls.get_generators():
             report_gen.post_run_report(**kwargs)
@@ -105,7 +110,7 @@ def report(key_name=None, priority=-1, **formatters):
     def tag_with_report_meta_data(cls):
         # guard: prevent bad coding by catching bad return key
         if key_name and key_name not in cls.return_keys:
-            raise Exception("Task %sdoes not specify %s using the @returns decorator. "
+            raise Exception("Task %s does not specify %s using the @returns decorator. "
                             "It cannot be used in @report" % (cls.name, key_name))
 
         report_entry = {
