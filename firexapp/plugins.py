@@ -116,6 +116,8 @@ def create_replacement_task(original, name_postfix, sigs):
                                 **options)(fun=func)
     if hasattr(original, "orig"):
         new_task.orig = original.orig
+    if hasattr(original, "report_meta"):
+        new_task.report_meta = original.report_meta
 
     try:
         # there is no way of copying the signals without coupling with the internals of celery signals
