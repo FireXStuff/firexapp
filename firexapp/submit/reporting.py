@@ -49,7 +49,10 @@ class ReportersRegistry:
             report_gen.pre_run_report(**kwargs)
 
     @classmethod
-    def post_run_report(cls, results):
+    def post_run_report(cls, results, kwargs):
+        if kwargs is None:
+            kwargs = {}
+
         if results:
             from celery import current_app
             logger.debug("Processing results data for reports")
@@ -86,8 +89,7 @@ class ReportersRegistry:
                             task_uuid=task_result.id)
 
         for report_gen in cls.get_generators():
-            root_task_results = results.result if results else {}
-            report_gen.post_run_report(**root_task_results)
+            report_gen.post_run_report(**kwargs)
 
 
 def recurse_results_tree(results):

@@ -122,12 +122,12 @@ class SubmitBaseApp:
                 failures = sorted(failures.values())
                 for failure in failures:
                     logger.error(failure)
-                self.main_error_exit_handler(chain_result=chain_result)
+                self.main_error_exit_handler(chain_details=(chain_result, chain_args))
                 sys.exit(-1)
             else:
                 logger.info("All tasks succeeded")
             self.copy_submission_log()
-            self.self_destruct(chain_result=chain_result)
+            self.self_destruct(chain_details=(chain_result, chain_args))
             self.wait_for_broker_shutdown()
 
     def start_engine(self, args, chain_args, uid)->{}:
@@ -209,22 +209,24 @@ class SubmitBaseApp:
     def start_tracking_services(self, args):
         pass
 
-    def main_error_exit_handler(self, expedite=False, chain_result=None):
+    def main_error_exit_handler(self, chain_details=None):
         logger.error('Aborting FireX submission...')
         if self.broker:
-            self.self_destruct(expedite=expedite, chain_result=chain_result)
+            self.self_destruct(chain_details=chain_details)
             self.wait_for_broker_shutdown()
         if self.uid:
             self.copy_submission_log()
 
-    def self_destruct(self, expedite=False, chain_result=None):
-        try:
-            logger.debug("Generating reports")
-            from firexapp.submit.reporting import ReportersRegistry
-            ReportersRegistry.post_run_report(results=chain_result)
-        finally:
-            if chain_result:
-                disable_async_result(chain_result)
+    def self_destruct(self, chain_details=None):
+        if chain_details:
+            chain_result, chain_args = chain_details
+            try:
+                    logger.debug("Generating reports")
+                    from firexapp.submit.reporting import ReportersRegistry
+                    ReportersRegistry.post_run_report(results=chain_result, kwargs=chain_args)
+            finally:
+                if chain_result:
+                    disable_async_result(chain_result)
 
         logger.debug("Running FireX self destruct")
         if self.celery_manager:

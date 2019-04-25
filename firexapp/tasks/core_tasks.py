@@ -45,7 +45,7 @@ def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_c
     # Let this signal cause self-destruct if --sync was not specified
     submit_app = kwargs.get("submit_app")
     if submit_app:
-        submit_app.self_destruct(chain_results=task.AsyncResult(task_id))
+        submit_app.self_destruct(chain_details=(task.AsyncResult(task_id), kwargs))
     else:
         logger.warning("self_destruct was not run.")
     logger.info("Root task post run signal completed")

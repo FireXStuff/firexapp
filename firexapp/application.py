@@ -105,9 +105,9 @@ class FireXBaseApp:
             self.running_app = self.submit_app
             arguments.func(arguments, others)
 
-    def main_error_exit_handler(self, expedite=False):
+    def main_error_exit_handler(self):
         if self.running_app and hasattr(self.running_app, self.main_error_exit_handler.__name__):
-            self.running_app.main_error_exit_handler(expedite)
+            self.running_app.main_error_exit_handler()
         exit(-1)
 
     def create_arg_parser(self, description=None)->ArgumentParser:
@@ -150,6 +150,6 @@ class ExitSignalHandler:
 
             self._register_signal_handlers(second_exit_handler)
             logger.error(self.first_warning % signal.Signals(signal_num).name)
-            app.main_error_exit_handler(expedite=True)
+            app.main_error_exit_handler()
 
         self._register_signal_handlers(first_exit_handler)
