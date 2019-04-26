@@ -16,7 +16,7 @@
                  :showUuid="showUuid"
                  :liveUpdate="liveUpdate"
                  :style="style"
-                 :isAnyChildCollapsed="isAnyChildCollapsed"
+                 :areAllChildrenCollapsed="areAllChildrenCollapsed"
                  :displayDetails="displayDetails"
                  v-on:collapse-node="$emit('collapse-node')"></x-node>
     </foreignObject>
@@ -28,6 +28,12 @@
 import _ from 'lodash';
 import XNode from './XTaskNode.vue';
 
+/**
+ * TODO: it might not be worth having this as a component. Maybe split XGraph, e.g.
+ *  XCollapsableGraph vs XSvgGraph, and put this component's content in XSvgGraph.
+ *  The outer graph would guard against rendering
+ *  the SVG graph pre-layout calculation.
+ */
 export default {
   name: 'XTaskSvgNode',
   components: { XNode },
@@ -44,7 +50,7 @@ export default {
     dimensions: { required: true, type: Object },
     opacity: { default: 1 },
     liveUpdate: { required: true, type: Boolean },
-    isAnyChildCollapsed: { required: true, type: Boolean },
+    areAllChildrenCollapsed: { required: true, type: Boolean },
     displayDetails: { required: true },
   },
   computed: {

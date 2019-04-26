@@ -1,5 +1,5 @@
 <template>
-  <!-- Need prevent to avoid default browser behaviour.  -->
+  <!-- Need prevent to avoid default browser behaviour of ctrl-f.  -->
   <!-- 191 is the '/' keycode -->
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
        @keydown.ctrl.f.prevent="focusOnFind"

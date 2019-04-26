@@ -1,8 +1,12 @@
 <template>
   <div class="settings">
     <h1>Settings</h1>
+    <!-- TODO: replace with messaging library (e.g. toastr) -->
     <div style="background: lightgreen;">
-      {{ displayMsg }}
+      {{ successDisplayMsg }}
+    </div>
+    <div style="background: salmon;">
+      {{ failureDisplayMsg }}
     </div>
     <div>
       <h3>Auto-upgrade</h3>
@@ -15,6 +19,13 @@
     </div>
     <div>
       <h3>Display Configuration</h3>
+
+      <button type="button"
+              style="margin-bottom: 10px;"
+              v-clipboard:copy="displayConfigsJson"
+              v-clipboard:success="onCopySuccess"
+              v-clipboard:error="onCopyFail"
+        >Copy Display Configs</button>
 
       <table class="display-config">
         <thead>
@@ -36,7 +47,7 @@
             <td>{{ config.operation }}</td>
             <td>{{ join(config.targets) }}</td>
             <td style="text-align: center;">
-              <font-awesome-icon icon="trash" style="cursor: pointer;"
+              <font-awesome-icon icon="trash" style="cursor: pointer;" title="delete"
                 @click="deleteDisplayConfig(config.id)"></font-awesome-icon>
             </td>
           </tr>
@@ -76,7 +87,7 @@
           </div>
         </div>
       </div>
-      <!--TODO: use validatio library -->
+      <!--TODO: use validation library -->
       <div style="background: salmon">
         {{displayConfigError}}
       </div>
@@ -97,13 +108,19 @@ export default {
   data() {
     const autoUpgradeKey = 'auto-flame-upgrade';
     return {
-      displayMsg: '',
+      successDisplayMsg: '',
       autoUpgradeKey,
       selectedAutoUpgrade: this.readAutoUpgradeFromLocalStorage(autoUpgradeKey),
       displayConfigs: loadDisplayConfigs(),
       inputDisplayConfig: this.createEmptyDisplayConfigEntry(),
       displayConfigError: '',
+      failureDisplayMsg: '',
     };
+  },
+  computed: {
+    displayConfigsJson() {
+      return JSON.stringify(this.displayConfigs, null, 2);
+    },
   },
   created() {
     if (_.isNull(localStorage.getItem(this.autoUpgradeKey))) {
@@ -121,7 +138,7 @@ export default {
         none: 'disabled',
       }[selectedValue];
 
-      this.displayMsg = `Successfully ${displayString} auto-upgrade.`;
+      this.successDisplayMsg = `Successfully ${displayString} auto-upgrade.`;
     },
     readAutoUpgradeFromLocalStorage(autoUpgradeKey) {
       const storedValue = localStorage.getItem(autoUpgradeKey);
@@ -167,6 +184,12 @@ export default {
     },
     join(array) {
       return _.join(array, ', ');
+    },
+    onCopySuccess() {
+      this.successDisplayMsg = 'Successfully copied display config to clipboard.';
+    },
+    onCopyFail() {
+      this.failureDisplayMsg = 'Failed to copy to clipboard';
     },
   },
 };

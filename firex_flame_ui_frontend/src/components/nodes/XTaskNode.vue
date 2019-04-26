@@ -21,7 +21,7 @@
                :style="allowCollapse ? '' : 'visibility: collapse;'">
             <!-- Use prevent to avoid activating node-wide attribute link -->
             <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
-              <font-awesome-icon v-if="!isAnyChildCollapsed" icon="window-minimize">
+              <font-awesome-icon v-if="!areAllChildrenCollapsed" icon="window-minimize">
               </font-awesome-icon>
               <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
             </i>
@@ -35,7 +35,10 @@
           <!-- We're really trusting data from the server here (rendering raw HTML) -->
           <!-- TODO: find out why <br /> is randomly in flame data.
                 .replace(new RegExp('<br />', 'g'), '') -->
-          <div v-if="displayFlameAdditionalData" v-html="displayFlameAdditionalData"></div>
+          <div v-if="showLegacyFlameAdditionalData" v-html="node.flame_additional_data"></div>
+          <template v-else>
+            <div v-for="(html, i) in flameDataHtmlContent" :key="i" v-html="html"></div>
+          </template>
         </div>
 
         <div style="display: flex; flex-direction: row; font-size: 12px; margin-top: 4px;">
@@ -70,7 +73,7 @@ export default {
     showUuid: { default: false },
     liveUpdate: { default: false },
     allowClickToAttributes: { default: true },
-    isAnyChildCollapsed: { default: false },
+    areAllChildrenCollapsed: { default: false },
     emitDimensions: { default: false },
     displayDetails: { require: false },
   },
@@ -101,11 +104,20 @@ export default {
       }
       return durationString(runtime);
     },
-    displayFlameAdditionalData() {
-      if (!this.node.flame_additional_data) {
-        return undefined;
+    showLegacyFlameAdditionalData() {
+      if (_.includes(_.map(_.get(this.node, 'flame_data', {}), 'type'), 'html')) {
+        return false;
       }
-      return this.node.flame_additional_data.replace(/__start_dd.*__end_dd/g, '');
+      return true;
+    },
+    flameDataHtmlContent() {
+      if (!_.has(this.node, 'flame_data')) {
+        return {};
+      }
+      return _.map(
+        _.sortBy(_.filter(this.node.flame_data, d => d.type === 'html'), ['order']),
+        'value',
+      );
     },
   },
   created() {
@@ -119,6 +131,7 @@ export default {
   },
   methods: {
     emit_collapse_toggle() {
+      // TODO: use eventHub?
       this.$emit('collapse-node');
     },
     updateLiveRuntimeAndSchedule() {

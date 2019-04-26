@@ -1,4 +1,4 @@
-# clean-proj2
+# Flame2
 
 ## Project setup
 ```
@@ -15,7 +15,7 @@ npm run serve
 npm run build
 ```
 
-### Run your tests
+### Run tests
 ```
 npm run test
 ```
@@ -25,15 +25,12 @@ npm run test
 npm run lint
 ```
 
-### Run your end-to-end tests
+### Run end-to-end tests
 ```
 npm run test:e2e
 ```
 
-### Run your unit tests
+### Run unit tests
 ```
 npm run test:unit
 ```
-
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).

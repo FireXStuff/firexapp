@@ -37,7 +37,7 @@
                         :key="uuid"
                         :showUuid="showUuids"
                         :liveUpdate="liveUpdate"
-                        :isAnyChildCollapsed="anyChildCollapsedByUuid[uuid]"
+                        :areAllChildrenCollapsed="allChildrenCollapsedByUuid[uuid]"
                         :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
                         v-on:collapse-node="toggleCollapseDescendants(uuid)"
                         :displayDetails="resolvedCollapseStateByUuid[uuid].minPriorityOp">
@@ -57,13 +57,15 @@
     <div style="overflow: hidden;">
       <!-- This is very gross, but the nodes that will be put on the graph are rendered
       invisibly in order for the browser to calculate their intrinsic size. Each node's size is
-      then passed to the graph layout algorithm before the actual graph is rendered.-->
+      then passed to the graph layout algorithm before the actual SVG graph is rendered.-->
       <!--
         Need inline-block display per node to get each node's intrinsic width (i.e. don't want it
         to force fill parent).
       -->
       <div v-for="n in nodesByUuid" :key="n.uuid"
            style="display: inline-block; position: absolute; top: 0; z-index: -1000;">
+        <!-- TODO: profile event performance with thousands of nodes. Might be worthwhile
+            to catch all and send in one big event. -->
         <x-task-node
           :node="n"
           :emitDimensions="true" :showUuid="showUuids"
@@ -83,11 +85,14 @@ import XTaskNode from './nodes/XTaskNode.vue';
 import XLink from './XLinks.vue';
 import {
   eventHub, calculateNodesPositionByUuid, getCenteringTransform, uuidv4,
-  rollupTaskStatesBackground, resolveCollapseStatusByUuid,
+  resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid, createCollapseEvent, createRunStateExpandOperations,
-  loadDisplayConfigs, concatArrayMergeCustomizer, createCollapseRootOperation,
+  loadDisplayConfigs, concatArrayMergeCustomizer, createCollapseRootOperation, containsAll,
 } from '../utils';
-import { prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid } from '../collapse';
+import {
+  prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid,
+  createUiCollapseNode,
+} from '../collapse';
 import XSvgCollapseNode from './nodes/XSvgCollapseNode.vue';
 
 const scaleBounds = { max: 1.3, min: 0.01 };
@@ -99,10 +104,11 @@ export default {
   },
   props: {
     // TODO: it might be worth making a computed property of just the graph structure
-    //    (parent/child relationships),
+    //    (parent/child relationships)
     //  to avoid re-calcs in some context where only structure (not data content) is relied on.
     nodesByUuid: { required: true, type: Object },
     firexUid: { required: true, type: String },
+    // TODO: rename to 'showDetails'.
     showUuids: { default: false, type: Boolean },
     liveUpdate: { required: true, type: Boolean },
   },
@@ -121,15 +127,7 @@ export default {
       focusedNodeUuid: null,
       // Only want to center on first layout, then we'll rely on stored transform.
       isFirstLayout: true,
-      collapseConfig: {
-        // This is just a container for states that have been touched by the user -- it doesn't
-        // contain an entry for every node's UUID (there is a computed property for that).
-        uiCollapseOperationsByUuid: {},
-        // Hiding paths that don't include a failure or in progress.
-        hideSuccessPaths: false,
-        // Default to apply backend & user config display state.
-        applyDefaultCollapseOps: true,
-      },
+      collapseConfig: this.getLocalStorageCollapseConfig(),
     };
   },
   computed: {
@@ -153,40 +151,8 @@ export default {
      * */
     collapseGraphByNodeUuid() {
       return _.mapValues(getCollapsedGraphByNodeUuid(this.resolvedCollapseStateByUuid, uuidv4),
-        (n) => {
-          if (!n.collapsed) {
-            return n;
-          }
-          // Properies for collapse nodes.
-          const collapsedCount = n.allRepresentedNodeUuids.length;
-          let size;
-          if (collapsedCount === 1) {
-            size = '1';
-          } else if (collapsedCount < 15) {
-            size = 'small';
-          } else if (collapsedCount < 50) {
-            size = 'medium';
-          } else {
-            size = 'large';
-          }
-          const sizeToProps = {
-            1: { radius: 25, fontSize: 10 },
-            small: { radius: 50, fontSize: 13 },
-            medium: { radius: 90, fontSize: 16 },
-            large: { radius: 120, fontSize: 20 },
-          };
-          return _.merge(n, {
-            background: rollupTaskStatesBackground(
-              _.map(n.allRepresentedNodeUuids, u => _.get(this.nodesByUuid, [u, 'state'])),
-            ),
-            radius: sizeToProps[size].radius,
-            width: sizeToProps[size].radius * 2,
-            height: sizeToProps[size].radius * 2,
-            fontSize: sizeToProps[size].fontSize,
-          });
-        });
+        n => (n.collapsed ? createUiCollapseNode(n, this.nodesByUuid) : n));
     },
-
     /**
      * Merges the task tree with the collapsed tree. This changes the graph structure,
      * Since sequential collapsed nodes are represented as a single collapse node.
@@ -231,9 +197,9 @@ export default {
     mergedCollapseStateSources() {
       const enabledCollapseStateSources = [];
       if (this.collapseConfig.applyDefaultCollapseOps) {
-        // enabledCollapseStateSources.push(
-        //   prioritizeCollapseOps(this.flameDataDisplayOperationsByUuid, 'flameData'),
-        // );
+        enabledCollapseStateSources.push(
+          prioritizeCollapseOps(this.flameDataDisplayOperationsByUuid, 'flameData'),
+        );
         enabledCollapseStateSources.push(
           prioritizeCollapseOps(this.userDisplayConfigOperationsByUuid, 'userConfig'),
         );
@@ -247,7 +213,6 @@ export default {
         );
       }
       enabledCollapseStateSources.push(this.collapseConfig.uiCollapseOperationsByUuid);
-      // TODO: merge is actually overkill, just need to concat the arrays by UUID.
       return _.mergeWith({}, ...enabledCollapseStateSources, concatArrayMergeCustomizer);
     },
     // uuid -> boolean, true means collapsed, false means uncollapsed (expanded)
@@ -265,25 +230,19 @@ export default {
           cUuid => this.resolvedCollapseStateByUuid[cUuid].collapsed)));
     },
     // Is this really necessary?
-    anyChildCollapsedByUuid() {
+    allChildrenCollapsedByUuid() {
       return _.mapValues(this.collapsedChildrenByUuid,
-        collapsedChildren => !_.isEmpty(collapsedChildren));
+        (collapsedChildren, uuid) => containsAll(collapsedChildren,
+          this.nodesByUuid[uuid].children_uuids));
     },
-    // flameDataDisplayOperationsByUuid() {
-    //   const displayFlameDataRegex = /__start_dd(.*)__end_dd/;
-    //   const nodesWithDisplayFlameDataByUUid = _.pickBy(this.nodesByUuid,
-    //     n => _.get(n, 'flame_additional_data', '').match(displayFlameDataRegex));
-    //   const backendDefaultDisplayByUuid = _.mapValues(nodesWithDisplayFlameDataByUUid,
-    //     n => JSON.parse(displayFlameDataRegex.exec(
-    //       n.flame_additional_data.replace(/<br \/>/g, ''),
-    //     )[1]));
-    //
-    //   return _.mapValues(backendDefaultDisplayByUuid,
-    //     operationByTarget => _.mapValues(operationByTarget, op => ({
-    //       priority: 5, // less than UI state priority.
-    //       operation: op,
-    //     })));
-    // },
+    flameDataDisplayOperationsByUuid() {
+      const displayPath = ['flame_data', '_default_display', 'value'];
+      // TODO: Each node can send updates that should override previous op entries.
+      //  Do that filtering here.
+      // TODO: computed property just for flame data to avoid recalc on any change.
+      const ops = _.flatMap(this.nodesByUuid, n => _.get(n, displayPath, []));
+      return resolveDisplayConfigsToOpsByUuid(ops, this.nodesByUuid);
+    },
     userDisplayConfigOperationsByUuid() {
       const displayConfigs = loadDisplayConfigs();
       return resolveDisplayConfigsToOpsByUuid(displayConfigs, this.nodesByUuid);
@@ -299,8 +258,8 @@ export default {
     canRestoreDefault() {
       const otherConfigApplied = this.collapseConfig.hideSuccessPaths
         || !_.isEmpty(this.collapseConfig.uiCollapseOperationsByUuid);
-      // TODO: add flameDataDisplayOperationsByUuid
-      const hasDefaultAffectingOps = _.size(this.userDisplayConfigOperationsByUuid) > 0;
+      const hasDefaultAffectingOps = _.size(this.userDisplayConfigOperationsByUuid) > 0
+        || _.size(this.flameDataDisplayOperationsByUuid) > 0;
       return hasDefaultAffectingOps
         && (otherConfigApplied || !this.collapseConfig.applyDefaultCollapseOps);
     },
@@ -389,12 +348,12 @@ export default {
      * @param parentNodeId
      */
     toggleCollapseDescendants(parentNodeId) {
-      const anyCollapsed = this.collapsedChildrenByUuid[parentNodeId].length;
+      const allCollapsed = this.allChildrenCollapsedByUuid[parentNodeId];
       this.handleUiCollapseEvent(
         {
           keep_rel_position_task_uuid: parentNodeId,
           operationsByUuid: createCollapseEvent(
-            [parentNodeId], anyCollapsed ? 'expand' : 'collapse',
+            [parentNodeId], allCollapsed ? 'expand' : 'collapse',
             'descendants',
           ),
         },
@@ -470,18 +429,22 @@ export default {
     },
     getLocalStorageCollapseConfig() {
       const storedCollapseConfig = this.readPathFromLocalStorage('collapseConfig');
-      const storedConfigKeys = _.keys(storedCollapseConfig);
       const expectedKeys = ['hideSuccessPaths', 'uiCollapseOperationsByUuid',
         'applyDefaultCollapseOps'];
-      const containsAllRequired = _.intersection(storedConfigKeys, ['expectedKeys']).length
+      // TODO: fill in remaining validation of collapseConfig.
+      const containsAllRequired = _.intersection(_.keys(storedCollapseConfig), expectedKeys).length
         === expectedKeys.length;
       if (containsAllRequired) {
         return storedCollapseConfig;
       }
       // Default collapse config.
       return {
+        // This is just a container for states that have been touched by the user -- it doesn't
+        // contain an entry for every node's UUID (there is a computed property for that).
         uiCollapseOperationsByUuid: {},
+        // Hiding paths that don't include a failure or in progress.
         hideSuccessPaths: false,
+        // Default to apply backend & user config display state.
         applyDefaultCollapseOps: true,
       };
     },
@@ -501,13 +464,13 @@ export default {
   watch: {
     firexUid() {
       this.isFirstLayout = true;
+      this.collapseConfig = this.getLocalStorageCollapseConfig();
     },
     nodeLayoutsByUuid() {
       if (this.isFirstLayout) {
         this.isFirstLayout = false;
         // TODO: combine localstorage reads, or cache at lower level.
         this.updateTransformViaZoom(this.getLocalStorageTransform());
-        this.collapseConfig = this.getLocalStorageCollapseConfig();
       }
     },
     collapseConfig: {

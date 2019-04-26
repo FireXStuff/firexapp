@@ -586,6 +586,10 @@ function concatArrayMergeCustomizer(objValue, srcValue) {
   }
 }
 
+function containsAll(superset, subset) {
+  return _.difference(subset, superset).length === 0;
+}
+
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
 const eventHub = new Vue();
 
@@ -615,4 +619,5 @@ export {
   loadDisplayConfigs,
   concatArrayMergeCustomizer,
   createCollapseRootOperation,
+  containsAll,
 };
