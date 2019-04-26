@@ -5,6 +5,7 @@ import signal
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.submit.arguments import InputConverter
+from firexapp.submit.reporting import ReportGenerator, report
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
 
 
@@ -99,3 +100,34 @@ class NoBrokerLeakOnCtrlC(NoBrokerLeakBase):
 
     def expected_error(self):
         return "Exiting due to signal SIGHUP"
+
+
+class ExplodingReport(ReportGenerator):
+    def __init__(self):
+        self.primed = False
+
+    def add_entry(self, key_name, value, priority, formatters, task_name=None, **extra):
+        if task_name.split(".")[-1] == the_bomb.__name__:
+            self.primed = True
+            raise Exception("raised by add_entry(). Someone set us up the bomb")
+
+    def post_run_report(self, **kwargs):
+        if self.primed:
+            raise Exception("raised by post_run_report(). All your bases are belong to us")
+
+
+@report(key_name=None, priority=1)
+@app.task
+def the_bomb():
+    pass
+
+
+class NoBrokerLeakOnBadReportGenerator(NoBrokerLeakBase):
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "the_bomb"]
+
+    def expected_error(self):
+        return ""
+
+    def assert_expected_return_code(self, ret_value):
+        pass  # it's better if the test fails on the redis leak
