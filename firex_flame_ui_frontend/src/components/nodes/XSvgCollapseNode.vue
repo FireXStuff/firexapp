@@ -20,7 +20,7 @@
             <font-awesome-icon icon="angle-double-down" size="lg"></font-awesome-icon>
           </a>
         </div>
-        <div style="display: flex; flex-direction: row; align-self: stretch; font-size: 12px; margin: 3px;">
+        <div class="task-summary">
           <div style="align-self: start; flex: 1;">{{displayHosts}}</div>
           <div style="align-self: end;">{{collapseNode.time}}</div>
         </div>
@@ -130,10 +130,19 @@ export default {
   }
 
   .stacked-effect {
-    box-shadow: 3px 3px 5px black;
+    /*box-shadow: 3px 3px 5px black;*/
+    border: 0.5px solid white;
     border-radius: 8px;
     position: absolute;
     top: 0;
+  }
+
+  .task-summary {
+    display: flex;
+    flex-direction: row;
+    align-self: stretch;
+    font-size: 12px;
+    margin: 3px;
   }
 
 </style>
