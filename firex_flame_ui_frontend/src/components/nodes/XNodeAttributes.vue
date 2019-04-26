@@ -70,7 +70,7 @@ export default {
       const base = _.isEmpty(this.taskDetails) ? this.nodesByUuid[this.uuid] : this.taskDetails;
       const node = _.clone(base);
       const attributeBlacklist = ['children', 'long_name', 'name', 'parent', 'flame_additional_data',
-        'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url'];
+        'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data'];
       return _.omit(node, attributeBlacklist);
     },
     displayKeyNodes() {

@@ -7,7 +7,7 @@ import { faEye } from '@fortawesome/free-regular-svg-icons';
 import {
   faBullseye, faSearch, faListUl, faPlusCircle, faWindowMaximize,
   faWindowMinimize, faSitemap, faFileCode, faTimes, faFire, faTrash,
-  faChevronUp, faAngleDoubleUp, faExpandArrowsAlt,
+  faAngleDown, faAngleDoubleDown, faExpandArrowsAlt,
 } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import VueClipboard from 'vue-clipboard2';
@@ -16,7 +16,8 @@ import router from './router';
 import App from './App.vue';
 
 library.add(faBullseye, faEye, faSearch, faListUl, faPlusCircle, faWindowMaximize, faWindowMinimize,
-  faSitemap, faFileCode, faTimes, faFire, faTrash, faChevronUp, faAngleDoubleUp, faExpandArrowsAlt);
+  faSitemap, faFileCode, faTimes, faFire, faTrash, faAngleDown, faAngleDoubleDown,
+  faExpandArrowsAlt);
 Vue.use(AsyncComputed);
 Vue.use(VueClipboard);
 Vue.config.productionTip = false;

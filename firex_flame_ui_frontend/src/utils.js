@@ -350,9 +350,10 @@ function getNodeBackground(exception, state) {
   return _.get(statusToProps, [state, 'background'], defaultColor);
 }
 
-function rollupTaskStatesBackground(states) {
-  const minState = _.minBy(states, s => _.get(statusToProps, [s, 'priority'], -1));
-  return getNodeBackground(null, minState);
+function getPrioritizedTaskStateBackgrounds(states) {
+  const orderedStates = _.sortBy(states, s =>
+    _.get(statusToProps, [s, 'priority'], -1));
+  return _.map(_.uniq(orderedStates), s => getNodeBackground(null, s));
 }
 
 function getNodesByParentId(nodesByUuid) {
@@ -610,7 +611,7 @@ export {
   getAncestorUuids,
   uuidv4,
   getNodeBackground,
-  rollupTaskStatesBackground,
+  getPrioritizedTaskStateBackgrounds,
   resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid,
   createCollapseNodesByUuid,

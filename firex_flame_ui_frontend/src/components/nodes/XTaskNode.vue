@@ -33,8 +33,6 @@
           <div v-if="showUuid">{{node.uuid}}</div>
           <div v-if="showUuid && displayDetails">{{displayDetails}}</div>
           <!-- We're really trusting data from the server here (rendering raw HTML) -->
-          <!-- TODO: find out why <br /> is randomly in flame data.
-                .replace(new RegExp('<br />', 'g'), '') -->
           <div v-if="showLegacyFlameAdditionalData" v-html="node.flame_additional_data"></div>
           <template v-else>
             <div v-for="(html, i) in flameDataHtmlContent" :key="i" v-html="html"></div>
@@ -115,7 +113,7 @@ export default {
         return {};
       }
       return _.map(
-        _.sortBy(_.filter(this.node.flame_data, d => d.type === 'html'), ['order']),
+        _.reverse(_.sortBy(_.filter(this.node.flame_data, d => d.type === 'html'), ['order'])),
         'value',
       );
     },
