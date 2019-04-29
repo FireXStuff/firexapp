@@ -1,5 +1,4 @@
 import os
-import logging
 from firexapp.broker_manager import BrokerManager
 
 
@@ -11,8 +10,6 @@ class BrokerFactory:
     def set_broker_manager(cls, manager):
         if not isinstance(manager, BrokerManager):
             raise BrokerManagerException("Object %s is not of type BrokerManager" % str(manager))
-        cls.set_broker_env(manager.get_url())
-        manager.log('export %s=%s' % (cls.broker_env_variable, manager.get_url()), level=logging.INFO)
         cls._broker = manager
 
     @classmethod
@@ -42,7 +39,6 @@ class BrokerFactory:
                                   redis_bin_base=redis_bin_dir)
         else:
             broker = RedisManager(*args, redis_bin_base=redis_bin_dir, **kwargs)
-            app.conf.result_backend = broker.get_url()
         cls.set_broker_manager(broker)
         return broker
 

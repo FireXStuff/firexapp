@@ -17,6 +17,7 @@ from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
 from firexapp.application import import_microservices, get_app_tasks, get_app_task
 from firexapp.engine.celery import app
+from firexapp.broker_manager.broker_factory import BrokerFactory
 
 logger = setup_console_logging(__name__)
 
@@ -130,9 +131,19 @@ class SubmitBaseApp:
             self.self_destruct(chain_details=(chain_result, chain_args))
             self.wait_for_broker_shutdown()
 
+    def set_broker_in_app(self):
+        from firexapp.engine.celery import app
+        broker_url = self.broker.get_url()
+        BrokerFactory.set_broker_env(broker_url)
+        logger.info('export %s=%s' % (BrokerFactory.broker_env_variable, broker_url))
+
+        app.conf.result_backend = broker_url
+        app.conf.broker_url = broker_url
+
     def start_engine(self, args, chain_args, uid)->{}:
         # Start Broker
         self.start_broker(args=args)
+        self.set_broker_in_app()
 
         # start backend
         app.backend.set('uid', str(uid))
