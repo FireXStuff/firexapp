@@ -1,58 +1,60 @@
 <template>
-  <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()">
-    <div :style="topLevelStyle" class="node" v-on:click.shift.prevent="nodeShiftClick">
-      <div style="overflow: hidden; text-overflow: ellipsis;">
-        <div style="display: flex;">
+  <div>
+    <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()">
+      <div :style="topLevelStyle" class="node" v-on:click.shift.prevent="nodeShiftClick">
+        <div style="overflow: hidden; text-overflow: ellipsis;">
+          <div style="display: flex;">
 
-          <div style="align-self: start; font-size: 12px">{{node.task_num}}</div>
+            <div style="align-self: start; font-size: 12px">{{node.task_num}}</div>
 
-          <div style="text-align: center; padding: 3px; align-self: center; flex: 1;">
-            {{node.name}}
+            <div style="text-align: center; padding: 3px; align-self: center; flex: 1;">
+              {{node.name}}
+            </div>
+
+            <div v-if="node.retries" style="align-self: end; position: relative;">
+              <img src="../../assets/retry.png" class="retries-img">
+              <div title="Retries" class="retries">{{node.retries}}</div>
+            </div>
+
+            <!-- visibility: collapsed to include space for collapse button, even when allowCollapse
+              is false. -->
+            <div v-if="node.children_uuids.length && !isChained" style="align-self: end;"
+                 :style="allowCollapse ? '' : 'visibility: collapse;'">
+              <!-- Use prevent to avoid activating node-wide attribute link -->
+              <i v-on:click.prevent="emitCollapseToggle" style="cursor: pointer; padding: 2px;">
+                <font-awesome-icon v-if="!areAllChildrenCollapsed" icon="compress-arrows-alt"
+                  title="collapse"></font-awesome-icon>
+                <font-awesome-icon v-else icon="expand-arrows-alt" title="expand">
+                </font-awesome-icon>
+              </i>
+            </div>
+          </div>
+          <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid
+          navigating to task node attribute page. Should likely find a better way.-->
+          <div class="flame-data" v-on:click="flameDataClick">
+            <div v-if="showUuid">{{node.uuid}}</div>
+            <div v-if="showUuid && displayDetails">{{displayDetails}}</div>
+            <!-- We're really trusting data from the server here (rendering raw HTML) -->
+            <div v-if="showLegacyFlameAdditionalData" v-html="node.flame_additional_data"></div>
+            <template v-else>
+              <div v-for="(html, i) in flameDataHtmlContent" :key="i" v-html="html"></div>
+            </template>
           </div>
 
-          <div v-if="node.retries" style="align-self: end; position: relative;">
-            <img src="../../assets/retry.png" class="retries-img">
-            <div title="Retries" class="retries">{{node.retries}}</div>
+          <div style="display: flex; flex-direction: row; font-size: 12px; margin-top: 4px;">
+            <div style="align-self: start; flex: 1;">{{node.hostname}}</div>
+            <div style="align-self: end;">{{duration}}</div>
           </div>
-
-          <!-- visibility: collapsed to include space for collapse button, even when allowCollapse
-            is false. -->
-          <div v-if="node.children_uuids.length && !isChained" style="align-self: end;"
-               :style="allowCollapse ? '' : 'visibility: collapse;'">
-            <!-- Use prevent to avoid activating node-wide attribute link -->
-            <i v-on:click.prevent="emit_collapse_toggle" style="cursor: pointer; padding: 2px;">
-              <font-awesome-icon v-if="!areAllChildrenCollapsed" icon="window-minimize">
-              </font-awesome-icon>
-              <font-awesome-icon v-else icon="window-maximize"></font-awesome-icon>
-            </i>
-          </div>
-        </div>
-        <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid
-        navigating to task node attribute page. Should likely find a better way.-->
-        <div class="flame-data" v-on:click="flameDataClick">
-          <div v-if="showUuid">{{node.uuid}}</div>
-          <div v-if="showUuid && displayDetails">{{displayDetails}}</div>
-          <!-- We're really trusting data from the server here (rendering raw HTML) -->
-          <div v-if="showLegacyFlameAdditionalData" v-html="node.flame_additional_data"></div>
-          <template v-else>
-            <div v-for="(html, i) in flameDataHtmlContent" :key="i" v-html="html"></div>
-          </template>
-        </div>
-
-        <div style="display: flex; flex-direction: row; font-size: 12px; margin-top: 4px;">
-          <div style="align-self: start; flex: 1;">{{node.hostname}}</div>
-          <div style="align-self: end;">{{duration}}</div>
         </div>
       </div>
-    </div>
-  </router-link>
-
+    </router-link>
+  </div>
 </template>
 
 <script>
 import _ from 'lodash';
 import {
-  routeTo, durationString, isTaskStateIncomplete, getNodeBackground,
+  routeTo, durationString, isTaskStateIncomplete, getNodeBackground, eventHub,
 } from '../../utils';
 
 export default {
@@ -88,7 +90,7 @@ export default {
       return {
         background: getNodeBackground(this.node.exception, this.node.state),
         'border-radius': !this.isChained ? '8px' : '',
-        border: this.node.from_plugin ? '2px dashed #000' : '',
+        border: this.node.from_plugin ? '2px dashed #000' : '0.5px solid white',
       };
     },
     duration() {
@@ -103,10 +105,7 @@ export default {
       return durationString(runtime);
     },
     showLegacyFlameAdditionalData() {
-      if (_.includes(_.map(_.get(this.node, 'flame_data', {}), 'type'), 'html')) {
-        return false;
-      }
-      return true;
+      return !_.includes(_.map(_.get(this.node, 'flame_data', {}), 'type'), 'html');
     },
     flameDataHtmlContent() {
       if (!_.has(this.node, 'flame_data')) {
@@ -128,9 +127,8 @@ export default {
     this.emit_dimensions();
   },
   methods: {
-    emit_collapse_toggle() {
-      // TODO: use eventHub?
-      this.$emit('collapse-node');
+    emitCollapseToggle() {
+      eventHub.$emit('toggle-task-collapse', this.node.uuid);
     },
     updateLiveRuntimeAndSchedule() {
       if (this.liveUpdate

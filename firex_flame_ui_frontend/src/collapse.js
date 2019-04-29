@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import { getPrioritizedTaskStateBackgrounds, durationString } from './utils';
+import { getPrioritizedTaskStateBackgrounds } from './utils';
 
 function prioritizeCollapseOps(opsByUuid, stateSourceName) {
   const priorityByStateSource = {
@@ -38,21 +38,10 @@ function resolveDisplayConfigsToOpsByUuid(displayConfigs, nodesByUuid) {
 }
 
 function createUiCollapseNode(node, nodesByUuid) {
-  const minFirstStarted = _.min(_.map(node.allRepresentedNodeUuids,
-    u => nodesByUuid[u].local_received));
-  // TODO: wrong for in-progress tasts.
-  const maxEndTime = _.max(_.map(node.allRepresentedNodeUuids,
-    u => nodesByUuid[u].local_received
-        + _.get(nodesByUuid[u], 'actual_runtime', 0)));
   return _.merge(node, {
-    // TODO: send all uniq backgrounds, prioritized.
     backgrounds: getPrioritizedTaskStateBackgrounds(
       _.map(node.allRepresentedNodeUuids, u => _.get(nodesByUuid, [u, 'state'])),
     ),
-    width: 200,
-    height: 75,
-    hosts: _.uniq(_.map(node.allRepresentedNodeUuids, u => nodesByUuid[u].hostname)),
-    time: durationString(maxEndTime - minFirstStarted),
   });
 }
 

@@ -30,25 +30,17 @@
             :taskAndCollapseNodeDimensionsByUuid="taskAndCollapseNodeDimensionsByUuid"
             :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
           <template v-for="(nodeLayout, uuid) in nodeLayoutsByUuid">
-            <x-svg-task-node v-if="nodesByUuid.hasOwnProperty(uuid)"
+            <x-svg-task-node
                         :node="nodesByUuid[uuid]"
-                        :dimensions="dimensionsByUuid[uuid]"
+                        :dimensions="taskAndCollapseNodeDimensionsByUuid[uuid]"
                         :position="nodeLayout"
                         :key="uuid"
                         :showUuid="showUuids"
                         :liveUpdate="liveUpdate"
-                        :areAllChildrenCollapsed="allChildrenCollapsedByUuid[uuid]"
+                        :collapseNode="getCollaseNodeOrDefault(collapseGraphByParentUuid, uuid)"
                         :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
-                        v-on:collapse-node="toggleCollapseDescendants(uuid)"
                         :displayDetails="resolvedCollapseStateByUuid[uuid].minPriorityOp">
             </x-svg-task-node>
-            <!-- TODO: this is no longer correct -- collapseGraphByNodeUuid doesn't exclusively
-                   contain collapsed nodes.-->
-            <x-svg-collapse-node
-              v-else-if="collapseGraphByNodeUuid.hasOwnProperty(uuid)"
-              :key="uuid"
-              :position="nodeLayout"
-              :collapseNode="collapseGraphByNodeUuid[uuid]"></x-svg-collapse-node>
           </template>
         </g>
       </svg>
@@ -69,6 +61,7 @@
         <x-task-node
           :node="n"
           :emitDimensions="true" :showUuid="showUuids"
+          :collapseNode="getCollaseNodeOrDefault(collapseGraphByParentUuid, n.uuid)"
           :displayDetails="getDisplayDetails(resolvedCollapseStateByUuid, n.uuid)"
           v-on:node-dimensions="updateTaskNodeDimensions($event)"></x-task-node>
       </div>
@@ -93,14 +86,13 @@ import {
   prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid,
   createUiCollapseNode,
 } from '../collapse';
-import XSvgCollapseNode from './nodes/XSvgCollapseNode.vue';
 
 const scaleBounds = { max: 1.3, min: 0.01 };
 
 export default {
   name: 'XGraph',
   components: {
-    XSvgTaskNode, XLink, XTaskNode, XSvgCollapseNode,
+    XSvgTaskNode, XLink, XTaskNode,
   },
   props: {
     // TODO: it might be worth making a computed property of just the graph structure
@@ -153,6 +145,9 @@ export default {
       return _.mapValues(getCollapsedGraphByNodeUuid(this.resolvedCollapseStateByUuid, uuidv4),
         n => (n.collapsed ? createUiCollapseNode(n, this.nodesByUuid) : n));
     },
+    collapseGraphByParentUuid() {
+      return _.keyBy(_.filter(this.collapseGraphByNodeUuid, 'collapsed'), 'parent_id');
+    },
     /**
      * Merges the task tree with the collapsed tree. This changes the graph structure,
      * Since sequential collapsed nodes are represented as a single collapse node.
@@ -160,11 +155,23 @@ export default {
     taskAndCollapseNodeDimensionsByUuid() {
       const sizedUncollapsedTaskNodes = _.omit(this.taskNodeDimensionsByUuid,
         this.collapsedNodeUuids);
-      // Want parent relationship from collapseGraphByNodeUuid, so give it precedence
-      // in the merge.
-      const sizedTaskNodesAndCollapsedNodes = _.pickBy(this.collapseGraphByNodeUuid,
-        n => n.collapsed || _.has(sizedUncollapsedTaskNodes, n.uuid));
-      return _.merge(sizedUncollapsedTaskNodes, sizedTaskNodesAndCollapsedNodes);
+      const stackOffset = 12;
+      const stackCount = 3; // Always have 3 stacked behind the front.
+      return _.mapValues(sizedUncollapsedTaskNodes,
+        (d, uuid) => {
+          // 2 b/c we margin the left to center.
+          const paddedWidth = d.width + stackCount * stackOffset * 2;
+          if (!_.has(this.collapseGraphByParentUuid, uuid)) {
+            // nothing collapsed, leave dimensions alone.
+            return _.merge({}, d, { width: paddedWidth });
+          }
+          // has collapsed nodes, add padding:
+          return _.merge({}, d,
+            {
+              width: paddedWidth,
+              height: d.height + stackCount * stackOffset,
+            });
+        });
     },
     // TODO: should consider limiting layout recalculations to once per second instead of
     //      being reactive?
@@ -273,6 +280,7 @@ export default {
     eventHub.$on('center', this.center);
     eventHub.$on('node-focus', this.focusOnNode);
     eventHub.$on('ui-collapse', this.handleUiCollapseEvent);
+    eventHub.$on('toggle-task-collapse', this.toggleCollapseDescendants);
   },
   mounted() {
     d3.select('div#chart-container svg').call(this.zoom).on('dblclick.zoom', null);
@@ -456,6 +464,18 @@ export default {
         applyDefaultCollapseOps: _.get(obj, 'applyDefaultCollapseOps', false),
       };
       this.center();
+    },
+    // TODO: this is dumb, every node should be filled at a different level.
+    getCollaseNodeOrDefault(collapseGraphByParentUuid, uuid) {
+      const r = collapseGraphByParentUuid[uuid];
+      if (r && !_.isEmpty(r)) {
+        return r;
+      }
+      return {
+        representedChildrenUuids: [],
+        allRepresentedNodeUuids: [],
+        backgrounds: [],
+      };
     },
     getDisplayDetails(resolvedCollapseStateByUuid, uuid) {
       return _.get(resolvedCollapseStateByUuid, [uuid, 'minPriorityOp'], null);

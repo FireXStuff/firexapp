@@ -12,13 +12,13 @@
     </defs>
 
     <foreignObject :width="dimensions.width + 10" :height="dimensions.height + 10">
-         <x-node :node="node"
-                 :showUuid="showUuid"
-                 :liveUpdate="liveUpdate"
-                 :style="style"
-                 :areAllChildrenCollapsed="areAllChildrenCollapsed"
-                 :displayDetails="displayDetails"
-                 v-on:collapse-node="$emit('collapse-node')"></x-node>
+      <x-collapsable-task-node
+        :node="node"
+        :showUuid="showUuid"
+        :liveUpdate="liveUpdate"
+        :dimensions="dimensions"
+        :collapseNode="collapseNode"
+        :displayDetails="displayDetails"></x-collapsable-task-node>
     </foreignObject>
 
   </g>
@@ -26,7 +26,7 @@
 
 <script>
 import _ from 'lodash';
-import XNode from './XTaskNode.vue';
+import XCollapsableTaskNode from './XCollapsableTaskNode.vue';
 
 /**
  * TODO: it might not be worth having this as a component. Maybe split XGraph, e.g.
@@ -36,7 +36,7 @@ import XNode from './XTaskNode.vue';
  */
 export default {
   name: 'XTaskSvgNode',
-  components: { XNode },
+  components: { XCollapsableTaskNode },
   props: {
     node: {
       type: Object,
@@ -50,7 +50,7 @@ export default {
     dimensions: { required: true, type: Object },
     opacity: { default: 1 },
     liveUpdate: { required: true, type: Boolean },
-    areAllChildrenCollapsed: { required: true, type: Boolean },
+    collapseNode: { required: true },
     displayDetails: { required: true },
   },
   computed: {
@@ -59,12 +59,6 @@ export default {
     },
     isInProgress() {
       return this.node.state === 'task-started';
-    },
-    style() {
-      return {
-        width: `${this.dimensions.width}px`,
-        height: `${this.dimensions.height}px`,
-      };
     },
     groupStyle() {
       const style = { opacity: this.opacity };
