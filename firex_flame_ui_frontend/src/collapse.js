@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import { getPrioritizedTaskStateBackgrounds } from './utils';
+import { getPrioritizedTaskStateBackground } from './utils';
 
 function prioritizeCollapseOps(opsByUuid, stateSourceName) {
   const priorityByStateSource = {

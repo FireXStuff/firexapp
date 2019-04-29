@@ -27,7 +27,9 @@
 
 <script>
 import _ from 'lodash';
-import { eventHub, createCollapseEvent, containsAll, getTaskNodeBorderRadius } from '../../utils';
+import {
+  eventHub, createCollapseEvent, containsAll, getTaskNodeBorderRadius,
+} from '../../utils';
 import XTaskNode from './XTaskNode.vue';
 
 export default {
@@ -99,16 +101,9 @@ export default {
       };
     },
     getNonFrontBoxStyle(level) {
-      let background;
-      if (level < this.collapseDetails.backgrounds.length) {
-        background = this.collapseDetails.backgrounds[level];
-      } else {
-        background = _.first(this.collapseDetails.backgrounds);
-      }
-
       return _.merge(this.getNonFrontBoxMargins(level),
         {
-          background,
+          background: this.collapseDetails.background,
           'z-index': -(level + 1),
           width: `${this.boxDimensions.width}px`,
           height: `${this.boxDimensions.height}px`,
@@ -149,12 +144,13 @@ export default {
 
   .stacks-count {
     position: absolute;
-    bottom: 9px; /* TODO: fix hack. should be calced from offset? */
+    bottom: 1px; /* TODO: fix hack. should be calced from offset? */
     text-align: center;
     width: 100%;
     color: white;
-    font-size: 14px;
+    font-size: 13px;
     font-family: 'Source Sans Pro', sans-serif;
+    height: 1em;
   }
 
 </style>

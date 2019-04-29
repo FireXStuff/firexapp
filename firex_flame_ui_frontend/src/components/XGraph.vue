@@ -80,7 +80,7 @@ import {
   resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid, createCollapseEvent, createRunStateExpandOperations,
   loadDisplayConfigs, concatArrayMergeCustomizer, createCollapseRootOperation, containsAll,
-  getPrioritizedTaskStateBackgrounds,
+  getPrioritizedTaskStateBackground,
 } from '../utils';
 import {
   prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid,
@@ -141,10 +141,10 @@ export default {
      * */
     collapseGraphByNodeUuid() {
       const stackOffset = 12;
-      const stackCount = 3; // Always have 3 stacked behind the front.
+      const stackCount = 2; // Always have 3 stacked behind the front.
       return _.mapValues(getCollapsedGraphByNodeUuid(this.resolvedCollapseStateByUuid),
         collapsedUuids => ({
-          backgrounds: getPrioritizedTaskStateBackgrounds(
+          background: getPrioritizedTaskStateBackground(
             _.map(collapsedUuids, u => _.get(this.nodesByUuid, [u, 'state'])),
           ),
           collapsedUuids,
