@@ -1,7 +1,7 @@
 <template>
   <!-- always have a margin to keep front nodes centered, regardless to if either front node
       has stacked boxes behind it. -->
-  <div :style="{'margin-left': behindBoxesCount*boxOffset + 'px', 'display': 'inline-block'}">
+  <div :style="{'margin-left': allStackOffset + 'px', 'display': 'inline-block'}">
     <div :style="frontBoxStyle">
         <x-task-node :node="node"
                 :showUuid="showUuid"
@@ -13,13 +13,12 @@
 
     <div v-if="hasCollapsedChildren"
          :style="stacksContainerStyle" class="stacks-link" @click="expandAll">
-      <div v-for="i in behindBoxesCount" :key="i"
+      <div v-for="i in collapseDetails.stackCount" :key="i"
            class="stacked-effect" :style="getNonFrontBoxStyle(i-1)">
       </div>
-      <!-- TODO: put in terms of stack offset -->
       <div class="stacks-count">
-        {{collapseNode.allRepresentedNodeUuids.length}}
-        {{collapseNode.allRepresentedNodeUuids.length === 1 ? 'Task' : 'Tasks'}}
+        {{collapseDetails.collapsedUuids.length}}
+        {{collapseDetails.collapsedUuids.length === 1 ? 'Task' : 'Tasks'}}
       </div>
     </div>
   </div>
@@ -38,27 +37,23 @@ export default {
     showUuid: {},
     dimensions: { required: true, type: Object },
     liveUpdate: { required: true, type: Boolean },
-    collapseNode: { required: true, type: Object },
+    collapseDetails: { required: true, type: Object },
     displayDetails: { required: true },
-  },
-  data() {
-    return {
-      // TODO: receive this value as input, since it's needed for layout calc.
-      boxOffset: 12,
-      behindBoxesCount: 3, // TODO: receive this value as input, since it's needed for layout calc.
-    };
   },
   computed: {
     areAllChildrenCollapsed() {
-      return containsAll(this.collapseNode.representedChildrenUuids,
+      return containsAll(this.collapseDetails.collapsedUuids,
         this.node.children_uuids);
     },
     hasCollapsedChildren() {
-      return this.collapseNode.allRepresentedNodeUuids.length > 0;
+      return this.collapseDetails.collapsedUuids.length > 0;
+    },
+    allStackOffset() {
+      return this.collapseDetails.stackCount * this.collapseDetails.stackOffset;
     },
     boxDimensions() {
-      const width = this.dimensions.width - this.behindBoxesCount * this.boxOffset * 2;
-      const height = this.dimensions.height - this.behindBoxesCount * this.boxOffset;
+      const width = this.dimensions.width - this.allStackOffset * 2;
+      const height = this.dimensions.height - this.allStackOffset;
       return { width, height };
     },
     frontBoxStyle() {
@@ -74,7 +69,7 @@ export default {
       };
     },
     stacksContainerStyle() {
-      const offsets = (this.behindBoxesCount - 1) * this.boxOffset;
+      const offsets = (this.collapseDetails.stackCount - 1) * this.collapseDetails.stackOffset;
       return _.merge(this.getNonFrontBoxMargins(1), {
         width: `${this.boxDimensions.width + offsets}px`,
         height: `${this.boxDimensions.height + offsets}px`,
@@ -83,25 +78,26 @@ export default {
   },
   methods: {
     emitExpandUuids(uuids) {
+      // TODO: is this better than an expand descendants? Seems like unnecessary ops.
       const expandDescendantEvents = createCollapseEvent(uuids, 'expand', 'self');
       eventHub.$emit('ui-collapse', {
-        keep_rel_position_task_uuid: this.collapseNode.parent_id,
+        keep_rel_position_task_uuid: this.node.uuid,
         operationsByUuid: expandDescendantEvents,
       });
     },
     getNonFrontBoxMargins(level) {
       return {
         // One pixel to offset for border.
-        'margin-top': `${this.boxOffset * level}px`,
-        'margin-left': `${this.boxOffset * level}px`,
+        'margin-top': `${this.collapseDetails.stackOffset * level}px`,
+        'margin-left': `${this.collapseDetails.stackOffset * level}px`,
       };
     },
     getNonFrontBoxStyle(level) {
       let background;
-      if (level < this.collapseNode.backgrounds.length) {
-        background = this.collapseNode.backgrounds[level];
+      if (level < this.collapseDetails.backgrounds.length) {
+        background = this.collapseDetails.backgrounds[level];
       } else {
-        background = _.first(this.collapseNode.backgrounds);
+        background = _.first(this.collapseDetails.backgrounds);
       }
 
       return _.merge(this.getNonFrontBoxMargins(level),
@@ -113,7 +109,7 @@ export default {
         });
     },
     expandAll() {
-      this.emitExpandUuids(this.collapseNode.allRepresentedNodeUuids);
+      this.emitExpandUuids(this.collapseDetails.collapsedUuids);
     },
   },
 };
@@ -147,7 +143,7 @@ export default {
 
   .stacks-count {
     position: absolute;
-    bottom: 8px; /* hack. should be calced from offset?*/
+    bottom: 9px; /* TODO: fix hack. should be calced from offset? */
     text-align: center;
     width: 100%;
     color: white;

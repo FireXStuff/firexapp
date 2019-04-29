@@ -37,16 +37,7 @@ function resolveDisplayConfigsToOpsByUuid(displayConfigs, nodesByUuid) {
     ops => _.map(ops, o => _.pick(o, ['operation', 'targets'])));
 }
 
-function createUiCollapseNode(node, nodesByUuid) {
-  return _.merge(node, {
-    backgrounds: getPrioritizedTaskStateBackgrounds(
-      _.map(node.allRepresentedNodeUuids, u => _.get(nodesByUuid, [u, 'state'])),
-    ),
-  });
-}
-
 export {
   prioritizeCollapseOps,
   resolveDisplayConfigsToOpsByUuid,
-  createUiCollapseNode,
 };

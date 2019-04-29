@@ -37,7 +37,7 @@
                         :key="uuid"
                         :showUuid="showUuids"
                         :liveUpdate="liveUpdate"
-                        :collapseNode="getCollaseNodeOrDefault(collapseGraphByParentUuid, uuid)"
+                        :collapseDetails="collapseGraphByNodeUuid[uuid]"
                         :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
                         :displayDetails="resolvedCollapseStateByUuid[uuid].minPriorityOp">
             </x-svg-task-node>
@@ -61,7 +61,6 @@
         <x-task-node
           :node="n"
           :emitDimensions="true" :showUuid="showUuids"
-          :collapseNode="getCollaseNodeOrDefault(collapseGraphByParentUuid, n.uuid)"
           :displayDetails="getDisplayDetails(resolvedCollapseStateByUuid, n.uuid)"
           v-on:node-dimensions="updateTaskNodeDimensions($event)"></x-task-node>
       </div>
@@ -77,14 +76,14 @@ import XSvgTaskNode from './nodes/XSvgTaskNode.vue';
 import XTaskNode from './nodes/XTaskNode.vue';
 import XLink from './XLinks.vue';
 import {
-  eventHub, calculateNodesPositionByUuid, getCenteringTransform, uuidv4,
+  eventHub, calculateNodesPositionByUuid, getCenteringTransform,
   resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid, createCollapseEvent, createRunStateExpandOperations,
   loadDisplayConfigs, concatArrayMergeCustomizer, createCollapseRootOperation, containsAll,
+  getPrioritizedTaskStateBackgrounds,
 } from '../utils';
 import {
   prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid,
-  createUiCollapseNode,
 } from '../collapse';
 
 const scaleBounds = { max: 1.3, min: 0.01 };
@@ -138,15 +137,26 @@ export default {
         }));
     },
     /**
-     * Contains both collapse nodes and uncollapsed task nodes. Only contains tree structure
-     * (.e.g parent_id) relationships for uncollapsed task nodes.
+     * Contains both collapse nodes and uncollapsed task nodes.
      * */
     collapseGraphByNodeUuid() {
-      return _.mapValues(getCollapsedGraphByNodeUuid(this.resolvedCollapseStateByUuid, uuidv4),
-        n => (n.collapsed ? createUiCollapseNode(n, this.nodesByUuid) : n));
-    },
-    collapseGraphByParentUuid() {
-      return _.keyBy(_.filter(this.collapseGraphByNodeUuid, 'collapsed'), 'parent_id');
+      const stackOffset = 12;
+      const stackCount = 3; // Always have 3 stacked behind the front.
+      return _.mapValues(getCollapsedGraphByNodeUuid(this.resolvedCollapseStateByUuid),
+        collapsedUuids => ({
+          backgrounds: getPrioritizedTaskStateBackgrounds(
+            _.map(collapsedUuids, u => _.get(this.nodesByUuid, [u, 'state'])),
+          ),
+          collapsedUuids,
+          // We don't want the width to vary if a node has collapsed children or not,
+          // to pad the same either way.
+          // x2 because we pad both left and right to keep front box centering.
+          widthPadding: stackCount * stackOffset * 2,
+          // Only pad vertical to make room for real stacked behind boxes.
+          heightPadding: _.isEmpty(collapsedUuids) ? 0 : stackCount * stackOffset,
+          stackOffset,
+          stackCount,
+        }));
     },
     /**
      * Merges the task tree with the collapsed tree. This changes the graph structure,
@@ -155,23 +165,13 @@ export default {
     taskAndCollapseNodeDimensionsByUuid() {
       const sizedUncollapsedTaskNodes = _.omit(this.taskNodeDimensionsByUuid,
         this.collapsedNodeUuids);
-      const stackOffset = 12;
-      const stackCount = 3; // Always have 3 stacked behind the front.
+
       return _.mapValues(sizedUncollapsedTaskNodes,
-        (d, uuid) => {
-          // 2 b/c we margin the left to center.
-          const paddedWidth = d.width + stackCount * stackOffset * 2;
-          if (!_.has(this.collapseGraphByParentUuid, uuid)) {
-            // nothing collapsed, leave dimensions alone.
-            return _.merge({}, d, { width: paddedWidth });
-          }
-          // has collapsed nodes, add padding:
-          return _.merge({}, d,
-            {
-              width: paddedWidth,
-              height: d.height + stackCount * stackOffset,
-            });
-        });
+        (d, uuid) => _.merge({}, d,
+          {
+            width: d.width + this.collapseGraphByNodeUuid[uuid].widthPadding,
+            height: d.height + this.collapseGraphByNodeUuid[uuid].heightPadding,
+          }));
     },
     // TODO: should consider limiting layout recalculations to once per second instead of
     //      being reactive?
@@ -246,7 +246,7 @@ export default {
       const displayPath = ['flame_data', '_default_display', 'value'];
       // TODO: Each node can send updates that should override previous op entries.
       //  Do that filtering here.
-      // TODO: computed property just for flame data to avoid recalc on any change.
+      // TODO: computed property just for flame data to avoid recalc on any nodesByUuid change.
       const ops = _.flatMap(this.nodesByUuid, n => _.get(n, displayPath, []));
       return resolveDisplayConfigsToOpsByUuid(ops, this.nodesByUuid);
     },
@@ -298,7 +298,8 @@ export default {
         y: d3.event.transform.y,
         scale: d3.event.transform.k,
       };
-      // TODO: is this making pan/zoom slow?
+      // TODO: make transform top-level key per firexUid. This will avoid write slowdowns as other
+      // per-run data grows.
       this.addLocalStorageData(this.transform);
     },
     updateTransformViaZoom(transform) {
@@ -311,6 +312,10 @@ export default {
     },
     getCurrentRelPos(nodeUuid) {
       const laidOutNode = this.nodeLayoutsByUuid[nodeUuid];
+      if (!laidOutNode) {
+        console.log(`Missing ${nodeUuid}`);
+        console.log(this.nodeLayoutsByUuid);
+      }
       return {
         x: laidOutNode.x + this.transform.x,
         y: laidOutNode.y + this.transform.y,
@@ -465,18 +470,17 @@ export default {
       };
       this.center();
     },
-    // TODO: this is dumb, every node should be filled at a different level.
-    getCollaseNodeOrDefault(collapseGraphByParentUuid, uuid) {
-      const r = collapseGraphByParentUuid[uuid];
-      if (r && !_.isEmpty(r)) {
-        return r;
-      }
-      return {
-        representedChildrenUuids: [],
-        allRepresentedNodeUuids: [],
-        backgrounds: [],
-      };
-    },
+    // // TODO: this is dumb, every node should be filled at a different level.
+    // getCollaseNodeOrDefault(collapseGraphByParentUuid, uuid) {
+    //   const r = collapseGraphByParentUuid[uuid];
+    //   if (r && !_.isEmpty(r)) {
+    //     return r;
+    //   }
+    //   return {
+    //     allRepresentedNodeUuids: [],
+    //     backgrounds: [],
+    //   };
+    // },
     getDisplayDetails(resolvedCollapseStateByUuid, uuid) {
       return _.get(resolvedCollapseStateByUuid, [uuid, 'minPriorityOp'], null);
     },

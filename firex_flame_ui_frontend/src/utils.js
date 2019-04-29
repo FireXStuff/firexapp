@@ -117,29 +117,6 @@ function getAncestorUuids(node, nodesByUuid) {
   return resultUuids;
 }
 
-function getUuidsToRoot(node, nodesByUuid) {
-  return [node.uuid].concat(getAncestorUuids(node, nodesByUuid));
-}
-
-function nodesInRootLeafPathWithFailureOrInProgress(nodesByUuid) {
-  const failurePredicate = node => (node.state === 'task-failed'
-    // Show leaf nodes that are chain interrupted exceptions (e.g. RunChildFireX).
-    && (!isChainInterrupted(node.exception) || node.children_uuids.length === 0))
-    || node.state === 'task-started';
-  if (_.some(_.values(nodesByUuid), failurePredicate)) {
-    const parentIds = _.map(_.values(nodesByUuid), 'parent_id');
-    // TODO: why not check node.children_uuids.length?
-    const leafNodes = _.filter(_.values(nodesByUuid), n => !_.includes(parentIds, n.uuid));
-
-    const leafUuidPathsToRoot = _.map(leafNodes, l => getUuidsToRoot(l, nodesByUuid));
-    const uuidPathsPassingPredicate = _.filter(leafUuidPathsToRoot,
-      pathUuids => _.some(_.values(_.pick(nodesByUuid, pathUuids)), failurePredicate));
-
-    return _.flatten(uuidPathsPassingPredicate);
-  }
-  return _.keys(nodesByUuid);
-}
-
 function runStatePredicate(node) {
   return (node.state === 'task-failed'
     // Show leaf nodes that are chain interrupted exceptions (e.g. RunChildFireX).
@@ -319,7 +296,6 @@ function uuidv4() {
     (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
   )
 }
-
 /* eslint-disable */
 
 const successGreen = '#2A2';
@@ -390,7 +366,7 @@ function _getOpsAndDistanceForTarget(uuids, collapseOpsByUuid, target) {
   return _.flatten(_.values(opsAndDistancesByUuid))
 }
 
-function _getAllAffectingCollapseState(
+function _getAllOpsAffectingCollapseState(
   curNodeUuid, collapseOpsByUuid, ancestorUuidsByUuid, descendantUuidsByUuid,
   isParentCollapsed) {
 
@@ -411,6 +387,8 @@ function _getAllAffectingCollapseState(
         _.pick(collapseOpsByUuid, _.tail(ancestorUuidsByUuid[curNodeUuid])), 'grandchildren'),
 
     // If no reason to show, and parent is collapsed, have a very low-priority collapse.
+    // TODO: consider if this is the right place to do this. Could exclude these nodes downstream
+    // instead.
     parent: isParentCollapsed ? [{ operation: 'collapse', priority: 10 }] : [],
   }
   const targetNameToPriority = {
@@ -443,7 +421,8 @@ function _findMinPriorityOp(affectingOps) {
 
 function resolveCollapseStatusByUuid(nodesByUuid, collapseOpsByUuid) {
   const resultNodesByUuid = {}
-  let toCheck = [getRoot(nodesByUuid)]
+  const root = getRoot(nodesByUuid);
+  let toCheck = [root]
   const nodesByParentId = _.groupBy(_.values(nodesByUuid), 'parent_id');
   const ancestorUuidsByUuid = getAncestorsByUuid(nodesByUuid);
   const descendantUuidsByUuid = getDescendantsByUuid(nodesByUuid);
@@ -451,14 +430,14 @@ function resolveCollapseStatusByUuid(nodesByUuid, collapseOpsByUuid) {
     const curNode = toCheck.pop();
 
     const isParentCollapsed = _.get(resultNodesByUuid, [curNode.parent_id, 'collapsed'], false)
-    const affectingOps = _getAllAffectingCollapseState(
+    const affectingOps = _getAllOpsAffectingCollapseState(
       curNode.uuid, collapseOpsByUuid, ancestorUuidsByUuid, descendantUuidsByUuid,
       isParentCollapsed);
 
     const minPriorityOp = _findMinPriorityOp(affectingOps);
     resultNodesByUuid[curNode.uuid] = {
-      uuid: curNode.uuid,
       parent_id: curNode.parent_id,
+      uuid: curNode.uuid,
       // If no rules affect this node (minPriorityOp undefined), default to false.
       collapsed: _.isUndefined(minPriorityOp) ? false : minPriorityOp.operation === 'collapse',
       affectingOps,
@@ -466,96 +445,39 @@ function resolveCollapseStatusByUuid(nodesByUuid, collapseOpsByUuid) {
     };
     toCheck = toCheck.concat(_.get(nodesByParentId, curNode.uuid, []))
   }
+  // TODO: this is unfortunately necessary b/c collapsing the root shows nothing.
+  // Consider supporting 'collapse down to nearest uncollapsed descendant'
+  resultNodesByUuid[root.uuid].collapsed = false;
+
   return resultNodesByUuid;
 }
 
-function createSimpleCollapsedNode(taskUuid, parentId, uuidFn) {
+function createSimpleCollapsedNode(taskUuid) {
   return {
-    uuid: uuidFn(),
-    parent_id: parentId,
-    collapsed: true,
     // TODO: this should be allContainedCollapsedNodeUuids
-    allRepresentedNodeUuids: [taskUuid],
-    // TODO: Needs a better name. 'rootRepresentedUuids'.
-    representedChildrenUuids: [taskUuid],
+    collapsedDescendantUuids: [taskUuid],
   }
 }
 
-function getCollapsedGraphByNodeUuid(collapsedByUuid, uuidFn) {
+function getCollapsedGraphByNodeUuid(collapsedByUuid) {
   const nodesByParentId = getNodesByParentId(collapsedByUuid)
-  return recursiveGetCollapseNodes(getRoot(collapsedByUuid),
-    nodesByParentId, null, uuidFn);
+  // TODO: implicitly, collapse operations on the root node are ignored. Could collapse 'down',
+  //  though it's unclear if that's preferable.
+  return recursiveGetCollapseNodes(getRoot(collapsedByUuid).uuid,
+    nodesByParentId);
 }
 
-function recursiveGetCollapseNodes(node, childrenByUuid, collapseParent, uuidFn) {
-  let resultNode;
-  if (node.collapsed) {
-    if (!_.isNil(collapseParent) && collapseParent.collapsed) {
-      // both this node and its parent is collapsed, so re-use parent except
-      // update it to include this node's UUID as being represented.
-      let newAllCollapsed = collapseParent.allRepresentedNodeUuids.concat([node.uuid])
-      resultNode = _.merge({}, collapseParent, {allRepresentedNodeUuids: newAllCollapsed})
-    } else {
-      // Parent isn't collapsed and this node is collapsed, need a new collapsed node.
-      resultNode = createSimpleCollapsedNode(
-        node.uuid, _.get(collapseParent, 'uuid', null), uuidFn)
-    }
-  } else {
-    // Uncollapsed. Keep node, but possibly change parent if this nodes parent is collapsed.
-    resultNode = _.merge({}, node, {parent_id: _.get(collapseParent, 'uuid', null)})
-  }
+function recursiveGetCollapseNodes(curUuid, nodesByParentId) {
 
-  let children = childrenByUuid[node.uuid]
-  let resultDescendants = _.map(children,
-      c => recursiveGetCollapseNodes(c, childrenByUuid, resultNode, uuidFn))
+  let childResults = _.map(nodesByParentId[curUuid], c =>
+    recursiveGetCollapseNodes(c.uuid, nodesByParentId));
+  let resultDescendantsByUuid = _.reduce(childResults, _.merge, {});
 
-  let combinedDescendantsByUuid = {}
-  combinedDescendantsByUuid[resultNode.uuid] = resultNode
-  _.each(resultDescendants, childrenDescendentsByUUid => _.each(childrenDescendentsByUUid, d => {
-      if (d.uuid === resultNode.uuid) {
-        // Child node collapsed to current result node, include its represented nodes in cur node.
-        resultNode.allRepresentedNodeUuids = _.uniq(
-          resultNode.allRepresentedNodeUuids.concat(d.allRepresentedNodeUuids))
-        resultNode.representedChildrenUuids = _.uniq(
-          resultNode.representedChildrenUuids.concat(d.representedChildrenUuids))
-      }
-      else {
-        // All UUIDs are unique, except possibly children that collapsed to the resultNode.
-        combinedDescendantsByUuid[d.uuid] = d
-      }
-  }))
+  let collapsedChildren = _.filter(nodesByParentId[curUuid], c => c.collapsed);
+  let collapsedDescendantUuids = _.flatMap(collapsedChildren,
+      c => [c.uuid].concat(resultDescendantsByUuid[c.uuid]))
 
-  // All collapsed children should be represented by a single node, so combine them here:
-  const collapsedChildren = _.filter(combinedDescendantsByUuid,
-      d => d.collapsed && d.parent_id === resultNode.uuid)
-  if (!_.isEmpty(collapsedChildren)) {
-    const combinedCollapseNode = {
-      uuid: uuidFn(),
-      parent_id: resultNode.uuid,
-      collapsed: true,
-      allRepresentedNodeUuids: _.flatMap(collapsedChildren, 'allRepresentedNodeUuids'),
-      representedChildrenUuids: _.flatMap(collapsedChildren, 'representedChildrenUuids'),
-    }
-    resultNode.collapsedChildrenUuids = _.map(collapsedChildren, 'uuid');
-
-    // remove all the nodes combined in to a single collapsed child from the result.
-    combinedDescendantsByUuid = _.pickBy(combinedDescendantsByUuid,
-        d => !_.includes(resultNode.collapsedChildrenUuids, d.uuid))
-
-    // Update references from the collapsed children to the newly created combined node.
-    _.each(_.filter(combinedDescendantsByUuid,
-        d => _.includes(resultNode.collapsedChildrenUuids, d.parent_id) ),
-        d => d.parent_id = combinedCollapseNode.uuid);
-    // Add the newly created combined collapse node to the result.
-    combinedDescendantsByUuid[combinedCollapseNode.uuid] = combinedCollapseNode;
-  }
-
-  return combinedDescendantsByUuid;
-}
-
-function createCollapseNodesByUuid(nodesByUuid, collapseOpsByUuid) {
-  const collapseStateByUuid = resolveCollapseStatusByUuid(nodesByUuid, collapseOpsByUuid);
-  return getCollapsedGraphByNodeUuid(collapseStateByUuid, uuidv4)
+  return _.assign({[[curUuid]]: collapsedDescendantUuids}, resultDescendantsByUuid);
 }
 
 function createCollapseEvent(uuids, operation, target) {
@@ -597,7 +519,6 @@ const eventHub = new Vue();
 export {
   parseRecFileContentsToNodesByUuid,
   eventHub,
-  nodesInRootLeafPathWithFailureOrInProgress,
   calculateNodesPositionByUuid,
   getCenteringTransform,
   socketRequestResponse,
@@ -614,7 +535,6 @@ export {
   getPrioritizedTaskStateBackgrounds,
   resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid,
-  createCollapseNodesByUuid,
   createCollapseEvent,
   createRunStateExpandOperations,
   loadDisplayConfigs,

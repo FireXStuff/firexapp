@@ -5,6 +5,7 @@
     <div style="background: lightgreen;">
       {{ successDisplayMsg }}
     </div>
+    <!-- TODO: warn when loaded from non-central server. Make read-only.-->
     <div style="background: salmon;">
       {{ failureDisplayMsg }}
     </div>

@@ -17,7 +17,7 @@
         :showUuid="showUuid"
         :liveUpdate="liveUpdate"
         :dimensions="dimensions"
-        :collapseNode="collapseNode"
+        :collapseDetails="collapseDetails"
         :displayDetails="displayDetails"></x-collapsable-task-node>
     </foreignObject>
 
@@ -50,7 +50,7 @@ export default {
     dimensions: { required: true, type: Object },
     opacity: { default: 1 },
     liveUpdate: { required: true, type: Boolean },
-    collapseNode: { required: true },
+    collapseDetails: { required: true },
     displayDetails: { required: true },
   },
   computed: {
