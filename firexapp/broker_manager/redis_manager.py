@@ -8,7 +8,7 @@ from socket import gethostname
 from urllib.parse import urlsplit
 
 from firexapp.broker_manager import BrokerManager
-from firexapp.common import reserve_port
+from firexapp.common import get_available_port
 
 REDIS_DIR_REGISTRY_KEY = 'REDIS_DIR_REGISTRY_KEY'
 FileRegistry().register_file(REDIS_DIR_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'redis'))
@@ -24,7 +24,7 @@ FileRegistry().register_file(REDIS_PID_REGISTRY_KEY,
 
 class RedisManager(BrokerManager):
 
-    def __init__(self, redis_bin_base, hostname=gethostname(), port=reserve_port(), logs_dir=None):
+    def __init__(self, redis_bin_base, hostname=gethostname(), port=get_available_port(), logs_dir=None):
         self.redis_bin_base = redis_bin_base
         self.host = hostname
         self.port = int(port)

@@ -23,7 +23,7 @@ def delimit2list(str_to_split, delimiters=(',', ';', '|', ' ')) -> []:
     return tokens
 
 
-def reserve_port():
+def get_available_port():
     sock = socket.socket()
     if hasattr(socket, 'SO_REUSEPORT'):
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
