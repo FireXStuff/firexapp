@@ -139,7 +139,7 @@ export default {
         this.$nextTick(() => { eventHub.$emit('center'); });
       }
     },
-    'toggleStates.liveUpdate': () => {
+    'toggleStates.liveUpdate': function () {
       eventHub.$emit('set-live-update', this.toggleStates.liveUpdate);
     },
   },

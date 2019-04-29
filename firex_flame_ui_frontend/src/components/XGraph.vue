@@ -29,24 +29,24 @@
           <x-link
             :taskAndCollapseNodeDimensionsByUuid="taskAndCollapseNodeDimensionsByUuid"
             :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
-          <template v-for="(nodeLayout, uuid) in nodeLayoutsByUuid">
-            <x-svg-task-node
-                        :node="nodesByUuid[uuid]"
-                        :dimensions="taskAndCollapseNodeDimensionsByUuid[uuid]"
-                        :position="nodeLayout"
-                        :key="uuid"
-                        :showUuid="showUuids"
-                        :liveUpdate="liveUpdate"
-                        :collapseDetails="collapseGraphByNodeUuid[uuid]"
-                        :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
-                        :displayDetails="resolvedCollapseStateByUuid[uuid].minPriorityOp">
-            </x-svg-task-node>
-          </template>
+          <x-svg-task-node
+            v-for="(nodeLayout, uuid) in nodeLayoutsByUuid"
+            :node="nodesByUuid[uuid]"
+            :dimensions="taskAndCollapseNodeDimensionsByUuid[uuid]"
+            :position="nodeLayout"
+            :key="uuid"
+            :showUuid="showUuids"
+            :liveUpdate="liveUpdate"
+            :collapseDetails="collapseGraphByNodeUuid[uuid]"
+            :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
+            :displayDetails="resolvedCollapseStateByUuid[uuid].minPriorityOp">
+          </x-svg-task-node>
         </g>
       </svg>
     </div>
 
-    <div style="overflow: hidden;">
+    <div style="overflow: hidden; width: 100%; height: 100%; position: absolute; top: 0;
+      z-index: -10">
       <!-- This is very gross, but the nodes that will be put on the graph are rendered
       invisibly in order for the browser to calculate their intrinsic size. Each node's size is
       then passed to the graph layout algorithm before the actual SVG graph is rendered.-->
@@ -222,9 +222,7 @@ export default {
       enabledCollapseStateSources.push(this.collapseConfig.uiCollapseOperationsByUuid);
       return _.mergeWith({}, ...enabledCollapseStateSources, concatArrayMergeCustomizer);
     },
-    // uuid -> boolean, true means collapsed, false means uncollapsed (expanded)
-    // Considers many collapse/expand operations per node, and picks one to determine
-    // the final expand/collapse state.
+    // TODO: consider simplifying this to uuid -> boolean instead of encoding graph shape here too.
     resolvedCollapseStateByUuid() {
       return resolveCollapseStatusByUuid(this.nodesByUuid, this.mergedCollapseStateSources);
     },
@@ -244,7 +242,7 @@ export default {
     },
     flameDataDisplayOperationsByUuid() {
       const displayPath = ['flame_data', '_default_display', 'value'];
-      // TODO: Each node can send updates that should override previous op entries.
+      // TODO: Each task can send updates that should override previous op entries for that task.
       //  Do that filtering here.
       // TODO: computed property just for flame data to avoid recalc on any nodesByUuid change.
       const ops = _.flatMap(this.nodesByUuid, n => _.get(n, displayPath, []));
@@ -313,7 +311,7 @@ export default {
     getCurrentRelPos(nodeUuid) {
       const laidOutNode = this.nodeLayoutsByUuid[nodeUuid];
       if (!laidOutNode) {
-        console.log(`Missing ${nodeUuid}`);
+        console.log(`Missings ${nodeUuid}`);
         console.log(this.nodeLayoutsByUuid);
       }
       return {
@@ -470,17 +468,6 @@ export default {
       };
       this.center();
     },
-    // // TODO: this is dumb, every node should be filled at a different level.
-    // getCollaseNodeOrDefault(collapseGraphByParentUuid, uuid) {
-    //   const r = collapseGraphByParentUuid[uuid];
-    //   if (r && !_.isEmpty(r)) {
-    //     return r;
-    //   }
-    //   return {
-    //     allRepresentedNodeUuids: [],
-    //     backgrounds: [],
-    //   };
-    // },
     getDisplayDetails(resolvedCollapseStateByUuid, uuid) {
       return _.get(resolvedCollapseStateByUuid, [uuid, 'minPriorityOp'], null);
     },
@@ -496,6 +483,7 @@ export default {
         // TODO: combine localstorage reads, or cache at lower level.
         this.updateTransformViaZoom(this.getLocalStorageTransform());
       }
+      // console.log(_.has(this.nodeLayoutsByUuid, '4bccfbce-0620-4c8e-b3a6-e1bdc84f7df4'))
     },
     collapseConfig: {
       handler() {

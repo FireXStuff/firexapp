@@ -3,12 +3,13 @@
       has stacked boxes behind it. -->
   <div :style="{'margin-left': allStackOffset + 'px', 'display': 'inline-block'}">
     <div :style="frontBoxStyle">
-        <x-task-node :node="node"
-                :showUuid="showUuid"
-                :liveUpdate="liveUpdate"
-                :style="frontTaskStyle"
-                :areAllChildrenCollapsed="areAllChildrenCollapsed"
-                :displayDetails="displayDetails"></x-task-node>
+        <x-task-node
+          :node="node"
+          :showUuid="showUuid"
+          :liveUpdate="liveUpdate"
+          :style="frontTaskStyle"
+          :areAllChildrenCollapsed="areAllChildrenCollapsed"
+          :displayDetails="displayDetails"></x-task-node>
     </div>
 
     <div v-if="hasCollapsedChildren"
@@ -26,7 +27,7 @@
 
 <script>
 import _ from 'lodash';
-import { eventHub, createCollapseEvent, containsAll } from '../../utils';
+import { eventHub, createCollapseEvent, containsAll, getTaskNodeBorderRadius } from '../../utils';
 import XTaskNode from './XTaskNode.vue';
 
 export default {
@@ -52,6 +53,7 @@ export default {
       return this.collapseDetails.stackCount * this.collapseDetails.stackOffset;
     },
     boxDimensions() {
+      // 2x since we pad both sides of width.
       const width = this.dimensions.width - this.allStackOffset * 2;
       const height = this.dimensions.height - this.allStackOffset;
       return { width, height };
@@ -60,6 +62,10 @@ export default {
       return {
         width: `${this.boxDimensions.width}px`,
         height: `${this.boxDimensions.height}px`,
+        'border-right': this.hasCollapsedChildren ? '0.5px solid white' : '',
+        'border-bottom': this.hasCollapsedChildren ? '0.5px solid white' : '',
+        // TODO: avoid having this component know about how tasks represent chain depth.
+        'border-radius': getTaskNodeBorderRadius(this.node.chain_depth),
       };
     },
     frontTaskStyle() {
@@ -148,6 +154,7 @@ export default {
     width: 100%;
     color: white;
     font-size: 14px;
+    font-family: 'Source Sans Pro', sans-serif;
   }
 
 </style>

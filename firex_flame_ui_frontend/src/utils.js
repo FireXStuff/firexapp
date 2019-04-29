@@ -446,7 +446,7 @@ function resolveCollapseStatusByUuid(nodesByUuid, collapseOpsByUuid) {
     toCheck = toCheck.concat(_.get(nodesByParentId, curNode.uuid, []))
   }
   // TODO: this is unfortunately necessary b/c collapsing the root shows nothing.
-  // Consider supporting 'collapse down to nearest uncollapsed descendant'
+  // Consider supporting 'collapse down' to nearest uncollapsed descendant'
   resultNodesByUuid[root.uuid].collapsed = false;
 
   return resultNodesByUuid;
@@ -513,6 +513,11 @@ function containsAll(superset, subset) {
   return _.difference(subset, superset).length === 0;
 }
 
+function getTaskNodeBorderRadius(chain_depth) {
+  const isChained = Boolean(chain_depth);
+  return !isChained ? '8px' : '';
+}
+
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
 const eventHub = new Vue();
 
@@ -541,4 +546,5 @@ export {
   concatArrayMergeCustomizer,
   createCollapseRootOperation,
   containsAll,
+  getTaskNodeBorderRadius,
 };
