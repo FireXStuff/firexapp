@@ -25,6 +25,8 @@ def delimit2list(str_to_split, delimiters=(',', ';', '|', ' ')) -> []:
 
 def reserve_port():
     sock = socket.socket()
+    if hasattr(socket, 'SO_REUSEPORT'):
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(('', 0))
     port = sock.getsockname()[1]
     return port
