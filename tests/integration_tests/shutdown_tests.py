@@ -6,6 +6,8 @@ from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.submit.arguments import InputConverter
 from firexapp.submit.reporting import ReportGenerator, report
+from firexapp.submit.tracking_service import TrackingService, get_tracking_services
+import firexapp.submit.tracking_service
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
 
 
@@ -128,6 +130,31 @@ class NoBrokerLeakOnBadReportGenerator(NoBrokerLeakBase):
 
     def expected_error(self):
         return ""
+
+    def assert_expected_return_code(self, ret_value):
+        pass  # it's better if the test fails on the redis leak
+
+
+@app.task
+def fail_service_task():
+    pass
+
+
+class FailingService(TrackingService):
+    def start(self, args)->{}:
+        raise Exception("Failed to start service")
+
+
+existing_services = get_tracking_services()
+firexapp.submit.tracking_service._services = tuple(list(existing_services) + [FailingService()])
+
+
+class NoBrokerLeakOnFailedService(NoBrokerLeakBase):
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "fail_service_task"]
+
+    def expected_error(self):
+        return "Failed to start service"
 
     def assert_expected_return_code(self, ret_value):
         pass  # it's better if the test fails on the redis leak

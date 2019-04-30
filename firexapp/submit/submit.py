@@ -13,6 +13,7 @@ from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsE
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
 from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args, find_unused_arguments
+from firexapp.submit.tracking_service import get_tracking_services
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
 from firexapp.application import import_microservices, get_app_tasks, get_app_task
@@ -66,6 +67,8 @@ class SubmitBaseApp:
         submit_parser.add_argument('--sync', '-sync', help='Hold console until run completes', nargs='?', const=True,
                                    default=False)
         submit_parser.set_defaults(func=self.run_submit)
+        for service in get_tracking_services():
+            service.extra_cli_arguments(submit_parser)
         return submit_parser
 
     def convert_chain_args(self, chain_args) -> dict:
@@ -185,8 +188,14 @@ class SubmitBaseApp:
             self.main_error_exit_handler()
             sys.exit(-1)
 
-        # Start any tracking services to monitor, track, and present the state of the run
-        self.start_tracking_services(args)
+        try:
+            # Start any tracking services to monitor, track, and present the state of the run
+            chain_args.update(self.start_tracking_services(args))
+        except Exception as e:
+            logger.error("Failed to start tracking service")
+            logger.error(e)
+            self.main_error_exit_handler()
+            sys.exit(-1)
 
         # Start Celery
         self.start_celery(args, chain_args.get("plugins", args.plugins))
@@ -217,8 +226,13 @@ class SubmitBaseApp:
         self.broker = BrokerFactory.get_broker_manager(logs_dir=self.uid.logs_dir)
         self.broker.start()
 
-    def start_tracking_services(self, args):
-        pass
+    def start_tracking_services(self, args)->{}:
+        additional_chain_args = {}
+        for service in get_tracking_services():
+            extra = service.start(args)
+            if extra:
+                additional_chain_args.update(extra)
+        return additional_chain_args
 
     def main_error_exit_handler(self, chain_details=None):
         logger.error('Aborting FireX submission...')
