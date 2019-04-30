@@ -190,7 +190,7 @@ class SubmitBaseApp:
 
         try:
             # Start any tracking services to monitor, track, and present the state of the run
-            chain_args.update(self.start_tracking_services(args))
+            chain_args.update(self.start_tracking_services(args, **chain_args))
         except Exception as e:
             logger.error("Failed to start tracking service")
             logger.error(e)
@@ -226,10 +226,10 @@ class SubmitBaseApp:
         self.broker = BrokerFactory.get_broker_manager(logs_dir=self.uid.logs_dir)
         self.broker.start()
 
-    def start_tracking_services(self, args)->{}:
+    def start_tracking_services(self, args, **chain_args)->{}:
         additional_chain_args = {}
         for service in get_tracking_services():
-            extra = service.start(args)
+            extra = service.start(args, **chain_args)
             if extra:
                 additional_chain_args.update(extra)
         return additional_chain_args
