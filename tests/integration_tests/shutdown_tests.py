@@ -141,7 +141,7 @@ def fail_service_task():
 
 
 class FailingService(TrackingService):
-    def start(self, args)->{}:
+    def start(self, args, **chain_args)->{}:
         if args.chain == "fail_service_task":
             raise Exception("Failed to start service")
 
