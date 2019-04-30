@@ -27,12 +27,12 @@
            style="background-color: white;">
         <g :transform="svgGraphTransform">
           <x-link
-            :taskAndCollapseNodeDimensionsByUuid="taskAndCollapseNodeDimensionsByUuid"
+            :nodeDimensionsByUuid="uncollapsedTaskNodeDimensionsByUuid"
             :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
           <x-svg-task-node
             v-for="(nodeLayout, uuid) in nodeLayoutsByUuid"
             :node="nodesByUuid[uuid]"
-            :dimensions="taskAndCollapseNodeDimensionsByUuid[uuid]"
+            :dimensions="uncollapsedTaskNodeDimensionsByUuid[uuid]"
             :position="nodeLayout"
             :key="uuid"
             :showUuid="showUuids"
@@ -70,15 +70,17 @@
 
 <script>
 
-import * as d3 from 'd3';
+import { zoom as d3zoom, zoomIdentity } from 'd3-zoom';
+import { select as d3select, event as d3event } from 'd3-selection';
 import _ from 'lodash';
+
 import XSvgTaskNode from './nodes/XSvgTaskNode.vue';
 import XTaskNode from './nodes/XTaskNode.vue';
 import XLink from './XLinks.vue';
 import {
   eventHub, calculateNodesPositionByUuid, getCenteringTransform,
   resolveCollapseStatusByUuid,
-  getCollapsedGraphByNodeUuid, createCollapseEvent, createRunStateExpandOperations,
+  getCollapsedGraphByNodeUuid, createCollapseOp, createRunStateExpandOperations,
   loadDisplayConfigs, concatArrayMergeCustomizer, createCollapseRootOperation, containsAll,
   getPrioritizedTaskStateBackground,
 } from '../utils';
@@ -87,7 +89,6 @@ import {
 } from '../collapse';
 
 const scaleBounds = { max: 1.3, min: 0.01 };
-
 export default {
   name: 'XGraph',
   components: {
@@ -104,7 +105,7 @@ export default {
     liveUpdate: { required: true, type: Boolean },
   },
   data() {
-    const zoom = d3.zoom()
+    const zoom = d3zoom()
       .scaleExtent([scaleBounds.min, scaleBounds.max])
       // Threshold for when a click is considered a pan, since this blocks event propagation.
       .clickDistance(4)
@@ -137,7 +138,7 @@ export default {
         }));
     },
     /**
-     * Contains both collapse nodes and uncollapsed task nodes.
+     * Make collapse info availabe per UUID.
      * */
     collapseGraphByNodeUuid() {
       const stackOffset = 12;
@@ -158,14 +159,9 @@ export default {
           stackCount,
         }));
     },
-    /**
-     * Merges the task tree with the collapsed tree. This changes the graph structure,
-     * Since sequential collapsed nodes are represented as a single collapse node.
-     * */
-    taskAndCollapseNodeDimensionsByUuid() {
+    uncollapsedTaskNodeDimensionsByUuid() {
       const sizedUncollapsedTaskNodes = _.omit(this.taskNodeDimensionsByUuid,
         this.collapsedNodeUuids);
-
       return _.mapValues(sizedUncollapsedTaskNodes,
         (d, uuid) => _.merge({}, d,
           {
@@ -178,7 +174,7 @@ export default {
     //  This will probably slow down for large graphs (untested).
     nodeLayoutsByUuid() {
       if (!_.isEmpty(this.taskNodeDimensionsByUuid)) {
-        return calculateNodesPositionByUuid(this.taskAndCollapseNodeDimensionsByUuid);
+        return calculateNodesPositionByUuid(this.uncollapsedTaskNodeDimensionsByUuid);
       }
       return {};
     },
@@ -189,9 +185,9 @@ export default {
         // Note that if we've done the layout for a given UUID, we necessarily have the
         // node dimensions.
         right: _.max(_.map(this.nodeLayoutsByUuid,
-          (n, uuid) => n.x + this.taskAndCollapseNodeDimensionsByUuid[uuid].width)),
+          (n, uuid) => n.x + this.uncollapsedTaskNodeDimensionsByUuid[uuid].width)),
         bottom: _.max(_.map(this.nodeLayoutsByUuid,
-          (n, uuid) => n.y + this.taskAndCollapseNodeDimensionsByUuid[uuid].height)),
+          (n, uuid) => n.y + this.uncollapsedTaskNodeDimensionsByUuid[uuid].height)),
       };
     },
     hasFailures() {
@@ -274,28 +270,29 @@ export default {
       return this.hasFailures && (!alreadyApplied || userTouched);
     },
   },
-  created() {
+  mounted() {
+    d3select('div#chart-container').call(this.zoom).on('dblclick.zoom', null);
+    // this.$el.focus();
+
+    // Registering listeners in 'created' some cause duplicate handlers to exist.
     eventHub.$on('center', this.center);
     eventHub.$on('node-focus', this.focusOnNode);
     eventHub.$on('ui-collapse', this.handleUiCollapseEvent);
     eventHub.$on('toggle-task-collapse', this.toggleCollapseDescendants);
   },
-  mounted() {
-    d3.select('div#chart-container svg').call(this.zoom).on('dblclick.zoom', null);
-    // this.$el.focus();
-  },
   methods: {
     zoomed() {
       // Null source events mean programatic zoom. We don't want to clear for programatic zooms.
-      if (d3.event.sourceEvent !== null) {
+      if (d3event.sourceEvent !== null) {
         // Clear focus node on non-programatic pan/zoom.
         this.focusedNodeUuid = null;
       }
       this.transform = {
-        x: d3.event.transform.x,
-        y: d3.event.transform.y,
-        scale: d3.event.transform.k,
+        x: d3event.transform.x,
+        y: d3event.transform.y,
+        scale: d3event.transform.k,
       };
+      // console.log(_.get(d3event, ['sourceEvent', 'type'], ''));
       // TODO: make transform top-level key per firexUid. This will avoid write slowdowns as other
       // per-run data grows.
       this.addLocalStorageData(this.transform);
@@ -303,17 +300,13 @@ export default {
     updateTransformViaZoom(transform) {
       // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent
       // with current position.
-      const d3Transform = d3.zoomIdentity.translate(transform.x, transform.y)
+      const d3Transform = zoomIdentity.translate(transform.x, transform.y)
         .scale(transform.scale);
-      // This call will create a d3.event and pipe it through, just like manual pan/zooms.
-      d3.select('div#chart-container svg').call(this.zoom.transform, d3Transform);
+      // This call will create a d3event and pipe it through, just like manual pan/zooms.
+      d3select('div#chart-container').call(this.zoom.transform, d3Transform);
     },
     getCurrentRelPos(nodeUuid) {
       const laidOutNode = this.nodeLayoutsByUuid[nodeUuid];
-      if (!laidOutNode) {
-        console.log(`Missings ${nodeUuid}`);
-        console.log(this.nodeLayoutsByUuid);
-      }
       return {
         x: laidOutNode.x + this.transform.x,
         y: laidOutNode.y + this.transform.y,
@@ -359,33 +352,44 @@ export default {
      * @param parentNodeId
      */
     toggleCollapseDescendants(parentNodeId) {
-      const allCollapsed = this.allChildrenCollapsedByUuid[parentNodeId];
       this.handleUiCollapseEvent(
         {
-          keep_rel_position_task_uuid: parentNodeId,
-          operationsByUuid: createCollapseEvent(
-            [parentNodeId], allCollapsed ? 'expand' : 'collapse',
-            'descendants',
-          ),
+          uuid: parentNodeId,
+          operation: this.allChildrenCollapsedByUuid[parentNodeId] ? 'expand' : 'collapse',
         },
       );
     },
     handleUiCollapseEvent(event) {
       // Specifying a node to maintain position realtive to is optional.
-      const initialRelPos = event.keep_rel_position_task_uuid
-        ? this.getCurrentRelPos(event.keep_rel_position_task_uuid) : undefined;
+      const initialRelPos = event.uuid ? this.getCurrentRelPos(event.uuid) : undefined;
 
-      _.each(event.operationsByUuid, (ops, uuid) => {
-        const existingOps = _.get(this.collapseConfig.uiCollapseOperationsByUuid, uuid, []);
-        this.$set(this.collapseConfig.uiCollapseOperationsByUuid, uuid, existingOps.concat(ops));
-      });
+      // TODO: right now only operation support in UI is collapse/expand descendants.
+      // Could simplify this section & data stored if additional operations are unlikely
+      // to be exposed via the UI.
+
+      // If there is already a collapse entry for this UUID & the opposite operation and target
+      // 'descendants', just remove that entry (toggle). Otherwise add a new operation.
+      const oppositeOps = _.filter(
+        _.get(this.collapseConfig.uiCollapseOperationsByUuid, event.uuid, []),
+        op => op.operation !== event.operation && _.isEqual(op.targets, ['descendants']),
+      );
+      let resultOps;
+      if (!_.isEmpty(oppositeOps)) {
+        const existingOps = _.get(this.collapseConfig.uiCollapseOperationsByUuid, event.uuid, []);
+        resultOps = _.difference(existingOps, oppositeOps);
+      } else {
+        const existingOps = _.get(this.collapseConfig.uiCollapseOperationsByUuid, event.uuid, []);
+        const newOp = createCollapseOp(event.uuid, event.operation, 'descendants');
+        resultOps = existingOps.concat([newOp]);
+      }
+      this.$set(this.collapseConfig.uiCollapseOperationsByUuid, event.uuid, resultOps);
 
       if (initialRelPos) {
         // Since we're changing the nodes being displayed, the layout might drastically change.
         // Maintain the position of the node whose descendants have been added/removed so that
         // the user remains oriented.
         this.$nextTick(() => {
-          const nextRelPos = this.getCurrentRelPos(event.keep_rel_position_task_uuid);
+          const nextRelPos = this.getCurrentRelPos(event.uuid);
           const xShift = (initialRelPos.x - nextRelPos.x) * this.transform.scale;
           const finalTranslateX = this.transform.x + xShift;
           // Since we're viewing hierarchies, the y position shouldn't ever change when
@@ -483,7 +487,6 @@ export default {
         // TODO: combine localstorage reads, or cache at lower level.
         this.updateTransformViaZoom(this.getLocalStorageTransform());
       }
-      // console.log(_.has(this.nodeLayoutsByUuid, '4bccfbce-0620-4c8e-b3a6-e1bdc84f7df4'))
     },
     collapseConfig: {
       handler() {

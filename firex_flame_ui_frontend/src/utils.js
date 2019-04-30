@@ -429,6 +429,7 @@ function resolveCollapseStatusByUuid(nodesByUuid, collapseOpsByUuid) {
   while (toCheck.length > 0) {
     const curNode = toCheck.pop();
 
+    // assumes walking root-down.
     const isParentCollapsed = _.get(resultNodesByUuid, [curNode.parent_id, 'collapsed'], false)
     const affectingOps = _getAllOpsAffectingCollapseState(
       curNode.uuid, collapseOpsByUuid, ancestorUuidsByUuid, descendantUuidsByUuid,
@@ -446,22 +447,15 @@ function resolveCollapseStatusByUuid(nodesByUuid, collapseOpsByUuid) {
     toCheck = toCheck.concat(_.get(nodesByParentId, curNode.uuid, []))
   }
   // TODO: this is unfortunately necessary b/c collapsing the root shows nothing.
-  // Consider supporting 'collapse down' to nearest uncollapsed descendant'
+  // Consider supporting 'collapse down' to nearest uncollapsed descendant?
   resultNodesByUuid[root.uuid].collapsed = false;
 
   return resultNodesByUuid;
 }
 
-function createSimpleCollapsedNode(taskUuid) {
-  return {
-    // TODO: this should be allContainedCollapsedNodeUuids
-    collapsedDescendantUuids: [taskUuid],
-  }
-}
-
 function getCollapsedGraphByNodeUuid(collapsedByUuid) {
   const nodesByParentId = getNodesByParentId(collapsedByUuid)
-  // TODO: implicitly, collapse operations on the root node are ignored. Could collapse 'down',
+  // TODO: collapse operations on the root node are ignored. Could collapse 'down',
   //  though it's unclear if that's preferable.
   return recursiveGetCollapseNodes(getRoot(collapsedByUuid).uuid,
     nodesByParentId);
@@ -480,14 +474,13 @@ function recursiveGetCollapseNodes(curUuid, nodesByParentId) {
   return _.assign({[[curUuid]]: collapsedDescendantUuids}, resultDescendantsByUuid);
 }
 
-function createCollapseEvent(uuids, operation, target) {
+function createCollapseOp(uuid, operation, target) {
   const priority = -(new Date).getTime();
-  return _.mapValues(_.keyBy(uuids),
-    () => [{
+  return {
       targets: [target],
       operation: operation,
       priority: priority,
-      stateSource: 'ui'}]);
+      stateSource: 'ui'};
 }
 
 function loadDisplayConfigs() {
@@ -540,7 +533,7 @@ export {
   getPrioritizedTaskStateBackground,
   resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid,
-  createCollapseEvent,
+  createCollapseOp,
   createRunStateExpandOperations,
   loadDisplayConfigs,
   concatArrayMergeCustomizer,

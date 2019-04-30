@@ -28,7 +28,7 @@
 <script>
 import _ from 'lodash';
 import {
-  eventHub, createCollapseEvent, containsAll, getTaskNodeBorderRadius,
+  eventHub, containsAll, getTaskNodeBorderRadius,
 } from '../../utils';
 import XTaskNode from './XTaskNode.vue';
 
@@ -57,15 +57,17 @@ export default {
     boxDimensions() {
       // 2x since we pad both sides of width.
       const width = this.dimensions.width - this.allStackOffset * 2;
-      const height = this.dimensions.height - this.allStackOffset;
+      // only subtract height if there is actually stacks to show.
+      const height = this.dimensions.height
+        - (this.hasCollapsedChildren ? this.allStackOffset : 0);
       return { width, height };
     },
     frontBoxStyle() {
       return {
         width: `${this.boxDimensions.width}px`,
         height: `${this.boxDimensions.height}px`,
-        'border-right': this.hasCollapsedChildren ? '0.5px solid white' : '',
-        'border-bottom': this.hasCollapsedChildren ? '0.5px solid white' : '',
+        'border-right': this.hasCollapsedChildren ? '1px solid white' : '',
+        'border-bottom': this.hasCollapsedChildren ? '1px solid white' : '',
         // TODO: avoid having this component know about how tasks represent chain depth.
         'border-radius': getTaskNodeBorderRadius(this.node.chain_depth),
       };
@@ -74,6 +76,7 @@ export default {
       return {
         width: `${this.boxDimensions.width}px`,
         height: `${this.boxDimensions.height}px`,
+        display: 'inline-block',
       };
     },
     stacksContainerStyle() {
@@ -85,14 +88,6 @@ export default {
     },
   },
   methods: {
-    emitExpandUuids(uuids) {
-      // TODO: is this better than an expand descendants? Seems like unnecessary ops.
-      const expandDescendantEvents = createCollapseEvent(uuids, 'expand', 'self');
-      eventHub.$emit('ui-collapse', {
-        keep_rel_position_task_uuid: this.node.uuid,
-        operationsByUuid: expandDescendantEvents,
-      });
-    },
     getNonFrontBoxMargins(level) {
       return {
         // One pixel to offset for border.
@@ -110,7 +105,10 @@ export default {
         });
     },
     expandAll() {
-      this.emitExpandUuids(this.collapseDetails.collapsedUuids);
+      eventHub.$emit('ui-collapse', {
+        uuid: this.node.uuid,
+        operation: 'expand',
+      });
     },
   },
 };

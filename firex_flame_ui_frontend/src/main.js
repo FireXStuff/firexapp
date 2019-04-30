@@ -15,11 +15,15 @@ import VueClipboard from 'vue-clipboard2';
 import router from './router';
 import App from './App.vue';
 
+// Vue.config.devtools = true;
+// Vue.config.performance = true;
+
 library.add(faBullseye, faEye, faSearch, faListUl, faPlusCircle,
   faSitemap, faFileCode, faTimes, faFire, faTrash,
   faExpandArrowsAlt, faCompressArrowsAlt);
 Vue.use(AsyncComputed);
 Vue.use(VueClipboard);
+
 Vue.config.productionTip = false;
 
 Vue.component('font-awesome-icon', FontAwesomeIcon);
