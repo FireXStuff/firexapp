@@ -9,8 +9,12 @@ from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_r
 class TestService(TrackingService):
     test_message = "Test service was started"
 
+    def extra_cli_arguments(self, arg_parser):
+        super(TestService, self).extra_cli_arguments(arg_parser)
+
     def start(self, args, **kwargs)->{}:
         print(self.test_message)
+        super(TestService, self).start(args, **kwargs)
         return {"service_success_value": True}
 
 

@@ -21,5 +21,5 @@ class TrackingService(ABC):
         pass
 
     @abstractmethod
-    def start(self, args)->{}:
+    def start(self, args, **kwargs)->{}:
         pass
