@@ -56,7 +56,10 @@
       </table>
 
       <div style="margin-top: 15px;">
-        <input type="text" placeholder="Service Name" v-model="inputDisplayConfig.serviceName">
+        <input type="checkbox" id="isNameRegex" v-model="inputDisplayConfig.isNameRegex">
+        <label for="isNameRegex" style="margin-right: 4px;">Regex</label>
+        <input type="text" placeholder="Service Name" v-model="inputDisplayConfig.serviceName"
+          style="margin-right: 10px">
         <select style="margin: 10px;" v-model="inputDisplayConfig.operation">
           <option value="collapse">collapse</option>
           <option value="expand">expand</option>
@@ -153,6 +156,7 @@ export default {
         serviceName: '',
         operation: 'collapse',
         targets: [],
+        isNameRegex: false,
       };
     },
     saveDisplayConfigEntry() {
@@ -165,11 +169,12 @@ export default {
         this.displayConfigError = 'At least one target must be selected.';
         return;
       }
+      // TODO: validate service if it's a regex.
 
       const newEntry = {
         id: uuidv4(),
         relative_to_nodes: {
-          type: 'task_name',
+          type: this.inputDisplayConfig.isNameRegex ? 'task_name_regex' : 'task_name',
           value: this.inputDisplayConfig.serviceName,
         },
         operation: this.inputDisplayConfig.operation,

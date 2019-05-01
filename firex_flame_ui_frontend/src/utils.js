@@ -459,20 +459,32 @@ function getCollapsedGraphByNodeUuid(collapsedByUuid) {
   // TODO: collapse operations on the root node are ignored. Could collapse 'down',
   //  though it's unclear if that's preferable.
   return recursiveGetCollapseNodes(getRoot(collapsedByUuid).uuid,
-    nodesByParentId);
+    nodesByParentId, null);
 }
 
-function recursiveGetCollapseNodes(curUuid, nodesByParentId) {
+function recursiveGetCollapseNodes(curUuid, nodesByParentId, parentId) {
 
   let childResults = _.map(nodesByParentId[curUuid], c =>
-    recursiveGetCollapseNodes(c.uuid, nodesByParentId));
+    recursiveGetCollapseNodes(c.uuid, nodesByParentId, curUuid));
   let resultDescendantsByUuid = _.reduce(childResults, _.merge, {});
 
-  let collapsedChildren = _.filter(nodesByParentId[curUuid], c => c.collapsed);
-  let collapsedDescendantUuids = _.flatMap(collapsedChildren,
-      c => [c.uuid].concat(resultDescendantsByUuid[c.uuid]))
+  let collapsedChildrenUuids = _.map(_.filter(nodesByParentId[curUuid], c => c.collapsed), 'uuid');
+  let collapsedDescendantUuids = _.flatMap(collapsedChildrenUuids,
+      cUuid => [cUuid].concat(resultDescendantsByUuid[cUuid].collapsedUuids));
 
-  return _.assign({[[curUuid]]: collapsedDescendantUuids}, resultDescendantsByUuid);
+  // Every uncollapsed child of a collapsed child (i.e. uncollapsed grandchildren whose parents
+  // are collapsed) need to have this node set as their parent.
+  _.each(collapsedChildrenUuids, ccUuid => {
+    const uncollapsedGrandchildrenParentCollapsed = _.filter(nodesByParentId[ccUuid],
+      (grandchild) => !grandchild.collapsed);
+    _.each(uncollapsedGrandchildrenParentCollapsed,
+        gc => resultDescendantsByUuid[gc.uuid].parent_id = curUuid);
+  })
+
+  return _.assign({[[curUuid]]: {
+      collapsedUuids: collapsedDescendantUuids,
+      parent_id: parentId,
+    }}, resultDescendantsByUuid);
 }
 
 function createCollapseOpsByUuid(uuids, operation, target, sourceUuid) {
@@ -546,4 +558,5 @@ export {
   createCollapseRootOperation,
   containsAll,
   getTaskNodeBorderRadius,
+  getDescendantsByUuid,
 };

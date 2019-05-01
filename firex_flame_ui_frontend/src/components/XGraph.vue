@@ -82,7 +82,7 @@ import {
   resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid, createCollapseOpsByUuid, createRunStateExpandOperations,
   loadDisplayConfigs, concatArrayMergeCustomizer, createCollapseRootOperation, containsAll,
-  getPrioritizedTaskStateBackground,
+  getPrioritizedTaskStateBackground, getDescendantsByUuid,
 } from '../utils';
 import {
   prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid, resolveToggleOperation,
@@ -111,7 +111,7 @@ export default {
       .clickDistance(4)
       .on('zoom', this.zoomed);
     return {
-      // unfortunate we need to track this manually. TODO: look for a better way.
+      // unfortunately we need to track this manually. TODO: look for a better way.
       dimensionsByUuid: {},
       zoom,
       transform: { x: 0, y: 0, scale: 1 },
@@ -131,42 +131,47 @@ export default {
       // in case nodesByUuid changes. This is a bit gross, maybe use a watcher instead.
       return _.mapValues(_.pick(this.dimensionsByUuid, this.allUuids),
         (node, uuid) => ({
-          uuid,
           width: this.dimensionsByUuid[uuid].width,
           height: this.dimensionsByUuid[uuid].height,
           parent_id: this.nodesByUuid[uuid].parent_id,
         }));
     },
     /**
-     * Make collapse info availabe per UUID.
+     * Make collapse info available per UUID.
      * */
     collapseGraphByNodeUuid() {
       const stackOffset = 12;
       const stackCount = 2; // Always have 3 stacked behind the front.
       return _.mapValues(getCollapsedGraphByNodeUuid(this.resolvedCollapseStateByUuid),
-        collapsedUuids => ({
+        collapseData => ({
           background: getPrioritizedTaskStateBackground(
-            _.map(collapsedUuids, u => _.get(this.nodesByUuid, [u, 'state'])),
+            _.map(collapseData.collapsedUuids, u => _.get(this.nodesByUuid, [u, 'state'])),
           ),
-          collapsedUuids,
+          collapsedUuids: collapseData.collapsedUuids,
           // We don't want the width to vary if a node has collapsed children or not,
-          // to pad the same either way.
+          // so pad the same either way.
           // x2 because we pad both left and right to keep front box centering.
           widthPadding: stackCount * stackOffset * 2,
           // Only pad vertical to make room for real stacked behind boxes.
-          heightPadding: _.isEmpty(collapsedUuids) ? 0 : stackCount * stackOffset,
+          heightPadding: _.isEmpty(collapseData.collapsedUuids) ? 0 : stackCount * stackOffset,
           stackOffset,
           stackCount,
+          parent_id: collapseData.parent_id,
         }));
     },
     uncollapsedTaskNodeDimensionsByUuid() {
+      // TODO: maybe include this omit in taskNodeDimensionsByUuid definition.
+      // TODO: should collapseGraphByNodeUuid drop collapsed nodes? Then map over those
+      //  (uncollapsed) keys?
       const sizedUncollapsedTaskNodes = _.omit(this.taskNodeDimensionsByUuid,
         this.collapsedNodeUuids);
       return _.mapValues(sizedUncollapsedTaskNodes,
         (d, uuid) => _.merge({}, d,
           {
+            uuid,
             width: d.width + this.collapseGraphByNodeUuid[uuid].widthPadding,
             height: d.height + this.collapseGraphByNodeUuid[uuid].heightPadding,
+            parent_id: this.collapseGraphByNodeUuid[uuid].parent_id,
           }));
     },
     // TODO: should consider limiting layout recalculations to once per second instead of
@@ -236,17 +241,32 @@ export default {
         (collapsedChildren, uuid) => containsAll(collapsedChildren,
           this.nodesByUuid[uuid].children_uuids));
     },
+    descendantUuidsByUuid() {
+      // TODO: FIXME FIX ME -- will cause way too many re-calcs.
+      return getDescendantsByUuid(this.nodesByUuid);
+    },
+    allDescendantsCollapsedByUuid() {
+      return _.mapValues(this.collapseGraphByNodeUuid,
+        (collapseData, uuid) => containsAll(collapseData.collapsedUuids,
+          this.descendantUuidsByUuid[uuid]));
+    },
+    // Avoid re-calculating display ops on every data change.
+    flameDataAndNameByUuid() {
+      return _.mapValues(this.nodesByUuid,
+        // Needs parent_id & uuid for descendants calc. Should have a single one of those,
+        // selectively updated.
+        n => _.pick(n, ['flame_data', 'name', 'parent_id', 'uuid']));
+    },
     flameDataDisplayOperationsByUuid() {
       const displayPath = ['flame_data', '_default_display', 'value'];
       // TODO: Each task can send updates that should override previous op entries for that task.
       //  Do that filtering here.
-      // TODO: computed property just for flame data to avoid recalc on any nodesByUuid change.
-      const ops = _.flatMap(this.nodesByUuid, n => _.get(n, displayPath, []));
-      return resolveDisplayConfigsToOpsByUuid(ops, this.nodesByUuid);
+      const ops = _.flatMap(this.flameDataAndNameByUuid, n => _.get(n, displayPath, []));
+      return resolveDisplayConfigsToOpsByUuid(ops, this.flameDataAndNameByUuid);
     },
     userDisplayConfigOperationsByUuid() {
       const displayConfigs = loadDisplayConfigs();
-      return resolveDisplayConfigsToOpsByUuid(displayConfigs, this.nodesByUuid);
+      return resolveDisplayConfigsToOpsByUuid(displayConfigs, this.flameDataAndNameByUuid);
     },
     runStateExpandOperationsByUuid() {
       return createRunStateExpandOperations(this.nodesByUuid);
@@ -351,9 +371,10 @@ export default {
      * @param parentNodeId
      */
     toggleCollapseDescendants(parentNodeId) {
+      const allChildrenExpanded = this.collapsedChildrenByUuid[parentNodeId].length === 0;
+      const allDescendantsCollapsed = this.allDescendantsCollapsedByUuid[parentNodeId];
       const resolvedOperation = resolveToggleOperation(parentNodeId,
-        this.allChildrenCollapsedByUuid[parentNodeId],
-        this.collapsedChildrenByUuid[parentNodeId].length === 0,
+        allDescendantsCollapsed, allChildrenExpanded,
         this.collapseConfig.uiCollapseOperationsByUuid);
 
       this.handleUiCollapseEvent(
@@ -485,6 +506,7 @@ export default {
       this.collapseConfig = this.getLocalStorageCollapseConfig();
     },
     nodeLayoutsByUuid() {
+      // Need to load stored transform AFTER initial layout.
       if (this.isFirstLayout) {
         this.isFirstLayout = false;
         // TODO: combine localstorage reads, or cache at lower level.
