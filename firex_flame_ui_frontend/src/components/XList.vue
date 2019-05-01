@@ -49,7 +49,10 @@
       <!-- TODO: Add no nodes matching filters result. -->
       <div class="list-container">
         <x-node v-for="n in displayNodesByUuid" :key="n.uuid"
-                :node="n" style="margin: 10px" :allowCollapse="false"></x-node>
+                :node="n"
+                style="margin: 10px"
+                :allowCollapse="false"
+                :liveUpdate="true"></x-node>
       </div>
     </div>
   </div>
