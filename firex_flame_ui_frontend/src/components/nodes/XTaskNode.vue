@@ -21,7 +21,7 @@
                :style="allowCollapse ? '' : 'visibility: collapse;'">
             <!-- Use prevent to avoid activating node-wide attribute link -->
             <i v-on:click.prevent="emitCollapseToggle" style="cursor: pointer; padding: 2px;">
-              <font-awesome-icon v-if="!areAllChildrenCollapsed" icon="compress-arrows-alt"
+              <font-awesome-icon v-if="toCollapse" icon="compress-arrows-alt"
                 title="collapse"></font-awesome-icon>
               <font-awesome-icon v-else icon="expand-arrows-alt" title="expand">
               </font-awesome-icon>
@@ -72,7 +72,7 @@ export default {
     showUuid: { default: false },
     liveUpdate: { default: false },
     allowClickToAttributes: { default: true },
-    areAllChildrenCollapsed: { default: false },
+    toCollapse: { default: false },
     emitDimensions: { default: false },
     displayDetails: { require: false },
   },

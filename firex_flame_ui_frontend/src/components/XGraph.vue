@@ -80,12 +80,12 @@ import XLink from './XLinks.vue';
 import {
   eventHub, calculateNodesPositionByUuid, getCenteringTransform,
   resolveCollapseStatusByUuid,
-  getCollapsedGraphByNodeUuid, createCollapseOp, createRunStateExpandOperations,
+  getCollapsedGraphByNodeUuid, createCollapseOpsByUuid, createRunStateExpandOperations,
   loadDisplayConfigs, concatArrayMergeCustomizer, createCollapseRootOperation, containsAll,
   getPrioritizedTaskStateBackground,
 } from '../utils';
 import {
-  prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid,
+  prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid, resolveToggleOperation,
 } from '../collapse';
 
 const scaleBounds = { max: 1.3, min: 0.01 };
@@ -300,8 +300,7 @@ export default {
     updateTransformViaZoom(transform) {
       // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent
       // with current position.
-      const d3Transform = zoomIdentity.translate(transform.x, transform.y)
-        .scale(transform.scale);
+      const d3Transform = zoomIdentity.translate(transform.x, transform.y).scale(transform.scale);
       // This call will create a d3event and pipe it through, just like manual pan/zooms.
       d3select('div#chart-container').call(this.zoom.transform, d3Transform);
     },
@@ -352,44 +351,44 @@ export default {
      * @param parentNodeId
      */
     toggleCollapseDescendants(parentNodeId) {
+      const resolvedOperation = resolveToggleOperation(parentNodeId,
+        this.allChildrenCollapsedByUuid[parentNodeId],
+        this.collapsedChildrenByUuid[parentNodeId].length === 0,
+        this.collapseConfig.uiCollapseOperationsByUuid);
+
       this.handleUiCollapseEvent(
         {
-          uuid: parentNodeId,
-          operation: this.allChildrenCollapsedByUuid[parentNodeId] ? 'expand' : 'collapse',
+          keep_rel_pos_uuid: parentNodeId,
+          operationsByUuid: createCollapseOpsByUuid(resolvedOperation.uuids,
+            resolvedOperation.operation, resolvedOperation.target, parentNodeId),
         },
       );
     },
     handleUiCollapseEvent(event) {
-      // Specifying a node to maintain position realtive to is optional.
-      const initialRelPos = event.uuid ? this.getCurrentRelPos(event.uuid) : undefined;
+      // Specifying a node to maintain position relative to is optional.
+      const initialRelPos = event.keep_rel_pos_uuid
+        ? this.getCurrentRelPos(event.keep_rel_pos_uuid) : undefined;
 
-      // TODO: right now only operation support in UI is collapse/expand descendants.
-      // Could simplify this section & data stored if additional operations are unlikely
-      // to be exposed via the UI.
-
-      // If there is already a collapse entry for this UUID & the opposite operation and target
-      // 'descendants', just remove that entry (toggle). Otherwise add a new operation.
-      const oppositeOps = _.filter(
-        _.get(this.collapseConfig.uiCollapseOperationsByUuid, event.uuid, []),
-        op => op.operation !== event.operation && _.isEqual(op.targets, ['descendants']),
-      );
-      let resultOps;
-      if (!_.isEmpty(oppositeOps)) {
-        const existingOps = _.get(this.collapseConfig.uiCollapseOperationsByUuid, event.uuid, []);
-        resultOps = _.difference(existingOps, oppositeOps);
-      } else {
-        const existingOps = _.get(this.collapseConfig.uiCollapseOperationsByUuid, event.uuid, []);
-        const newOp = createCollapseOp(event.uuid, event.operation, 'descendants');
-        resultOps = existingOps.concat([newOp]);
-      }
-      this.$set(this.collapseConfig.uiCollapseOperationsByUuid, event.uuid, resultOps);
+      _.each(event.operationsByUuid, (op, uuid) => {
+        const existingOps = _.get(this.collapseConfig.uiCollapseOperationsByUuid, uuid, []);
+        let resultOps;
+        if (op.operation === 'clear') {
+          resultOps = _.reject(existingOps,
+            existingOp => _.isEqual(existingOp.targets, op.targets)
+              && existingOp.sourceTaskUuid === op.sourceTaskUuid);
+        } else {
+          // All other operations are just accumulated.
+          resultOps = existingOps.concat([op]);
+        }
+        this.$set(this.collapseConfig.uiCollapseOperationsByUuid, uuid, resultOps);
+      });
 
       if (initialRelPos) {
         // Since we're changing the nodes being displayed, the layout might drastically change.
         // Maintain the position of the node whose descendants have been added/removed so that
         // the user remains oriented.
         this.$nextTick(() => {
-          const nextRelPos = this.getCurrentRelPos(event.uuid);
+          const nextRelPos = this.getCurrentRelPos(event.keep_rel_pos_uuid);
           const xShift = (initialRelPos.x - nextRelPos.x) * this.transform.scale;
           const finalTranslateX = this.transform.x + xShift;
           // Since we're viewing hierarchies, the y position shouldn't ever change when
@@ -447,9 +446,13 @@ export default {
       const expectedKeys = ['hideSuccessPaths', 'uiCollapseOperationsByUuid',
         'applyDefaultCollapseOps'];
       // TODO: fill in remaining validation of collapseConfig.
-      const containsAllRequired = _.intersection(_.keys(storedCollapseConfig), expectedKeys).length
-        === expectedKeys.length;
-      if (containsAllRequired) {
+      const containsAllRequired = containsAll(_.keys(storedCollapseConfig), expectedKeys);
+      const collapseByUuidContainsAllRequired = _.every(
+        _.values(_.get(storedCollapseConfig, 'uiCollapseOperationsByUuid', {})),
+        ops => _.every(ops, op => containsAll(_.keys(op),
+          ['operation', 'priority', 'targets', 'sourceTaskUuid'])),
+      );
+      if (containsAllRequired && collapseByUuidContainsAllRequired) {
         return storedCollapseConfig;
       }
       // Default collapse config.

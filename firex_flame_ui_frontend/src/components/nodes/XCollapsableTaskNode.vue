@@ -8,7 +8,7 @@
           :showUuid="showUuid"
           :liveUpdate="liveUpdate"
           :style="frontTaskStyle"
-          :areAllChildrenCollapsed="areAllChildrenCollapsed"
+          :toCollapse="!areAllChildrenCollapsed"
           :displayDetails="displayDetails"></x-task-node>
     </div>
 
@@ -28,7 +28,7 @@
 <script>
 import _ from 'lodash';
 import {
-  eventHub, containsAll, getTaskNodeBorderRadius,
+  eventHub, containsAll, getTaskNodeBorderRadius, createCollapseOpsByUuid,
 } from '../../utils';
 import XTaskNode from './XTaskNode.vue';
 
@@ -88,6 +88,14 @@ export default {
     },
   },
   methods: {
+    emitExpandUuids(uuids) {
+      const expandDescendantEvents = createCollapseOpsByUuid(uuids, 'expand', 'self',
+        this.node.uuid);
+      eventHub.$emit('ui-collapse', {
+        keep_rel_pos_uuid: this.node.uuid,
+        operationsByUuid: expandDescendantEvents,
+      });
+    },
     getNonFrontBoxMargins(level) {
       return {
         // One pixel to offset for border.
@@ -105,10 +113,7 @@ export default {
         });
     },
     expandAll() {
-      eventHub.$emit('ui-collapse', {
-        uuid: this.node.uuid,
-        operation: 'expand',
-      });
+      this.emitExpandUuids(this.collapseDetails.collapsedUuids);
     },
   },
 };

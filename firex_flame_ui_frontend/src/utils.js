@@ -127,7 +127,7 @@ function runStatePredicate(node) {
 function createRunStateExpandOperations(nodesByUuid) {
   const showUuidsToUuids = _.keyBy(_.map(_.filter(nodesByUuid, runStatePredicate), 'uuid'));
   return _.mapValues(showUuidsToUuids,
-    () => [{ targets: ['ancestors', 'self', 'descendants'], operation: 'expand' }]);
+    () => [{ targets: ['ancestors', 'self'], operation: 'expand' }]);
 }
 
 function createCollapseRootOperation(nodesByUuid) {
@@ -416,6 +416,7 @@ function _getAllOpsAffectingCollapseState(
 function _findMinPriorityOp(affectingOps) {
   // Unfortunately need to sort since minBy doesn't work like sortBy w.r.t. array of properties.
   const sorted = _.sortBy(affectingOps, ['priority', 'opPriority', 'targetPriority', 'distance']);
+  // If there are any 'clear' operations, ignore previous ops from that datasource.
   return _.head(sorted);
 }
 
@@ -429,7 +430,7 @@ function resolveCollapseStatusByUuid(nodesByUuid, collapseOpsByUuid) {
   while (toCheck.length > 0) {
     const curNode = toCheck.pop();
 
-    // assumes walking root-down.
+    // assumes walking root-down (parent collapsed state already calced).
     const isParentCollapsed = _.get(resultNodesByUuid, [curNode.parent_id, 'collapsed'], false)
     const affectingOps = _getAllOpsAffectingCollapseState(
       curNode.uuid, collapseOpsByUuid, ancestorUuidsByUuid, descendantUuidsByUuid,
@@ -474,13 +475,18 @@ function recursiveGetCollapseNodes(curUuid, nodesByParentId) {
   return _.assign({[[curUuid]]: collapsedDescendantUuids}, resultDescendantsByUuid);
 }
 
-function createCollapseOp(uuid, operation, target) {
+function createCollapseOpsByUuid(uuids, operation, target, sourceUuid) {
   const priority = -(new Date).getTime();
-  return {
+  return _.mapValues(_.keyBy(uuids),
+    () => ({
+      // TODO: note that ui operations currently only specify one target. Might be worth reflecting
+      // that here & transforming to a list before collapse state sources are merged.
       targets: [target],
       operation: operation,
       priority: priority,
-      stateSource: 'ui'};
+      stateSource: 'ui', // TODO: remove here & add during collapse state source merge.
+      sourceTaskUuid: sourceUuid,
+    }));
 }
 
 function loadDisplayConfigs() {
@@ -533,7 +539,7 @@ export {
   getPrioritizedTaskStateBackground,
   resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid,
-  createCollapseOp,
+  createCollapseOpsByUuid,
   createRunStateExpandOperations,
   loadDisplayConfigs,
   concatArrayMergeCustomizer,
