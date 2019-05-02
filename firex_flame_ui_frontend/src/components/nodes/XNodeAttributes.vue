@@ -137,7 +137,7 @@ export default {
     },
     isTimeKey(key) {
       return _.includes(['first_started', 'started', 'failed', 'succeeded', 'revoked',
-        'local_received', 'timestamp'], key);
+        'timestamp'], key);
     },
     formatTime(unixTime) {
       const humanTime = DateTime.fromSeconds(unixTime).toLocaleString(DateTime.DATETIME_FULL);

@@ -224,7 +224,13 @@ export default {
       return _.mergeWith({}, ...enabledCollapseStateSources, concatArrayMergeCustomizer);
     },
     // TODO: consider simplifying this to uuid -> boolean instead of encoding graph shape here too.
+    // Graph shape can be merged with elsewhere?
     resolvedCollapseStateByUuid() {
+      // TODO: have computed properties for the following the following:
+      // TODO: peform one tree walk to get all fields by UUID.
+      // const nodesByParentId = _.groupBy(_.values(nodesByUuid), 'parent_id');
+      // const ancestorUuidsByUuid = getAncestorsByUuid(nodesByUuid);
+      // const descendantUuidsByUuid = getDescendantsByUuid(nodesByUuid);
       return resolveCollapseStatusByUuid(this.nodesByUuid, this.mergedCollapseStateSources);
     },
     collapsedNodeUuids() {
@@ -234,12 +240,6 @@ export default {
       return _.mapValues(this.nodesByUuid,
         node => _.uniq(_.filter(node.children_uuids,
           cUuid => this.resolvedCollapseStateByUuid[cUuid].collapsed)));
-    },
-    // Is this really necessary?
-    allChildrenCollapsedByUuid() {
-      return _.mapValues(this.collapsedChildrenByUuid,
-        (collapsedChildren, uuid) => containsAll(collapsedChildren,
-          this.nodesByUuid[uuid].children_uuids));
     },
     descendantUuidsByUuid() {
       // TODO: FIXME FIX ME -- will cause way too many re-calcs.
@@ -255,6 +255,7 @@ export default {
       return _.mapValues(this.nodesByUuid,
         // Needs parent_id & uuid for descendants calc. Should have a single one of those,
         // selectively updated.
+        // TODO: further prune to flame_data._default_display
         n => _.pick(n, ['flame_data', 'name', 'parent_id', 'uuid']));
     },
     flameDataDisplayOperationsByUuid() {
@@ -494,6 +495,7 @@ export default {
         uiCollapseOperationsByUuid: _.get(obj, 'uiCollapseOperationsByUuid', {}),
         applyDefaultCollapseOps: _.get(obj, 'applyDefaultCollapseOps', false),
       };
+      // Changing filter state can significantly change visible nodes, so we center.
       this.center();
     },
     getDisplayDetails(resolvedCollapseStateByUuid, uuid) {

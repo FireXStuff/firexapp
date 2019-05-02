@@ -20,7 +20,7 @@ function captureEventState(event, tasksByUuid, taskNum) {
   }
 
   const copyFields = ['hostname', 'parent_id', 'type', 'retries', 'firex_bound_args', 'flame_additional_data',
-    'local_received', 'actual_runtime', 'support_location', 'utcoffset', 'type', 'code_url', 'firex_default_bound_args',
+    'actual_runtime', 'support_location', 'utcoffset', 'type', 'code_url', 'firex_default_bound_args',
     'from_plugin', 'chain_depth', 'firex_result', 'exception', 'traceback'];
   copyFields.forEach((field) => {
     if (_.has(event, field)) {

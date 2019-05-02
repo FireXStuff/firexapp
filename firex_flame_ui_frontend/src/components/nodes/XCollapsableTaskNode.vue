@@ -44,6 +44,8 @@ export default {
     displayDetails: { required: true },
   },
   computed: {
+    // TODO: Should be all descendants collapsed, but how does this component know that?
+    // TODO: Add to collapseDetails?
     areAllChildrenCollapsed() {
       return containsAll(this.collapseDetails.collapsedUuids,
         this.node.children_uuids);
