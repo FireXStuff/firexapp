@@ -258,6 +258,9 @@ class SubmitBaseApp:
 
         logger.debug("Running FireX self destruct")
         if self.celery_manager:
+            # clean up any orphan'd tasks
+            revoke_active_tasks()
+
             logger.debug("Sending Celery shutdown")
             app.control.shutdown()
         elif self.broker:
@@ -288,6 +291,19 @@ class SubmitBaseApp:
         for arg in unused_chain_args:
             logger.error("--" + arg)
         return False
+
+
+def revoke_active_tasks():
+    revoked = []
+    active = app.control.inspect().active()
+    if active:
+        logger.info('Revoking lingering tasks...')
+        for host in active.values():
+            for task in host:
+                revoked.append(task["id"])
+                logger.warning("Revoking " + task['name'])
+                app.control.revoke(task_id=task["id"], terminate=True)
+    return revoked
 
 
 def get_log_dir_from_output(cmd_output: str)->str:
