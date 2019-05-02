@@ -17,7 +17,7 @@
 
           <!-- visibility: collapsed to include space for collapse button, even when allowCollapse
             is false. -->
-          <div v-if="node.children_uuids.length && !isChained" style="align-self: end;"
+          <div v-if="!isLeaf && !isChained" style="align-self: end;"
                :style="allowCollapse ? '' : 'visibility: collapse;'">
             <!-- Use prevent to avoid activating node-wide attribute link -->
             <i v-on:click.prevent="emitCollapseToggle" style="cursor: pointer; padding: 2px;">
@@ -74,7 +74,8 @@ export default {
     allowClickToAttributes: { default: true },
     toCollapse: { default: false },
     emitDimensions: { default: false },
-    displayDetails: { require: false },
+    displayDetails: { required: false },
+    isLeaf: { required: true, type: Boolean },
   },
   data() {
     return {

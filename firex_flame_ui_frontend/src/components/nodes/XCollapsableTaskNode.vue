@@ -8,7 +8,8 @@
           :showUuid="showUuid"
           :liveUpdate="liveUpdate"
           :style="frontTaskStyle"
-          :toCollapse="!areAllChildrenCollapsed"
+          :toCollapse="!areAllDescendantsCollapsed"
+          :isLeaf="nodeGraphData.childrenUuids.length === 0"
           :displayDetails="displayDetails"></x-task-node>
     </div>
 
@@ -42,13 +43,12 @@ export default {
     liveUpdate: { required: true, type: Boolean },
     collapseDetails: { required: true, type: Object },
     displayDetails: { required: true },
+    nodeGraphData: { required: true, type: Object },
   },
   computed: {
-    // TODO: Should be all descendants collapsed, but how does this component know that?
-    // TODO: Add to collapseDetails?
-    areAllChildrenCollapsed() {
+    areAllDescendantsCollapsed() {
       return containsAll(this.collapseDetails.collapsedUuids,
-        this.node.children_uuids);
+        this.nodeGraphData.descendantUuids);
     },
     hasCollapsedChildren() {
       return this.collapseDetails.collapsedUuids.length > 0;

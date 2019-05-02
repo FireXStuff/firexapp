@@ -1,29 +1,22 @@
 import _ from 'lodash';
 
 import { resolveCollapseStatusByUuid, getCollapsedGraphByNodeUuid } from '@/utils.js';
+import { getGraphDataByUuid } from '@/graph-utils.js';
 
 describe('utils.js', () => {
-  const trivialNodesByUuid = {
-    1: {
-      uuid: '1',
-      parent_id: null,
-    },
-    2: {
-      uuid: '2',
-      parent_id: '1',
-    },
-    3: {
-      uuid: '3',
-      parent_id: '2',
-    },
-  };
+
+  const trivRoot = 1;
+  const trivialGraph = getGraphDataByUuid(trivRoot, {
+    1: null,
+    2: '1',
+    3: '2',
+  });
 
   it('collapses trivial node via self', () => {
     const collapseOpsByUuid = {
       2: [{ operation: 'collapse', priority: 1, targets: ['self'] }],
     };
-
-    const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
+    const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
     expect(_.size(result)).toEqual(3);
     expect(_.find(result, n => n.parent_id === '1').collapsed).toBe(true);
     expect(result['1'].collapsed).toBe(false);
@@ -34,7 +27,7 @@ describe('utils.js', () => {
       1: [{ operation: 'collapse', priority: 1, targets: ['descendants'] }],
     };
 
-    const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
+    const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
     expect(_.size(result)).toEqual(3);
     expect(result['2'].collapsed).toBe(true);
     expect(result['1'].collapsed).toBe(false);
@@ -46,7 +39,7 @@ describe('utils.js', () => {
       3: [{ operation: 'expand', priority: 1, targets: ['self'] }],
     };
 
-    const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
+    const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
     expect(_.size(result)).toEqual(3);
     expect(result['1'].collapsed).toBe(false);
     expect(result['2'].collapsed).toBe(true);
@@ -61,7 +54,7 @@ describe('utils.js', () => {
       ],
     };
 
-    const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
+    const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
     expect(_.size(result)).toEqual(3);
     expect(result['1'].collapsed).toBe(false); // TODO: root never collapsed.
     expect(result['2'].collapsed).toBe(true);
@@ -74,7 +67,7 @@ describe('utils.js', () => {
       3: [{ operation: 'collapse', priority: 1, targets: ['ancestors'] }],
     };
 
-    const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
+    const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
     expect(_.size(result)).toEqual(3);
     expect(result['1'].collapsed).toBe(false);
     expect(result['2'].collapsed).toBe(true);
@@ -87,7 +80,7 @@ describe('utils.js', () => {
       3: [{ operation: 'collapse', priority: 1, targets: ['ancestors'] }],
     };
 
-    const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
+    const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
     expect(_.size(result)).toEqual(3);
     expect(result['1'].collapsed).toBe(false); // TODO: root never collapsed.
     expect(result['2'].collapsed).toBe(false);
@@ -101,7 +94,7 @@ describe('utils.js', () => {
       3: [{ operation: 'collapse', priority: 1, targets: ['ancestors'] }],
     };
 
-    const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
+    const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
     expect(_.size(result)).toEqual(3);
     expect(result['1'].collapsed).toBe(false);
     expect(result['2'].collapsed).toBe(true);
@@ -113,12 +106,13 @@ describe('utils.js', () => {
       1: [{ operation: 'collapse', priority: 1, targets: ['self'] }],
     };
     const nodesByUuid = {
-      1: { uuid: '1', parent_id: null },
-      2: { uuid: '2', parent_id: '1' },
-      3: { uuid: '3', parent_id: '1' },
+      1: null,
+      2: '1',
+      3: '1',
     };
 
-    const result = resolveCollapseStatusByUuid(nodesByUuid, collapseOpsByUuid);
+    const result = resolveCollapseStatusByUuid('1', getGraphDataByUuid('1', nodesByUuid),
+      collapseOpsByUuid);
     expect(_.size(result)).toEqual(3);
     expect(result['1'].collapsed).toBe(false); // TODO: root never collapsed.
     expect(result['2'].collapsed).toBe(true);
@@ -131,7 +125,7 @@ describe('utils.js', () => {
       3: [{ operation: 'collapse', priority: 10, targets: ['ancestors'] }],
     };
 
-    const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
+    const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
     expect(_.size(result)).toEqual(3);
     expect(result['1'].collapsed).toBe(false); // TODO: root never collapsed.
     expect(result['2'].collapsed).toBe(false);
@@ -145,7 +139,7 @@ describe('utils.js', () => {
       3: [{ operation: 'collapse', priority: 10, targets: ['ancestors'] }],
     };
 
-    const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
+    const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
     expect(_.size(result)).toEqual(3);
     expect(result['1'].collapsed).toBe(false); // TODO: root never collapsed.
     expect(result['2'].collapsed).toBe(false);
@@ -158,7 +152,9 @@ describe('utils.js', () => {
       1: [{ operation: 'collapse', priority: 1, targets: ['grandchildren'] }],
     };
 
-    const result = resolveCollapseStatusByUuid(trivialNodesByUuid, collapseOpsByUuid);
+    const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
+    console.log(trivialGraph)
+    console.log(result)
     expect(_.size(result)).toEqual(3);
     expect(result['1'].collapsed).toBe(false);
     expect(result['2'].collapsed).toBe(false);
@@ -224,7 +220,6 @@ describe('utils.js', () => {
 
     const result = getCollapsedGraphByNodeUuid(collapsedByUuid);
     expect(_.size(result)).toEqual(4);
-
     expect(result[1].collapsedUuids.sort()).toEqual(['2', '3', '4']);
   });
 

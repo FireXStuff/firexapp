@@ -10,31 +10,33 @@
         <div style="margin: 15px">
           <h2 class="node-type">Started</h2>
           <div style="display: inline-block; width: 200px;">
-            <x-node :node="startedNode" :allow-click-to-attributes="false"></x-node>
+            <x-node :node="startedNode" :allow-click-to-attributes="false" :isLeaf="true"></x-node>
           </div>
         </div>
         <div style="margin: 15px">
           <h2 class="node-type">Succeeded</h2>
           <div style="display: inline-block; width: 200px;">
-            <x-node :node="succeededNode" :allow-click-to-attributes="false"></x-node>
+            <x-node :node="succeededNode" :allow-click-to-attributes="false" :isLeaf="true">
+            </x-node>
           </div>
         </div>
         <div style="margin: 15px">
           <h2 class="node-type">Failed</h2>
           <div style="display: inline-block; width: 200px;">
-            <x-node :node="failedNode" :allow-click-to-attributes="false"></x-node>
+            <x-node :node="failedNode" :allow-click-to-attributes="false" :isLeaf="true"></x-node>
           </div>
         </div>
         <div style="margin: 15px">
           <h2 class="node-type">Revoked</h2>
           <div style="display: inline-block; width: 200px;">
-            <x-node :node="revokedNode" :allow-click-to-attributes="false"></x-node>
+            <x-node :node="revokedNode" :allow-click-to-attributes="false" :isLeaf="true"></x-node>
           </div>
         </div>
         <div style="margin: 15px">
           <h2 class="node-type">Plugin with Success</h2>
           <div style="display: inline-block; width: 200px;">
-            <x-node :node="pluginSucceededNode" :allow-click-to-attributes="false"></x-node>
+            <x-node :node="pluginSucceededNode" :allow-click-to-attributes="false"
+                    :isLeaf="true"></x-node>
           </div>
         </div>
       </div>
@@ -71,7 +73,6 @@ export default {
     const baseNode = {
       name: 'noop',
       hostname: 'hostname',
-      children_uuids: [],
       task_num: 1,
       actual_runtime: 0.5,
       uuid: '372bcc97-36a0-45cd-a322-3253155da856',

@@ -10,7 +10,7 @@ localVue.use(VueRouter);
 const router = new VueRouter();
 
 const simpleNodesByUuid = {
-  1: { uuid: '1', name: 'rootName', children_uuids: [] },
+  1: { uuid: '1', name: 'rootName', parent_id: null, children_uuids: [] },
 };
 // _.keyBy([
 //   { uuid: '1', name: 'rootName' },
@@ -18,11 +18,10 @@ const simpleNodesByUuid = {
 
 describe('XGraph.vue', () => {
   it('renders simple tree', () => {
-    const msg = 'new message';
     const wrapper = mount(XGraph, {
       propsData: {
         nodesByUuid: simpleNodesByUuid,
-        firexUid: 'FireX-user-xxxxx',
+        runMetadata: { uid: 'FireX-user-xxxxx', root_uuid: '1' },
         liveUpdate: false,
       },
       localVue,

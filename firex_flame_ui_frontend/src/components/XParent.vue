@@ -12,16 +12,12 @@
       </div>
     </div>
     <!-- Only show main panel after data is loaded -->
-    <!-- TODO: remove firexUid from downstream, replace with firexRunMetadata.
-          Make sure metadata exists for all sources
-    -->
     <!-- TODO: isConnected is too specific to supply to all children. Consider communicating
             this another way. -->
     <!-- TODO: will jump because UID is lazy loaded. Consider not rendering until
             we have the UID -->
     <router-view v-if="hasTasks"
                  :nodesByUuid="nodesByUuid"
-                 :firexUid="uid"
                  :isConnected="socket.connected"
                  :runMetadata="firexRunMetadata"
                  :taskDetails="taskDetails"></router-view>
@@ -168,9 +164,8 @@ export default {
         if (!_.has(this.socketNodesByUuid, uuid)) {
           // Ignore tasks that are revoked before they are started, since we'll never get any
           // data for them.
-          if (_.get(newData, 'state', '') === 'task-revoked') {
-            console.log(`Found initial revoked event ${newData.uuid}`);
-          } else {
+          // TODO: flame does this; delete once backwards compatibility isn't an issue.
+          if (_.get(newData, 'state', '') !== 'task-revoked') {
             this.$set(this.socketNodesByUuid, uuid, newData);
           }
         } else {
@@ -209,8 +204,10 @@ export default {
       }, 7000);
     },
     handleFullStateFromSocket(socket, nodesByUuid, startListenForUpdates) {
-      const prunedNodesByUuid = _.keyBy(_.reject(nodesByUuid,
-        n => _.get(n, 'state', '') === 'task-revoked' && !_.has(n, 'parent_id')), 'uuid');
+      // TODO: flame now discards these events, delete once backwards compatability isn't an
+      // issue.
+      const prunedNodesByUuid = _.omitBy(nodesByUuid,
+        n => _.get(n, 'state', '') === 'task-revoked' && !_.has(n, 'parent_id'));
       this.setSocketNodesByUuid(prunedNodesByUuid);
       this.socketUpdateInProgress = false;
       // Only start listening for incremental updates after we've processed the full state.
@@ -260,6 +257,8 @@ export default {
       if (this.useRecFile) {
         this.taskDetails = this.recFileNodesByUuid[uuid];
       } else {
+        // Initialize to data we already have, then overwrite with full server data.
+        this.taskDetails = this.nodesByUuid[uuid];
         const eventName = `task-details-${uuid}`;
         this.socket.on(eventName, (data) => {
           this.taskDetails = data;
@@ -285,6 +284,7 @@ export default {
   beforeRouteEnter(to, from, next) {
     next((vm) => {
       if (to.name === 'XNodeAttributes') {
+        // Add all data needed by XNodeAttributes, such as
         vm.fetchTaskDetails(to.params.uuid);
       }
     });

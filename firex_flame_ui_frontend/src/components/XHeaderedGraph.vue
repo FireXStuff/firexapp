@@ -20,7 +20,7 @@
       :nodesByUuid="rootDescendantsByUuid"
       :showUuids="toggleStates.showTaskDetails"
       :liveUpdate="toggleStates.liveUpdate"
-      :firexUid="runMetadata.uid"></x-graph>
+      :runMetadata="runMetadata"></x-graph>
   </div>
 </template>
 
@@ -139,6 +139,7 @@ export default {
         this.$nextTick(() => { eventHub.$emit('center'); });
       }
     },
+    // eslint-disable-next-line
     'toggleStates.liveUpdate': function () {
       eventHub.$emit('set-live-update', this.toggleStates.liveUpdate);
     },

@@ -51,7 +51,7 @@
         <x-node v-for="n in displayNodesByUuid" :key="n.uuid"
                 :node="n"
                 style="margin: 10px"
-                :allowCollapse="false"
+                :isLeaf="true"
                 :liveUpdate="true"></x-node>
       </div>
     </div>

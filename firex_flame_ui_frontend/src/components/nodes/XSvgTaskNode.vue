@@ -18,6 +18,7 @@
         :liveUpdate="liveUpdate"
         :dimensions="dimensions"
         :collapseDetails="collapseDetails"
+        :nodeGraphData="nodeGraphData"
         :displayDetails="displayDetails"></x-collapsable-task-node>
     </foreignObject>
 
@@ -52,6 +53,7 @@ export default {
     liveUpdate: { required: true, type: Boolean },
     collapseDetails: { required: true },
     displayDetails: { required: true },
+    nodeGraphData: { required: true, type: Object },
   },
   computed: {
     transform() {

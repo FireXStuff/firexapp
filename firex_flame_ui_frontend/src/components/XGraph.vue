@@ -31,13 +31,14 @@
             :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
           <x-svg-task-node
             v-for="(nodeLayout, uuid) in nodeLayoutsByUuid"
+            :key="uuid"
             :node="nodesByUuid[uuid]"
             :dimensions="uncollapsedTaskNodeDimensionsByUuid[uuid]"
             :position="nodeLayout"
-            :key="uuid"
             :showUuid="showUuids"
             :liveUpdate="liveUpdate"
             :collapseDetails="collapseGraphByNodeUuid[uuid]"
+            :nodeGraphData="graphDataByUuid[uuid]"
             :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
             :displayDetails="resolvedCollapseStateByUuid[uuid].minPriorityOp">
           </x-svg-task-node>
@@ -60,7 +61,9 @@
             to catch all and send in one big event. -->
         <x-task-node
           :node="n"
-          :emitDimensions="true" :showUuid="showUuids"
+          :emitDimensions="true"
+          :showUuid="showUuids"
+          :isLeaf="true"
           :displayDetails="getDisplayDetails(resolvedCollapseStateByUuid, n.uuid)"
           v-on:node-dimensions="updateTaskNodeDimensions($event)"></x-task-node>
       </div>
@@ -81,12 +84,15 @@ import {
   eventHub, calculateNodesPositionByUuid, getCenteringTransform,
   resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid, createCollapseOpsByUuid, createRunStateExpandOperations,
-  loadDisplayConfigs, concatArrayMergeCustomizer, createCollapseRootOperation, containsAll,
-  getPrioritizedTaskStateBackground, getDescendantsByUuid,
+  loadDisplayConfigs, concatArrayMergeCustomizer, containsAll,
+  getPrioritizedTaskStateBackground,
 } from '../utils';
 import {
   prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid, resolveToggleOperation,
 } from '../collapse';
+import {
+  getGraphDataByUuid, getChildrenUuidsByUuid,
+} from '../graph-utils';
 
 const scaleBounds = { max: 1.3, min: 0.01 };
 export default {
@@ -95,11 +101,8 @@ export default {
     XSvgTaskNode, XLink, XTaskNode,
   },
   props: {
-    // TODO: it might be worth making a computed property of just the graph structure
-    //    (parent/child relationships)
-    //  to avoid re-calcs in some context where only structure (not data content) is relied on.
     nodesByUuid: { required: true, type: Object },
-    firexUid: { required: true, type: String },
+    runMetadata: { required: true, type: Object },
     // TODO: rename to 'showDetails'.
     showUuids: { default: false, type: Boolean },
     liveUpdate: { required: true, type: Boolean },
@@ -123,49 +126,69 @@ export default {
     };
   },
   computed: {
+    firexUid() {
+      return this.runMetadata.uid;
+    },
     allUuids() {
       return _.keys(this.nodesByUuid);
+    },
+    // TODO: could even push up this check to event processing.
+    parentUuidByUuid() {
+      return _.mapValues(this.nodesByUuid, 'parent_id');
+    },
+    childrenUuidsByUuid() {
+      return getChildrenUuidsByUuid(this.parentUuidByUuid);
+    },
+    graphDataByUuid() {
+      return getGraphDataByUuid(this.runMetadata.root_uuid, this.parentUuidByUuid,
+        this.childrenUuidsByUuid);
+    },
+    runStateByUuid() {
+      return _.mapValues(this.nodesByUuid,
+        n => _.assign(
+          { isLeaf: this.childrenUuidsByUuid[n.uuid].length === 0 },
+          _.pick(n, ['state', 'exception']),
+        ));
     },
     taskNodeDimensionsByUuid() {
       // Note that since dimensionsByUuid is never deleted from, we need to filter by allUuids
       // in case nodesByUuid changes. This is a bit gross, maybe use a watcher instead.
-      return _.mapValues(_.pick(this.dimensionsByUuid, this.allUuids),
-        (node, uuid) => ({
-          width: this.dimensionsByUuid[uuid].width,
-          height: this.dimensionsByUuid[uuid].height,
-          parent_id: this.nodesByUuid[uuid].parent_id,
-        }));
+      const visibleUuids = _.difference(this.allUuids, this.collapsedNodeUuids);
+      return _.pick(this.dimensionsByUuid, visibleUuids);
     },
     /**
-     * Make collapse info available per UUID.
+     * Make collapse info available per UUID. Modifies tree structure when a sequence of collapsed
+     * nodes exists.
      * */
     collapseGraphByNodeUuid() {
       const stackOffset = 12;
-      const stackCount = 2; // Always have 3 stacked behind the front.
-      return _.mapValues(getCollapsedGraphByNodeUuid(this.resolvedCollapseStateByUuid),
-        collapseData => ({
-          background: getPrioritizedTaskStateBackground(
-            _.map(collapseData.collapsedUuids, u => _.get(this.nodesByUuid, [u, 'state'])),
-          ),
-          collapsedUuids: collapseData.collapsedUuids,
-          // We don't want the width to vary if a node has collapsed children or not,
-          // so pad the same either way.
-          // x2 because we pad both left and right to keep front box centering.
-          widthPadding: stackCount * stackOffset * 2,
-          // Only pad vertical to make room for real stacked behind boxes.
-          heightPadding: _.isEmpty(collapseData.collapsedUuids) ? 0 : stackCount * stackOffset,
-          stackOffset,
-          stackCount,
-          parent_id: collapseData.parent_id,
-        }));
+      const stackCount = 2; // Always have 2 stacked behind the front.
+      return _.mapValues(getCollapsedGraphByNodeUuid(
+        this.runMetadata.root_uuid,
+        this.childrenUuidsByUuid,
+        // TODO: getCollapsedGraphByNodeUuid could receive just uuid -> collapsed boolean map.
+        this.resolvedCollapseStateByUuid,
+      ),
+      collapseData => ({
+        background: getPrioritizedTaskStateBackground(
+          _.map(collapseData.collapsedUuids, u => this.runStateByUuid[u].state),
+        ),
+        collapsedUuids: collapseData.collapsedUuids,
+        // We don't want the width to vary if a node has collapsed children or not,
+        // so pad the same either way.
+        // x2 because we pad both left and right to keep front box centering.
+        widthPadding: stackCount * stackOffset * 2,
+        // Only pad vertical to make room for real stacked behind boxes.
+        heightPadding: _.isEmpty(collapseData.collapsedUuids) ? 0 : stackCount * stackOffset,
+        stackOffset,
+        stackCount,
+        parent_id: collapseData.parentId,
+      }));
     },
     uncollapsedTaskNodeDimensionsByUuid() {
-      // TODO: maybe include this omit in taskNodeDimensionsByUuid definition.
       // TODO: should collapseGraphByNodeUuid drop collapsed nodes? Then map over those
       //  (uncollapsed) keys?
-      const sizedUncollapsedTaskNodes = _.omit(this.taskNodeDimensionsByUuid,
-        this.collapsedNodeUuids);
-      return _.mapValues(sizedUncollapsedTaskNodes,
+      return _.mapValues(this.taskNodeDimensionsByUuid,
         (d, uuid) => _.merge({}, d,
           {
             uuid,
@@ -196,7 +219,7 @@ export default {
       };
     },
     hasFailures() {
-      return _.some(_.values(this.nodesByUuid), { state: 'task-failed' });
+      return _.some(_.values(this.runStateByUuid), { state: 'task-failed' });
     },
     svgGraphTransform() {
       const xy = _.join([this.transform.x, this.transform.y], ',');
@@ -223,32 +246,21 @@ export default {
       enabledCollapseStateSources.push(this.collapseConfig.uiCollapseOperationsByUuid);
       return _.mergeWith({}, ...enabledCollapseStateSources, concatArrayMergeCustomizer);
     },
-    // TODO: consider simplifying this to uuid -> boolean instead of encoding graph shape here too.
-    // Graph shape can be merged with elsewhere?
     resolvedCollapseStateByUuid() {
-      // TODO: have computed properties for the following the following:
-      // TODO: peform one tree walk to get all fields by UUID.
-      // const nodesByParentId = _.groupBy(_.values(nodesByUuid), 'parent_id');
-      // const ancestorUuidsByUuid = getAncestorsByUuid(nodesByUuid);
-      // const descendantUuidsByUuid = getDescendantsByUuid(nodesByUuid);
-      return resolveCollapseStatusByUuid(this.nodesByUuid, this.mergedCollapseStateSources);
+      return resolveCollapseStatusByUuid(
+        this.runMetadata.root_uuid, this.graphDataByUuid, this.mergedCollapseStateSources,
+      );
+    },
+    isCollapsedByUuid() {
+      return _.mapValues(this.resolvedCollapseStateByUuid, 'collapsed');
     },
     collapsedNodeUuids() {
-      return _.keys(_.pickBy(this.resolvedCollapseStateByUuid, 'collapsed'));
-    },
-    collapsedChildrenByUuid() {
-      return _.mapValues(this.nodesByUuid,
-        node => _.uniq(_.filter(node.children_uuids,
-          cUuid => this.resolvedCollapseStateByUuid[cUuid].collapsed)));
-    },
-    descendantUuidsByUuid() {
-      // TODO: FIXME FIX ME -- will cause way too many re-calcs.
-      return getDescendantsByUuid(this.nodesByUuid);
+      return _.keys(_.pickBy(this.isCollapsedByUuid));
     },
     allDescendantsCollapsedByUuid() {
       return _.mapValues(this.collapseGraphByNodeUuid,
         (collapseData, uuid) => containsAll(collapseData.collapsedUuids,
-          this.descendantUuidsByUuid[uuid]));
+          this.graphDataByUuid[uuid].descendantUuids));
     },
     // Avoid re-calculating display ops on every data change.
     flameDataAndNameByUuid() {
@@ -270,11 +282,12 @@ export default {
       return resolveDisplayConfigsToOpsByUuid(displayConfigs, this.flameDataAndNameByUuid);
     },
     runStateExpandOperationsByUuid() {
-      return createRunStateExpandOperations(this.nodesByUuid);
+      return createRunStateExpandOperations(this.runStateByUuid);
     },
     showOnlyRunStateCollapseOperationsByUuid() {
-      // TODO: root almost never changes, so could avoid recalc.
-      const rootCollapse = createCollapseRootOperation(this.nodesByUuid);
+      const rootCollapse = {
+        [[this.runMetadata.root_uuid]]: [{ targets: ['descendants'], operation: 'collapse' }],
+      };
       return _.assign({}, rootCollapse, this.runStateExpandOperationsByUuid);
     },
     canRestoreDefault() {
@@ -372,7 +385,8 @@ export default {
      * @param parentNodeId
      */
     toggleCollapseDescendants(parentNodeId) {
-      const allChildrenExpanded = this.collapsedChildrenByUuid[parentNodeId].length === 0;
+      const allChildrenExpanded = _.every(this.childrenUuidsByUuid[parentNodeId],
+        cuuid => this.resolvedCollapseStateByUuid[cuuid].collapsed);
       const allDescendantsCollapsed = this.allDescendantsCollapsedByUuid[parentNodeId];
       const resolvedOperation = resolveToggleOperation(parentNodeId,
         allDescendantsCollapsed, allChildrenExpanded,

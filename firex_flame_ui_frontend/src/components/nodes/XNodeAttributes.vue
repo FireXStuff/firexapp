@@ -59,18 +59,28 @@ export default {
   props: {
     uuid: { required: true, type: String },
     nodesByUuid: { required: true, type: Object },
-    taskDetails: { required: true, type: Object },
+    // unforuntately lazy loaded, so code defesively in this component.
+    taskDetails: { required: false },
     runMetadata: { default: () => ({ uid: '', logs_dir: '' }), type: Object },
   },
   computed: {
+    resolvedTaskDetails() {
+      if (_.isNil(this.taskDetails)) {
+        return {};
+      }
+      return this.taskDetails;
+    },
     displayNode() {
       // TODO: if an attribute is in nodesByUuid, that value should be rendered since
       //        it's auto-updated.
       // If we haven't fetched the details for some reason, just show the base properties.
-      const base = _.isEmpty(this.taskDetails) ? this.nodesByUuid[this.uuid] : this.taskDetails;
+      const base = _.isEmpty(this.resolvedTaskDetails)
+        ? this.nodesByUuid[this.uuid] : this.resolvedTaskDetails;
       const node = _.clone(base);
       const attributeBlacklist = ['children', 'long_name', 'name', 'parent', 'flame_additional_data',
         'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data'];
+      // TODO: add children field, since it's no longer on node.
+
       return _.omit(node, attributeBlacklist);
     },
     displayKeyNodes() {
@@ -88,21 +98,24 @@ export default {
     },
     headerParams() {
       let links = [
-        { name: 'logs', href: this.taskDetails.logs_url, text: 'View Logs' },
-        { name: 'support', href: this.taskDetails.support_location, text: 'Support' },
-        { name: 'code', href: this.taskDetails.code_url, icon: 'file-code' },
+        { name: 'logs', href: this.resolvedTaskDetails.logs_url, text: 'View Logs' },
+        { name: 'support', href: this.resolvedTaskDetails.support_location, text: 'Support' },
+        { name: 'code', href: this.resolvedTaskDetails.code_url, icon: 'file-code' },
       ];
 
       if (isTaskStateIncomplete(this.nodesByUuid[this.uuid].state)) {
         links = [
           {
-            name: 'kill', on: () => eventHub.$emit('revoke-task', this.uuid), _class: 'kill-button', icon: 'times',
+            name: 'kill',
+            on: () => eventHub.$emit('revoke-task', this.uuid),
+            _class: 'kill-button',
+            icon: 'times',
           },
         ].concat(links);
       }
 
       return {
-        title: this.taskDetails.long_name,
+        title: this.resolvedTaskDetails.long_name,
         legacyPath: `/task/${this.uuid}`,
         links,
       };
