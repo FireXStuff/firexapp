@@ -4,7 +4,7 @@ from time import sleep
 from celery.signals import task_revoked
 from firexapp.engine.celery import app
 from firexapp.submit.submit import get_log_dir_from_output
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run
+from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run, skip_test
 
 
 @app.task
@@ -26,6 +26,7 @@ def write_success_file(sender, request, terminated, signum, expired, **kwargs):
         pass
 
 
+@skip_test
 class RevokeOnShutdown(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
         return ["submit", "--chain", "schedule_and_continue"]
