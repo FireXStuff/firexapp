@@ -227,6 +227,10 @@ class SubmitBaseApp:
         self.broker.start()
 
     def start_tracking_services(self, args, **chain_args)->{}:
+        if get_tracking_services():
+            logger.debug("Tracking services:")
+            [logger.debug("\t" + e.__class__.__name__)for e in get_tracking_services()]
+
         additional_chain_args = {}
         for service in get_tracking_services():
             extra = service.start(args, **chain_args)
