@@ -41,6 +41,7 @@ class SubmitBaseApp:
         self.uid = None
         self.broker = None
         self.celery_manager = None
+        self.is_sync = None
 
     def init_file_logging(self):
         os.umask(0)
@@ -77,6 +78,7 @@ class SubmitBaseApp:
             return InputConverter.convert(**chain_args)
 
     def run_submit(self, args, others):
+        self.is_sync = args.sync
         try:
             self.init_file_logging()
             return self.submit(args, others)
@@ -261,7 +263,7 @@ class SubmitBaseApp:
         logger.debug("Running FireX self destruct")
         if self.celery_manager:
             # clean up any orphan'd tasks
-            revoke_active_tasks()
+            revoke_active_tasks(revoke_root=self.is_sync)
 
             logger.debug("Sending Celery shutdown")
             app.control.shutdown()
@@ -305,13 +307,18 @@ class SubmitBaseApp:
             sys.exit(-1)
 
 
-def revoke_active_tasks():
+def revoke_active_tasks(revoke_root):
     revoked = []
     active = app.control.inspect().active()
     if active:
-        logger.info('Revoking lingering tasks...')
         for host in active.values():
+            if host:
+                logger.info('Revoking lingering tasks...')
             for task in host:
+                from firexapp.tasks.core_tasks import get_configured_root_task
+                if not revoke_root and get_configured_root_task().__name__ in task["name"]:
+                    logger.info("Skipping revoking root task")
+                    continue
                 revoked.append(task["id"])
                 logger.warning("Revoking " + task['name'])
                 app.control.revoke(task_id=task["id"], terminate=True)
