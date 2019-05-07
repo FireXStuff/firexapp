@@ -5,6 +5,7 @@ import os
 import argparse
 import time
 from shutil import copyfile
+from contextlib import contextmanager
 
 from celery.exceptions import NotRegistered
 
@@ -72,13 +73,8 @@ class SubmitBaseApp:
         return submit_parser
 
     def convert_chain_args(self, chain_args) -> dict:
-        try:
+        with self.graceful_exit_on_failure("The arguments you provided firex had the following error:"):
             return InputConverter.convert(**chain_args)
-        except Exception as e:
-            logger.error('\nThe arguments you provided firex had the following error:')
-            logger.error(e)
-            self.main_error_exit_handler()
-            sys.exit(-1)
 
     def run_submit(self, args, others):
         try:
@@ -193,23 +189,13 @@ class SubmitBaseApp:
             self.main_error_exit_handler()
             sys.exit(-1)
 
-        try:
+        with self.graceful_exit_on_failure("Failed to start tracking service"):
             # Start any tracking services to monitor, track, and present the state of the run
             chain_args.update(self.start_tracking_services(args, **chain_args))
-        except Exception as e:
-            logger.error("Failed to start tracking service")
-            logger.error(e)
-            self.main_error_exit_handler()
-            sys.exit(-1)
 
         # Start Celery
-        try:
+        with self.graceful_exit_on_failure("Unable to start Celery."):
             self.start_celery(args, chain_args.get("plugins", args.plugins))
-        except Exception as e:
-            logger.error("Unable to start Celery.")
-            logger.error(e)
-            self.main_error_exit_handler()
-            sys.exit(-1)
         return chain_args
 
     def start_celery(self, args, plugins):
@@ -306,6 +292,16 @@ class SubmitBaseApp:
         for arg in unused_chain_args:
             logger.error("--" + arg)
         return False
+
+    @contextmanager
+    def graceful_exit_on_failure(self, failure_caption: str):
+        try:
+            yield
+        except Exception as e:
+            logger.error(failure_caption)
+            logger.error(e)
+            self.main_error_exit_handler()
+            sys.exit(-1)
 
 
 def revoke_active_tasks():
