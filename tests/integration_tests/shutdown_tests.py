@@ -159,3 +159,15 @@ class NoBrokerLeakOnFailedService(NoBrokerLeakBase):
 
     def assert_expected_return_code(self, ret_value):
         pass  # it's better if the test fails on the redis leak
+
+
+class NoBrokerLeakOnBadPlugin(NoBrokerLeakBase):
+    def initial_firex_options(self) -> list:
+        bad_plugin = os.path.join(os.path.dirname(__file__), "data", "shutdown", "bad_module.py")
+        return ["submit", "--chain", "nop", "--plugin", bad_plugin]
+
+    def expected_error(self):
+        return "An error occurred while loading modules"
+
+    def assert_expected_return_code(self, ret_value):
+        pass  # it's better if the test fails on the redis leak

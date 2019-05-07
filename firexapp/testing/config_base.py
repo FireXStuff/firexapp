@@ -89,7 +89,9 @@ def import_test_configs(path) -> []:
     # dynamically load module
     if not os.path.exists(path):
         raise FileNotFoundError(path)
-    if __file__ in path or "pycache" in path:
+    if (__file__ in path or
+            "pycache" in path or  # We don't need to look at the cache
+            os.path.basename(path) == "data"):  # By convention, a "data" directory will contain artifacts for the tests
         return []
 
     config_objects = []

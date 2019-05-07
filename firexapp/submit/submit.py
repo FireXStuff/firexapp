@@ -160,6 +160,11 @@ class SubmitBaseApp:
             logger.error("\nError: FireX run failed. File %s is not found." % e)
             self.main_error_exit_handler()
             sys.exit(-1)
+        except Exception as e:
+            logger.error("An error occurred while loading modules")
+            logger.error(e)
+            self.main_error_exit_handler()
+            sys.exit(-1)
 
         # Post import converters
         chain_args = self.convert_chain_args(chain_args)
