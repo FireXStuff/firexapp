@@ -203,7 +203,13 @@ class SubmitBaseApp:
             sys.exit(-1)
 
         # Start Celery
-        self.start_celery(args, chain_args.get("plugins", args.plugins))
+        try:
+            self.start_celery(args, chain_args.get("plugins", args.plugins))
+        except Exception as e:
+            logger.error("Unable to start Celery.")
+            logger.error(e)
+            self.main_error_exit_handler()
+            sys.exit(-1)
         return chain_args
 
     def start_celery(self, args, plugins):

@@ -171,3 +171,15 @@ class NoBrokerLeakOnBadPlugin(NoBrokerLeakBase):
 
     def assert_expected_return_code(self, ret_value):
         pass  # it's better if the test fails on the redis leak
+
+
+class NoBrokerLeakOnCeleryFailure(NoBrokerLeakBase):
+    def initial_firex_options(self) -> list:
+        bad_plugin = os.path.join(os.path.dirname(__file__), "data", "shutdown", "fail_celery_start.py")
+        return ["submit", "--chain", "nop", "--plugin", bad_plugin]
+
+    def expected_error(self):
+        return "Unable to start Celery."
+
+    def assert_expected_return_code(self, ret_value):
+        pass  # it's better if the test fails on the redis leak
