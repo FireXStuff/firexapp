@@ -89,6 +89,7 @@ class SubmitBaseApp:
         uid = Uid()
         self.uid = uid
         chain_args['uid'] = uid
+        logger.info("FireX ID: %s", uid)
         logger.info('Logs: %s', uid.logs_dir)
 
         # Create an env file for debugging
