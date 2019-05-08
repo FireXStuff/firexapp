@@ -6,7 +6,7 @@ from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
 from socket import gethostname
 from urllib.parse import urlsplit
-from logging import ERROR
+from logging import ERROR, INFO
 
 from firexapp.broker_manager import BrokerManager
 from firexapp.common import get_available_port
@@ -122,9 +122,11 @@ class RedisManager(BrokerManager):
             try:
                 self._start()
             except (subprocess.CalledProcessError, RedisDidNotBecomeActive):
-                self.log('Redis did not come up after %d trial(s) (max_trials=%d)' % (trials, max_trials), level=ERROR)
                 if trials >= max_trials:
+                    self.log('Redis did not come up after %d trial(s) (max_trials=%d)..Giving up!' %
+                             (trials, max_trials), level=ERROR)
                     raise
+                self.log('Redis did not come up after %d trial(s) (max_trials=%d)' % (trials, max_trials), level=INFO)
             else:
                 break
 
