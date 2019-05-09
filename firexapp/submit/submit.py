@@ -271,11 +271,15 @@ class SubmitBaseApp:
             # broker will be shut down by celery if active
             self.broker.shutdown()
 
-    def wait_for_broker_shutdown(self, timeout=10):
+    def wait_for_broker_shutdown(self, timeout=0):
         logger.debug("Waiting for broker to shut down")
         shutdown_wait_time = time.time() + timeout
-        while self.broker.is_alive() and time.time() < shutdown_wait_time:
+        while time.time() < shutdown_wait_time:
+            if not self.broker.is_alive():
+                break
             time.sleep(0.1)
+        else:
+            logger.debug("Warning! Broker was not shut down after %s seconds." % str(timeout))
 
     @classmethod
     def validate_argument_applicability(cls, chain_args, args, all_tasks):
