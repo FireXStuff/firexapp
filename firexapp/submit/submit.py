@@ -271,7 +271,7 @@ class SubmitBaseApp:
             # broker will be shut down by celery if active
             self.broker.shutdown()
 
-    def wait_for_broker_shutdown(self, timeout=0):
+    def wait_for_broker_shutdown(self, timeout=15):
         logger.debug("Waiting for broker to shut down")
         shutdown_wait_time = time.time() + timeout
         while time.time() < shutdown_wait_time:
