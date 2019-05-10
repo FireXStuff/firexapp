@@ -14,9 +14,11 @@ import VueClipboard from 'vue-clipboard2';
 
 import router from './router';
 import App from './App.vue';
+import store from './store';
 
-// Vue.config.devtools = true;
-// Vue.config.performance = true;
+const debug = process.env.NODE_ENV !== 'production';
+Vue.config.devtools = debug;
+Vue.config.performance = debug;
 
 library.add(faBullseye, faEye, faSearch, faListUl, faPlusCircle,
   faSitemap, faFileCode, faTimes, faFire, faTrash,
@@ -32,5 +34,6 @@ Vue.component('font-awesome-icon', FontAwesomeIcon);
 new Vue({
   el: '#app',
   router,
+  store,
   render: h => h(App),
 });

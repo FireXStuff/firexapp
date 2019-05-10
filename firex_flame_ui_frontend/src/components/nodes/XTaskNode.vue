@@ -1,18 +1,18 @@
 <template>
-  <router-link :to="allowClickToAttributes ? routeToAttribute(node.uuid) : currentRoute()">
+  <router-link :to="allowClickToAttributes ? routeToAttribute() : currentRoute()">
     <div :style="topLevelStyle" class="node" v-on:click.shift.prevent="nodeShiftClick">
       <div style="overflow: hidden; text-overflow: ellipsis;">
         <div style="display: flex;">
 
-          <div style="align-self: start; font-size: 12px">{{node.task_num}}</div>
+          <div style="align-self: start; font-size: 12px">{{taskNumber}}</div>
 
           <div style="text-align: center; padding: 3px; align-self: center; flex: 1;">
-            {{node.name}}
+            {{taskName}}
           </div>
 
-          <div v-if="node.retries" style="align-self: end; position: relative;">
+          <div v-if="retries" style="align-self: end; position: relative;">
             <img src="../../assets/retry.png" class="retries-img">
-            <div title="Retries" class="retries">{{node.retries}}</div>
+            <div title="Retries" class="retries">{{retries}}</div>
           </div>
 
           <!-- visibility: collapsed to include space for collapse button, even when allowCollapse
@@ -31,17 +31,18 @@
         <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid
         navigating to task node attribute page. Should likely find a better way.-->
         <div class="flame-data" v-on:click="flameDataClick">
-          <div v-if="showUuid">{{node.uuid}}</div>
-          <div v-if="showUuid && displayDetails">{{displayDetails}}</div>
+          <div v-if="showTaskDetails">{{taskUuid}}</div>
+          <!-- TODO: add affecting collapse op.-->
+          <!--<div v-if="showTaskDetails && displayDetails">{{displayDetails}}</div>-->
           <!-- We're really trusting data from the server here (rendering raw HTML) -->
-          <div v-if="showLegacyFlameAdditionalData" v-html="node.flame_additional_data"></div>
+          <div v-if="showLegacyFlameAdditionalData" v-html="flameAdditionalData"></div>
           <template v-else>
             <div v-for="(html, i) in flameDataHtmlContent" :key="i" v-html="html"></div>
           </template>
         </div>
 
         <div style="display: flex; flex-direction: row; font-size: 12px; margin-top: 4px;">
-          <div style="align-self: start; flex: 1;">{{node.hostname}}</div>
+          <div style="align-self: start; flex: 1;">{{hostname}}</div>
           <div style="align-self: end;">{{duration}}</div>
         </div>
       </div>
@@ -52,52 +53,81 @@
 <script>
 import _ from 'lodash';
 import {
-  routeTo, durationString, isTaskStateIncomplete, getNodeBackground, eventHub,
+  routeTo2, durationString, isTaskStateIncomplete, getNodeBackground, eventHub,
   getTaskNodeBorderRadius,
 } from '../../utils';
 
 export default {
   name: 'XNode',
   props: {
-    node: {
-      type: Object,
-      required: true,
-      // TODO: is it possible to validate node input? Since events are sent,
-      //  nodes might always be partial.
-      // validator() { },
-    },
-    allowCollapse: {
-      default: true,
-    },
-    showUuid: { default: false },
-    liveUpdate: { default: false },
+    allowCollapse: { default: true },
+    taskUuid: { required: true },
     allowClickToAttributes: { default: true },
     toCollapse: { default: false },
-    emitDimensions: { default: false },
-    displayDetails: { required: false },
+    emitDimensions: { default: false, type: Boolean },
     isLeaf: { required: true, type: Boolean },
   },
   data() {
     return {
+      // Updated locally if the node is in-progress, otherwise the actual_runtime value is shown.
       liveRunTime: 0,
     };
   },
   computed: {
+    liveUpdate() {
+      return this.$store.state.graph.liveUpdate;
+    },
+    showTaskDetails() {
+      return this.$store.state.graph.showTaskDetails;
+    },
+    hostname() {
+      return this.$store.state.tasks.tasksByUuid[this.taskUuid].hostname;
+    },
+    flameAdditionalData() {
+      return this.$store.state.tasks.tasksByUuid[this.taskUuid].flame_additional_data;
+    },
+    retries() {
+      return this.$store.state.tasks.tasksByUuid[this.taskUuid].retries;
+    },
+    taskName() {
+      return this.$store.state.tasks.tasksByUuid[this.taskUuid].name;
+    },
+    taskNumber() {
+      return this.$store.state.tasks.tasksByUuid[this.taskUuid].task_num;
+    },
     isChained() {
-      return Boolean(this.node.chain_depth);
+      return Boolean(this.chainDepth);
+    },
+    runState() {
+      return this.$store.getters['tasks/runStateByUuid'][this.taskUuid].state;
+    },
+    exception() {
+      return this.$store.getters['tasks/runStateByUuid'][this.taskUuid].exception;
+    },
+    actualRuntime() {
+      return this.$store.state.tasks.tasksByUuid[this.taskUuid].actual_runtime;
+    },
+    firstStarted() {
+      return this.$store.state.tasks.tasksByUuid[this.taskUuid].first_started;
+    },
+    chainDepth() {
+      return this.$store.state.tasks.tasksByUuid[this.taskUuid].chain_depth;
+    },
+    fromPlugin() {
+      return this.$store.state.tasks.tasksByUuid[this.taskUuid].from_plugin;
     },
     topLevelStyle() {
       return {
-        background: getNodeBackground(this.node.exception, this.node.state),
-        'border-radius': getTaskNodeBorderRadius(this.node.chain_depth),
-        border: this.node.from_plugin ? '2px dashed #000' : '',
+        background: getNodeBackground(this.exception, this.runState),
+        'border-radius': getTaskNodeBorderRadius(this.chainDepth),
+        border: this.fromPlugin ? '2px dashed #000' : '',
       };
     },
     duration() {
       let runtime;
-      if (!isTaskStateIncomplete(this.node.state) && this.node.actual_runtime) {
-        runtime = this.node.actual_runtime;
-      } else if (!runtime && this.node.first_started) {
+      if (!isTaskStateIncomplete(this.runState) && this.actualRuntime) {
+        runtime = this.actualRuntime;
+      } else if (!runtime && this.firstStarted) {
         runtime = this.liveRunTime;
       } else {
         return '';
@@ -105,14 +135,16 @@ export default {
       return durationString(runtime);
     },
     showLegacyFlameAdditionalData() {
-      return !_.includes(_.map(_.get(this.node, 'flame_data', {}), 'type'), 'html');
+      return !_.includes(_.map(_.get(this.$store.state.tasks.tasksByUuid[this.taskUuid], 'flame_data', {}),
+        'type'), 'html');
     },
     flameDataHtmlContent() {
-      if (!_.has(this.node, 'flame_data')) {
+      if (!_.has(this.$store.state.tasks.tasksByUuid[this.taskUuid], 'flame_data')) {
         return {};
       }
       return _.map(
-        _.reverse(_.sortBy(_.filter(this.node.flame_data, d => d.type === 'html'), ['order'])),
+        _.reverse(_.sortBy(_.filter(this.$store.state.tasks.tasksByUuid[this.taskUuid].flame_data,
+          d => d.type === 'html'), ['order'])),
         'value',
       );
     },
@@ -128,14 +160,13 @@ export default {
   },
   methods: {
     emitCollapseToggle() {
-      eventHub.$emit('toggle-task-collapse', this.node.uuid);
+      eventHub.$emit('toggle-task-collapse', this.taskUuid);
     },
     updateLiveRuntimeAndSchedule() {
       if (this.liveUpdate
-        // task-complete occurs in-between retries.
-        && (isTaskStateIncomplete(this.node.state) || this.node.state === 'task-completed')
-        && this.node.first_started) {
-        this.liveRunTime = (Date.now() / 1000) - this.node.first_started;
+        && (isTaskStateIncomplete(this.runState))
+        && this.firstStarted) {
+        this.liveRunTime = (Date.now() / 1000) - this.firstStarted;
         setTimeout(() => {
           // Note liveUpdate may have changed since this timeout was set, so double check.
           if (this.liveUpdate) {
@@ -144,8 +175,8 @@ export default {
         }, 3000);
       }
     },
-    routeToAttribute(uuid) {
-      return routeTo(this, 'XNodeAttributes', { uuid });
+    routeToAttribute() {
+      return routeTo2(this.$route.query, 'XNodeAttributes', { uuid: this.taskUuid });
     },
     currentRoute() {
       // The 'to' supplied to a router-link must be mutable for some reason.
@@ -156,9 +187,10 @@ export default {
     },
     nodeShiftClick() {
       if (this.allowClickToAttributes) {
-        this.$router.push(routeTo(this, 'custom-root', { rootUuid: this.node.uuid }));
+        this.$router.push(routeTo2(this.$route.query, 'custom-root', { rootUuid: this.taskUuid }));
       }
     },
+    // TODO: debounce?
     emit_dimensions() {
       if (this.emitDimensions) {
         this.$nextTick(() => {
@@ -168,8 +200,8 @@ export default {
           if (renderedWidth && renderedHeight) {
             const renderedDimensions = { width: r.width, height: r.height };
             if (!_.isEqual(this.latestEmittedDimensions, renderedDimensions)) {
-              this.$emit('node-dimensions', _.merge({ uuid: this.node.uuid }, renderedDimensions));
-              this.latestEmittedDimensions = renderedDimensions;
+              this.$store.dispatch('tasks/addTaskNodeSize',
+                _.merge({ uuid: this.taskUuid }, renderedDimensions));
             }
           }
         });

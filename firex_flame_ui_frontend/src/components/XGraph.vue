@@ -3,11 +3,11 @@
        @keydown.c="center">
     <div class="user-message" style="background: lightblue; ">
 
-      <span v-if="collapsedNodeUuids.length > 0">
-        {{collapsedNodeUuids.length}} tasks are collapsed
+      <span v-if="hasCollapsedNodes">
+        {{collapsedNodeUuids.length}}/{{allUuids.length}} tasks are collapsed
       </span>
 
-      <template v-if="collapsedNodeUuids.length > 0">
+      <template v-if="hasCollapsedNodes">
         (<a href="#" @click.prevent="setCollapseFilterState({})"
           >Expand All</a>)
       </template>
@@ -22,52 +22,18 @@
           >Show only failed</a>)
       </template>
     </div>
-    <div id="chart-container" style="width: 100%; height: 100%" ref="graph-svg">
-      <svg width="100%" height="100%" preserveAspectRatio="xMinYMin"
-           style="background-color: white;">
-        <g :transform="svgGraphTransform">
-          <x-link
-            :nodeDimensionsByUuid="uncollapsedTaskNodeDimensionsByUuid"
-            :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
-          <x-svg-task-node
-            v-for="(nodeLayout, uuid) in nodeLayoutsByUuid"
-            :key="uuid"
-            :node="nodesByUuid[uuid]"
-            :dimensions="uncollapsedTaskNodeDimensionsByUuid[uuid]"
-            :position="nodeLayout"
-            :showUuid="showUuids"
-            :liveUpdate="liveUpdate"
-            :collapseDetails="collapseGraphByNodeUuid[uuid]"
-            :nodeGraphData="graphDataByUuid[uuid]"
-            :opacity="!focusedNodeUuid || focusedNodeUuid === uuid ? 1: 0.3"
-            :displayDetails="resolvedCollapseStateByUuid[uuid].minPriorityOp">
-          </x-svg-task-node>
-        </g>
-      </svg>
+    <div id="chart-container" ref="graph-svg">
+        <svg preserveAspectRatio="xMinYMin" style="width: 100%; height: 100%;">
+          <g :transform="svgGraphTransform">
+            <x-link
+              :parentUuidByUuid="parentUuidByUuid"
+              :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
+            <x-svg-task-nodes
+              :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-svg-task-nodes>
+          </g>
+        </svg>
     </div>
-
-    <div style="overflow: hidden; width: 100%; height: 100%; position: absolute; top: 0;
-      z-index: -10">
-      <!-- This is very gross, but the nodes that will be put on the graph are rendered
-      invisibly in order for the browser to calculate their intrinsic size. Each node's size is
-      then passed to the graph layout algorithm before the actual SVG graph is rendered.-->
-      <!--
-        Need inline-block display per node to get each node's intrinsic width (i.e. don't want it
-        to force fill parent).
-      -->
-      <div v-for="n in nodesByUuid" :key="n.uuid"
-           style="display: inline-block; position: absolute; top: 0; z-index: -1000;">
-        <!-- TODO: profile event performance with thousands of nodes. Might be worthwhile
-            to catch all and send in one big event. -->
-        <x-task-node
-          :node="n"
-          :emitDimensions="true"
-          :showUuid="showUuids"
-          :isLeaf="true"
-          :displayDetails="getDisplayDetails(resolvedCollapseStateByUuid, n.uuid)"
-          v-on:node-dimensions="updateTaskNodeDimensions($event)"></x-task-node>
-      </div>
-    </div>
+    <x-task-capturing-nodes></x-task-capturing-nodes>
   </div>
 </template>
 
@@ -77,218 +43,155 @@ import { zoom as d3zoom, zoomIdentity } from 'd3-zoom';
 import { select as d3select, event as d3event } from 'd3-selection';
 import _ from 'lodash';
 
-import XSvgTaskNode from './nodes/XSvgTaskNode.vue';
-import XTaskNode from './nodes/XTaskNode.vue';
+import XSvgTaskNodes from './nodes/XSvgTaskNodes.vue';
+import XTaskCapturingNodes from './nodes/XSizeCapturingNodes.vue';
 import XLink from './XLinks.vue';
 import {
   eventHub, calculateNodesPositionByUuid, getCenteringTransform,
-  resolveCollapseStatusByUuid,
-  getCollapsedGraphByNodeUuid, createCollapseOpsByUuid, createRunStateExpandOperations,
-  loadDisplayConfigs, concatArrayMergeCustomizer, containsAll,
-  getPrioritizedTaskStateBackground,
+  createCollapseOpsByUuid, containsAll,
 } from '../utils';
 import {
-  prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid, resolveToggleOperation,
+  resolveToggleOperation,
 } from '../collapse';
 import {
-  getGraphDataByUuid, getChildrenUuidsByUuid,
-} from '../graph-utils';
+  readPathsFromLocalStorage, addLocalStorageData, getLocalStorageCollapseConfig,
+} from '../persistance';
 
-const scaleBounds = { max: 1.3, min: 0.01 };
+function zoomed() {
+  eventHub.$emit('zoom', {
+    x: d3event.transform.x,
+    y: d3event.transform.y,
+    scale: d3event.transform.k,
+  });
+}
+const scaleBounds = { max: 1, min: 0.01 };
+const zoom = d3zoom()
+  .scaleExtent([scaleBounds.min, scaleBounds.max])
+  // Threshold for when a click is considered a pan, since this blocks event propagation.
+  .clickDistance(4)
+  .on('zoom', zoomed);
+
+
 export default {
   name: 'XGraph',
   components: {
-    XSvgTaskNode, XLink, XTaskNode,
-  },
-  props: {
-    nodesByUuid: { required: true, type: Object },
-    runMetadata: { required: true, type: Object },
-    // TODO: rename to 'showDetails'.
-    showUuids: { default: false, type: Boolean },
-    liveUpdate: { required: true, type: Boolean },
+    XSvgTaskNodes, XLink, XTaskCapturingNodes,
   },
   data() {
-    const zoom = d3zoom()
-      .scaleExtent([scaleBounds.min, scaleBounds.max])
-      // Threshold for when a click is considered a pan, since this blocks event propagation.
-      .clickDistance(4)
-      .on('zoom', this.zoomed);
     return {
-      // unfortunately we need to track this manually. TODO: look for a better way.
-      dimensionsByUuid: {},
-      zoom,
       transform: { x: 0, y: 0, scale: 1 },
       // When set, fades-out other nodes. Is reset by pan/zoom events.
       focusedNodeUuid: null,
       // Only want to center on first layout, then we'll rely on stored transform.
       isFirstLayout: true,
-      collapseConfig: this.getLocalStorageCollapseConfig(),
+      nodeLayoutsByUuid: {},
+      layoutCalcs: 0,
+      dimensionChanges: 0,
+      uncollapsedTaskNodeDimensionsByUuidChanges: 0,
+      parentUuidByUuidChanges: 0,
+      transformX: 0,
+      transformY: 0,
+      transformScale: 1,
     };
   },
   computed: {
+    collapseConfig() {
+      return this.$store.state.graph.collapseConfig;
+    },
+    runMetadata() {
+      return this.$store.state.firexRunMetadata;
+    },
     firexUid() {
       return this.runMetadata.uid;
     },
     allUuids() {
-      return _.keys(this.nodesByUuid);
+      return this.$store.getters['tasks/allTaskUuids'];
     },
-    // TODO: could even push up this check to event processing.
     parentUuidByUuid() {
-      return _.mapValues(this.nodesByUuid, 'parent_id');
+      return this.$store.getters['graph/parentUuidByUuid'];
     },
     childrenUuidsByUuid() {
-      return getChildrenUuidsByUuid(this.parentUuidByUuid);
+      return this.$store.getters['graph/childrenUuidsByUuid'];
     },
     graphDataByUuid() {
-      return getGraphDataByUuid(this.runMetadata.root_uuid, this.parentUuidByUuid,
-        this.childrenUuidsByUuid);
+      return this.$store.getters['graph/graphDataByUuid'];
     },
     runStateByUuid() {
-      return _.mapValues(this.nodesByUuid,
-        n => _.assign(
-          { isLeaf: this.childrenUuidsByUuid[n.uuid].length === 0 },
-          _.pick(n, ['state', 'exception']),
-        ));
+      return this.$store.getters['tasks/runStateByUuid'];
     },
-    taskNodeDimensionsByUuid() {
-      // Note that since dimensionsByUuid is never deleted from, we need to filter by allUuids
-      // in case nodesByUuid changes. This is a bit gross, maybe use a watcher instead.
-      const visibleUuids = _.difference(this.allUuids, this.collapsedNodeUuids);
-      return _.pick(this.dimensionsByUuid, visibleUuids);
+    dimensionsByUuid() {
+      return this.$store.state.tasks.taskNodeSizeByUuid;
     },
     /**
      * Make collapse info available per UUID. Modifies tree structure when a sequence of collapsed
      * nodes exists.
      * */
-    collapseGraphByNodeUuid() {
-      const stackOffset = 12;
-      const stackCount = 2; // Always have 2 stacked behind the front.
-      return _.mapValues(getCollapsedGraphByNodeUuid(
-        this.runMetadata.root_uuid,
-        this.childrenUuidsByUuid,
-        // TODO: getCollapsedGraphByNodeUuid could receive just uuid -> collapsed boolean map.
-        this.resolvedCollapseStateByUuid,
-      ),
-      collapseData => ({
-        background: getPrioritizedTaskStateBackground(
-          _.map(collapseData.collapsedUuids, u => this.runStateByUuid[u].state),
-        ),
-        collapsedUuids: collapseData.collapsedUuids,
-        // We don't want the width to vary if a node has collapsed children or not,
-        // so pad the same either way.
-        // x2 because we pad both left and right to keep front box centering.
-        widthPadding: stackCount * stackOffset * 2,
-        // Only pad vertical to make room for real stacked behind boxes.
-        heightPadding: _.isEmpty(collapseData.collapsedUuids) ? 0 : stackCount * stackOffset,
-        stackOffset,
-        stackCount,
-        parent_id: collapseData.parentId,
-      }));
+    uncollapsedGraphByNodeUuid() {
+      return this.$store.getters['graph/uncollapsedGraphByNodeUuid'];
     },
     uncollapsedTaskNodeDimensionsByUuid() {
-      // TODO: should collapseGraphByNodeUuid drop collapsed nodes? Then map over those
-      //  (uncollapsed) keys?
-      return _.mapValues(this.taskNodeDimensionsByUuid,
-        (d, uuid) => _.merge({}, d,
+      // Need to wait for all node dimensions to be loaded before we do any calcs (e.g. layout)
+      // with any dimensions.
+      if (this.isFirstLayout
+        && !containsAll(_.keys(this.dimensionsByUuid), _.keys(this.uncollapsedGraphByNodeUuid))) {
+        return {};
+      }
+      // for non-first layouts, we are only calculating dimensions for nodes that have
+      // reported their dimensions, not necessarily all uncollapsed nodes.
+      const sizedUncollapsedNodes = _.pick(this.uncollapsedGraphByNodeUuid,
+        _.keys(this.dimensionsByUuid));
+
+      return _.mapValues(
+        sizedUncollapsedNodes,
+        (collapseData, uuid) => _.merge({}, this.dimensionsByUuid[uuid],
           {
             uuid,
-            width: d.width + this.collapseGraphByNodeUuid[uuid].widthPadding,
-            height: d.height + this.collapseGraphByNodeUuid[uuid].heightPadding,
-            parent_id: this.collapseGraphByNodeUuid[uuid].parent_id,
-          }));
-    },
-    // TODO: should consider limiting layout recalculations to once per second instead of
-    //      being reactive?
-    //  This will probably slow down for large graphs (untested).
-    nodeLayoutsByUuid() {
-      if (!_.isEmpty(this.taskNodeDimensionsByUuid)) {
-        return calculateNodesPositionByUuid(this.uncollapsedTaskNodeDimensionsByUuid);
-      }
-      return {};
+            width: this.dimensionsByUuid[uuid].width + collapseData.widthPadding,
+            height: this.dimensionsByUuid[uuid].height + collapseData.heightPadding,
+            parent_id: collapseData.parent_id,
+          }),
+      );
     },
     nonCollapsedNodesExtent() {
       return {
         top: _.min(_.map(this.nodeLayoutsByUuid, 'y')),
         left: _.min(_.map(this.nodeLayoutsByUuid, 'x')),
-        // Note that if we've done the layout for a given UUID, we necessarily have the
-        // node dimensions.
-        right: _.max(_.map(this.nodeLayoutsByUuid,
-          (n, uuid) => n.x + this.uncollapsedTaskNodeDimensionsByUuid[uuid].width)),
-        bottom: _.max(_.map(this.nodeLayoutsByUuid,
-          (n, uuid) => n.y + this.uncollapsedTaskNodeDimensionsByUuid[uuid].height)),
+        right: _.max(_.map(this.nodeLayoutsByUuid, n => n.x + n.width)),
+        bottom: _.max(_.map(this.nodeLayoutsByUuid, n => n.y + n.height)),
       };
     },
     hasFailures() {
       return _.some(_.values(this.runStateByUuid), { state: 'task-failed' });
     },
     svgGraphTransform() {
-      const xy = _.join([this.transform.x, this.transform.y], ',');
-      return `translate(${xy})scale(${this.transform.scale})`;
-    },
-    mergedCollapseStateSources() {
-      const enabledCollapseStateSources = [];
-      if (this.collapseConfig.applyDefaultCollapseOps) {
-        enabledCollapseStateSources.push(
-          prioritizeCollapseOps(this.flameDataDisplayOperationsByUuid, 'flameData'),
-        );
-        enabledCollapseStateSources.push(
-          prioritizeCollapseOps(this.userDisplayConfigOperationsByUuid, 'userConfig'),
-        );
-        enabledCollapseStateSources.push(
-          prioritizeCollapseOps(this.runStateExpandOperationsByUuid, 'runState'),
-        );
-      }
-      if (this.collapseConfig.hideSuccessPaths) {
-        enabledCollapseStateSources.push(
-          prioritizeCollapseOps(this.showOnlyRunStateCollapseOperationsByUuid, 'runState'),
-        );
-      }
-      enabledCollapseStateSources.push(this.collapseConfig.uiCollapseOperationsByUuid);
-      return _.mergeWith({}, ...enabledCollapseStateSources, concatArrayMergeCustomizer);
-    },
-    resolvedCollapseStateByUuid() {
-      return resolveCollapseStatusByUuid(
-        this.runMetadata.root_uuid, this.graphDataByUuid, this.mergedCollapseStateSources,
-      );
+      return `translate(${this.transform.x},${this.transform.y})scale(${this.transform.scale})`;
     },
     isCollapsedByUuid() {
-      return _.mapValues(this.resolvedCollapseStateByUuid, 'collapsed');
+      return this.$store.getters['graph/isCollapsedByUuid'];
     },
     collapsedNodeUuids() {
       return _.keys(_.pickBy(this.isCollapsedByUuid));
     },
+    hasCollapsedNodes() {
+      return this.collapsedNodeUuids.length > 0;
+    },
+    uncollapsedNodeUuids() {
+      return this.$store.getters['graph/uncollapsedNodeUuids'];
+    },
     allDescendantsCollapsedByUuid() {
-      return _.mapValues(this.collapseGraphByNodeUuid,
+      return _.mapValues(this.uncollapsedGraphByNodeUuid,
         (collapseData, uuid) => containsAll(collapseData.collapsedUuids,
           this.graphDataByUuid[uuid].descendantUuids));
     },
     // Avoid re-calculating display ops on every data change.
     flameDataAndNameByUuid() {
-      return _.mapValues(this.nodesByUuid,
-        // Needs parent_id & uuid for descendants calc. Should have a single one of those,
-        // selectively updated.
-        // TODO: further prune to flame_data._default_display
-        n => _.pick(n, ['flame_data', 'name', 'parent_id', 'uuid']));
+      return this.$store.getters['tasks/flameDataAndNameByUuid'];
     },
     flameDataDisplayOperationsByUuid() {
-      const displayPath = ['flame_data', '_default_display', 'value'];
-      // TODO: Each task can send updates that should override previous op entries for that task.
-      //  Do that filtering here.
-      const ops = _.flatMap(this.flameDataAndNameByUuid, n => _.get(n, displayPath, []));
-      return resolveDisplayConfigsToOpsByUuid(ops, this.flameDataAndNameByUuid);
+      return this.$store.getters['graph/flameDataDisplayOperationsByUuid'];
     },
     userDisplayConfigOperationsByUuid() {
-      const displayConfigs = loadDisplayConfigs();
-      return resolveDisplayConfigsToOpsByUuid(displayConfigs, this.flameDataAndNameByUuid);
-    },
-    runStateExpandOperationsByUuid() {
-      return createRunStateExpandOperations(this.runStateByUuid);
-    },
-    showOnlyRunStateCollapseOperationsByUuid() {
-      const rootCollapse = {
-        [[this.runMetadata.root_uuid]]: [{ targets: ['descendants'], operation: 'collapse' }],
-      };
-      return _.assign({}, rootCollapse, this.runStateExpandOperationsByUuid);
+      return this.$store.getters['graph/userDisplayConfigOperationsByUuid'];
     },
     canRestoreDefault() {
       const otherConfigApplied = this.collapseConfig.hideSuccessPaths
@@ -305,7 +208,10 @@ export default {
     },
   },
   mounted() {
-    d3select('div#chart-container').call(this.zoom).on('dblclick.zoom', null);
+    // d3select('div#chart-container').on('mousedown', () => {
+    //   console.profile();
+    // });
+    d3select('div#chart-container').call(zoom).on('dblclick.zoom', null);
     // this.$el.focus();
 
     // Registering listeners in 'created' some cause duplicate handlers to exist.
@@ -313,30 +219,36 @@ export default {
     eventHub.$on('node-focus', this.focusOnNode);
     eventHub.$on('ui-collapse', this.handleUiCollapseEvent);
     eventHub.$on('toggle-task-collapse', this.toggleCollapseDescendants);
+    eventHub.$on('zoom', this.zoomed);
   },
   methods: {
-    zoomed() {
+    zoomed(transform) {
       // Null source events mean programatic zoom. We don't want to clear for programatic zooms.
       if (d3event.sourceEvent !== null) {
         // Clear focus node on non-programatic pan/zoom.
         this.focusedNodeUuid = null;
       }
-      this.transform = {
-        x: d3event.transform.x,
-        y: d3event.transform.y,
-        scale: d3event.transform.k,
-      };
+      this.transform = transform;
+      this.transformX = transform.x;
+      this.transformY = transform.y;
+      this.transformScale = transform.scale;
+      // this.transform = {
+      //   x: d3event.transform.x,
+      //   y: d3event.transform.y,
+      //   scale: d3event.transform.k,
+      // };
+      // console.log(d3event);
       // console.log(_.get(d3event, ['sourceEvent', 'type'], ''));
       // TODO: make transform top-level key per firexUid. This will avoid write slowdowns as other
       // per-run data grows.
-      this.addLocalStorageData(this.transform);
+      addLocalStorageData(this.firexUid, this.transform);
     },
     updateTransformViaZoom(transform) {
       // MUST MAINTAIN ZOOM'S INTERNAL STATE! Otherwise, subsequent pan/zooms are inconsistent
       // with current position.
       const d3Transform = zoomIdentity.translate(transform.x, transform.y).scale(transform.scale);
       // This call will create a d3event and pipe it through, just like manual pan/zooms.
-      d3select('div#chart-container').call(this.zoom.transform, d3Transform);
+      d3select('div#chart-container').call(zoom.transform, d3Transform);
     },
     getCurrentRelPos(nodeUuid) {
       const laidOutNode = this.nodeLayoutsByUuid[nodeUuid];
@@ -369,11 +281,12 @@ export default {
       // Not available during re-render.
       if (this.$refs['graph-svg']) {
         const boundingRect = this.$refs['graph-svg'].getBoundingClientRect();
+        const nodeLayout = this.nodeLayoutsByUuid[uuid];
         const nodeRect = {
-          left: this.nodeLayoutsByUuid[uuid].x,
-          right: this.nodeLayoutsByUuid[uuid].x + this.dimensionsByUuid[uuid].width,
-          top: this.nodeLayoutsByUuid[uuid].y,
-          bottom: this.nodeLayoutsByUuid[uuid].y + this.dimensionsByUuid[uuid].height,
+          left: nodeLayout.x,
+          right: nodeLayout.x + nodeLayout.width,
+          top: nodeLayout.y,
+          bottom: nodeLayout.y + nodeLayout.height,
         };
         return getCenteringTransform(nodeRect, boundingRect, scaleBounds, 0);
       }
@@ -386,7 +299,7 @@ export default {
      */
     toggleCollapseDescendants(parentNodeId) {
       const allChildrenExpanded = _.every(this.childrenUuidsByUuid[parentNodeId],
-        cuuid => this.resolvedCollapseStateByUuid[cuuid].collapsed);
+        cuuid => this.isCollapsedByUuid[cuuid]);
       const allDescendantsCollapsed = this.allDescendantsCollapsedByUuid[parentNodeId];
       const resolvedOperation = resolveToggleOperation(parentNodeId,
         allDescendantsCollapsed, allChildrenExpanded,
@@ -405,7 +318,7 @@ export default {
       const initialRelPos = event.keep_rel_pos_uuid
         ? this.getCurrentRelPos(event.keep_rel_pos_uuid) : undefined;
 
-      _.each(event.operationsByUuid, (op, uuid) => {
+      const resultOpsByUuid = _.mapValues(event.operationsByUuid, (op, uuid) => {
         const existingOps = _.get(this.collapseConfig.uiCollapseOperationsByUuid, uuid, []);
         let resultOps;
         if (op.operation === 'clear') {
@@ -416,8 +329,9 @@ export default {
           // All other operations are just accumulated.
           resultOps = existingOps.concat([op]);
         }
-        this.$set(this.collapseConfig.uiCollapseOperationsByUuid, uuid, resultOps);
+        return resultOps;
       });
+      this.$store.dispatch('graph/setCollapseOpsByUuid', resultOpsByUuid);
 
       if (initialRelPos) {
         // Since we're changing the nodes being displayed, the layout might drastically change.
@@ -437,10 +351,6 @@ export default {
         });
       }
     },
-    updateTaskNodeDimensions(event) {
-      // Vue doesn't deep watch, so use $set to maintain reactivity.
-      this.$set(this.dimensionsByUuid, event.uuid, _.pick(event, ['width', 'height']));
-    },
     isTransformValid(transform) {
       if (_.isNil(transform)) {
         return false;
@@ -448,94 +358,94 @@ export default {
       const vals = [transform.x, transform.y, transform.scale];
       return _.every(_.map(vals, v => !_.isNil(v) && _.isNumber(v)));
     },
-    addLocalStorageData(newData) {
-      const storedData = this.readPathsFromLocalStorage('*');
-      const toStoreData = _.assign(storedData, newData);
-      localStorage[this.firexUid] = JSON.stringify(toStoreData);
-    },
-    readPathFromLocalStorage(path, def) {
-      return _.get(this.readPathsFromLocalStorage([path]), path, def);
-    },
-    readPathsFromLocalStorage(paths) {
-      try {
-        const runLocalData = JSON.parse(localStorage[this.firexUid]);
-        if (paths === '*') {
-          return runLocalData;
-        }
-        return _.pick(runLocalData, paths);
-      } catch (e) {
-        // Delete bad persisted state, provide default.
-        localStorage.removeItem(this.firexUid);
-      }
-      return {};
-    },
     getLocalStorageTransform() {
-      const storedTransform = this.readPathsFromLocalStorage(['x', 'y', 'scale']);
+      const storedTransform = readPathsFromLocalStorage(this.firexUid, ['x', 'y', 'scale']);
       if (this.isTransformValid(storedTransform)) {
         return storedTransform;
       }
       // Default to the centering transform.
       return this.getCenterTransform();
     },
-    getLocalStorageCollapseConfig() {
-      const storedCollapseConfig = this.readPathFromLocalStorage('collapseConfig');
-      const expectedKeys = ['hideSuccessPaths', 'uiCollapseOperationsByUuid',
-        'applyDefaultCollapseOps'];
-      // TODO: fill in remaining validation of collapseConfig.
-      const containsAllRequired = containsAll(_.keys(storedCollapseConfig), expectedKeys);
-      const collapseByUuidContainsAllRequired = _.every(
-        _.values(_.get(storedCollapseConfig, 'uiCollapseOperationsByUuid', {})),
-        ops => _.every(ops, op => containsAll(_.keys(op),
-          ['operation', 'priority', 'targets', 'sourceTaskUuid'])),
-      );
-      if (containsAllRequired && collapseByUuidContainsAllRequired) {
-        return storedCollapseConfig;
-      }
-      // Default collapse config.
-      return {
-        // This is just a container for states that have been touched by the user -- it doesn't
-        // contain an entry for every node's UUID (there is a computed property for that).
-        uiCollapseOperationsByUuid: {},
-        // Hiding paths that don't include a failure or in progress.
-        hideSuccessPaths: false,
-        // Default to apply backend & user config display state.
-        applyDefaultCollapseOps: true,
-      };
-    },
     setCollapseFilterState(obj) {
       // All keys not specified on object are disabled.
-      this.collapseConfig = {
+      this.$store.commit('graph/setCollapseConfig', {
         hideSuccessPaths: _.get(obj, 'hideSuccessPaths', false),
         uiCollapseOperationsByUuid: _.get(obj, 'uiCollapseOperationsByUuid', {}),
         applyDefaultCollapseOps: _.get(obj, 'applyDefaultCollapseOps', false),
-      };
+      });
       // Changing filter state can significantly change visible nodes, so we center.
       this.center();
     },
-    getDisplayDetails(resolvedCollapseStateByUuid, uuid) {
-      return _.get(resolvedCollapseStateByUuid, [uuid, 'minPriorityOp'], null);
+    // eslint-disable-next-line
+    // updateLayout: _.debounce(function () {
+    //   const positionsByUuid = calculateNodesPositionByUuid(
+    //     this.uncollapsedTaskNodeDimensionsByUuid,
+    //   );
+    //   this.nodeLayoutsByUuid = Object.freeze(_.mapValues(positionsByUuid,
+    //     (p, uuid) => _.assign(p, _.pick(
+    //       this.uncollapsedTaskNodeDimensionsByUuid[uuid], 'width', 'height',
+    //     ))));
+    // }, 1000, { maxWait: 2000, leading: true, trailing: true }),
+    updateLayout() {
+      const positionsByUuid = calculateNodesPositionByUuid(
+        this.uncollapsedTaskNodeDimensionsByUuid,
+      );
+      this.nodeLayoutsByUuid = Object.freeze(_.mapValues(positionsByUuid,
+        (p, uuid) => _.assign(p, _.pick(
+          this.uncollapsedTaskNodeDimensionsByUuid[uuid], 'width', 'height',
+        ))));
     },
   },
   watch: {
-    firexUid() {
-      this.isFirstLayout = true;
-      this.collapseConfig = this.getLocalStorageCollapseConfig();
+    firexUid: {
+      handler() {
+        this.isFirstLayout = true;
+        this.nodeLayoutsByUuid = {};
+        // load collapse config on firexUid change.
+        this.$store.commit('graph/setCollapseConfig', getLocalStorageCollapseConfig(this.firexUid));
+      },
+      immediate: true,
     },
-    nodeLayoutsByUuid() {
+    nodeLayoutsByUuid(newVal) {
       // Need to load stored transform AFTER initial layout.
-      if (this.isFirstLayout) {
+      if (!_.isEmpty(newVal) && this.isFirstLayout) {
         this.isFirstLayout = false;
         // TODO: combine localstorage reads, or cache at lower level.
         this.updateTransformViaZoom(this.getLocalStorageTransform());
       }
+      this.layoutCalcs += 1;
     },
     collapseConfig: {
       handler() {
-        this.addLocalStorageData({
+        addLocalStorageData(this.firexUid, {
           collapseConfig: this.collapseConfig,
         });
       },
       deep: true,
+    },
+    dimensionsByUuid: {
+      handler() {
+        // seems to be updated a reasonable amount (about once per task).
+        this.dimensionChanges += 1;
+      },
+      deep: true,
+    },
+    // TODO: why the hell is this updated so often???
+    uncollapsedTaskNodeDimensionsByUuid: {
+      handler(newUncollapsedTaskNodeDimensionsByUuid, oldVal) {
+        // TODO: how do you explain this? It's a computed property, why would this watcher be
+        // called if it hasn't changed???
+        if (!_.isEqual(newUncollapsedTaskNodeDimensionsByUuid, oldVal)) {
+          // Need to wait for all node dimensions to be loaded before we do any calcs (e.g. layout)
+          // with any dimensions.
+          if (!_.isEmpty(newUncollapsedTaskNodeDimensionsByUuid)) {
+            this.updateLayout();
+          }
+        }
+        this.uncollapsedTaskNodeDimensionsByUuidChanges += 1;
+      },
+      deep: true,
+      immediate: true,
     },
   },
 };
@@ -551,6 +461,15 @@ export default {
     font-size: 18px;
     position: absolute;
     z-index: 3;
+    width: 100%;
+  }
+
+  #chart-container {
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
     width: 100%;
   }
 </style>

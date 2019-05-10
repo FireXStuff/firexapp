@@ -4,23 +4,19 @@
   <div :style="{'margin-left': allStackOffset + 'px', 'display': 'inline-block'}">
     <div :style="frontBoxStyle">
         <x-task-node
-          :node="node"
-          :showUuid="showUuid"
-          :liveUpdate="liveUpdate"
+          :taskUuid="taskUuid"
           :style="frontTaskStyle"
           :toCollapse="!areAllDescendantsCollapsed"
-          :isLeaf="nodeGraphData.childrenUuids.length === 0"
-          :displayDetails="displayDetails"></x-task-node>
+          :isLeaf="isLeaf"></x-task-node>
     </div>
 
     <div v-if="hasCollapsedChildren"
          :style="stacksContainerStyle" class="stacks-link" @click="expandAll">
-      <div v-for="i in collapseDetails.stackCount" :key="i"
+      <div v-for="i in stackCount" :key="i"
            class="stacked-effect" :style="getNonFrontBoxStyle(i-1)">
       </div>
       <div class="stacks-count">
-        {{collapseDetails.collapsedUuids.length}}
-        {{collapseDetails.collapsedUuids.length === 1 ? 'Task' : 'Tasks'}}
+        {{collapsedUuidsCount}} {{collapsedUuidsCount === 1 ? 'Task' : 'Tasks'}}
       </div>
     </div>
   </div>
@@ -31,38 +27,63 @@ import _ from 'lodash';
 import {
   eventHub, containsAll, getTaskNodeBorderRadius, createCollapseOpsByUuid,
 } from '../../utils';
+import {
+  stackOffset, stackCount,
+} from '../../collapse';
+
 import XTaskNode from './XTaskNode.vue';
 
 export default {
-  name: 'XSvgCollapseNode',
+  name: 'XCollapseableTaskNode',
   components: { XTaskNode },
   props: {
-    node: { type: Object, required: true },
-    showUuid: {},
-    dimensions: { required: true, type: Object },
-    liveUpdate: { required: true, type: Boolean },
-    collapseDetails: { required: true, type: Object },
-    displayDetails: { required: true },
-    nodeGraphData: { required: true, type: Object },
+    taskUuid: { required: true },
+    width: { required: true },
+    height: { required: true },
+  },
+  data() {
+    return {
+      stackCount,
+    };
   },
   computed: {
+    descendantUuids() {
+      return this.$store.getters['graph/graphDataByUuid'][this.taskUuid].descendantUuids;
+    },
+    collapseDetails() {
+      // TODO: figure out how it's possible for uncollapsedGraphByNodeUuid can not have
+      // a node that has a layout. uncollapsedGraphByNodeUuid is used by the layout,
+      // so everything in the layout must come from uncollapsedGraphByNodeUuid.
+
+      return _.get(this.$store.getters['graph/uncollapsedGraphByNodeUuid'],
+        this.taskUuid, {collapsedUuids: [], });
+    },
+    isLeaf() {
+      return this.$store.getters['graph/graphDataByUuid'][this.taskUuid].isLeaf;
+    },
+    collapsedUuidsCount() {
+      return this.collapseDetails.collapsedUuids.length;
+    },
     areAllDescendantsCollapsed() {
       return containsAll(this.collapseDetails.collapsedUuids,
-        this.nodeGraphData.descendantUuids);
+        this.descendantUuids);
     },
     hasCollapsedChildren() {
       return this.collapseDetails.collapsedUuids.length > 0;
     },
     allStackOffset() {
-      return this.collapseDetails.stackCount * this.collapseDetails.stackOffset;
+      return stackCount * stackOffset;
     },
     boxDimensions() {
       // 2x since we pad both sides of width.
-      const width = this.dimensions.width - this.allStackOffset * 2;
+      const width = this.width - this.allStackOffset * 2;
       // only subtract height if there is actually stacks to show.
-      const height = this.dimensions.height
+      const height = this.height
         - (this.hasCollapsedChildren ? this.allStackOffset : 0);
       return { width, height };
+    },
+    chainDepth() {
+      return this.$store.state.tasks.tasksByUuid[this.taskUuid].chain_depth;
     },
     frontBoxStyle() {
       return {
@@ -71,7 +92,7 @@ export default {
         'border-right': this.hasCollapsedChildren ? '1px solid white' : '',
         'border-bottom': this.hasCollapsedChildren ? '1px solid white' : '',
         // TODO: avoid having this component know about how tasks represent chain depth.
-        'border-radius': getTaskNodeBorderRadius(this.node.chain_depth),
+        'border-radius': getTaskNodeBorderRadius(this.chainDepth),
       };
     },
     frontTaskStyle() {
@@ -82,7 +103,7 @@ export default {
       };
     },
     stacksContainerStyle() {
-      const offsets = (this.collapseDetails.stackCount - 1) * this.collapseDetails.stackOffset;
+      const offsets = (stackCount - 1) * stackOffset;
       return _.merge(this.getNonFrontBoxMargins(1), {
         width: `${this.boxDimensions.width + offsets}px`,
         height: `${this.boxDimensions.height + offsets}px`,
@@ -92,17 +113,17 @@ export default {
   methods: {
     emitExpandUuids(uuids) {
       const expandDescendantEvents = createCollapseOpsByUuid(uuids, 'expand', 'self',
-        this.node.uuid);
+        this.taskUuid);
       eventHub.$emit('ui-collapse', {
-        keep_rel_pos_uuid: this.node.uuid,
+        keep_rel_pos_uuid: this.taskUuid,
         operationsByUuid: expandDescendantEvents,
       });
     },
     getNonFrontBoxMargins(level) {
       return {
         // One pixel to offset for border.
-        'margin-top': `${this.collapseDetails.stackOffset * level}px`,
-        'margin-left': `${this.collapseDetails.stackOffset * level}px`,
+        'margin-top': `${stackOffset * level}px`,
+        'margin-left': `${stackOffset * level}px`,
       };
     },
     getNonFrontBoxStyle(level) {

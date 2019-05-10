@@ -79,14 +79,12 @@ function resolveToggleOperation(toggledTaskUuid, allDescendantsCollapsed, allChi
       op => op.operation === 'collapse' && _.isEqual(op.targets, ['descendants']),
     );
     if (collapsedByExistingOp) {
-      console.log('all collapsed by ui op -> clearing descendants.');
       resolvedOperation = {
         uuids: [toggledTaskUuid],
         operation: 'clear',
         target: 'descendants',
       };
     } else {
-      console.log('all descendants collapsed by default -> expanding descendants.');
       // descendants collapsed by default, expand all.
       // TODO: is this a safe assumption?
       resolvedOperation = {
@@ -103,7 +101,6 @@ function resolveToggleOperation(toggledTaskUuid, allDescendantsCollapsed, allChi
         && op.operation === 'expand'),
     ));
     if (!_.isEmpty(uuidsExpandedFromDefaultByParent)) {
-      console.log('all expanded by default-expansions -> clearing default expansions.');
       resolvedOperation = {
         uuids: uuidsExpandedFromDefaultByParent,
         operation: 'clear',
@@ -115,7 +112,6 @@ function resolveToggleOperation(toggledTaskUuid, allDescendantsCollapsed, allChi
         op => op.operation === 'expand' && _.isEqual(op.targets, ['descendants']),
       );
       if (expandedByExistingOp) {
-        console.log('all expanded by ui expand -> remove expand op');
         // All expanded without any default ops to restore, so just collapse everything.
         resolvedOperation = {
           uuids: [toggledTaskUuid],
@@ -123,7 +119,6 @@ function resolveToggleOperation(toggledTaskUuid, allDescendantsCollapsed, allChi
           target: 'descendants',
         };
       } else {
-        console.log('all expanded without default ops -> collapsing all descendants');
         // All expanded without any default ops to restore, so just collapse everything.
         resolvedOperation = {
           uuids: [toggledTaskUuid],
@@ -133,7 +128,6 @@ function resolveToggleOperation(toggledTaskUuid, allDescendantsCollapsed, allChi
       }
     }
   } else {
-    console.log('Some expanded some collapsed -> collapsing all descendants');
     // Neither all collapsed nor all expanded -- default collapsed, some expanded.
     resolvedOperation = {
       uuids: [toggledTaskUuid],
@@ -144,8 +138,13 @@ function resolveToggleOperation(toggledTaskUuid, allDescendantsCollapsed, allChi
   return resolvedOperation;
 }
 
+const stackOffset = 12;
+const stackCount = 2; // Always have 2 stacked behind the front.
+
 export {
   prioritizeCollapseOps,
   resolveDisplayConfigsToOpsByUuid,
   resolveToggleOperation,
+  stackOffset,
+  stackCount,
 };

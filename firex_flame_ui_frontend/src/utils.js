@@ -120,7 +120,7 @@ function calculateNodesPositionByUuid(nodesByUuid) {
   const newRootForLayout = flatGraphToTree(_.cloneDeep(nodesByUuid));
   // This calculates the layout (x, y per node) with dynamic node sizes.
   const verticalSpacing = 50;
-  const horizontalSpacing = 50;
+  const horizontalSpacing = 0;
   const flextreeLayout = flextree({
     spacing: horizontalSpacing,
     nodeSize: node => [node.data.width, node.data.height + verticalSpacing],
@@ -142,12 +142,12 @@ function calculateNodesPositionByUuid(nodesByUuid) {
   return calcedDimensionsByUuid;
 }
 
-function routeTo(vm, name, params) {
+function routeTo2(query, name, params) {
   const route = {
     name,
     query: {
-      logDir: vm.$route.query.logDir,
-      flameServer: vm.$route.query.flameServer,
+      logDir: query.logDir,
+      flameServer: query.flameServer,
     },
   };
   if (params) {
@@ -384,6 +384,10 @@ function resolveCollapseStatusByUuid(rootUuid, graphDataByUuid, collapseOpsByUui
   while (toCheckUuids.length > 0) {
     const curUuid = toCheckUuids.pop();
 
+    if (!_.has(graphDataByUuid, curUuid)) {
+      console.log("Missing uuid: " + curUuid);
+    }
+
     // assumes walking root-down (parent collapsed state already calced).
     const isParentCollapsed = _.get(resultNodesByUuid, [graphDataByUuid[curUuid].parentId, 'collapsed'], false)
     const affectingOps = _getAllOpsAffectingCollapseState(
@@ -409,21 +413,21 @@ function resolveCollapseStatusByUuid(rootUuid, graphDataByUuid, collapseOpsByUui
   return resultNodesByUuid;
 }
 
-function getCollapsedGraphByNodeUuid(rootUuid, childrenUuidsByUuid, collapsedByUuid) {
+function getCollapsedGraphByNodeUuid(rootUuid, childrenUuidsByUuid, isCollapsedByUuid) {
   // TODO: collapse operations on the root node are ignored. Could collapse 'down',
   //  though it's unclear if that's preferable.
   return recursiveGetCollapseNodes(rootUuid,
-    childrenUuidsByUuid, null, collapsedByUuid);
+    childrenUuidsByUuid, null, isCollapsedByUuid);
 }
 
-function recursiveGetCollapseNodes(curUuid, childrenUuidsByUuid, parentId, collapsedByUuid) {
+function recursiveGetCollapseNodes(curUuid, childrenUuidsByUuid, parentId, isCollapsedByUuid) {
 
   let childResults = _.map(childrenUuidsByUuid[curUuid], childUuid =>
-    recursiveGetCollapseNodes(childUuid, childrenUuidsByUuid, curUuid, collapsedByUuid));
+    recursiveGetCollapseNodes(childUuid, childrenUuidsByUuid, curUuid, isCollapsedByUuid));
   let resultDescendantsByUuid = _.reduce(childResults, _.merge, {});
 
   let collapsedChildrenUuids = _.filter(childrenUuidsByUuid[curUuid],
-      childUuid => collapsedByUuid[childUuid].collapsed);
+      childUuid => isCollapsedByUuid[childUuid]);
   let collapsedDescendantUuids = _.flatMap(collapsedChildrenUuids,
       cUuid => [cUuid].concat(resultDescendantsByUuid[cUuid].collapsedUuids));
 
@@ -431,7 +435,7 @@ function recursiveGetCollapseNodes(curUuid, childrenUuidsByUuid, parentId, colla
   // are collapsed) need to have this node set as their parent.
   _.each(collapsedChildrenUuids, ccUuid => {
     const uncollapsedGrandchildrenParentCollapsed = _.filter(childrenUuidsByUuid[ccUuid],
-      (grandchildUuid) => !collapsedByUuid[grandchildUuid].collapsed);
+      (grandchildUuid) => !isCollapsedByUuid[grandchildUuid]);
     _.each(uncollapsedGrandchildrenParentCollapsed,
         grandchildUuid => resultDescendantsByUuid[grandchildUuid].parentId = curUuid);
   })
@@ -494,7 +498,7 @@ export {
   calculateNodesPositionByUuid,
   getCenteringTransform,
   socketRequestResponse,
-  routeTo,
+  routeTo2,
   isTaskStateIncomplete,
   hasIncompleteTasks,
   isChainInterrupted,

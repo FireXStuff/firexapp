@@ -153,8 +153,6 @@ describe('utils.js', () => {
     };
 
     const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
-    console.log(trivialGraph)
-    console.log(result)
     expect(_.size(result)).toEqual(3);
     expect(result['1'].collapsed).toBe(false);
     expect(result['2'].collapsed).toBe(false);

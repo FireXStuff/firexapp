@@ -71,6 +71,7 @@ function getGraphDataByUuid(rootUuid, parentUuidByUuid, inputChildrenUuidsByUuid
     childrenUuids: childrenUuidsByUuid[uuid],
     ancestorUuids: ancestorUuidsByUuid[uuid],
     descendantUuids: descendantUuidsByUuid[uuid],
+    isLeaf: childrenUuidsByUuid[uuid].length === 0,
   }));
 }
 

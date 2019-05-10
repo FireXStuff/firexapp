@@ -15,12 +15,7 @@
     ></x-header>
     <!-- TODO: not sure where the best level to gate on UID is, but need UID to key on
     localStorage within x-graph-->
-    <x-graph
-      v-if="runMetadata.uid"
-      :nodesByUuid="rootDescendantsByUuid"
-      :showUuids="toggleStates.showTaskDetails"
-      :liveUpdate="toggleStates.liveUpdate"
-      :runMetadata="runMetadata"></x-graph>
+    <x-graph v-if="runMetadata.uid"></x-graph>
   </div>
 </template>
 
@@ -29,75 +24,53 @@ import _ from 'lodash';
 import XGraph from './XGraph.vue';
 import XHeader from './XHeader.vue';
 import {
-  eventHub, routeTo, hasIncompleteTasks, getDescendantUuids, orderByTaskNum,
+  eventHub, routeTo2,
 } from '../utils';
 
 export default {
   name: 'XHeaderedGraph',
   components: { XGraph, XHeader },
   props: {
-    nodesByUuid: { required: true, type: Object },
-    runMetadata: { required: true, type: Object },
-    // The connected state of the socket data is being received from. False if there is no socket.
-    isConnected: { required: true, type: Boolean },
     // The root UUID to show, not necessarily the root UUID from the runMetadata.
     rootUuid: { default: null },
   },
-  data() {
-    return {
-      toggleStates: {
-        liveUpdate: true,
-        showTaskDetails: false,
-      },
-    };
-  },
-  created() {
-    // Set initial live update state.
-    const liveUpdate = _.find(this.headerParams.links, { name: 'liveUpdate' });
-    if (liveUpdate) {
-      liveUpdate.on(this.toggleStates.liveUpdate);
-    }
-    eventHub.$on('toggle-live-update', () => {
-      this.toggleButtonState('liveUpdate');
-    });
-    eventHub.$on('toggle-uuids', () => { this.toggleButtonState('showTaskDetails'); });
-  },
   computed: {
-    isUidValid() {
-      if (!this.runMetadata.uid) {
-        return false;
-      }
-      return this.runMetadata.uid.startsWith('FireX-');
+    toggleStates() {
+      return {
+        liveUpdate: this.$store.state.graph.liveUpdate,
+        showTaskDetails: this.$store.state.graph.showTaskDetails,
+      };
     },
-    isAlive() {
-      return this.isConnected && this.hasIncompleteTasks;
+    runMetadata() {
+      return this.$store.state.firexRunMetadata;
     },
-    hasIncompleteTasks() {
-      return hasIncompleteTasks(this.rootDescendantsByUuid);
+    canRevoke() {
+      return this.$store.getters['tasks/canRevoke'];
+      // return this.isConnected && this.hasIncompleteTasks;
     },
-    rootDescendantsByUuid() {
-      if (this.rootUuid === null) {
-        return this.nodesByUuid;
-      }
-      const rootDescendantUuids = getDescendantUuids(this.rootUuid, this.nodesByUuid);
-      return orderByTaskNum(_.pick(this.nodesByUuid, [this.rootUuid].concat(rootDescendantUuids)));
-    },
+    // TODO: add support, setting root in state store & trickling down the selected graph.
+    // rootDescendantsByUuid() {
+    //   if (this.rootUuid === null) {
+    //     return this.nodesByUuid;
+    //   }
+    //   return this.$store.getters['tasks/descendantTasksByUuid'](this.rootUuid);
+    // },
     headerParams() {
       let links = [
         {
           name: 'liveUpdate',
-          on: () => { eventHub.$emit('toggle-live-update'); },
+          on: () => this.$store.dispatch('graph/toggleLiveUpdate'),
           toggleState: this.toggleStates.liveUpdate,
           icon: ['far', 'eye'],
         },
         { name: 'center', on: () => eventHub.$emit('center'), icon: 'bullseye' },
         {
           name: 'showTaskDetails',
-          on: () => eventHub.$emit('toggle-uuids'),
+          on: () => this.$store.dispatch('graph/toggleShowTaskDetails'),
           toggleState: this.toggleStates.showTaskDetails,
           icon: 'plus-circle',
         },
-        { name: 'list', to: routeTo(this, 'XList'), icon: 'list-ul' },
+        { name: 'list', to: routeTo2(this.$route.query, 'XList'), icon: 'list-ul' },
         {
           name: 'kill', on: () => eventHub.$emit('revoke-root'), _class: 'kill-button', icon: 'times',
         },
@@ -106,10 +79,10 @@ export default {
           href: `http://firex.cisco.com${this.runMetadata.logs_dir}`,
           text: 'View logs',
         },
-        { name: 'help', to: routeTo(this, 'XHelp'), text: 'Help' },
+        { name: 'help', to: routeTo2(this.$route.query, 'XHelp'), text: 'Help' },
       ];
       // Remove live update and kill options if the run isn't alive.
-      if (!this.isAlive) {
+      if (!this.canRevoke) {
         links = _.filter(links, l => !_.includes(['liveUpdate', 'kill'], l.name));
       }
 
@@ -138,10 +111,6 @@ export default {
       if (this.rootUuid !== null) {
         this.$nextTick(() => { eventHub.$emit('center'); });
       }
-    },
-    // eslint-disable-next-line
-    'toggleStates.liveUpdate': function () {
-      eventHub.$emit('set-live-update', this.toggleStates.liveUpdate);
     },
   },
 };

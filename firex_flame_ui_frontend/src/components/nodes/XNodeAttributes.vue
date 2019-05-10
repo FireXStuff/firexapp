@@ -9,29 +9,31 @@
            :style="{'background-color': i % 2 === 0 ? '#EEE': '#CCC', 'padding': '4px' }">
         <label style="font-weight: 700;">{{key}}:</label>
 
-        <div v-if="key === 'parent' && displayKeyNodes[key]" style="display: inline">
-          {{nodesByUuid[displayKeyNodes[key]].name}}
-          <router-link :to="linkToUuid(displayKeyNodes[key])">{{displayKeyNodes[key]}}</router-link>
+        <!-- Add parent {name, uuid} to store-->
+        <div v-if="key === 'parent' && displayKeyNode[key]" style="display: inline">
+          {{displayKeyNode[key].name}}
+          <router-link :to="linkToUuid(displayKeyNode[key].uuid)"
+          >{{displayKeyNode[key].uuid}}</router-link>
         </div>
         <div v-else-if="key === 'children'">
-          <div v-for="child_uuid in displayKeyNodes[key]" :key="'child-' + child_uuid"
+          <div v-for="child in displayKeyNode[key]" :key="'child-' + child.uuid"
                style="margin-left: 25px; padding: 3px;">
-            <strong>{{nodesByUuid[child_uuid].name}}: </strong>
-            <router-link :to="linkToUuid(child_uuid)">{{child_uuid}}</router-link>
+            <strong>{{child.name}}: </strong>
+            <router-link :to="linkToUuid(child.uuid)">{{child.uuid}}</router-link>
           </div>
         </div>
         <div v-else-if="key === 'support_location'" style="display: inline">
-          <a :href="displayKeyNodes[key]"> {{displayKeyNodes[key]}}</a>
+          <a :href="displayKeyNode[key]"> {{displayKeyNode[key]}}</a>
         </div>
         <div v-else-if="key === 'traceback'" style="display: inline">
           <pre style="overflow: auto; color: darkred; margin-top: 0"
-            >{{displayKeyNodes[key].trim()}}</pre>
+            >{{displayKeyNode[key].trim()}}</pre>
         </div>
         <div v-else-if="isTimeKey(key)" style="display: inline">
-          {{formatTime(displayKeyNodes[key])}}
+          {{formatTime(displayKeyNode[key])}}
         </div>
-        <div v-else-if="isObject(displayKeyNodes[key])" style="overflow: auto">
-          <div v-for="(arg_value, arg_key) in displayKeyNodes[key]" :key="arg_key"
+        <div v-else-if="isObject(displayKeyNode[key])" style="overflow: auto">
+          <div v-for="(arg_value, arg_key) in displayKeyNode[key]" :key="arg_key"
                style="margin-left: 25px; padding: 3px;">
             <strong>{{arg_key}}:
             </strong><pre v-if="shouldPrettyPrint(arg_value)" style="margin: 0 0 0 40px"
@@ -40,7 +42,7 @@
           </div>
         </div>
         <span v-else>
-          {{displayKeyNodes[key]}}
+          {{displayKeyNode[key]}}
         </span>
       </div>
     </div>
@@ -50,7 +52,7 @@
 <script>
 import _ from 'lodash';
 import { DateTime } from 'luxon';
-import { routeTo, eventHub, isTaskStateIncomplete } from '../../utils';
+import { routeTo2, eventHub, isTaskStateIncomplete } from '../../utils';
 import XHeader from '../XHeader.vue';
 
 export default {
@@ -58,52 +60,43 @@ export default {
   components: { XHeader },
   props: {
     uuid: { required: true, type: String },
-    nodesByUuid: { required: true, type: Object },
-    // unforuntately lazy loaded, so code defesively in this component.
-    taskDetails: { required: false },
-    runMetadata: { default: () => ({ uid: '', logs_dir: '' }), type: Object },
   },
   computed: {
-    resolvedTaskDetails() {
-      if (_.isNil(this.taskDetails)) {
-        return {};
-      }
-      return this.taskDetails;
+    simpleTask() {
+      return this.$store.state.tasks.tasksByUuid[this.uuid];
+    },
+    // unforuntately lazy loaded, so code defensively in this component.
+    detailedTask() {
+      return this.$store.state.tasks.detailedTask;
     },
     displayNode() {
-      // TODO: if an attribute is in nodesByUuid, that value should be rendered since
-      //        it's auto-updated.
       // If we haven't fetched the details for some reason, just show the base properties.
-      const base = _.isEmpty(this.resolvedTaskDetails)
-        ? this.nodesByUuid[this.uuid] : this.resolvedTaskDetails;
-      const node = _.clone(base);
-      const attributeBlacklist = ['children', 'long_name', 'name', 'parent', 'flame_additional_data',
-        'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data'];
-      // TODO: add children field, since it's no longer on node.
-
+      const node = _.merge({}, this.simpleTask, this.detailedTask);
+      const attributeBlacklist = ['long_name', 'name', 'flame_additional_data',
+        'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data',
+        'parent_id', 'children_uuids',
+      ];
       return _.omit(node, attributeBlacklist);
     },
-    displayKeyNodes() {
+    displayKeyNode() {
       const origKeysToDisplayKeys = {
         firex_bound_args: 'arguments',
         firex_default_bound_args: 'argument_defaults',
         firex_result: 'task_result',
-        parent_id: 'parent',
-        children_uuids: 'children',
       };
       return _.mapKeys(this.displayNode, (v, k) => _.get(origKeysToDisplayKeys, k, k));
     },
     sortedDisplayNodeKeys() {
-      return _.sortBy(_.keys(this.displayKeyNodes));
+      return _.sortBy(_.keys(this.displayKeyNode));
     },
     headerParams() {
       let links = [
-        { name: 'logs', href: this.resolvedTaskDetails.logs_url, text: 'View Logs' },
-        { name: 'support', href: this.resolvedTaskDetails.support_location, text: 'Support' },
-        { name: 'code', href: this.resolvedTaskDetails.code_url, icon: 'file-code' },
+        { name: 'logs', href: this.detailedTask.logs_url, text: 'View Logs' },
+        { name: 'support', href: this.detailedTask.support_location, text: 'Support' },
+        { name: 'code', href: this.detailedTask.code_url, icon: 'file-code' },
       ];
 
-      if (isTaskStateIncomplete(this.nodesByUuid[this.uuid].state)) {
+      if (isTaskStateIncomplete(this.simpleTask.state)) {
         links = [
           {
             name: 'kill',
@@ -115,7 +108,7 @@ export default {
       }
 
       return {
-        title: this.resolvedTaskDetails.long_name,
+        title: this.detailedTask.long_name,
         legacyPath: `/task/${this.uuid}`,
         links,
       };
@@ -123,7 +116,7 @@ export default {
   },
   methods: {
     linkToUuid(uuid) {
-      return routeTo(this, 'XNodeAttributes', { uuid });
+      return routeTo2(this.$route.query, 'XNodeAttributes', { uuid });
     },
     isObject(val) {
       return _.isObject(val);
