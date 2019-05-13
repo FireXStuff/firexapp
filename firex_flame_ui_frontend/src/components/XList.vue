@@ -72,8 +72,8 @@ export default {
       'task-failed', 'task-revoked', 'task-incomplete'];
     return {
       // TODO: consider having these as URL parameters, so we can link to failures only.
-      selectedSortOption: 'time-received',
-      selectedSortOptionDirection: 'ascending',
+      selectedSortOption: 'runtime',
+      selectedSortOptionDirection: 'descending',
       sortOptions: [
         { value: 'time-received', text: 'Time Received' },
         { value: 'alphabetical', text: 'Alphabetical' },
@@ -102,7 +102,7 @@ export default {
       ];
     },
     displayTaskUuids() {
-      let filteredNodes = _.values(this.$store.state.tasks.tasksByUuid);
+      let filteredNodes = _.values(this.$store.state.tasks.allTasksByUuid);
       if (this.selectedRunStates !== 'all') {
         filteredNodes = _.filter(filteredNodes,
           n => _.includes(this.selectedRunStates, n.state));

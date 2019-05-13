@@ -12,8 +12,6 @@
          style="display: inline-block; position: absolute; top: 0; z-index: -1000;">
       <!-- TODO: profile event performance with thousands of nodes. Might be worthwhile
           to catch all and send in one big event. -->
-      <!--   :displayDetails="getDisplayDetails(resolvedCollapseStateByUuid, n.uuid)"
--->
       <x-task-node
         :taskUuid="uuid"
         :emitDimensions="true"

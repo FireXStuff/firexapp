@@ -63,7 +63,7 @@ export default {
   },
   computed: {
     simpleTask() {
-      return this.$store.state.tasks.tasksByUuid[this.uuid];
+      return this.$store.getters['tasks/runStateByUuid'][this.uuid];
     },
     // unforuntately lazy loaded, so code defensively in this component.
     detailedTask() {
@@ -74,8 +74,9 @@ export default {
       const node = _.merge({}, this.simpleTask, this.detailedTask);
       const attributeBlacklist = ['long_name', 'name', 'flame_additional_data',
         'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data',
-        'parent_id', 'children_uuids',
+        'parent_id', 'children_uuids', 'isLeaf',
       ];
+      // TODO: remove 'children' key when it's the empty list.
       return _.omit(node, attributeBlacklist);
     },
     displayKeyNode() {

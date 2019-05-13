@@ -71,6 +71,7 @@ export default {
     return {
       // Updated locally if the node is in-progress, otherwise the actual_runtime value is shown.
       liveRunTime: 0,
+      latestEmittedDimensions: { width: -1, height: -1 },
     };
   },
   computed: {
@@ -81,19 +82,19 @@ export default {
       return this.$store.state.graph.showTaskDetails;
     },
     hostname() {
-      return this.$store.state.tasks.tasksByUuid[this.taskUuid].hostname;
+      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].hostname;
     },
     flameAdditionalData() {
-      return this.$store.state.tasks.tasksByUuid[this.taskUuid].flame_additional_data;
+      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].flame_additional_data;
     },
     retries() {
-      return this.$store.state.tasks.tasksByUuid[this.taskUuid].retries;
+      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].retries;
     },
     taskName() {
-      return this.$store.state.tasks.tasksByUuid[this.taskUuid].name;
+      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].name;
     },
     taskNumber() {
-      return this.$store.state.tasks.tasksByUuid[this.taskUuid].task_num;
+      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].task_num;
     },
     isChained() {
       return Boolean(this.chainDepth);
@@ -105,16 +106,16 @@ export default {
       return this.$store.getters['tasks/runStateByUuid'][this.taskUuid].exception;
     },
     actualRuntime() {
-      return this.$store.state.tasks.tasksByUuid[this.taskUuid].actual_runtime;
+      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].actual_runtime;
     },
     firstStarted() {
-      return this.$store.state.tasks.tasksByUuid[this.taskUuid].first_started;
+      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].first_started;
     },
     chainDepth() {
-      return this.$store.state.tasks.tasksByUuid[this.taskUuid].chain_depth;
+      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].chain_depth;
     },
     fromPlugin() {
-      return this.$store.state.tasks.tasksByUuid[this.taskUuid].from_plugin;
+      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].from_plugin;
     },
     topLevelStyle() {
       return {
@@ -135,16 +136,18 @@ export default {
       return durationString(runtime);
     },
     showLegacyFlameAdditionalData() {
-      return !_.includes(_.map(_.get(this.$store.state.tasks.tasksByUuid[this.taskUuid], 'flame_data', {}),
+      return !_.includes(_.map(_.get(this.$store.state.tasks.allTasksByUuid[this.taskUuid], 'flame_data', {}),
         'type'), 'html');
     },
     flameDataHtmlContent() {
-      if (!_.has(this.$store.state.tasks.tasksByUuid[this.taskUuid], 'flame_data')) {
+      if (!_.has(this.$store.state.tasks.allTasksByUuid[this.taskUuid], 'flame_data')) {
         return {};
       }
       return _.map(
-        _.reverse(_.sortBy(_.filter(this.$store.state.tasks.tasksByUuid[this.taskUuid].flame_data,
-          d => d.type === 'html'), ['order'])),
+        _.reverse(_.sortBy(_.filter(
+          this.$store.state.tasks.allTasksByUuid[this.taskUuid].flame_data,
+          d => d.type === 'html',
+        ), ['order'])),
         'value',
       );
     },
@@ -198,8 +201,9 @@ export default {
           const renderedWidth = r.width; // this.$el.clientWidth
           const renderedHeight = r.height; // this.$el.clientHeight
           if (renderedWidth && renderedHeight) {
-            const renderedDimensions = { width: r.width, height: r.height };
+            const renderedDimensions = { width: renderedWidth, height: renderedHeight };
             if (!_.isEqual(this.latestEmittedDimensions, renderedDimensions)) {
+              this.latestEmittedDimensions = renderedDimensions;
               this.$store.dispatch('tasks/addTaskNodeSize',
                 _.merge({ uuid: this.taskUuid }, renderedDimensions));
             }

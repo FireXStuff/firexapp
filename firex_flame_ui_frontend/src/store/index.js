@@ -15,4 +15,5 @@ export default new Vuex.Store({
     firexRunMetadata,
   },
   strict: debug,
+  devtools: debug,
 });

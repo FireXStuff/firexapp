@@ -10,32 +10,42 @@
         <div style="margin: 15px">
           <h2 class="node-type">Started</h2>
           <div style="display: inline-block; width: 200px;">
-            <x-node :node="startedNode" :allow-click-to-attributes="false" :isLeaf="true"></x-node>
+            <x-node taskUuid="startedNode" :allow-click-to-attributes="false" :isLeaf="true">
+            </x-node>
           </div>
         </div>
         <div style="margin: 15px">
           <h2 class="node-type">Succeeded</h2>
           <div style="display: inline-block; width: 200px;">
-            <x-node :node="succeededNode" :allow-click-to-attributes="false" :isLeaf="true">
+            <x-node taskUuid="succeededNode" :allow-click-to-attributes="false" :isLeaf="true">
             </x-node>
           </div>
         </div>
         <div style="margin: 15px">
           <h2 class="node-type">Failed</h2>
           <div style="display: inline-block; width: 200px;">
-            <x-node :node="failedNode" :allow-click-to-attributes="false" :isLeaf="true"></x-node>
+            <x-node taskUuid="failedNode" :allow-click-to-attributes="false" :isLeaf="true">
+            </x-node>
           </div>
         </div>
         <div style="margin: 15px">
           <h2 class="node-type">Revoked</h2>
           <div style="display: inline-block; width: 200px;">
-            <x-node :node="revokedNode" :allow-click-to-attributes="false" :isLeaf="true"></x-node>
+            <x-node taskUuid="revokedNode" :allow-click-to-attributes="false" :isLeaf="true">
+            </x-node>
+          </div>
+        </div>
+        <div style="margin: 15px">
+          <h2 class="node-type">Blocked</h2>
+          <div style="display: inline-block; width: 200px;">
+            <x-node taskUuid="blockedNode" :allow-click-to-attributes="false" :isLeaf="true">
+            </x-node>
           </div>
         </div>
         <div style="margin: 15px">
           <h2 class="node-type">Plugin with Success</h2>
           <div style="display: inline-block; width: 200px;">
-            <x-node :node="pluginSucceededNode" :allow-click-to-attributes="false"
+            <x-node taskUuid="pluginSucceededNode" :allow-click-to-attributes="false"
                     :isLeaf="true"></x-node>
           </div>
         </div>
@@ -70,19 +80,8 @@ export default {
   name: 'XHelp',
   components: { XHeader, XNode },
   data() {
-    const baseNode = {
-      name: 'noop',
-      hostname: 'hostname',
-      task_num: 1,
-      actual_runtime: 0.5,
-      uuid: '372bcc97-36a0-45cd-a322-3253155da856',
-    };
     return {
-      startedNode: _.merge({}, baseNode, { state: 'task-started' }),
-      succeededNode: _.merge({}, baseNode, { state: 'task-succeeded' }),
-      failedNode: _.merge({}, baseNode, { state: 'task-failed' }),
-      revokedNode: _.merge({}, baseNode, { state: 'task-revoked' }),
-      pluginSucceededNode: _.merge({}, baseNode, { state: 'task-succeeded', from_plugin: true }),
+
       headerParams: {
         title: 'Help',
         links: [
@@ -113,6 +112,24 @@ export default {
         legacyPath: '/help',
       },
     };
+  },
+  created() {
+    const baseNode = {
+      name: 'noop',
+      hostname: 'hostname',
+      task_num: 1,
+      actual_runtime: 0.5,
+      uuid: '372bcc97-36a0-45cd-a322-3253155da856',
+    };
+    const tasksByUuid = {
+      startedNode: _.merge({}, baseNode, { state: 'task-started' }),
+      succeededNode: _.merge({}, baseNode, { state: 'task-succeeded' }),
+      failedNode: _.merge({}, baseNode, { state: 'task-failed' }),
+      revokedNode: _.merge({}, baseNode, { state: 'task-revoked' }),
+      blockedNode: _.merge({}, baseNode, { state: 'task-blocked' }),
+      pluginSucceededNode: _.merge({}, baseNode, { state: 'task-succeeded', from_plugin: true }),
+    };
+    this.$store.dispatch('tasks/setTasks', tasksByUuid);
   },
 };
 </script>

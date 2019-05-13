@@ -39,18 +39,6 @@ const router = new Router({
           component: XHeaderedGraph,
           props: true,
         },
-        {
-          path: 'help',
-          name: 'XHelp',
-          component: XHelp,
-          props: true,
-        },
-        {
-          path: 'shortcuts',
-          name: 'XShortcuts',
-          component: XShortcuts,
-          props: true,
-        },
         // default path must be last.
         {
           path: '',
@@ -59,6 +47,18 @@ const router = new Router({
           props: true,
         },
       ],
+    },
+    {
+      path: 'help',
+      name: 'XHelp',
+      component: XHelp,
+      props: true,
+    },
+    {
+      path: 'shortcuts',
+      name: 'XShortcuts',
+      component: XShortcuts,
+      props: true,
     },
     {
       path: '/settings',

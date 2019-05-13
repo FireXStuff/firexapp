@@ -1,12 +1,11 @@
 import _ from 'lodash';
-import Vue from 'vue';
 
 import { orderByTaskNum, hasIncompleteTasks, getDescendantUuids } from '../../utils';
 
 const tasksState = {
   items: [],
   checkoutStatus: null,
-  tasksByUuid: {},
+  allTasksByUuid: {},
   // TODO: populate from user selection.
   selectedRoot: null,
   // TODO: this shouldn't be stored in globally, but rather fetched by the attribute viewing
@@ -15,20 +14,31 @@ const tasksState = {
   socketConnected: false,
   // unfortunately we need to track this manually. TODO: look for a better way.
   taskNodeSizeByUuid: {},
+  // When set, fades-out other nodes. Is reset by pan/zoom events.
+  focusedTaskUuid: null,
 };
 
 // getters
 const tasksGetters = {
 
-  allTaskUuids: state => _.keys(state.tasksByUuid),
+  tasksByUuid(state, getters) {
+    if (_.isNull(state.selectedRoot) || !_.has(state.allTasksByUuid, state.selectedRoot)) {
+      return state.allTasksByUuid;
+    }
+    return getters.descendantTasksByUuid(state.selectedRoot);
+  },
 
-  getTaskById: state => uuid => state.tasksByUuid[uuid],
+  // TODO: could split this in to selected visible (via root) & literally all in order to
+  //  cache layouts for all.
+  allTaskUuids: (state, getters) => _.keys(getters.tasksByUuid),
 
-  getTaskAttribute: state => (uuid, attr) => state.tasksByUuid[uuid][attr],
+  getTaskById: state => uuid => state.allTasksByUuid[uuid],
+
+  getTaskAttribute: state => (uuid, attr) => state.allTasksByUuid[uuid][attr],
 
   runStateByUuid: (state, getters, rootState, rootGetters) => _.mapValues(
     // note nodesByUuid can be updated before childrenUuidsByUuid, so add default.
-    state.tasksByUuid,
+    state.allTasksByUuid,
     n => _.assign(
       { isLeaf: _.get(rootGetters['graph/childrenUuidsByUuid'], n.uuid, []).length === 0 },
       _.pick(n, ['state', 'exception']),
@@ -36,22 +46,28 @@ const tasksGetters = {
   ),
 
   // TODO: further prune to flame_data._default_display
-  flameDataAndNameByUuid: state => _.mapValues(state.tasksByUuid,
+  flameDataAndNameByUuid: state => _.mapValues(state.allTasksByUuid,
     n => _.pick(n, ['flame_data', 'name', 'parent_id', 'uuid'])),
 
   descendantTasksByUuid: state => (rootUuid) => {
-    const descUuids = getDescendantUuids(rootUuid, state.tasksByUuid);
-    return orderByTaskNum(_.pick(state.tasksByUuid, [rootUuid].concat(descUuids)));
+    const descUuids = getDescendantUuids(rootUuid, state.allTasksByUuid);
+    return orderByTaskNum(_.pick(state.allTasksByUuid, [rootUuid].concat(descUuids)));
   },
 
   // TODO: add support for custom root.
-  hasIncompleteTasks: state => hasIncompleteTasks(state.tasksByUuid),
+  hasIncompleteTasks: state => hasIncompleteTasks(state.allTasksByUuid),
 
-  hasTasks: state => !_.isEmpty(state.tasksByUuid),
+  hasTasks: state => !_.isEmpty(state.allTasksByUuid),
 
-  // TODO: get rid of this, sent single root UUID, either user selected or from metadata.
-  rootUuid: (state) => {
-    const nullParents = _.filter(state.tasksByUuid, { parent_id: null });
+  rootUuid: (state, getters, rootState) => {
+    if (!_.isNil(state.selectedRoot)) {
+      return state.selectedRoot;
+    }
+    if (!_.isNil(rootState.firexRunMetadata.root_uuid)) {
+      return rootState.firexRunMetadata.root_uuid;
+    }
+    // Fallback to searching graph.
+    const nullParents = _.filter(state.allTasksByUuid, { parent_id: null });
     return _.isEmpty(nullParents) ? null : _.head(nullParents).uuid;
   },
 
@@ -64,13 +80,13 @@ const actions = {
   setDetailedTask(context, detailedTask) {
     const childrenUuids = context.rootGetters['graph/childrenUuidsByUuid'][detailedTask.uuid];
     const children = _.map(childrenUuids,
-      uuid => ({ uuid, name: context.state.tasksByUuid[uuid].name }));
+      uuid => ({ uuid, name: context.state.allTasksByUuid[uuid].name }));
 
     let parent;
     if (!_.isNil(detailedTask.parent_id)) {
       parent = {
         uuid: detailedTask.parent_id,
-        name: context.state.tasksByUuid[detailedTask.parent_id].name,
+        name: context.state.allTasksByUuid[detailedTask.parent_id].name,
       };
     } else {
       parent = {};
@@ -84,11 +100,11 @@ const actions = {
 
   addTasksData(context, newDataByUuid) {
     const newUuidData = _.pickBy(newDataByUuid,
-      (t, u) => !_.has(context.state.tasksByUuid, u));
+      (t, u) => !_.has(context.state.allTasksByUuid, u));
     const updateUuidData = _.pickBy(newDataByUuid,
-      (t, u) => _.has(context.state.tasksByUuid, u));
+      (t, u) => _.has(context.state.allTasksByUuid, u));
 
-    const newTasksByUuid = _.assign({}, context.state.tasksByUuid, newUuidData);
+    const newTasksByUuid = _.assign({}, context.state.allTasksByUuid, newUuidData);
     _.each(updateUuidData, (newTaskData, uuid) => {
       // New data fully replaces _attributes_ on a task, not entire tasks.
       newTasksByUuid[uuid] = _.assign({}, newTasksByUuid[uuid], newTaskData);
@@ -105,6 +121,11 @@ const actions = {
   addTaskNodeSize(context, taskNodeSize) {
     context.commit('addTaskNodeSize', taskNodeSize);
   },
+
+  selectRootUuid(context, newRootUuid) {
+    context.commit('selectRootUuid', newRootUuid);
+  },
+
 };
 
 // mutations
@@ -113,11 +134,12 @@ const mutations = {
   // Avoid Vue dependency tracking by freezing tasksByUuid. This causes issues for large graphs.
 
   addTask(state, { task }) {
-    state.tasksByUuid = Object.freeze(_.assign({}, state.tasksByUuid, { [[task.uuid]]: task }));
+    state.allTasksByUuid = Object.freeze(_.assign({},
+      state.allTasksByUuid, { [[task.uuid]]: task }));
   },
 
   setTasks(state, tasksByUuid) {
-    state.tasksByUuid = tasksByUuid;
+    state.allTasksByUuid = tasksByUuid;
   },
 
   setDetailedTask(state, detailedTask) {
@@ -136,6 +158,14 @@ const mutations = {
 
   clearTaskNodeSize(state) {
     state.taskNodeSizeByUuid = {};
+  },
+
+  selectRootUuid(state, newRootUuid) {
+    state.selectedRoot = newRootUuid;
+  },
+
+  setFocusedTaskUuid(state, newFocusedTaskUuid) {
+    state.focusedTaskUuid = newFocusedTaskUuid;
   },
 
 };

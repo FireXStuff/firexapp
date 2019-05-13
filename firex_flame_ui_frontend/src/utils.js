@@ -311,107 +311,7 @@ function getPrioritizedTaskStateBackground(states) {
   return getNodeBackground(null, minState);
 }
 
-function _getOpsAndDistanceForTarget(uuids, collapseOpsByUuid, target) {
-  // Note we map before we filter so that we have the real distance, not the distance of only
-  // nodes with operations.
-  const uuidsToDistance = _.keyBy(_.map(uuids, (u, i) => ({uuid: u, distance: i + 1})),
-    'uuid');
-  const opsWithTargetByUuid = _.mapValues(collapseOpsByUuid,
-      ops => _.filter(ops, o => _.includes(o.targets, target)));
-  const opsAndDistancesByUuid = _.mapValues(opsWithTargetByUuid,
-    (ops, uuid) => _.map(ops,
-        o => _.merge({distance: uuidsToDistance[uuid].distance}, o)));
-  return _.flatten(_.values(opsAndDistancesByUuid))
-}
 
-function _getAllOpsAffectingCollapseState(
-  curNodeUuid, collapseOpsByUuid, curNodeAncestorUuids, curNodeDescendantUuids,
-  isParentCollapsed) {
-
-  const expandCollapseInfluences = {
-    self: _.filter(_.get(collapseOpsByUuid, curNodeUuid, []),
-    op => _.includes(op.targets, 'self')),
-
-    ancestor:
-      _getOpsAndDistanceForTarget(curNodeAncestorUuids,
-        _.pick(collapseOpsByUuid, curNodeAncestorUuids), 'descendants'),
-
-    descendant:
-      _getOpsAndDistanceForTarget(curNodeDescendantUuids,
-        _.pick(collapseOpsByUuid, curNodeDescendantUuids), 'ancestors'),
-
-    grandparent:
-      _getOpsAndDistanceForTarget(_.tail(curNodeAncestorUuids),
-        _.pick(collapseOpsByUuid, _.tail(curNodeAncestorUuids)), 'grandchildren'),
-
-    // If no reason to show, and parent is collapsed, have a very low-priority collapse.
-    // TODO: consider if this is the right place to do this. Could exclude these nodes downstream
-    // instead.
-    parent: isParentCollapsed ? [{ operation: 'collapse', priority: 10 }] : [],
-  }
-  const targetNameToPriority = {
-    self: 1,
-    ancestor: 2,
-    descendant: 3,
-    grandparent: 4,
-    parent: 5
-  }
-  // at otherwise equal priorities, expand beats collapse.
-  const operationToPriority = {
-    'expand': 0,
-    'collapse': 1,
-  };
-
-  return _.flatMap(expandCollapseInfluences,
-    (ops, targetName) => _.map(ops,
-        op =>_.merge({
-          target: targetName,
-          targetPriority: targetNameToPriority[targetName],
-          opPriority: operationToPriority[op.operation],
-        }, _.omit(op, ['targets']))))
-}
-
-function _findMinPriorityOp(affectingOps) {
-  // Unfortunately need to sort since minBy doesn't work like sortBy w.r.t. array of properties.
-  const sorted = _.sortBy(affectingOps, ['priority', 'opPriority', 'targetPriority', 'distance']);
-  // If there are any 'clear' operations, ignore previous ops from that datasource.
-  return _.head(sorted);
-}
-
-function resolveCollapseStatusByUuid(rootUuid, graphDataByUuid, collapseOpsByUuid) {
-  const resultNodesByUuid = {}
-  let toCheckUuids = [rootUuid]
-  while (toCheckUuids.length > 0) {
-    const curUuid = toCheckUuids.pop();
-
-    if (!_.has(graphDataByUuid, curUuid)) {
-      console.log("Missing uuid: " + curUuid);
-    }
-
-    // assumes walking root-down (parent collapsed state already calced).
-    const isParentCollapsed = _.get(resultNodesByUuid, [graphDataByUuid[curUuid].parentId, 'collapsed'], false)
-    const affectingOps = _getAllOpsAffectingCollapseState(
-      curUuid,
-      collapseOpsByUuid,
-      graphDataByUuid[curUuid].ancestorUuids,
-      graphDataByUuid[curUuid].descendantUuids,
-      isParentCollapsed);
-
-    const minPriorityOp = _findMinPriorityOp(affectingOps);
-    resultNodesByUuid[curUuid] = {
-      // If no rules affect this node (minPriorityOp undefined), default to false (not collapsed).
-      collapsed: _.isUndefined(minPriorityOp) ? false : minPriorityOp.operation === 'collapse',
-      affectingOps,
-      minPriorityOp,
-    };
-    toCheckUuids = toCheckUuids.concat(graphDataByUuid[curUuid].childrenUuids)
-  }
-  // TODO: this is unfortunately necessary b/c collapsing the root shows nothing.
-  // Consider supporting 'collapse down' to nearest uncollapsed descendant?
-  resultNodesByUuid[rootUuid].collapsed = false;
-
-  return resultNodesByUuid;
-}
 
 function getCollapsedGraphByNodeUuid(rootUuid, childrenUuidsByUuid, isCollapsedByUuid) {
   // TODO: collapse operations on the root node are ignored. Could collapse 'down',
@@ -508,7 +408,6 @@ export {
   uuidv4,
   getNodeBackground,
   getPrioritizedTaskStateBackground,
-  resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid,
   createCollapseOpsByUuid,
   createRunStateExpandOperations,

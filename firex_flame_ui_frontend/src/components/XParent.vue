@@ -12,8 +12,6 @@
       </div>
     </div>
     <!-- Only show main panel after data is loaded -->
-    <!-- TODO: will jump because UID is lazy loaded. Consider not rendering until
-            we have the UID -->
     <router-view v-if="hasTasks"></router-view>
   </div>
 </template>

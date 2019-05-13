@@ -17,7 +17,7 @@
 </template>
 
 <script>
-
+import _ from 'lodash';
 import { eventHub } from '../utils';
 
 export default {
@@ -34,14 +34,25 @@ export default {
   },
   created() {
     eventHub.$on('task-search-result', (searchResult) => {
+      // TODO: actually make search work on uncollapsed, don't just ignore!.
       this.searchResultUuids = searchResult.task_list;
       this.emitFocusCurrentNode();
     });
-    eventHub.$on('find-focus', () => { this.toggleSearchOpen(); });
+    eventHub.$on('find-focus', this.toggleSearchOpen);
+  },
+  beforeDestroy() {
+    eventHub.$off('task-search-result');
+    eventHub.$off('find-focus');
   },
   computed: {
+    uncollapsedSearchResultUuids() {
+      return _.intersection(this.searchResultUuids, this.uncollapsedNodeUuids);
+    },
     totalResultsCount() {
-      return this.searchResultUuids.length;
+      return this.uncollapsedSearchResultUuids.length;
+    },
+    uncollapsedNodeUuids() {
+      return this.$store.getters['graph/uncollapsedNodeUuids'];
     },
   },
   methods: {
@@ -58,7 +69,8 @@ export default {
       }
     },
     emitFocusCurrentNode() {
-      eventHub.$emit('node-focus', this.searchResultUuids[this.currentResultIndex]);
+      const focusedUuid = this.uncollapsedSearchResultUuids[this.currentResultIndex];
+      this.$store.commit('tasks/setFocusedTaskUuid', focusedUuid);
     },
     toggleSearchOpen() {
       this.searchOpen = !this.searchOpen;

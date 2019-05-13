@@ -4,7 +4,8 @@
        :key="uuid"
        :transform="'translate(' + nodeLayout.x + ',' + nodeLayout.y + ')'"
        :width="nodeLayout.width + 10" :height="nodeLayout.height + 10"
-       :class="{ inprogress: isInProgressByUuid[uuid] }">
+       :class="{ inprogress: isInProgressByUuid[uuid],
+                 faded: hasFocusedTaskUuid && focusedTaskUuid !== uuid}">
 
       <defs v-if="isInProgressByUuid[uuid]">
         <filter id="shadow" x="-40%" y="-40%" height="200%" width="200%">
@@ -37,29 +38,20 @@ export default {
   props: {
     nodeLayoutsByUuid: { required: true, type: Object },
     // TODO: fix by supplying focused node and calculating
-    //  opacity in here, or reading from global state.
-    opacity: { default: 1 },
   },
   computed: {
     taskRunStateByUuid() {
       return this.$store.getters['tasks/runStateByUuid'];
     },
-    isInProgressByUuid() {
-      return _.map(this.taskRunStateByUuid, r => r.state === 'task-started');
+    focusedTaskUuid() {
+      return this.$store.state.tasks.focusedTaskUuid;
     },
-    // groupStyle() {
-    //   const style = { opacity: this.opacity };
-    //   if (this.isInProgress) {
-    //     _.merge(style,
-    //       {
-    //         filter: 'url(#shadow)',
-    //         transform: 'translate3d(0, 0, 1)',
-    //         'backface-visibility': 'hidden',
-    //         perspective: 1000,
-    //       });
-    //   }
-    //   return style;
-    // },
+    hasFocusedTaskUuid() {
+      return !_.isNull(this.focusedTaskUuid);
+    },
+    isInProgressByUuid() {
+      return _.mapValues(this.taskRunStateByUuid, r => r.state === 'task-started');
+    },
   },
 };
 </script>

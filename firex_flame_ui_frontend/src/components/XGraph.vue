@@ -64,7 +64,7 @@ function zoomed() {
     scale: d3event.transform.k,
   });
 }
-const scaleBounds = { max: 1, min: 0.01 };
+const scaleBounds = { max: 1, min: 0.05 };
 const zoom = d3zoom()
   .scaleExtent([scaleBounds.min, scaleBounds.max])
   // Threshold for when a click is considered a pan, since this blocks event propagation.
@@ -80,8 +80,6 @@ export default {
   data() {
     return {
       transform: { x: 0, y: 0, scale: 1 },
-      // When set, fades-out other nodes. Is reset by pan/zoom events.
-      focusedNodeUuid: null,
       // Only want to center on first layout, then we'll rely on stored transform.
       isFirstLayout: true,
       nodeLayoutsByUuid: {},
@@ -89,9 +87,6 @@ export default {
       dimensionChanges: 0,
       uncollapsedTaskNodeDimensionsByUuidChanges: 0,
       parentUuidByUuidChanges: 0,
-      transformX: 0,
-      transformY: 0,
-      transformScale: 1,
     };
   },
   computed: {
@@ -206,39 +201,40 @@ export default {
       const userTouched = !_.isEmpty(this.collapseConfig.uiCollapseOperationsByUuid);
       return this.hasFailures && (!alreadyApplied || userTouched);
     },
+    focusedNodeUuid() {
+      return this.$store.state.tasks.focusedTaskUuid;
+    },
   },
-  mounted() {
-    // d3select('div#chart-container').on('mousedown', () => {
-    //   console.profile();
-    // });
-    d3select('div#chart-container').call(zoom).on('dblclick.zoom', null);
-    // this.$el.focus();
-
-    // Registering listeners in 'created' some cause duplicate handlers to exist.
+  created() {
+    // TODO: replace with action listeners.
     eventHub.$on('center', this.center);
-    eventHub.$on('node-focus', this.focusOnNode);
     eventHub.$on('ui-collapse', this.handleUiCollapseEvent);
     eventHub.$on('toggle-task-collapse', this.toggleCollapseDescendants);
     eventHub.$on('zoom', this.zoomed);
   },
+  beforeDestroy() {
+    eventHub.$off('ui-collapse');
+    eventHub.$off('toggle-task-collapse');
+    eventHub.$off('zoom');
+    eventHub.$off('center');
+  },
+  mounted() {
+    d3select('div#chart-container').call(zoom).on('dblclick.zoom', null);
+    this.$el.focus();
+  },
   methods: {
     zoomed(transform) {
       // Null source events mean programatic zoom. We don't want to clear for programatic zooms.
-      if (d3event.sourceEvent !== null) {
+      if (d3event.sourceEvent !== null && this.focusedNodeUuid !== null) {
         // Clear focus node on non-programatic pan/zoom.
-        this.focusedNodeUuid = null;
+        this.$store.commit('tasks/setFocusedTaskUuid', null);
       }
       this.transform = transform;
-      this.transformX = transform.x;
-      this.transformY = transform.y;
-      this.transformScale = transform.scale;
       // this.transform = {
       //   x: d3event.transform.x,
       //   y: d3event.transform.y,
       //   scale: d3event.transform.k,
       // };
-      // console.log(d3event);
-      // console.log(_.get(d3event, ['sourceEvent', 'type'], ''));
       // TODO: make transform top-level key per firexUid. This will avoid write slowdowns as other
       // per-run data grows.
       addLocalStorageData(this.firexUid, this.transform);
@@ -259,11 +255,6 @@ export default {
     },
     center() {
       this.updateTransformViaZoom(this.getCenterTransform());
-    },
-    focusOnNode(uuid) {
-      // TODO: handle focusing on nodes that are collapsed.
-      this.focusedNodeUuid = uuid;
-      this.updateTransformViaZoom(this.getCenterOnNodeTransform(uuid));
     },
     getCenterTransform() {
       // Not available during re-render.
@@ -390,6 +381,7 @@ export default {
       const positionsByUuid = calculateNodesPositionByUuid(
         this.uncollapsedTaskNodeDimensionsByUuid,
       );
+      // TODO: make this a regular computed property?
       this.nodeLayoutsByUuid = Object.freeze(_.mapValues(positionsByUuid,
         (p, uuid) => _.assign(p, _.pick(
           this.uncollapsedTaskNodeDimensionsByUuid[uuid], 'width', 'height',
@@ -446,6 +438,12 @@ export default {
       },
       deep: true,
       immediate: true,
+    },
+    focusedNodeUuid(newValue) {
+      if (!_.isNull(newValue)) {
+        // TODO: handle focusing on nodes that are collapsed.
+        this.updateTransformViaZoom(this.getCenterOnNodeTransform(newValue));
+      }
     },
   },
 };

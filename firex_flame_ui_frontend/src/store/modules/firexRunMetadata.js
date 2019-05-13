@@ -9,7 +9,7 @@ const metaDataState = {
 };
 
 // getters
-const tasksGetters = {
+const getters = {
 
 };
 
@@ -31,7 +31,7 @@ const mutations = {
 export default {
   namespaced: true,
   state: metaDataState,
-  getters: tasksGetters,
+  getters,
   actions,
   mutations,
 };

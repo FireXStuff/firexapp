@@ -3,10 +3,11 @@ import _ from 'lodash';
 import { getChildrenUuidsByUuid, getGraphDataByUuid } from '../../graph-utils';
 import {
   getCollapsedGraphByNodeUuid, getPrioritizedTaskStateBackground, concatArrayMergeCustomizer,
-  loadDisplayConfigs, createRunStateExpandOperations, resolveCollapseStatusByUuid,
+  loadDisplayConfigs, createRunStateExpandOperations,
 } from '../../utils';
 import {
   prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid, stackOffset, stackCount,
+  resolveCollapseStatusByUuid,
 } from '../../collapse';
 
 const graphState = {
@@ -22,12 +23,13 @@ const graphState = {
 // getters
 const graphGetters = {
 
-  // TODO: update incrementally.
-  graph(state, getters, rootState) {
-    const parentUuidByUuid = _.mapValues(rootState.tasks.tasksByUuid, 'parent_id');
+  // TODO: update incrementally with each new parent/child relationship.
+  graph(state, getters, rootState, rootGetters) {
+    // TODO: does it make sense to keep data for entire tree even when a custom root is selected?
+    const parentUuidByUuid = _.mapValues(rootState.tasks.allTasksByUuid, 'parent_id');
     const childrenUuidsByUuid = getChildrenUuidsByUuid(parentUuidByUuid);
     const graphDataByUuid = getGraphDataByUuid(
-      rootState.firexRunMetadata.root_uuid,
+      rootGetters['tasks/rootUuid'],
       parentUuidByUuid,
       childrenUuidsByUuid,
     );
@@ -114,7 +116,7 @@ const graphGetters = {
 
   uncollapsedGraphByNodeUuid: (state, getters, rootState, rootGetters) => {
     const uncollapsedGraphByUuid = _.pick(getCollapsedGraphByNodeUuid(
-      rootState.firexRunMetadata.root_uuid,
+      rootGetters['tasks/rootUuid'],
       getters.childrenUuidsByUuid,
       getters.isCollapsedByUuid,
     ),
@@ -154,8 +156,10 @@ const actions = {
 // mutations
 const mutations = {
   setCollapseOpsByUuid(state, uiCollapseOpsByUuid) {
-    state.collapseConfig.uiCollapseOperationsByUuid = _.assign({},
+    const newUiCollapseOperationsByUuid = Object.assign({},
       state.collapseConfig.uiCollapseOperationsByUuid, uiCollapseOpsByUuid);
+    state.collapseConfig = Object.assign({},
+      state.collapseConfig, { uiCollapseOperationsByUuid: newUiCollapseOperationsByUuid });
   },
 
   setCollapseConfig(state, collapseConfig) {

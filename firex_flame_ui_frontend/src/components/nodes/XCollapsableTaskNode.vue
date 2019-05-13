@@ -83,7 +83,7 @@ export default {
       return { width, height };
     },
     chainDepth() {
-      return this.$store.state.tasks.tasksByUuid[this.taskUuid].chain_depth;
+      return this.$store.getters['tasks/runStateByUuid'][this.taskUuid].chain_depth;
     },
     frontBoxStyle() {
       return {

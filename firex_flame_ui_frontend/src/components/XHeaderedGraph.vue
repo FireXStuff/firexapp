@@ -4,8 +4,8 @@
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
        @keydown.ctrl.f.prevent="focusOnFind"
        @keyup.191.prevent="focusOnFind"
-       @keydown.u.exact="toggleButtonState('liveUpdate')"
-       @keydown.d.exact="toggleButtonState('showTaskDetails')"
+       @keydown.u.exact="$store.dispatch('graph/toggleLiveUpdate')"
+       @keydown.d.exact="$store.dispatch('graph/toggleShowTaskDetails')"
        @keydown.r.exact="refreshGraph"
        tabindex="0">
     <x-header :title="headerParams.title"
@@ -46,15 +46,7 @@ export default {
     },
     canRevoke() {
       return this.$store.getters['tasks/canRevoke'];
-      // return this.isConnected && this.hasIncompleteTasks;
     },
-    // TODO: add support, setting root in state store & trickling down the selected graph.
-    // rootDescendantsByUuid() {
-    //   if (this.rootUuid === null) {
-    //     return this.nodesByUuid;
-    //   }
-    //   return this.$store.getters['tasks/descendantTasksByUuid'](this.rootUuid);
-    // },
     headerParams() {
       let links = [
         {
@@ -97,20 +89,21 @@ export default {
     focusOnFind() {
       eventHub.$emit('find-focus');
     },
-    toggleButtonState(stateKey) {
-      this.toggleStates[stateKey] = !this.toggleStates[stateKey];
-    },
     refreshGraph() {
       eventHub.$emit('graph-refresh');
     },
   },
   watch: {
-    rootUuid() {
-      // Center new graph when root node changes on next render
-      // (after nodes for only the new root are shown).
-      if (this.rootUuid !== null) {
-        this.$nextTick(() => { eventHub.$emit('center'); });
-      }
+    rootUuid: {
+      handler() {
+        // Center new graph when root node changes on next render
+        // (after nodes for only the new root are shown).
+        if (this.rootUuid !== null) {
+          this.$nextTick(() => { eventHub.$emit('center'); });
+        }
+        this.$store.dispatch('tasks/selectRootUuid', this.rootUuid);
+      },
+      immediate: true,
     },
   },
 };
