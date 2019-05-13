@@ -5,6 +5,7 @@ import inspect
 import subprocess
 
 from firexapp.testing.config_base import InterceptFlowTestConfiguration, FlowTestConfiguration
+from firexapp.submit.submit import get_log_dir_from_output
 
 
 class ConfigInterpreter:
@@ -203,5 +204,14 @@ def {0}(**kwargs):
     def cleanup_after_timeout(self, std_out, std_err):
         pass
 
+    # noinspection PyMethodMayBeStatic,PyUnusedLocal
     def on_test_exit(self, std_out, std_err):
-        pass
+        # Try to print to log directory to help with debugging
+        # noinspection PyBroadException
+        try:
+            with open(std_out, 'r') as std_out_f:
+                log_link = get_log_dir_from_output(std_out_f.read())
+            if log_link:
+                print("\tLogs: " + log_link, file=sys.stderr)
+        except Exception:
+            pass
