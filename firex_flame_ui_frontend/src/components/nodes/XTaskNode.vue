@@ -32,8 +32,7 @@
         navigating to task node attribute page. Should likely find a better way.-->
         <div class="flame-data" v-on:click="flameDataClick">
           <div v-if="showTaskDetails">{{taskUuid}}</div>
-          <!-- TODO: add affecting collapse op.-->
-          <!--<div v-if="showTaskDetails && displayDetails">{{displayDetails}}</div>-->
+          <div v-if="showTaskDetails">{{minPriorityOp}}</div>
           <!-- We're really trusting data from the server here (rendering raw HTML) -->
           <div v-if="showLegacyFlameAdditionalData" v-html="flameAdditionalData"></div>
           <template v-else>
@@ -75,6 +74,9 @@ export default {
     };
   },
   computed: {
+    task() {
+      return this.$store.state.tasks.allTasksByUuid[this.taskUuid];
+    },
     liveUpdate() {
       return this.$store.state.graph.liveUpdate;
     },
@@ -82,19 +84,19 @@ export default {
       return this.$store.state.graph.showTaskDetails;
     },
     hostname() {
-      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].hostname;
+      return this.task.hostname;
     },
     flameAdditionalData() {
-      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].flame_additional_data;
+      return this.task.flame_additional_data;
     },
     retries() {
-      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].retries;
+      return this.task.retries;
     },
     taskName() {
-      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].name;
+      return this.task.name;
     },
     taskNumber() {
-      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].task_num;
+      return this.task.task_num;
     },
     isChained() {
       return Boolean(this.chainDepth);
@@ -106,16 +108,19 @@ export default {
       return this.$store.getters['tasks/runStateByUuid'][this.taskUuid].exception;
     },
     actualRuntime() {
-      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].actual_runtime;
+      return this.task.actual_runtime;
     },
     firstStarted() {
-      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].first_started;
+      return this.task.first_started;
     },
     chainDepth() {
-      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].chain_depth;
+      return this.task.chain_depth;
     },
     fromPlugin() {
-      return this.$store.state.tasks.allTasksByUuid[this.taskUuid].from_plugin;
+      return this.task.from_plugin;
+    },
+    minPriorityOp() {
+      return this.$store.getters['graph/resolvedCollapseStateByUuid'][this.taskUuid].minPriorityOp;
     },
     topLevelStyle() {
       return {
@@ -136,16 +141,16 @@ export default {
       return durationString(runtime);
     },
     showLegacyFlameAdditionalData() {
-      return !_.includes(_.map(_.get(this.$store.state.tasks.allTasksByUuid[this.taskUuid], 'flame_data', {}),
+      return !_.includes(_.map(_.get(this.task, 'flame_data', {}),
         'type'), 'html');
     },
     flameDataHtmlContent() {
-      if (!_.has(this.$store.state.tasks.allTasksByUuid[this.taskUuid], 'flame_data')) {
+      if (!_.has(this.task, 'flame_data')) {
         return {};
       }
       return _.map(
         _.reverse(_.sortBy(_.filter(
-          this.$store.state.tasks.allTasksByUuid[this.taskUuid].flame_data,
+          this.task.flame_data,
           d => d.type === 'html',
         ), ['order'])),
         'value',

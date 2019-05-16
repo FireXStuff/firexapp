@@ -33,19 +33,14 @@ export default {
     };
   },
   created() {
-    eventHub.$on('task-search-result', (searchResult) => {
-      // TODO: actually make search work on uncollapsed, don't just ignore!.
-      this.searchResultUuids = searchResult.task_list;
-      this.emitFocusCurrentNode();
-    });
     eventHub.$on('find-focus', this.toggleSearchOpen);
   },
   beforeDestroy() {
-    eventHub.$off('task-search-result');
     eventHub.$off('find-focus');
   },
   computed: {
     uncollapsedSearchResultUuids() {
+      // TODO: actually support collapsed nodes, don't just ignore!!!
       return _.intersection(this.searchResultUuids, this.uncollapsedNodeUuids);
     },
     totalResultsCount() {
@@ -57,11 +52,15 @@ export default {
   },
   methods: {
     sendSearchRequest() {
+      this.$store.commit('tasks/setFocusedTaskUuid', null);
       if (this.currentSearchTerm !== this.latestSentSearchTerm) {
         // New search term, submit new search.
         this.latestSentSearchTerm = this.currentSearchTerm;
         this.currentResultIndex = 0;
-        eventHub.$emit('task-search', this.currentSearchTerm);
+        this.searchResultUuids = this.$store.getters['tasks/searchForUuids'](this.currentSearchTerm);
+        if (this.searchResultUuids.length > 0) {
+          this.emitFocusCurrentNode();
+        }
       } else if (this.totalResultsCount > 0) {
         // Same search term as before, go from current result to the next
         this.currentResultIndex = (this.currentResultIndex + 1) % this.totalResultsCount;
@@ -84,6 +83,7 @@ export default {
       this.searchOpen = false;
       this.currentSearchTerm = '';
       this.searchResultUuids = [];
+      this.currentResultIndex = 0;
     },
   },
 };

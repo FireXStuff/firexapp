@@ -14,7 +14,7 @@
               :enableSearch="true"
     ></x-header>
     <!-- TODO: not sure where the best level to gate on UID is, but need UID to key on
-    localStorage within x-graph-->
+        localStorage within x-graph-->
     <x-graph v-if="runMetadata.uid"></x-graph>
   </div>
 </template>
@@ -64,11 +64,15 @@ export default {
         },
         { name: 'list', to: routeTo2(this.$route.query, 'XList'), icon: 'list-ul' },
         {
-          name: 'kill', on: () => eventHub.$emit('revoke-root'), _class: 'kill-button', icon: 'times',
+          name: 'kill',
+          on: () => eventHub.$emit('revoke-root'),
+          _class: 'kill-button',
+          icon: 'times',
         },
         {
           name: 'logs',
-          href: `http://firex.cisco.com${this.runMetadata.logs_dir}`,
+          // TODO replace with central server from metadata.
+          href: this.$store.getters['firexRunMetadata/logsUrl'],
           text: 'View logs',
         },
         { name: 'help', to: routeTo2(this.$route.query, 'XHelp'), text: 'Help' },

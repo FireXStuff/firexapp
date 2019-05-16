@@ -7,15 +7,15 @@
        :class="{ inprogress: isInProgressByUuid[uuid],
                  faded: hasFocusedTaskUuid && focusedTaskUuid !== uuid}">
 
-      <defs v-if="isInProgressByUuid[uuid]">
-        <filter id="shadow" x="-40%" y="-40%" height="200%" width="200%">
-          <feOffset result="offOut" in="SourceAlpha" dx="0" dy="0"/>
-          <feGaussianBlur id="blur" result="blurOut" in="offOut" stdDeviation="10"/>
-          <feBlend in="SourceGraphic" in2="blurOut" mode="normal"/>
-        </filter>
-        <animate xlink:href="#blur" attributeName="stdDeviation"
-               values="2;12;2" dur="3s" begin="0s" repeatCount="indefinite"/>
-      </defs>
+      <!--<defs v-if="isInProgressByUuid[uuid]">-->
+        <!--<filter id="shadow" x="-40%" y="-40%" height="200%" width="200%">-->
+          <!--<feOffset result="offOut" in="SourceAlpha" dx="0" dy="0"/>-->
+          <!--<feGaussianBlur id="blur" result="blurOut" in="offOut" stdDeviation="10"/>-->
+          <!--<feBlend in="SourceGraphic" in2="blurOut" mode="normal"/>-->
+        <!--</filter>-->
+        <!--<animate xlink:href="#blur" attributeName="stdDeviation"-->
+               <!--values="2;12;2" dur="3s" begin="0s" repeatCount="indefinite"/>-->
+      <!--</defs>-->
 
       <foreignObject :width="nodeLayout.width + 10" :height="nodeLayout.height + 10">
         <x-collapsable-task-node
@@ -59,10 +59,10 @@ export default {
 <style scoped>
 
   .inprogress {
-    filter: url(#shadow);
-    transform: translate3d(0, 0, 1);
-    backface-visibility: hidden;
-    perspective: 1000;
+    /*filter: url(#shadow);*/
+    /*transform: translate3d(0, 0, 1);*/
+    /*backface-visibility: hidden;*/
+    /*perspective: 1000;*/
   }
 
   .faded {

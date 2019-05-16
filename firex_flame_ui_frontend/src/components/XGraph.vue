@@ -230,11 +230,6 @@ export default {
         this.$store.commit('tasks/setFocusedTaskUuid', null);
       }
       this.transform = transform;
-      // this.transform = {
-      //   x: d3event.transform.x,
-      //   y: d3event.transform.y,
-      //   scale: d3event.transform.k,
-      // };
       // TODO: make transform top-level key per firexUid. This will avoid write slowdowns as other
       // per-run data grows.
       addLocalStorageData(this.firexUid, this.transform);

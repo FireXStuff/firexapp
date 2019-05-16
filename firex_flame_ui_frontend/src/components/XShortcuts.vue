@@ -53,6 +53,7 @@ export default {
             },
             text: 'Shortcuts',
           },
+          // TODO: where should open-source documentation link to?
           { name: 'documentation', href: 'http://firex.cisco.com', text: 'Documentation' },
           {
             name: 'help',

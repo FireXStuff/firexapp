@@ -4,13 +4,24 @@ const metaDataState = {
   uid: null,
   logs_dir: null,
   root_uuid: null,
-  centralServer: null,
+  central_server: null,
   flameServerUrl: null,
 };
 
 // getters
 const getters = {
 
+  logsUrl(state) {
+    // TODO: Is it even safe/reasonable to expect the central server to always serve the logs?
+    //    Is it better to always serve relatively?
+    const origin = state.central_server;
+    let logsUrl = '';
+    if (!_.isNil(origin)) {
+      logsUrl += origin;
+    }
+    logsUrl += state.logs_dir;
+    return logsUrl;
+  },
 };
 
 // actions

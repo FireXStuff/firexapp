@@ -34,8 +34,6 @@ const tasksGetters = {
 
   getTaskById: state => uuid => state.allTasksByUuid[uuid],
 
-  getTaskAttribute: state => (uuid, attr) => state.allTasksByUuid[uuid][attr],
-
   runStateByUuid: (state, getters, rootState, rootGetters) => _.mapValues(
     // note nodesByUuid can be updated before childrenUuidsByUuid, so add default.
     state.allTasksByUuid,
@@ -72,6 +70,15 @@ const tasksGetters = {
   },
 
   canRevoke: (state, getters) => getters.hasIncompleteTasks && state.socketConnected,
+
+  searchForUuids: state => (searchTerm) => {
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    const searchFields = ['name', 'hostname', 'flame_additional_data', 'uuid'];
+    // TODO add support for flame_data (html entries only).
+    return _.keys(_.pickBy(state.allTasksByUuid,
+      t => _.some(_.pick(t, searchFields),
+        attr => _.includes(attr.toLowerCase(), lowerSearchTerm))));
+  },
 
 };
 

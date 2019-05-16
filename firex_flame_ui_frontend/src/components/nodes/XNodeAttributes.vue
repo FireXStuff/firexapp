@@ -29,6 +29,9 @@
           <pre style="overflow: auto; color: darkred; margin-top: 0"
             >{{displayKeyNode[key].trim()}}</pre>
         </div>
+        <div v-else-if="key === 'exception'" style="display: inline; color: darkred">
+          {{displayKeyNode[key].trim()}}
+        </div>
         <div v-else-if="isTimeKey(key)" style="display: inline">
           {{formatTime(displayKeyNode[key])}}
         </div>

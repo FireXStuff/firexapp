@@ -97,20 +97,6 @@ export default {
     },
   },
   created() {
-    eventHub.$on('task-search', (q) => {
-      socketRequestResponse(
-        this.socket,
-        { name: 'task-search', data: q },
-        {
-          name: 'search-results',
-          fn: (searchResult) => {
-            eventHub.$emit('task-search-result', searchResult);
-          },
-        },
-        null, null,
-      );
-    });
-
     eventHub.$on('revoke-root', () => { this.revokeTask(this.rootUuid); });
     eventHub.$on('revoke-task', (uuid) => { this.revokeTask(uuid); });
     eventHub.$on('graph-refresh', () => {

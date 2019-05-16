@@ -95,7 +95,7 @@ export default {
         { name: 'graph', to: routeTo2(this.$route.query, 'XGraph'), icon: 'sitemap' },
         {
           name: 'logs',
-          href: `http://firex.cisco.com${this.$store.state.firexRunMetadata.logs_dir}`,
+          href: this.$store.getters['firexRunMetadata/logsUrl'],
           text: 'View Logs',
         },
         { name: 'help', to: routeTo2(this.$route.query, 'XHelp'), text: 'Help' },

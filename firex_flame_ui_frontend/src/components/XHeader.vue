@@ -58,7 +58,7 @@ export default {
   },
   computed: {
     legacyUrl() {
-      // If there is no flame server query parameter, assume the app is being served form a flame
+      // If there is no flame server query parameter, assume the app is being served from a flame
       // server and make the url relative to the server root.
       // TODO: Not great reading flame server directly from route.
       const start = _.get(this.$route, 'query.flameServer', '');
