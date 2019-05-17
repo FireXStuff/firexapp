@@ -107,7 +107,7 @@ function runStatePredicate(runState) {
   return (runState.state === 'task-failed'
     // Show leaf nodes that are chain interrupted exceptions (e.g. RunChildFireX).
     && (!isChainInterrupted(runState.exception) || runState.isLeaf))
-    || runState.state === 'task-started';
+    || _.includes(['task-started', 'task-unblocked'], runState.state);
 }
 
 function createRunStateExpandOperations(runStateByUuid) {

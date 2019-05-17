@@ -141,13 +141,13 @@ function resolveToggleOperation(toggledTaskUuid, allDescendantsCollapsed, allChi
 function _getOpsAndDistanceForTarget(uuids, collapseOpsByUuid, target) {
   // Note we map before we filter so that we have the real distance, not the distance of only
   // nodes with operations.
-  const uuidsToDistance = _.keyBy(_.map(uuids, (u, i) => ({ uuid: u, distance: i + 1 })),
+  const uuidsToDistance = _.keyBy(_.map(uuids, (u, i) => ({uuid: u, distance: i + 1})),
     'uuid');
   const opsWithTargetByUuid = _.mapValues(collapseOpsByUuid,
-      ops => _.filter(ops, o => _.includes(o.targets, target)));
+    ops => _.filter(ops, o => _.includes(o.targets, target)));
   const opsAndDistancesByUuid = _.mapValues(opsWithTargetByUuid,
     (ops, uuid) => _.map(ops,
-        o => _.merge({distance: uuidsToDistance[uuid].distance}, o)));
+      o => _.merge({distance: uuidsToDistance[uuid].distance}, o)));
   return _.flatten(_.values(opsAndDistancesByUuid));
 }
 
@@ -195,7 +195,7 @@ function _getAllOpsAffectingCollapseState(
         target: targetName,
         targetPriority: targetNameToPriority[targetName],
         opPriority: operationToPriority[op.operation],
-      }, _.omit(op, ['targets']))))
+      }, _.omit(op, ['targets']))));
 }
 
 function _findMinPriorityOp(affectingOps) {
@@ -227,7 +227,7 @@ function resolveCollapseStatusByUuid(rootUuid, graphDataByUuid, collapseOpsByUui
       affectingOps,
       minPriorityOp,
     };
-    toCheckUuids = toCheckUuids.concat(graphDataByUuid[curUuid].childrenUuids)
+    toCheckUuids = toCheckUuids.concat(graphDataByUuid[curUuid].childrenUuids);
   }
   // TODO: this is unfortunately necessary b/c collapsing the root shows nothing.
   // Consider supporting 'collapse down' to nearest uncollapsed descendant?

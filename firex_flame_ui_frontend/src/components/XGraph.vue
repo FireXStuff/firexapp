@@ -26,7 +26,7 @@
         <svg preserveAspectRatio="xMinYMin" style="width: 100%; height: 100%;">
           <g :transform="svgGraphTransform">
             <x-link
-              :parentUuidByUuid="parentUuidByUuid"
+              :parentUuidByUuid="uncollapsedParentUuidByUuid"
               :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
             <x-svg-task-nodes
               :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-svg-task-nodes>
@@ -64,7 +64,7 @@ function zoomed() {
     scale: d3event.transform.k,
   });
 }
-const scaleBounds = { max: 1, min: 0.05 };
+const scaleBounds = { max: 2, min: 0.05 };
 const zoom = d3zoom()
   .scaleExtent([scaleBounds.min, scaleBounds.max])
   // Threshold for when a click is considered a pan, since this blocks event propagation.
@@ -83,10 +83,6 @@ export default {
       // Only want to center on first layout, then we'll rely on stored transform.
       isFirstLayout: true,
       nodeLayoutsByUuid: {},
-      layoutCalcs: 0,
-      dimensionChanges: 0,
-      uncollapsedTaskNodeDimensionsByUuidChanges: 0,
-      parentUuidByUuidChanges: 0,
     };
   },
   computed: {
@@ -146,6 +142,9 @@ export default {
             parent_id: collapseData.parent_id,
           }),
       );
+    },
+    uncollapsedParentUuidByUuid() {
+      return _.mapValues(this.uncollapsedTaskNodeDimensionsByUuid, 'parent_id');
     },
     nonCollapsedNodesExtent() {
       return {
@@ -388,7 +387,7 @@ export default {
       handler() {
         this.isFirstLayout = true;
         this.nodeLayoutsByUuid = {};
-        // load collapse config on firexUid change.
+        // load collapse config for the newly accessed FireX run.
         this.$store.commit('graph/setCollapseConfig', getLocalStorageCollapseConfig(this.firexUid));
       },
       immediate: true,
@@ -400,7 +399,6 @@ export default {
         // TODO: combine localstorage reads, or cache at lower level.
         this.updateTransformViaZoom(this.getLocalStorageTransform());
       }
-      this.layoutCalcs += 1;
     },
     collapseConfig: {
       handler() {
@@ -410,18 +408,11 @@ export default {
       },
       deep: true,
     },
-    dimensionsByUuid: {
-      handler() {
-        // seems to be updated a reasonable amount (about once per task).
-        this.dimensionChanges += 1;
-      },
-      deep: true,
-    },
     // TODO: why the hell is this updated so often???
     uncollapsedTaskNodeDimensionsByUuid: {
       handler(newUncollapsedTaskNodeDimensionsByUuid, oldVal) {
-        // TODO: how do you explain this? It's a computed property, why would this watcher be
-        // called if it hasn't changed???
+        // TODO: figure out why this watcher as being called even when _.isEqual is false.
+        // The layout is expensive and it's important to avoid unnecessary layouts.
         if (!_.isEqual(newUncollapsedTaskNodeDimensionsByUuid, oldVal)) {
           // Need to wait for all node dimensions to be loaded before we do any calcs (e.g. layout)
           // with any dimensions.
@@ -429,7 +420,6 @@ export default {
             this.updateLayout();
           }
         }
-        this.uncollapsedTaskNodeDimensionsByUuidChanges += 1;
       },
       deep: true,
       immediate: true,

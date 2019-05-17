@@ -7,7 +7,7 @@
     <div style="display:flex; flex-direction: column; margin-left: 5px">
       <div>Sort by:
         <div style="display:flex; margin-left: 20px">
-          <div v-for="option in sortOptions" :key="option.value" style="margin: 0 10px;">
+          <div v-for="option in sortOptions" :key="option.value" style="margin: 0 3px;">
             <input type="radio" :id="option.value" name="list-order" :value="option.value"
                    v-model="selectedSortOption">
             <label :for="option.value">{{option.text}}</label>
@@ -18,7 +18,7 @@
                    v-model="selectedSortOptionDirection">
             <label for="ascending">Ascending</label>
           </div>
-          <div>
+          <div style="margin-left: 3px;">
             <input type="radio" id="descending" name="list-order-direction" value="descending"
                    v-model="selectedSortOptionDirection">
             <label for="descending">Descending</label>
@@ -26,18 +26,18 @@
         </div>
       </div>
 
-      <div>Filter by task type:
+      <div>Filter by run state:
         <div style="display:flex; margin-left: 20px">
           <div style="display: inline-block; margin: 0 15px;">
             <input type="checkbox" id="all" v-on:change="toggleShowAll"
-                   :checked="allFiltersSelected">
-            <label for="all">all</label>
+                   :checked="allRunStatesSelected">
+            <label for="all">All</label>
           </div>
-          <div v-for="option in runStates" :key="option"
+          <div v-for="(_, stateSelector) in runStateSelectorsToStates" :key="stateSelector"
                style="display: inline-block; margin: 0 15px;">
-            <input type="checkbox" :id="option" name="list-filter" :value="option"
-                   v-model="selectedRunStates">
-            <label :for="option">{{option}}</label>
+            <input type="checkbox" :id="stateSelector" name="list-filter" :value="stateSelector"
+                   v-model="selectedStatesSelectors">
+            <label :for="stateSelector">{{stateSelector}}</label>
           </div>
         </div>
       </div>
@@ -62,25 +62,37 @@ import _ from 'lodash';
 
 import XNode from './nodes/XTaskNode.vue';
 import XHeader from './XHeader.vue';
-import { routeTo2 } from '../utils';
+import { routeTo2, containsAll } from '../utils';
 
 export default {
   name: 'XList',
   components: { XNode, XHeader },
+  // props: {
+  //   sortOption: { default: 'alphabetical' },
+  //   sortOptionDirection: { default: 'descending' },
+  //   stateSelectors: { default: ['Completed', 'In-Progress'] },
+  // },
   data() {
-    const runStates = ['task-received', 'task-blocked', 'task-started', 'task-succeeded', 'task-shutdown',
-      'task-failed', 'task-revoked', 'task-incomplete'];
+    const runStateSelectorsToStates = {
+      Failed: ['task-failed'],
+      // Note: task-incomplete is a server-side cludge to fix states that will never become
+      // terminal.
+      Completed: ['task-revoked', 'task-failed', 'task-incomplete', 'task-shutdown',
+        'task-succeeded'],
+      'In-Progress': ['task-received', 'task-blocked', 'task-started'],
+      Revoked: ['task-revoked'],
+    };
     return {
       // TODO: consider having these as URL parameters, so we can link to failures only.
-      selectedSortOption: 'runtime',
+      selectedSortOption: 'alphabetical',
       selectedSortOptionDirection: 'descending',
       sortOptions: [
         { value: 'time-received', text: 'Time Received' },
         { value: 'alphabetical', text: 'Alphabetical' },
         { value: 'runtime', text: 'Runtime' },
       ],
-      selectedRunStates: _.clone(runStates),
-      runStates,
+      selectedStatesSelectors: ['Completed', 'In-Progress'],
+      runStateSelectorsToStates,
       headerParams: {
         legacyPath: '/list',
       },
@@ -102,11 +114,11 @@ export default {
       ];
     },
     displayTaskUuids() {
-      let filteredNodes = _.values(this.$store.state.tasks.allTasksByUuid);
-      if (this.selectedRunStates !== 'all') {
-        filteredNodes = _.filter(filteredNodes,
-          n => _.includes(this.selectedRunStates, n.state));
-      }
+      const filteredNodes = _.filter(
+        this.$store.state.tasks.allTasksByUuid,
+        n => _.includes(this.selectedRunStates, n.state),
+      );
+
       const optionsToSortFields = {
         'time-received': 'task_num',
         alphabetical: 'name',
@@ -119,16 +131,23 @@ export default {
       }
       return _.map(sortedNodes, 'uuid');
     },
-    allFiltersSelected() {
-      return _.difference(this.runStates, this.selectedRunStates).length === 0;
+    selectedRunStates() {
+      return _.flatten(_.values(_.pick(this.runStateSelectorsToStates,
+        this.selectedStatesSelectors)));
+    },
+    allRunStatesSelected() {
+      return containsAll(this.selectedRunStates, this.allRunStates);
+    },
+    allRunStates() {
+      return _.uniq(_.flatten(_.values(this.runStateSelectorsToStates)));
     },
   },
   methods: {
     toggleShowAll() {
-      if (_.difference(this.runStates, this.selectedRunStates).length === 0) {
-        this.selectedRunStates = [];
+      if (this.allRunStatesSelected) {
+        this.selectedStatesSelectors = [];
       } else {
-        this.selectedRunStates = this.runStates;
+        this.selectedStatesSelectors = ['Completed', 'In-Progress'];
       }
     },
   },

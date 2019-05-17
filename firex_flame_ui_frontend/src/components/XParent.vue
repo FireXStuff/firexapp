@@ -181,7 +181,12 @@ export default {
               setTimeout(() => { this.displayMessage = { content: '', color: '' }; }, 6000);
             },
           },
-          { waitTime: 5000, fn: () => { this.displayMessage = { content: 'No response from server.', color: '#BBB' }; } },
+          {
+            waitTime: 5000,
+            fn: () => {
+              this.displayMessage = { content: 'No response from server.', color: '#BBB' };
+            },
+          },
         );
         this.displayMessage = { content: 'Waiting for celery...', color: 'deepskyblue' };
       }
