@@ -4,6 +4,8 @@ import logging
 import os
 import argparse
 import time
+
+import traceback
 from shutil import copyfile
 from contextlib import contextmanager
 
@@ -305,6 +307,7 @@ class SubmitBaseApp:
         try:
             yield
         except Exception as e:
+            logger.debug(traceback.format_exc())
             logger.error(failure_caption)
             logger.error(e)
             self.main_error_exit_handler()
