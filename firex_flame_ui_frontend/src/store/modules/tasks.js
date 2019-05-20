@@ -14,6 +14,13 @@ const tasksState = {
   socketConnected: false,
   // unfortunately we need to track this manually. TODO: look for a better way.
   taskNodeSizeByUuid: {},
+
+  search: {
+    term: '',
+    selectedIndex: 0,
+    resultUuids: [],
+    isOpen: false,
+  },
   // When set, fades-out other nodes. Is reset by pan/zoom events.
   focusedTaskUuid: null,
 };
@@ -133,6 +140,22 @@ const actions = {
     context.commit('selectRootUuid', newRootUuid);
   },
 
+  search(context, searchTerm) {
+    if (searchTerm !== context.state.search.term) {
+      // New search term, submit new search.
+      const allResultUuids = context.getters.searchForUuids(searchTerm);
+      // TODO: Find uncollapsed nodes that contain result collapsed nodes, don't just ignore!!!
+      const uncollapsedUuids = context.rootGetters['graph/uncollapsedNodeUuids'];
+      const uncollapsedResultUuids = _.intersection(allResultUuids, uncollapsedUuids);
+      context.commit('setTaskSearchResults', { term: searchTerm, results: uncollapsedResultUuids });
+    } else if (context.state.search.resultUuids.length > 0) {
+      // Same search term as before, go from current result to the next.
+      const resultCount = context.state.search.resultUuids.length;
+      const nextIndex = (context.state.search.selectedIndex + 1) % resultCount;
+      context.commit('setSearchIndex', nextIndex);
+    }
+  },
+
 };
 
 // mutations
@@ -173,6 +196,32 @@ const mutations = {
 
   setFocusedTaskUuid(state, newFocusedTaskUuid) {
     state.focusedTaskUuid = newFocusedTaskUuid;
+  },
+
+  setTaskSearchResults(state, newSearch) {
+    state.search = {
+      term: newSearch.term,
+      selectedIndex: 0,
+      resultUuids: newSearch.results,
+      isOpen: true,
+    };
+    if (newSearch.results.length > 0) {
+      state.focusedTaskUuid = state.search.resultUuids[state.search.selectedIndex];
+    }
+  },
+
+  setSearchIndex(state, newIndex) {
+    state.search.selectedIndex = newIndex;
+    state.focusedTaskUuid = state.search.resultUuids[newIndex];
+  },
+
+  closeSearch(state) {
+    state.search.isOpen = false;
+    state.focusedTaskUuid = null;
+  },
+
+  toggleSearchOpen(state) {
+    state.search.isOpen = !state.search.isOpen;
   },
 
 };

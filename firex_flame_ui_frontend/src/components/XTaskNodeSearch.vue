@@ -1,15 +1,15 @@
 <template>
   <div style="display: flex">
-    <div v-if="searchOpen" v-on:keydown.esc="closeSearch">
+    <div v-if="searchOpen" v-on:keydown.esc="$store.commit('tasks/closeSearch')">
       <div class="search-pos">
-        {{ totalResultsCount === 0 ? 0 : currentResultIndex + 1 }} / {{ totalResultsCount }}
+        {{ searchResultCount === 0 ? 0 : selectedIndex + 1 }} / {{ searchResultCount }}
       </div>
-      <input ref='search-input' type="text" v-model.trim="currentSearchTerm"
-             @keyup.enter="sendSearchRequest"
+      <input ref='search-input' type="text" :value="searchTerm"
+             @keyup.enter="$store.dispatch('tasks/search', $event.target.value.trim())"
              class="search" placeholder="Search" style="margin-right: 8px">
     </div>
     <div class="header-icon-button"
-         v-on:click="toggleSearchOpen"
+         v-on:click="$store.commit('tasks/toggleSearchOpen')"
          :style="searchOpen ? 'color: #2B2;' : ''">
       <font-awesome-icon icon="search"></font-awesome-icon>
     </div>
@@ -17,73 +17,24 @@
 </template>
 
 <script>
-import _ from 'lodash';
-import { eventHub } from '../utils';
+import { mapState } from 'vuex';
 
 export default {
   name: 'XTaskNodeSearch',
   components: {},
-  data() {
-    return {
-      searchOpen: false,
-      currentResultIndex: 0,
-      currentSearchTerm: '',
-      latestSentSearchTerm: 0,
-      searchResultUuids: [],
-    };
-  },
-  created() {
-    eventHub.$on('find-focus', this.toggleSearchOpen);
-  },
-  beforeDestroy() {
-    eventHub.$off('find-focus');
-  },
   computed: {
-    uncollapsedSearchResultUuids() {
-      // TODO: actually support collapsed nodes, don't just ignore!!!
-      return _.intersection(this.searchResultUuids, this.uncollapsedNodeUuids);
-    },
-    totalResultsCount() {
-      return this.uncollapsedSearchResultUuids.length;
-    },
-    uncollapsedNodeUuids() {
-      return this.$store.getters['graph/uncollapsedNodeUuids'];
-    },
+    ...mapState({
+      selectedIndex: state => state.tasks.search.selectedIndex,
+      searchResultCount: state => state.tasks.search.resultUuids.length,
+      searchOpen: state => state.tasks.search.isOpen,
+      searchTerm: state => state.tasks.search.term,
+    }),
   },
-  methods: {
-    sendSearchRequest() {
-      this.$store.commit('tasks/setFocusedTaskUuid', null);
-      if (this.currentSearchTerm !== this.latestSentSearchTerm) {
-        // New search term, submit new search.
-        this.latestSentSearchTerm = this.currentSearchTerm;
-        this.currentResultIndex = 0;
-        this.searchResultUuids = this.$store.getters['tasks/searchForUuids'](this.currentSearchTerm);
-        if (this.searchResultUuids.length > 0) {
-          this.emitFocusCurrentNode();
-        }
-      } else if (this.totalResultsCount > 0) {
-        // Same search term as before, go from current result to the next
-        this.currentResultIndex = (this.currentResultIndex + 1) % this.totalResultsCount;
-        this.emitFocusCurrentNode();
-      }
-    },
-    emitFocusCurrentNode() {
-      const focusedUuid = this.uncollapsedSearchResultUuids[this.currentResultIndex];
-      this.$store.commit('tasks/setFocusedTaskUuid', focusedUuid);
-    },
-    toggleSearchOpen() {
-      this.searchOpen = !this.searchOpen;
-      if (this.searchOpen) {
+  watch: {
+    searchOpen(newIsOpen) {
+      if (newIsOpen) {
         this.$nextTick(() => { this.$refs['search-input'].focus(); });
-      } else {
-        this.closeSearch();
       }
-    },
-    closeSearch() {
-      this.searchOpen = false;
-      this.currentSearchTerm = '';
-      this.searchResultUuids = [];
-      this.currentResultIndex = 0;
     },
   },
 };

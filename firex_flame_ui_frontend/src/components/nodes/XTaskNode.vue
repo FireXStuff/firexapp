@@ -211,6 +211,7 @@ export default {
             if (!_.isEqual(this.latestEmittedDimensions, renderedDimensions)) {
               this.latestEmittedDimensions = renderedDimensions;
               // TODO: maybe emit v-on events here, and update the store from XSizeCapturing nodes?
+              // Even if the only impact is reducing vuex events, this helps during development.
               this.$store.dispatch('tasks/addTaskNodeSize',
                 _.merge({ uuid: this.taskUuid }, renderedDimensions));
             }

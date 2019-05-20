@@ -91,7 +91,7 @@ export default {
   },
   methods: {
     focusOnFind() {
-      eventHub.$emit('find-focus');
+      this.$store.commit('tasks/toggleSearchOpen');
     },
     refreshGraph() {
       eventHub.$emit('graph-refresh');
