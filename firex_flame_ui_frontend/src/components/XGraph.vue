@@ -1,6 +1,11 @@
 <template>
   <div style="width: 100%; height: 100%; overflow: hidden;" tabindex="1"
-       @keydown.c="center">
+       @keydown.c="center"
+       @keydown.up="translateBy(0, 30)"
+       @keydown.down="translateBy(0, -30)"
+       @keydown.left="translateBy(30, 0)"
+       @keydown.right="translateBy(-30, 0)"
+  >
     <div class="user-message" style="background: lightblue; ">
 
       <span v-if="hasCollapsedNodes">
@@ -65,6 +70,8 @@ function zoomed() {
   });
 }
 const scaleBounds = { max: 2, min: 0.05 };
+
+// TODO: likely should attach this to the component.
 const zoom = d3zoom()
   .scaleExtent([scaleBounds.min, scaleBounds.max])
   // Threshold for when a click is considered a pan, since this blocks event propagation.
@@ -239,6 +246,9 @@ export default {
       const d3Transform = zoomIdentity.translate(transform.x, transform.y).scale(transform.scale);
       // This call will create a d3event and pipe it through, just like manual pan/zooms.
       d3select('div#chart-container').call(zoom.transform, d3Transform);
+    },
+    translateBy(x, y) {
+      d3select('div#chart-container').call(zoom.translateBy, x, y);
     },
     getCurrentRelPos(nodeUuid) {
       const laidOutNode = this.nodeLayoutsByUuid[nodeUuid];
