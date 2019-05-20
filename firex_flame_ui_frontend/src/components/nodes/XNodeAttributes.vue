@@ -95,8 +95,10 @@ export default {
     },
     headerParams() {
       let links = [
+        // TODO: use new 'log_filepath' field & central_server instead of 'logs_url'.
         { name: 'logs', href: this.detailedTask.logs_url, text: 'View Logs' },
         { name: 'support', href: this.detailedTask.support_location, text: 'Support' },
+        // TODO: use new 'code_filepath' & central_server instead of 'code_url'
         { name: 'code', href: this.detailedTask.code_url, icon: 'file-code' },
       ];
 

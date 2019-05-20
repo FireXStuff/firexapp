@@ -1,26 +1,26 @@
 <template>
-  <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
+  <div style="width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden;">
     <x-header :title="title"
               :links="headerLinks"
-              :legacyPath="headerParams.legacyPath"></x-header>
+              legacyPath="/list"></x-header>
 
     <div style="display:flex; flex-direction: column; margin-left: 5px">
       <div>Sort by:
         <div style="display:flex; margin-left: 20px">
           <div v-for="option in sortOptions" :key="option.value" style="margin: 0 3px;">
             <input type="radio" :id="option.value" name="list-order" :value="option.value"
-                   v-model="selectedSortOption">
+                   v-model="selectedOptions.sortOption">
             <label :for="option.value">{{option.text}}</label>
           </div>
 
           <div style="margin-left: 25px;">
             <input type="radio" id="ascending" name="list-order-direction" value="ascending"
-                   v-model="selectedSortOptionDirection">
+                   v-model="selectedOptions.sortDirection">
             <label for="ascending">Ascending</label>
           </div>
           <div style="margin-left: 3px;">
             <input type="radio" id="descending" name="list-order-direction" value="descending"
-                   v-model="selectedSortOptionDirection">
+                   v-model="selectedOptions.sortDirection">
             <label for="descending">Descending</label>
           </div>
         </div>
@@ -36,7 +36,7 @@
           <div v-for="(_, stateSelector) in runStateSelectorsToStates" :key="stateSelector"
                style="display: inline-block; margin: 0 15px;">
             <input type="checkbox" :id="stateSelector" name="list-filter" :value="stateSelector"
-                   v-model="selectedStatesSelectors">
+                   v-model="selectedOptions.runStates">
             <label :for="stateSelector">{{stateSelector}}</label>
           </div>
         </div>
@@ -47,7 +47,7 @@
       </div>
 
       <!-- TODO: Add no nodes matching filters result. -->
-      <div class="list-container">
+      <div class="list-container" ref="task-list">
         <x-node v-for="uuid in displayTaskUuids" :key="uuid"
                 :taskUuid="uuid"
                 style="margin: 10px"
@@ -67,11 +67,17 @@ import { routeTo2, containsAll } from '../utils';
 export default {
   name: 'XList',
   components: { XNode, XHeader },
-  // props: {
-  //   sortOption: { default: 'alphabetical' },
-  //   sortOptionDirection: { default: 'descending' },
-  //   stateSelectors: { default: ['Completed', 'In-Progress'] },
-  // },
+  props: {
+    sort: { required: true, type: String },
+    sortDirection: {
+      required: true,
+      type: String,
+      validator(value) {
+        return _.includes(['ascending', 'descending'], value);
+      },
+    },
+    runstates: { required: true, type: Array },
+  },
   data() {
     const runStateSelectorsToStates = {
       Failed: ['task-failed'],
@@ -83,19 +89,17 @@ export default {
       Revoked: ['task-revoked'],
     };
     return {
-      // TODO: consider having these as URL parameters, so we can link to failures only.
-      selectedSortOption: 'alphabetical',
-      selectedSortOptionDirection: 'descending',
+      selectedOptions: {
+        runStates: _.clone(this.runstates),
+        sortOption: this.sort,
+        sortDirection: this.sortDirection,
+      },
       sortOptions: [
         { value: 'time-received', text: 'Time Received' },
         { value: 'alphabetical', text: 'Alphabetical' },
         { value: 'runtime', text: 'Runtime' },
       ],
-      selectedStatesSelectors: ['Completed', 'In-Progress'],
       runStateSelectorsToStates,
-      headerParams: {
-        legacyPath: '/list',
-      },
     };
   },
   computed: {
@@ -124,16 +128,16 @@ export default {
         alphabetical: 'name',
         runtime: 'actual_runtime', // TODO: what is this field isn't defined yet or in progress?
       };
-      const sortField = optionsToSortFields[this.selectedSortOption];
+      const sortField = optionsToSortFields[this.selectedOptions.sortOption];
       let sortedNodes = _.sortBy(filteredNodes, sortField);
-      if (this.selectedSortOptionDirection === 'descending') {
+      if (this.selectedOptions.sortDirection === 'descending') {
         sortedNodes = _.reverse(sortedNodes);
       }
       return _.map(sortedNodes, 'uuid');
     },
     selectedRunStates() {
       return _.flatten(_.values(_.pick(this.runStateSelectorsToStates,
-        this.selectedStatesSelectors)));
+        this.selectedOptions.runStates)));
     },
     allRunStatesSelected() {
       return containsAll(this.selectedRunStates, this.allRunStates);
@@ -144,11 +148,59 @@ export default {
   },
   methods: {
     toggleShowAll() {
-      if (this.allRunStatesSelected) {
-        this.selectedStatesSelectors = [];
-      } else {
-        this.selectedStatesSelectors = ['Completed', 'In-Progress'];
+      this.selectedOptions.runStates = this.allRunStatesSelected
+        ? [] : ['Completed', 'In-Progress'];
+    },
+    updateRouteQuery(key, value) {
+      const newQuery = Object.assign({}, this.$route.query, { [[key]]: value });
+      this.$router.replace({ query: newQuery });
+    },
+  },
+  beforeRouteEnter(to, from, next) {
+    next((vm) => {
+      if (_.has(to.meta, 'scrollY')) {
+        vm.$refs['task-list'].scrollTop = to.meta.scrollY;
+        delete to.meta.scrollY;
       }
+    });
+  },
+  // Save scroll position when navigating away.
+  beforeRouteLeave(to, from, next) {
+    from.meta.scrollY = this.$refs['task-list'].scrollTop;
+
+    next();
+  },
+  watch: {
+    runstates(newRunstates) {
+      if (!_.isEqual(newRunstates, this.selectedOptions.runStates)) {
+        this.selectedOptions.runStates = newRunstates;
+      }
+    },
+    sort(newSort) {
+      if (!_.isEqual(newSort, this.selectedOptions.sortOption)) {
+        this.selectedOptions.sortOption = newSort;
+      }
+    },
+    sortDirection(newSortDirection) {
+      if (!_.isEqual(newSortDirection, this.selectedOptions.sortDirection)) {
+        this.selectedOptions.sortDirection = newSortDirection;
+      }
+    },
+    selectedOptions: {
+      handler(newValue) {
+        const changedOptions = [];
+        if (!_.isEqual(newValue.runStates, this.runStates)) {
+          changedOptions.push({ key: 'runstates', value: _.join(newValue.runStates, ',') });
+        }
+        if (!_.isEqual(newValue.sortOption, this.sort)) {
+          changedOptions.push({ key: 'sort', value: newValue.sortOption });
+        }
+        if (!_.isEqual(newValue.sortDirection, this.sortDirection)) {
+          changedOptions.push({ key: 'sortDirection', value: newValue.sortDirection });
+        }
+        _.each(changedOptions, change => this.updateRouteQuery(change.key, change.value));
+      },
+      deep: true,
     },
   },
 };

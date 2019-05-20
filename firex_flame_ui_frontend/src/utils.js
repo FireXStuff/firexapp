@@ -34,7 +34,7 @@ function captureEventState(event, tasksByUuid, taskNum) {
     },
     type(e) {
       const stateTypes = ['task-received', 'task-blocked', 'task-started', 'task-succeeded', 'task-shutdown',
-        'task-failed', 'task-revoked', 'task-incomplete', 'task-completed'];
+        'task-failed', 'task-revoked', 'task-incomplete', 'task-unblocked'];
       if (_.includes(stateTypes, e.type)) {
         return { state: e.type };
       }

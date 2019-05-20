@@ -218,7 +218,8 @@ function resolveCollapseStatusByUuid(rootUuid, graphDataByUuid, collapseOpsByUui
       collapseOpsByUuid,
       graphDataByUuid[curUuid].ancestorUuids,
       graphDataByUuid[curUuid].descendantUuids,
-      isParentCollapsed);
+      isParentCollapsed,
+    );
 
     const minPriorityOp = _findMinPriorityOp(affectingOps);
     resultNodesByUuid[curUuid] = {

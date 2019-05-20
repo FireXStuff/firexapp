@@ -17,8 +17,9 @@
 
           <!-- visibility: collapsed to include space for collapse button, even when allowCollapse
             is false. -->
-          <div v-if="!isLeaf && !isChained" style="align-self: end;"
-               :style="allowCollapse ? '' : 'visibility: collapse;'">
+          <!-- TODO: seems odd both isLeaf and allowCollapse exist just to gate collapse. -->
+          <div style="align-self: end;"
+               :style="!isLeaf && !isChained && allowCollapse ? '' : 'visibility: collapse;'">
             <!-- Use prevent to avoid activating node-wide attribute link -->
             <i v-on:click.prevent="emitCollapseToggle" style="cursor: pointer; padding: 2px;">
               <font-awesome-icon v-if="toCollapse" icon="compress-arrows-alt"
@@ -209,6 +210,7 @@ export default {
             const renderedDimensions = { width: renderedWidth, height: renderedHeight };
             if (!_.isEqual(this.latestEmittedDimensions, renderedDimensions)) {
               this.latestEmittedDimensions = renderedDimensions;
+              // TODO: maybe emit v-on events here, and update the store from XSizeCapturing nodes?
               this.$store.dispatch('tasks/addTaskNodeSize',
                 _.merge({ uuid: this.taskUuid }, renderedDimensions));
             }

@@ -25,7 +25,12 @@ const router = new Router({
           path: 'list',
           name: 'XList',
           component: XList,
-          props: true,
+          props: route => ({
+            sort: _.get(route.query, 'sort', 'alphabetical'),
+            sortDirection: _.get(route.query, 'sortDirection', 'ascending'),
+            runstates: _.split(_.get(route.query,
+              'runstates', 'Completed,In-Progress'), ','),
+          }),
         },
         {
           path: 'tasks/:uuid',
