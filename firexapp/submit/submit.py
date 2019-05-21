@@ -4,7 +4,6 @@ import logging
 import os
 import argparse
 import time
-
 import traceback
 from shutil import copyfile
 from contextlib import contextmanager
@@ -257,6 +256,7 @@ class SubmitBaseApp:
                     ReportersRegistry.post_run_report(results=chain_result, kwargs=chain_args)
             except Exception as e:
                 # Under no circumstances should report generation prevent celery and broker cleanup
+                logger.debug(traceback.format_exc())
                 logger.error(e)
             finally:
                 if chain_result:

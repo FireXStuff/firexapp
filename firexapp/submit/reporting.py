@@ -1,3 +1,4 @@
+import traceback
 from abc import ABC, abstractmethod
 from celery.states import SUCCESS
 from celery.utils.log import get_task_logger
@@ -91,10 +92,17 @@ class ReportersRegistry:
                         except Exception as e:
                             logger.debug("Error during report generation for task " + task_name)
                             logger.debug(e)
+                            logger.debug(traceback.format_exc())
                             continue
 
         for report_gen in cls.get_generators():
-            report_gen.post_run_report(root_id=results, **kwargs)
+            try:
+                report_gen.post_run_report(root_id=results, **kwargs)
+            except Exception as e:
+                # Failure in one report generator should not impact another
+                logger.debug("Error during report generation for generator " + str(report_gen))
+                logger.debug(traceback.format_exc())
+                logger.debug(e)
 
 
 def recurse_results_tree(results):
