@@ -76,6 +76,7 @@ export default {
   name: 'XList',
   components: { XNode, XHeader },
   props: {
+    // TODO: validate/prune for allowed values.
     sort: { required: true, type: String },
     sortDirection: {
       required: true,
@@ -84,6 +85,7 @@ export default {
         return _.includes(['ascending', 'descending'], value);
       },
     },
+    // TODO: validate/prune for allowed values.
     runstates: { required: true, type: Array },
   },
   data() {
@@ -203,6 +205,7 @@ export default {
   },
   // Save scroll position when navigating away.
   beforeRouteLeave(to, from, next) {
+    // TODO: this should be cleared on FireX UID change or keyed on by FireX UID.
     from.meta.scrollY = this.$refs['task-list'].scrollTop;
     this.$store.commit('tasks/closeSearch');
     next();

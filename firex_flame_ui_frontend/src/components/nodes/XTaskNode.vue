@@ -124,11 +124,14 @@ export default {
       return this.$store.getters['graph/resolvedCollapseStateByUuid'][this.taskUuid].minPriorityOp;
     },
     topLevelStyle() {
-      return {
+      const s = {
         background: getNodeBackground(this.exception, this.runState),
         'border-radius': getTaskNodeBorderRadius(this.chainDepth),
-        border: this.fromPlugin ? '2px dashed #000' : '',
       };
+      if (this.fromPlugin) {
+        s.border = '2px dashed #000';
+      }
+      return s;
     },
     duration() {
       let runtime;
@@ -247,6 +250,8 @@ a {
   color: white;
   padding: 3px;
   display: block;
+  border-right: 1px solid white;
+  border-bottom: 1px solid white;
 }
 
 .node:hover {

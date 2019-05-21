@@ -25,7 +25,7 @@
 <script>
 import _ from 'lodash';
 import {
-  eventHub, containsAll, getTaskNodeBorderRadius, createCollapseOpsByUuid,
+  eventHub, containsAll, createCollapseOpsByUuid,
 } from '../../utils';
 import {
   stackOffset, stackCount,
@@ -89,10 +89,6 @@ export default {
       return {
         width: `${this.boxDimensions.width}px`,
         height: `${this.boxDimensions.height}px`,
-        'border-right': this.hasCollapsedChildren ? '1px solid white' : '',
-        'border-bottom': this.hasCollapsedChildren ? '1px solid white' : '',
-        // TODO: avoid having this component know about how tasks represent chain depth.
-        'border-radius': getTaskNodeBorderRadius(this.chainDepth),
       };
     },
     frontTaskStyle() {
