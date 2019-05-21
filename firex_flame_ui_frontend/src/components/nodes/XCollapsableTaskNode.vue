@@ -56,7 +56,7 @@ export default {
       // so everything in the layout must come from uncollapsedGraphByNodeUuid.
 
       return _.get(this.$store.getters['graph/uncollapsedGraphByNodeUuid'],
-        this.taskUuid, {collapsedUuids: [], });
+        this.taskUuid, { collapsedUuids: [] });
     },
     isLeaf() {
       return this.$store.getters['graph/graphDataByUuid'][this.taskUuid].isLeaf;

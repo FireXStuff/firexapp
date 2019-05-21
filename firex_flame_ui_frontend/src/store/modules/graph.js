@@ -18,6 +18,7 @@ const graphState = {
   },
   liveUpdate: true,
   showTaskDetails: false,
+  isFirstLayout: true,
 };
 
 // getters
@@ -172,6 +173,10 @@ const mutations = {
 
   toggleShowTaskDetails(state) {
     state.showTaskDetails = !state.showTaskDetails;
+  },
+
+  setIsFirstLayout(state, newIsFirstLayout) {
+    state.isFirstLayout = newIsFirstLayout;
   },
 
 };

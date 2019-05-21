@@ -47,6 +47,7 @@
 import { zoom as d3zoom, zoomIdentity } from 'd3-zoom';
 import { select as d3select, event as d3event } from 'd3-selection';
 import _ from 'lodash';
+import { mapState } from 'vuex';
 
 import XSvgTaskNodes from './nodes/XSvgTaskNodes.vue';
 import XTaskCapturingNodes from './nodes/XSizeCapturingNodes.vue';
@@ -88,11 +89,13 @@ export default {
     return {
       transform: { x: 0, y: 0, scale: 1 },
       // Only want to center on first layout, then we'll rely on stored transform.
-      isFirstLayout: true,
       nodeLayoutsByUuid: {},
     };
   },
   computed: {
+    ...mapState({
+      isFirstLayout: state => state.graph.isFirstLayout,
+    }),
     collapseConfig() {
       return this.$store.state.graph.collapseConfig;
     },
@@ -395,7 +398,7 @@ export default {
   watch: {
     firexUid: {
       handler() {
-        this.isFirstLayout = true;
+        this.$store.commit('graph/setIsFirstLayout', true);
         this.nodeLayoutsByUuid = {};
         // load collapse config for the newly accessed FireX run.
         this.$store.commit('graph/setCollapseConfig', getLocalStorageCollapseConfig(this.firexUid));
@@ -405,7 +408,9 @@ export default {
     nodeLayoutsByUuid(newVal) {
       // Need to load stored transform AFTER initial layout.
       if (!_.isEmpty(newVal) && this.isFirstLayout) {
-        this.isFirstLayout = false;
+        // Want first render not to fade, but second render to fade-in new nodes.
+        // Without next tick, every render has isFirstLayout false.
+        this.$nextTick(() => this.$store.commit('graph/setIsFirstLayout', false));
         // TODO: combine localstorage reads, or cache at lower level.
         this.updateTransformViaZoom(this.getLocalStorageTransform());
       }
