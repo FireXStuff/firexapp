@@ -156,6 +156,14 @@ const actions = {
     }
   },
 
+  previousSearchResult(context) {
+    const resultCount = context.state.search.resultUuids.length;
+    if (resultCount > 0) {
+      const nextIndex = (context.state.search.selectedIndex - 1 + resultCount) % resultCount;
+      context.commit('setSearchIndex', nextIndex);
+    }
+  },
+
 };
 
 // mutations

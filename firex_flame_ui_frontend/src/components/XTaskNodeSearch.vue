@@ -5,7 +5,8 @@
         {{ searchResultCount === 0 ? 0 : selectedIndex + 1 }} / {{ searchResultCount }}
       </div>
       <input ref='search-input' type="text" :value="searchTerm"
-             @keyup.enter="$store.dispatch('tasks/search', $event.target.value.trim())"
+             @keyup.enter.exact="$store.dispatch('tasks/search', $event.target.value.trim())"
+             @keyup.enter.shift="$store.dispatch('tasks/previousSearchResult')"
              class="search" placeholder="Search" style="margin-right: 8px">
     </div>
     <div class="header-icon-button"

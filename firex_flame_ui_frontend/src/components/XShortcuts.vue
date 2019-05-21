@@ -17,8 +17,8 @@
         <li>/ <i>or</i> [CTRL] + f → enter into search mode</li>
         <li>[ENTER] → run first search/continue through results</li>
         <li>[SHIFT] + [ENTER] → reverse the search direction</li>
-        <li>[SPACE] → go to the current task's page</li>
-        <li>[ALT] → set the current task as root</li>
+        <!--<li>[SPACE] → go to the current task's page</li>-->
+        <!--<li>[ALT] → set the current task as root</li>-->
         <li>[ESC] → exit the search mode</li>
       </ul>
       <h1>Chart Manipulation</h1>
