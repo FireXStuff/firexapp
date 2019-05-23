@@ -103,7 +103,7 @@ import 'vue-popperjs/dist/vue-popper.css';
 
 import XHeader from './XHeader.vue';
 import {
-  routeTo2, durationString, getNodeBackground, isTaskStateIncomplete
+  routeTo2, durationString, getNodeBackground, isTaskStateIncomplete,
 } from '../utils';
 
 export default {
@@ -143,7 +143,7 @@ export default {
         tasks = this.tasksWithRuntimeByUuid;
       }
       let sorted = _.sortBy(tasks, this.sort);
-      if (this.sortDirection === 'asc') {
+      if (this.sortDirection === 'desc') {
         sorted = _.reverse(sorted);
       }
       return _.keyBy(sorted, 'uuid');

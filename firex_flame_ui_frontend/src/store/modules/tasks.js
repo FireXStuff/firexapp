@@ -37,8 +37,6 @@ const tasksGetters = {
   //  cache layouts for all.
   allTaskUuids: (state, getters) => _.keys(getters.tasksByUuid),
 
-  getTaskById: state => uuid => state.allTasksByUuid[uuid],
-
   runStateByUuid: (state, getters, rootState, rootGetters) => _.mapValues(
     // note nodesByUuid can be updated before childrenUuidsByUuid, so add default.
     state.allTasksByUuid,

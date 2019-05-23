@@ -39,7 +39,7 @@ const router = new Router({
           component: XTimeChart,
           props: route => ({
             sort: _.get(route.query, 'sort', 'runtime'),
-            sortDirection: _.get(route.query, 'sortDirection', 'asc'),
+            sortDirection: _.get(route.query, 'sortDirection', 'desc'),
           }),
         },
         {
