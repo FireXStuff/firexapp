@@ -15,20 +15,48 @@
       <x-task-node
         :taskUuid="uuid"
         :emitDimensions="true"
+        v-on:task-node-size="receiveSize"
         :isLeaf="true"></x-task-node>
     </div>
   </div>
 </template>
 
 <script>
+import _ from 'lodash';
+
+import { containsAll } from '../../utils';
 import XTaskNode from './XTaskNode.vue';
 
 export default {
   name: 'XSizeCapturingNodes',
   components: { XTaskNode },
+  data() {
+    return {
+      sizesToCommit: {},
+    };
+  },
   computed: {
+    dimensionsByUuid() {
+      return this.$store.state.tasks.taskNodeSizeByUuid;
+    },
     allUuids() {
       return this.$store.getters['tasks/allTaskUuids'];
+    },
+  },
+  methods: {
+    receiveSize(taskSize) {
+      if (_.isEmpty(this.dimensionsByUuid)) {
+        // Doing initial sizing collect -- save size & send once all retreived.
+        Object.assign(this.sizesToCommit, taskSize);
+        // Check if this latest size completed the dimensions & should therefore cause commit.
+        if (containsAll(_.keys(this.sizesToCommit), this.allUuids)) {
+          this.$store.dispatch('tasks/addTaskNodeSize', this.sizesToCommit);
+          this.sizesToCommit = {};
+        }
+      } else {
+        // Just send the latest event immediately (live-update).
+        this.$store.dispatch('tasks/addTaskNodeSize', taskSize);
+      }
     },
   },
 };

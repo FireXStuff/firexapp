@@ -187,9 +187,10 @@ const mutations = {
     state.socketConnected = newSocketConnected;
   },
 
-  addTaskNodeSize(state, taskNodeSize) {
-    const newData = { [taskNodeSize.uuid]: _.pick(taskNodeSize, ['width', 'height']) };
-    state.taskNodeSizeByUuid = Object.freeze(_.assign({}, state.taskNodeSizeByUuid, newData));
+  addTaskNodeSize(state, taskNodeSizeByUuid) {
+    state.taskNodeSizeByUuid = Object.freeze(
+      _.assign({}, state.taskNodeSizeByUuid, taskNodeSizeByUuid),
+    );
   },
 
   clearTaskNodeSize(state) {
