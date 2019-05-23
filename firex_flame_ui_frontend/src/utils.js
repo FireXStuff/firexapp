@@ -249,7 +249,7 @@ function durationString(duractionSecs) {
   const minsInSecs = mins * 60;
   const secs = Math.floor(duractionSecs - hoursInSecs - minsInSecs);
 
-  let result = 'time: ';
+  let result = '';
   if (hours > 0) {
     result += `${hours}h `;
   }
@@ -310,8 +310,6 @@ function getPrioritizedTaskStateBackground(states) {
     _.get(statusToProps, [s, 'priority'], 1000));
   return getNodeBackground(null, minState);
 }
-
-
 
 function getCollapsedGraphByNodeUuid(rootUuid, childrenUuidsByUuid, isCollapsedByUuid) {
   // TODO: collapse operations on the root node are ignored. Could collapse 'down',

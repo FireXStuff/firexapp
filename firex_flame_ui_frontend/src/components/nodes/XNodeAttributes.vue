@@ -77,7 +77,7 @@ export default {
       const node = _.merge({}, this.simpleTask, this.detailedTask);
       const attributeBlacklist = ['long_name', 'name', 'flame_additional_data',
         'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data',
-        'parent_id', 'children_uuids', 'isLeaf',
+        'parent_id', 'children_uuids', 'isLeaf', 'states',
       ];
       // TODO: remove 'children' key when it's the empty list.
       return _.omit(node, attributeBlacklist);

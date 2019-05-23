@@ -12,11 +12,14 @@ import { faFire } from '@fortawesome/free-solid-svg-icons/faFire';
 import { faTrash } from '@fortawesome/free-solid-svg-icons/faTrash';
 import { faExpandArrowsAlt } from '@fortawesome/free-solid-svg-icons/faExpandArrowsAlt';
 import { faCompressArrowsAlt } from '@fortawesome/free-solid-svg-icons/faCompressArrowsAlt';
+import { faFileAlt } from '@fortawesome/free-solid-svg-icons/faFileAlt';
+import { faCaretUp } from '@fortawesome/free-solid-svg-icons/faCaretUp';
+import { faCaretDown } from '@fortawesome/free-solid-svg-icons/faCaretDown';
 
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
 library.add(faBullseye, faEye, faSearch, faListUl, faPlusCircle,
   faSitemap, faFileCode, faTimes, faFire, faTrash,
-  faExpandArrowsAlt, faCompressArrowsAlt);
+  faExpandArrowsAlt, faCompressArrowsAlt, faFileAlt, faCaretUp, faCaretDown);
 
 Vue.component('font-awesome-icon', FontAwesomeIcon);

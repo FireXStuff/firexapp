@@ -3,12 +3,10 @@ import _ from 'lodash';
 import { orderByTaskNum, hasIncompleteTasks, getDescendantUuids } from '../../utils';
 
 const tasksState = {
-  items: [],
-  checkoutStatus: null,
+  // Main task data structure.
   allTasksByUuid: {},
-  // TODO: populate from user selection.
   selectedRoot: null,
-  // TODO: this shouldn't be stored in globally, but rather fetched by the attribute viewing
+  // TODO: this shouldn't be stored globally, but rather fetched by the attribute viewing
   // component. This requires API operations to be externalized from XParent.
   detailedTask: {},
   socketConnected: false,

@@ -3,6 +3,7 @@ import Router from 'vue-router';
 import XParent from '@/components/XParent.vue';
 import XHeaderedGraph from '@/components/XHeaderedGraph.vue';
 import XList from '@/components/XList.vue';
+import XTimeChart from '@/components/XTimeChart.vue';
 import XNodeAttributes from '@/components/nodes/XNodeAttributes.vue';
 import _ from 'lodash';
 import XHelp from '@/components/XHelp.vue';
@@ -30,6 +31,15 @@ const router = new Router({
             sortDirection: _.get(route.query, 'sortDirection', 'ascending'),
             runstates: _.split(_.get(route.query,
               'runstates', 'Completed,In-Progress'), ','),
+          }),
+        },
+        {
+          path: 'time-chart',
+          name: 'XTimeChart',
+          component: XTimeChart,
+          props: route => ({
+            sort: _.get(route.query, 'sort', 'actual_runtime'),
+            sortDirection: _.get(route.query, 'sortDirection', 'asc'),
           }),
         },
         {

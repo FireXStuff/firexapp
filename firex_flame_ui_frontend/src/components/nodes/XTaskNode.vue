@@ -142,7 +142,7 @@ export default {
       } else {
         return '';
       }
-      return durationString(runtime);
+      return `time: ${durationString(runtime)}`;
     },
     showLegacyFlameAdditionalData() {
       return !_.includes(_.map(_.get(this.task, 'flame_data', {}),
