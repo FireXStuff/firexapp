@@ -15,8 +15,7 @@
         <thead>
           <tr style="text-align: center;">
             <th @click="sortOn('task_num')" class="sortable-header">
-              #
-              <template v-if="sort === 'task_num'">
+              #<template v-if="sort === 'task_num'">
                 <font-awesome-icon v-if="isDesc" icon="caret-down"></font-awesome-icon>
                 <font-awesome-icon v-else icon="caret-up"></font-awesome-icon>
               </template>
@@ -36,17 +35,19 @@
               </template>
             </th>
             <th style="display: flex; flex-direction: row;">
-              <div style="align-self: start;">{{runStartTime ? formatTime(runStartTime): ''}}</div>
+              <div style="align-self: start;">
+                {{displayTasksStartTime ? formatTime(displayTasksStartTime): ''}}
+              </div>
               <div style="align-self: center; flex: 1; text-align: center;" class="sortable-header"
-                @click="sortOn('actual_runtime')">
-                Runtime: {{durationString(runDuration)}}
-                <template v-if="sort === 'actual_runtime'">
+                @click="sortOn('runtime')">
+                Runtime: {{durationString(displayTasksDuration)}}
+                <template v-if="sort === 'runtime'">
                   <font-awesome-icon v-if="isDesc" icon="caret-down"></font-awesome-icon>
                   <font-awesome-icon v-else icon="caret-up"></font-awesome-icon>
                 </template>
               </div>
               <div style="align-self: end;">
-                {{runEndTime ? formatShortTime(runEndTime, shortTime) : ''}}
+                {{displayTasksEndTime ? formatShortTime(displayTasksEndTime, shortTime) : ''}}
               </div>
             </th>
             <!--<th>Links</th>-->
@@ -58,15 +59,15 @@
             <td class="min">{{task.name}}</td>
             <td class="min">{{task.hostname}}</td>
             <td>
-              <popper trigger="hover" :options="{ placement: 'top'}">
-                <div style="" class="popover-container">
+              <popper trigger="hover" :options="{ placement: 'top'}" >
+                <div style="" class="popper popover-container">
                   <div class="popover-title"><b>{{task.name}}</b></div>
                   <div style="padding: 3px;">
                     Started: {{formatShortTime(task.first_started, shortTimeSec)}}
                   </div>
                   <div style="padding: 3px;">
                     Runtime: {{durationString(getRuntime(task))}}
-                    ({{(100 * getRuntime(task) / runDuration).toFixed(2)}}%)
+                    ({{(100 * getRuntime(task) / displayTasksDuration).toFixed(2)}}%)
                   </div>
                 </div>
                 <div slot="reference"
@@ -98,9 +99,12 @@ import _ from 'lodash';
 import { DateTime } from 'luxon';
 import { mapState } from 'vuex';
 import Popper from 'vue-popperjs';
+import 'vue-popperjs/dist/vue-popper.css';
 
 import XHeader from './XHeader.vue';
-import { routeTo2, durationString, getNodeBackground, isTaskStateIncomplete } from '../utils';
+import {
+  routeTo2, durationString, getNodeBackground, isTaskStateIncomplete
+} from '../utils';
 
 export default {
   name: 'XList',
@@ -127,12 +131,16 @@ export default {
       title: state => state.firexRunMetadata.uid,
       search: state => state.tasks.search,
     }),
+    tasksWithRuntimeByUuid() {
+      return _.mapValues(this.allTasksByUuid,
+        t => Object.assign({ runtime: this.getRuntime(t) }, t));
+    },
     displayTasks() {
       let tasks;
       if (this.search.isOpen && !_.isEmpty(this.search.term)) {
-        tasks = _.pick(this.allTasksByUuid, this.search.resultUuids);
+        tasks = _.pick(this.tasksWithRuntimeByUuid, this.search.resultUuids);
       } else {
-        tasks = this.allTasksByUuid;
+        tasks = this.tasksWithRuntimeByUuid;
       }
       let sorted = _.sortBy(tasks, this.sort);
       if (this.sortDirection === 'asc') {
@@ -152,21 +160,21 @@ export default {
         { name: 'help', to: routeTo2(this.$route.query, 'XHelp'), text: 'Help' },
       ];
     },
-    runStartTime() {
+    displayTasksStartTime() {
       return _.min(_.map(this.displayTasks, 'first_started'));
     },
-    runEndTime() {
-      // TODO: handle in-progress.
+    displayTasksEndTime() {
       return _.max(_.map(this.displayTasks, t => t.first_started + this.getRuntime(t)));
     },
-    runDuration() {
-      return this.runEndTime - this.runStartTime;
+    displayTasksDuration() {
+      return this.displayTasksEndTime - this.displayTasksStartTime;
     },
     chartRectByUuid() {
       return _.mapValues(this.displayTasks,
         (t) => {
-          const startOffsetPercentage = (t.first_started - this.runStartTime) / this.runDuration;
-          const durationPercentage = this.getRuntime(t) / this.runDuration;
+          const startOffsetPercentage = (t.first_started - this.displayTasksStartTime)
+            / this.displayTasksDuration;
+          const durationPercentage = this.getRuntime(t) / this.displayTasksDuration;
           return {
             offset: 100 * startOffsetPercentage,
             // show something even for very small durations.
@@ -191,7 +199,14 @@ export default {
       if (isTaskStateIncomplete(task.state)) {
         return (Date.now() / 1000) - task.first_started;
       }
-      return task.actual_runtime;
+      if (_.has(task, 'actual_runtime')) {
+        return task.actual_runtime;
+      }
+      // hack since backend doesn't always fill in actual_runtime, even when runstate is terminal.
+      // assume not filled in values ended when the entire run ended.
+      const runEndTime = _.max(_.map(this.allTasksByUuid,
+        t => t.first_started + _.get(t, 'actual_runtime', 0)));
+      return runEndTime - task.first_started;
     },
     formatTime(unixTime) {
       return DateTime.fromSeconds(unixTime).toLocaleString(DateTime.DATETIME_FULL);
@@ -254,6 +269,10 @@ export default {
     background-color: lightblue;
   }
 
+  .sortable-header {
+    white-space: nowrap;
+  }
+
   .sortable-header:hover {
     cursor: pointer;
     color: #2980ff;
@@ -265,6 +284,7 @@ export default {
 
   .popover-container {
     background: white;
+    padding: 0;
     border: 1px solid black;
     font-family: 'Source Sans Pro', sans-serif;
   }
