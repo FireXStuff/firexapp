@@ -8,6 +8,7 @@
           </router-link>
         </div>
         <div class="uid">{{title}}</div>
+        <div v-if="chain" class="flame-link"><b>{{chain}}</b></div>
 
         <a :href="legacyUrl" class="flame-link" style="font-size: 16px;">
           🔥 Back to Legacy 🔥
@@ -35,6 +36,7 @@
                  v-on:click="link.on()"
                  :class="link._class"
                  :style="link.toggleState ? 'color: #2B2;' : ''"
+                 :title="link.title"
                  :key="link.name">
               <font-awesome-icon v-if="link.icon" :icon="link.icon"></font-awesome-icon>
               <template v-if="link.text">{{link.text}}</template>
@@ -60,6 +62,9 @@ export default {
     enableSearch: { default: false },
   },
   computed: {
+    ...mapState({
+      chain: state => state.firexRunMetadata.chain,
+    }),
     legacyUrl() {
       // If there is no flame server query parameter, assume the app is being served from a flame
       // server and make the url relative to the server root.

@@ -6,6 +6,7 @@ const metaDataState = {
   root_uuid: null,
   centralServer: null,
   flameServerUrl: null,
+  chain: null,
 };
 
 // getters
