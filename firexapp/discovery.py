@@ -47,7 +47,7 @@ def discover_package_modules(current_path, root_path=None) -> []:
     services = []
     if os.path.isfile(current_path):
         basename, ext = os.path.splitext(current_path)
-        if ext.lower() == ".py":
+        if ext.lower() == ".py" and not os.path.basename(current_path).startswith('_'):
             basename = basename.replace(root_path, "")
             return [basename.replace(os.path.sep, ".").strip(".")]
         else:
