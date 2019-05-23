@@ -6,27 +6,6 @@
        @keydown.left="translateBy(30, 0)"
        @keydown.right="translateBy(-30, 0)"
   >
-    <div class="user-message" style="background: lightblue; ">
-
-      <span v-if="hasCollapsedNodes">
-        {{collapsedNodeUuids.length}}/{{allUuids.length}} tasks are collapsed
-      </span>
-
-      <template v-if="hasCollapsedNodes">
-        (<a href="#" @click.prevent="setCollapseFilterState({})"
-          >Expand All</a>)
-      </template>
-
-      <template v-if="canRestoreDefault">
-        (<a  href="#" @click.prevent="setCollapseFilterState({applyDefaultCollapseOps: true})"
-          >Restore Default</a>)
-      </template>
-
-      <template v-if="canShowOnlyFailed">
-        (<a href="#" @click.prevent="setCollapseFilterState({ hideSuccessPaths: true })"
-          >Show only failed</a>)
-      </template>
-    </div>
     <div id="chart-container" ref="graph-svg">
         <svg preserveAspectRatio="xMinYMin" style="width: 100%; height: 100%;">
           <g :transform="svgGraphTransform">
@@ -72,7 +51,7 @@ function zoomed() {
 }
 const scaleBounds = { max: 2, min: 0.05 };
 
-// TODO: likely should attach this to the component.
+// TODO: likely should attach this to the component after confirming no preformance impacts.
 const zoom = d3zoom()
   .scaleExtent([scaleBounds.min, scaleBounds.max])
   // Threshold for when a click is considered a pan, since this blocks event propagation.
@@ -173,12 +152,6 @@ export default {
     isCollapsedByUuid() {
       return this.$store.getters['graph/isCollapsedByUuid'];
     },
-    collapsedNodeUuids() {
-      return _.keys(_.pickBy(this.isCollapsedByUuid));
-    },
-    hasCollapsedNodes() {
-      return this.collapsedNodeUuids.length > 0;
-    },
     uncollapsedNodeUuids() {
       return this.$store.getters['graph/uncollapsedNodeUuids'];
     },
@@ -186,29 +159,6 @@ export default {
       return _.mapValues(this.uncollapsedGraphByNodeUuid,
         (collapseData, uuid) => containsAll(collapseData.collapsedUuids,
           this.graphDataByUuid[uuid].descendantUuids));
-    },
-    // Avoid re-calculating display ops on every data change.
-    flameDataAndNameByUuid() {
-      return this.$store.getters['tasks/flameDataAndNameByUuid'];
-    },
-    flameDataDisplayOperationsByUuid() {
-      return this.$store.getters['graph/flameDataDisplayOperationsByUuid'];
-    },
-    userDisplayConfigOperationsByUuid() {
-      return this.$store.getters['graph/userDisplayConfigOperationsByUuid'];
-    },
-    canRestoreDefault() {
-      const otherConfigApplied = this.collapseConfig.hideSuccessPaths
-        || !_.isEmpty(this.collapseConfig.uiCollapseOperationsByUuid);
-      const hasDefaultAffectingOps = _.size(this.userDisplayConfigOperationsByUuid) > 0
-        || _.size(this.flameDataDisplayOperationsByUuid) > 0;
-      return hasDefaultAffectingOps
-        && (otherConfigApplied || !this.collapseConfig.applyDefaultCollapseOps);
-    },
-    canShowOnlyFailed() {
-      const alreadyApplied = this.collapseConfig.hideSuccessPaths;
-      const userTouched = !_.isEmpty(this.collapseConfig.uiCollapseOperationsByUuid);
-      return this.hasFailures && (!alreadyApplied || userTouched);
     },
     focusedNodeUuid() {
       return this.$store.state.tasks.focusedTaskUuid;
@@ -363,16 +313,6 @@ export default {
       }
       // Default to the centering transform.
       return this.getCenterTransform();
-    },
-    setCollapseFilterState(obj) {
-      // All keys not specified on object are disabled.
-      this.$store.commit('graph/setCollapseConfig', {
-        hideSuccessPaths: _.get(obj, 'hideSuccessPaths', false),
-        uiCollapseOperationsByUuid: _.get(obj, 'uiCollapseOperationsByUuid', {}),
-        applyDefaultCollapseOps: _.get(obj, 'applyDefaultCollapseOps', false),
-      });
-      // Changing filter state can significantly change visible nodes, so we center.
-      this.center();
     },
     // eslint-disable-next-line
     // updateLayout: _.debounce(function () {

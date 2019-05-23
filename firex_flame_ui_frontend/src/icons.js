@@ -15,11 +15,16 @@ import { faCompressArrowsAlt } from '@fortawesome/free-solid-svg-icons/faCompres
 import { faFileAlt } from '@fortawesome/free-solid-svg-icons/faFileAlt';
 import { faCaretUp } from '@fortawesome/free-solid-svg-icons/faCaretUp';
 import { faCaretDown } from '@fortawesome/free-solid-svg-icons/faCaretDown';
+import { faUndo } from '@fortawesome/free-solid-svg-icons/faUndo';
+import { faExclamationCircle } from '@fortawesome/free-solid-svg-icons/faExclamationCircle';
 
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import { FontAwesomeIcon, FontAwesomeLayers, FontAwesomeLayersText } from '@fortawesome/vue-fontawesome';
 
 library.add(faBullseye, faEye, faSearch, faListUl, faPlusCircle,
   faSitemap, faFileCode, faTimes, faFire, faTrash,
-  faExpandArrowsAlt, faCompressArrowsAlt, faFileAlt, faCaretUp, faCaretDown);
+  faExpandArrowsAlt, faCompressArrowsAlt, faFileAlt, faCaretUp, faCaretDown,
+  faUndo, faExclamationCircle);
 
 Vue.component('font-awesome-icon', FontAwesomeIcon);
+Vue.component('font-awesome-layers', FontAwesomeLayers);
+Vue.component('font-awesome-layers-text', FontAwesomeLayersText);

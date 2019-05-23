@@ -152,6 +152,22 @@ const actions = {
   setCollapseOpsByUuid(context, uiCollapseOpsByUuid) {
     context.commit('setCollapseOpsByUuid', uiCollapseOpsByUuid);
   },
+  expandAll(context) {
+    context.dispatch('setCollapseConfigWithDefaults', {});
+  },
+  restoreCollapseDefault(context) {
+    context.dispatch('setCollapseConfigWithDefaults', { applyDefaultCollapseOps: true });
+  },
+  collapseSuccessPaths(context) {
+    context.dispatch('setCollapseConfigWithDefaults', { hideSuccessPaths: true });
+  },
+  setCollapseConfigWithDefaults(context, partialConfig) {
+    context.commit('setCollapseConfig', {
+      hideSuccessPaths: _.get(partialConfig, 'hideSuccessPaths', false),
+      uiCollapseOperationsByUuid: _.get(partialConfig, 'uiCollapseOperationsByUuid', {}),
+      applyDefaultCollapseOps: _.get(partialConfig, 'applyDefaultCollapseOps', false),
+    });
+  },
 };
 
 // mutations

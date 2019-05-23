@@ -9,7 +9,7 @@
              @keyup.enter.shift="$store.dispatch('tasks/previousSearchResult')"
              class="search" placeholder="Search" style="margin-right: 8px">
     </div>
-    <div class="header-icon-button"
+    <div class="header-icon-button" title="Search"
          v-on:click="$store.commit('tasks/toggleSearchOpen')"
          :style="searchOpen ? 'color: #2B2;' : ''">
       <font-awesome-icon icon="search"></font-awesome-icon>

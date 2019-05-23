@@ -19,6 +19,8 @@
                 this component.-->
           <x-task-node-search v-if="enableSearch" class="header-icon-button"></x-task-node-search>
 
+          <slot name="postsearch" class="header-icon-button"></slot>
+
           <template v-for="link in links">
             <router-link v-if="link.to" class="flame-link" :to="link.to" :key="link.name">
               <font-awesome-icon v-if="link.icon" :icon="link.icon"></font-awesome-icon>
@@ -45,6 +47,7 @@
 
 <script>
 import _ from 'lodash';
+import { mapState } from 'vuex';
 import XTaskNodeSearch from './XTaskNodeSearch.vue';
 
 export default {
