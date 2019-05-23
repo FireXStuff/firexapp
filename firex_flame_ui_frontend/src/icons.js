@@ -17,13 +17,16 @@ import { faCaretUp } from '@fortawesome/free-solid-svg-icons/faCaretUp';
 import { faCaretDown } from '@fortawesome/free-solid-svg-icons/faCaretDown';
 import { faUndo } from '@fortawesome/free-solid-svg-icons/faUndo';
 import { faExclamationCircle } from '@fortawesome/free-solid-svg-icons/faExclamationCircle';
+import { faClock } from '@fortawesome/free-solid-svg-icons/faClock';
 
-import { FontAwesomeIcon, FontAwesomeLayers, FontAwesomeLayersText } from '@fortawesome/vue-fontawesome';
+import {
+  FontAwesomeIcon, FontAwesomeLayers, FontAwesomeLayersText,
+} from '@fortawesome/vue-fontawesome';
 
 library.add(faBullseye, faEye, faSearch, faListUl, faPlusCircle,
   faSitemap, faFileCode, faTimes, faFire, faTrash,
   faExpandArrowsAlt, faCompressArrowsAlt, faFileAlt, faCaretUp, faCaretDown,
-  faUndo, faExclamationCircle);
+  faUndo, faExclamationCircle, faClock);
 
 Vue.component('font-awesome-icon', FontAwesomeIcon);
 Vue.component('font-awesome-layers', FontAwesomeLayers);

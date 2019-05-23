@@ -90,6 +90,7 @@ export default {
       isCollapsedByUuid: 'graph/isCollapsedByUuid',
       userDisplayConfigOperationsByUuid: 'graph/userDisplayConfigOperationsByUuid',
       flameDataDisplayOperationsByUuid: 'graph/flameDataDisplayOperationsByUuid',
+      runStateByUuid: 'tasks/runStateByUuid',
     }),
     toggleStates() {
       return {
@@ -129,6 +130,12 @@ export default {
           to: routeTo2(this.$route.query, 'XList'),
           icon: 'list-ul',
           title: 'List View',
+        },
+        {
+          name: 'time-chart',
+          to: routeTo2(this.$route.query, 'XTimeChart'),
+          icon: 'clock',
+          title: 'Time Chart',
         },
         {
           name: 'kill',
@@ -177,6 +184,9 @@ export default {
       const alreadyApplied = this.collapseConfig.hideSuccessPaths;
       const userTouched = !_.isEmpty(this.collapseConfig.uiCollapseOperationsByUuid);
       return this.hasFailures && (!alreadyApplied || userTouched);
+    },
+    hasFailures() {
+      return _.some(_.values(this.runStateByUuid), { state: 'task-failed' });
     },
   },
   methods: {

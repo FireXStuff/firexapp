@@ -23,7 +23,11 @@
           <slot name="postsearch" class="header-icon-button"></slot>
 
           <template v-for="link in links">
-            <router-link v-if="link.to" class="flame-link" :to="link.to" :key="link.name">
+            <router-link v-if="link.to"
+                         class="flame-link"
+                         :to="link.to"
+                         :title="link.title"
+                         :key="link.name">
               <font-awesome-icon v-if="link.icon" :icon="link.icon"></font-awesome-icon>
               <template v-if="link.text">{{link.text}}</template>
             </router-link>

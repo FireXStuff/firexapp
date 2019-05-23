@@ -96,9 +96,6 @@ export default {
     graphDataByUuid() {
       return this.$store.getters['graph/graphDataByUuid'];
     },
-    runStateByUuid() {
-      return this.$store.getters['tasks/runStateByUuid'];
-    },
     dimensionsByUuid() {
       return this.$store.state.tasks.taskNodeSizeByUuid;
     },
@@ -142,9 +139,6 @@ export default {
         right: _.max(_.map(this.nodeLayoutsByUuid, n => n.x + n.width)),
         bottom: _.max(_.map(this.nodeLayoutsByUuid, n => n.y + n.height)),
       };
-    },
-    hasFailures() {
-      return _.some(_.values(this.runStateByUuid), { state: 'task-failed' });
     },
     svgGraphTransform() {
       return `translate(${this.transform.x},${this.transform.y})scale(${this.transform.scale})`;
@@ -392,14 +386,6 @@ export default {
 <style scoped>
   * {
     box-sizing: border-box;
-  }
-
-  .user-message {
-    text-align: center;
-    font-size: 18px;
-    position: absolute;
-    z-index: 3;
-    width: 100%;
   }
 
   #chart-container {
