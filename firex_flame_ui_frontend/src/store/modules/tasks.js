@@ -1,6 +1,8 @@
 import _ from 'lodash';
 
-import { orderByTaskNum, hasIncompleteTasks, getDescendantUuids } from '../../utils';
+import {
+  orderByTaskNum, hasIncompleteTasks, getDescendantUuids, twoDepthAssign,
+} from '../../utils';
 
 const tasksState = {
   // Main task data structure.
@@ -109,17 +111,9 @@ const actions = {
   },
 
   addTasksData(context, newDataByUuid) {
-    const newUuidData = _.pickBy(newDataByUuid,
-      (t, u) => !_.has(context.state.allTasksByUuid, u));
-    const updateUuidData = _.pickBy(newDataByUuid,
-      (t, u) => _.has(context.state.allTasksByUuid, u));
-
-    const newTasksByUuid = _.assign({}, context.state.allTasksByUuid, newUuidData);
-    _.each(updateUuidData, (newTaskData, uuid) => {
-      // New data fully replaces _attributes_ on a task, not entire tasks.
-      newTasksByUuid[uuid] = _.assign({}, newTasksByUuid[uuid], newTaskData);
-    });
-    context.dispatch('setTasks', newTasksByUuid);
+    // TODO: do other incremental updating (e.g. of graph structure, collapse data, etc) here
+    // instead of doing a full re-calc every time a node is added.
+    context.commit('addTasksData', newDataByUuid);
   },
 
   clearTaskData(context) {
@@ -169,10 +163,11 @@ const actions = {
 const mutations = {
 
   // Avoid Vue dependency tracking by freezing tasksByUuid. This causes issues for large graphs.
-  addTask(state, { task }) {
-    // TODO: incrementally update graph data instead of re-calc.
-    state.allTasksByUuid = Object.freeze(Object.assign({},
-      state.allTasksByUuid, { [[task.uuid]]: task }));
+
+  addTasksData(state, newDataByUuid) {
+    state.allTasksByUuid = Object.freeze(
+      twoDepthAssign(state.allTasksByUuid, newDataByUuid),
+    );
   },
 
   setTasks(state, tasksByUuid) {
@@ -180,7 +175,6 @@ const mutations = {
   },
 
   setDetailedTask(state, detailedTask) {
-    // TODO: add children [{name, uuid}] and parent {name, uuid} here.
     state.detailedTask = detailedTask;
   },
 

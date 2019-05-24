@@ -18,9 +18,10 @@
 
 <script>
 import io from 'socket.io-client';
+import _ from 'lodash';
 import {
   parseRecFileContentsToNodesByUuid, eventHub, socketRequestResponse,
-  orderByTaskNum,
+  orderByTaskNum, twoDepthAssign,
 } from '../utils';
 
 export default {
@@ -35,6 +36,8 @@ export default {
       socketUpdateInProgress: false,
       displayMessage: { content: '', color: '' },
       socket: null,
+      // Batch incoming task data in order to debounce incoming changes.
+      newTaskDataToDispatch: {},
     };
   },
   computed: {
@@ -115,10 +118,19 @@ export default {
         .then(recFileContent => parseRecFileContentsToNodesByUuid(recFileContent));
     },
     setSocketNodesByUuid(newNodesByUuid) {
+      this.newTaskDataToDispatch = {};
       this.$store.dispatch('tasks/setTasks', orderByTaskNum(newNodesByUuid));
     },
+    // eslint-disable-next-line
+    debouncedDispatchTasksUpdate: _.debounce(function() {
+      this.$store.dispatch('tasks/addTasksData', this.newTaskDataToDispatch);
+      this.newTaskDataToDispatch = {};
+    }, 500, { maxWait: 1500, leading: true, trailing: true }),
     mergeNodesByUuid(newDataByUuid) {
-      this.$store.dispatch('tasks/addTasksData', newDataByUuid);
+      this.newTaskDataToDispatch = Object.freeze(
+        twoDepthAssign(this.newTaskDataToDispatch, newDataByUuid),
+      );
+      this.debouncedDispatchTasksUpdate();
     },
     stopSocketListening(socket) {
       // Stop listening on everything.
@@ -244,6 +256,10 @@ export default {
       handler(newFlameServerUrl) {
         // Clear data from previous socket.
         this.setSocketNodesByUuid({});
+
+        if (_.has(this.socket, 'off')) {
+          this.socket.off();
+        }
 
         if (this.useRecFile) {
           this.socket = { connected: false };

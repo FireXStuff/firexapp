@@ -387,6 +387,17 @@ function getTaskNodeBorderRadius(chain_depth) {
   return !isChained ? '8px' : '';
 }
 
+function twoDepthAssign(existingData, newData) {
+  const newIncomingKeyData = _.pickBy(newData, (v, k) => !_.has(existingData, k));
+  const updateIncomingKeyData = _.pickBy(newData, (v, k) => _.has(existingData, k));
+
+  const result = Object.assign({}, existingData, newIncomingKeyData);
+  _.each(updateIncomingKeyData, (updateData, k) => {
+    result[k] = Object.assign({}, existingData[k], updateData);
+  });
+  return result;
+}
+
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
 const eventHub = new Vue();
 
@@ -413,4 +424,5 @@ export {
   concatArrayMergeCustomizer,
   containsAll,
   getTaskNodeBorderRadius,
+  twoDepthAssign,
 };
