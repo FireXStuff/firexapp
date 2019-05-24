@@ -382,6 +382,10 @@ function containsAll(superset, subset) {
   return _.difference(subset, superset).length === 0;
 }
 
+function containsAny(first, second) {
+  return _.some(first, x => _.includes(second, x));
+}
+
 function getTaskNodeBorderRadius(chain_depth) {
   const isChained = Boolean(chain_depth);
   return !isChained ? '8px' : '';
@@ -423,6 +427,7 @@ export {
   loadDisplayConfigs,
   concatArrayMergeCustomizer,
   containsAll,
+  containsAny,
   getTaskNodeBorderRadius,
   twoDepthAssign,
 };

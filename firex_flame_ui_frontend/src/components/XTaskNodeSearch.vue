@@ -23,7 +23,7 @@ import { mapState } from 'vuex';
 export default {
   name: 'XTaskNodeSearch',
   props: {
-    ignoreCollapsed: { default: true, type: Boolean },
+    findUncollapsedAncestor: { default: true, type: Boolean },
   },
   computed: {
     ...mapState({
@@ -35,7 +35,8 @@ export default {
   },
   methods: {
     submitSearch(term) {
-      this.$store.dispatch('tasks/search', { term, ignoreCollapsed: this.ignoreCollapsed });
+      this.$store.dispatch('tasks/search',
+        { term, findUncollapsedAncestor: this.findUncollapsedAncestor });
     },
   },
   watch: {

@@ -12,7 +12,7 @@
               :links="headerParams.links"
               :legacyPath="headerParams.legacyPath">
       <template v-slot:prebuttons>
-        <x-task-node-search :ignoreCollapsed="true" class="header-icon-button">
+        <x-task-node-search :findUncollapsedAncestor="true" class="header-icon-button">
         </x-task-node-search>
         <x-collapse-buttons></x-collapse-buttons>
       </template>
@@ -37,7 +37,12 @@ import {
 
 export default {
   name: 'XHeaderedGraph',
-  components: { XGraph, XHeader, XCollapseButtons, XTaskNodeSearch },
+  components: {
+    XGraph,
+    XHeader,
+    XCollapseButtons,
+    XTaskNodeSearch,
+  },
   props: {
     // The root UUID to show, not necessarily the root UUID from the runMetadata.
     rootUuid: { default: null },

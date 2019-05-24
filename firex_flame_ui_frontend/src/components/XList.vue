@@ -8,7 +8,7 @@
               :links="headerLinks"
               legacyPath="/list">
       <template v-slot:prebuttons>
-        <x-task-node-search :ignoreCollapsed="false" class="header-icon-button">
+        <x-task-node-search :findUncollapsedAncestor="false" class="header-icon-button">
         </x-task-node-search>
       </template>
     </x-header>

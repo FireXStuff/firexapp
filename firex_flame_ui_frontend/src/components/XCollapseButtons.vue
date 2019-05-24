@@ -57,14 +57,11 @@ export default {
       collapseConfig: state => state.graph.collapseConfig,
     }),
     ...mapGetters({
-      isCollapsedByUuid: 'graph/isCollapsedByUuid',
+      collapsedNodeUuids: 'graph/collapsedNodeUuids',
       userDisplayConfigOperationsByUuid: 'graph/userDisplayConfigOperationsByUuid',
       flameDataDisplayOperationsByUuid: 'graph/flameDataDisplayOperationsByUuid',
       runStateByUuid: 'tasks/runStateByUuid',
     }),
-    collapsedNodeUuids() {
-      return _.keys(_.pickBy(this.isCollapsedByUuid));
-    },
     collasedNodeCount() {
       return this.collapsedNodeUuids.length;
     },

@@ -113,6 +113,8 @@ const graphGetters = {
     getters.resolvedCollapseStateByUuid, 'collapsed',
   ),
 
+  collapsedNodeUuids: (state, getters) => _.keys(_.pickBy(getters.isCollapsedByUuid)),
+
   uncollapsedNodeUuids: (state, getters) => _.keys(_.omitBy(getters.isCollapsedByUuid)),
 
   uncollapsedGraphByNodeUuid: (state, getters, rootState, rootGetters) => {

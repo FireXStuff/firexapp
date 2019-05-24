@@ -1,7 +1,7 @@
 import _ from 'lodash';
 
 import {
-  orderByTaskNum, hasIncompleteTasks, getDescendantUuids, twoDepthAssign,
+  orderByTaskNum, hasIncompleteTasks, getDescendantUuids, twoDepthAssign, containsAny,
 } from '../../utils';
 
 const tasksState = {
@@ -134,10 +134,21 @@ const actions = {
     if (searchSubmission.term !== context.state.search.term) {
       // New search term, submit new search.
       let resultUuids = context.getters.searchForUuids(searchSubmission.term);
-      // TODO: Find uncollapsed nodes that contain result collapsed nodes, don't just ignore!!!
-      if (searchSubmission.ignoreCollapsed) {
-        const uncollapsedUuids = context.rootGetters['graph/uncollapsedNodeUuids'];
-        resultUuids = _.intersection(resultUuids, uncollapsedUuids);
+      if (searchSubmission.findUncollapsedAncestor) {
+        // Find uncollapsed tasks that contain collapsed search results.
+        const collapsedUuids = context.rootGetters['graph/collapsedNodeUuids'];
+        const collapsedSearchResultUuids = _.intersection(resultUuids, collapsedUuids);
+        const uncollapsedGraphByNodeUuid = context.getters['graph/uncollapsedGraphByNodeUuid'];
+        const uncollapsedContainingResultUuids = _.keys(_.pickBy(uncollapsedGraphByNodeUuid,
+          collapseDetails => containsAny(
+            collapseDetails.collapsedUuids, collapsedSearchResultUuids,
+          )));
+        const uncollapsedSearchResultUuids = _.difference(resultUuids, collapsedUuids);
+        const uncollapsedResultsAndCollapsedContaining = _.concat(uncollapsedContainingResultUuids,
+          uncollapsedSearchResultUuids);
+        // use all UUIDs intersection to maintain task_num order.
+        resultUuids = _.intersection(context.getters.allTaskUuids,
+          uncollapsedResultsAndCollapsedContaining);
       }
       context.commit('setTaskSearchResults',
         { term: searchSubmission.term, results: resultUuids });
