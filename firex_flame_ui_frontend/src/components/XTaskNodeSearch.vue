@@ -5,7 +5,7 @@
         {{ searchResultCount === 0 ? 0 : selectedIndex + 1 }} / {{ searchResultCount }}
       </div>
       <input ref='search-input' type="text" :value="searchTerm"
-             @keyup.enter.exact="$store.dispatch('tasks/search', $event.target.value.trim())"
+             @keyup.enter.exact="submitSearch($event.target.value.trim())"
              @keyup.enter.shift="$store.dispatch('tasks/previousSearchResult')"
              class="search" placeholder="Search" style="margin-right: 8px">
     </div>
@@ -22,7 +22,9 @@ import { mapState } from 'vuex';
 
 export default {
   name: 'XTaskNodeSearch',
-  components: {},
+  props: {
+    ignoreCollapsed: { default: true, type: Boolean },
+  },
   computed: {
     ...mapState({
       selectedIndex: state => state.tasks.search.selectedIndex,
@@ -30,6 +32,11 @@ export default {
       searchOpen: state => state.tasks.search.isOpen,
       searchTerm: state => state.tasks.search.term,
     }),
+  },
+  methods: {
+    submitSearch(term) {
+      this.$store.dispatch('tasks/search', { term, ignoreCollapsed: this.ignoreCollapsed });
+    },
   },
   watch: {
     searchOpen(newIsOpen) {

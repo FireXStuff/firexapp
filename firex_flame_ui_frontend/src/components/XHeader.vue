@@ -16,11 +16,7 @@
 
         <div style="margin-left: auto; display: flex;">
 
-          <!-- TODO: generalize this with a slot or something instead of hardcoding
-                this component.-->
-          <x-task-node-search v-if="enableSearch" class="header-icon-button"></x-task-node-search>
-
-          <slot name="postsearch" class="header-icon-button"></slot>
+          <slot name="prebuttons" class="header-icon-button"></slot>
 
           <template v-for="link in links">
             <router-link v-if="link.to"
@@ -54,16 +50,13 @@
 <script>
 import _ from 'lodash';
 import { mapState } from 'vuex';
-import XTaskNodeSearch from './XTaskNodeSearch.vue';
 
 export default {
   name: 'XHeader',
-  components: { XTaskNodeSearch },
   props: {
     title: { default: '' },
     links: { default: () => [], type: Array },
     legacyPath: { default: '' },
-    enableSearch: { default: false },
   },
   computed: {
     ...mapState({

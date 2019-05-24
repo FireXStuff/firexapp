@@ -136,14 +136,17 @@ const actions = {
     context.commit('selectRootUuid', newRootUuid);
   },
 
-  search(context, searchTerm) {
-    if (searchTerm !== context.state.search.term) {
+  search(context, searchSubmission) {
+    if (searchSubmission.term !== context.state.search.term) {
       // New search term, submit new search.
-      const allResultUuids = context.getters.searchForUuids(searchTerm);
+      let resultUuids = context.getters.searchForUuids(searchSubmission.term);
       // TODO: Find uncollapsed nodes that contain result collapsed nodes, don't just ignore!!!
-      const uncollapsedUuids = context.rootGetters['graph/uncollapsedNodeUuids'];
-      const uncollapsedResultUuids = _.intersection(allResultUuids, uncollapsedUuids);
-      context.commit('setTaskSearchResults', { term: searchTerm, results: uncollapsedResultUuids });
+      if (searchSubmission.ignoreCollapsed) {
+        const uncollapsedUuids = context.rootGetters['graph/uncollapsedNodeUuids'];
+        resultUuids = _.intersection(resultUuids, uncollapsedUuids);
+      }
+      context.commit('setTaskSearchResults',
+        { term: searchSubmission.term, results: resultUuids });
     } else if (context.state.search.resultUuids.length > 0) {
       // Same search term as before, go from current result to the next.
       const resultCount = context.state.search.resultUuids.length;
@@ -166,9 +169,9 @@ const actions = {
 const mutations = {
 
   // Avoid Vue dependency tracking by freezing tasksByUuid. This causes issues for large graphs.
-
   addTask(state, { task }) {
-    state.allTasksByUuid = Object.freeze(_.assign({},
+    // TODO: incrementally update graph data instead of re-calc.
+    state.allTasksByUuid = Object.freeze(Object.assign({},
       state.allTasksByUuid, { [[task.uuid]]: task }));
   },
 

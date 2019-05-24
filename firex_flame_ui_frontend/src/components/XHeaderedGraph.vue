@@ -10,9 +10,10 @@
        tabindex="0">
     <x-header :title="headerParams.title"
               :links="headerParams.links"
-              :legacyPath="headerParams.legacyPath"
-              :enableSearch="true">
-      <template v-slot:postsearch>
+              :legacyPath="headerParams.legacyPath">
+      <template v-slot:prebuttons>
+        <x-task-node-search :ignoreCollapsed="true" class="header-icon-button">
+        </x-task-node-search>
         <x-collapse-buttons></x-collapse-buttons>
       </template>
     </x-header>
@@ -28,6 +29,7 @@ import _ from 'lodash';
 import XGraph from './XGraph.vue';
 import XHeader from './XHeader.vue';
 import XCollapseButtons from './XCollapseButtons.vue';
+import XTaskNodeSearch from './XTaskNodeSearch.vue';
 
 import {
   eventHub, routeTo2,
@@ -35,7 +37,7 @@ import {
 
 export default {
   name: 'XHeaderedGraph',
-  components: { XGraph, XHeader, XCollapseButtons },
+  components: { XGraph, XHeader, XCollapseButtons, XTaskNodeSearch },
   props: {
     // The root UUID to show, not necessarily the root UUID from the runMetadata.
     rootUuid: { default: null },

@@ -6,8 +6,12 @@
   >
     <x-header :title="title"
               :links="headerLinks"
-              :enableSearch="true"
-              legacyPath="/list"></x-header>
+              legacyPath="/list">
+      <template v-slot:prebuttons>
+        <x-task-node-search :ignoreCollapsed="false" class="header-icon-button">
+        </x-task-node-search>
+      </template>
+    </x-header>
 
     <div style="display:flex; flex-direction: column; margin-left: 5px">
       <div>Sort by:
@@ -70,11 +74,12 @@ import { mapState } from 'vuex';
 
 import XNode from './nodes/XTaskNode.vue';
 import XHeader from './XHeader.vue';
+import XTaskNodeSearch from './XTaskNodeSearch.vue';
 import { routeTo2, containsAll } from '../utils';
 
 export default {
   name: 'XList',
-  components: { XNode, XHeader },
+  components: { XNode, XHeader, XTaskNodeSearch },
   props: {
     // TODO: validate/prune for allowed values.
     sort: { required: true, type: String },

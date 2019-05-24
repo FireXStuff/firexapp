@@ -7,8 +7,12 @@
   >
     <x-header :title="title"
               :links="headerLinks"
-              :enableSearch="true"
-              legacyPath="/list"></x-header>
+              legacyPath="/list">
+      <template v-slot:prebuttons>
+        <x-task-node-search :ignoreCollapsed="false" class="header-icon-button">
+        </x-task-node-search>
+      </template>
+    </x-header>
 
     <div style="display:flex; flex-direction: column; margin-left: 5px" class="time-table">
       <table>
@@ -16,21 +20,21 @@
           <tr style="text-align: center;">
             <th @click="sortOn('task_num')" class="sortable-header">
               #<template v-if="sort === 'task_num'">
-                <font-awesome-icon v-if="isDesc" icon="caret-down"></font-awesome-icon>
+                <font-awesome-icon v-if="isAsc" icon="caret-down"></font-awesome-icon>
                 <font-awesome-icon v-else icon="caret-up"></font-awesome-icon>
               </template>
             </th>
             <th @click="sortOn('name')" class="sortable-header">
               Task
               <template v-if="sort === 'name'">
-                <font-awesome-icon v-if="isDesc" icon="caret-down"></font-awesome-icon>
+                <font-awesome-icon v-if="isAsc" icon="caret-down"></font-awesome-icon>
                 <font-awesome-icon v-else icon="caret-up"></font-awesome-icon>
               </template>
             </th>
             <th @click="sortOn('hostname')"  class="sortable-header">
               Host
               <template v-if="sort === 'hostname'">
-                <font-awesome-icon v-if="isDesc" icon="caret-down"></font-awesome-icon>
+                <font-awesome-icon v-if="isAsc" icon="caret-down"></font-awesome-icon>
                 <font-awesome-icon v-else icon="caret-up"></font-awesome-icon>
               </template>
             </th>
@@ -42,7 +46,7 @@
                 @click="sortOn('runtime')">
                 Runtime: {{durationString(displayTasksDuration)}}
                 <template v-if="sort === 'runtime'">
-                  <font-awesome-icon v-if="isDesc" icon="caret-down"></font-awesome-icon>
+                  <font-awesome-icon v-if="isAsc" icon="caret-down"></font-awesome-icon>
                   <font-awesome-icon v-else icon="caret-up"></font-awesome-icon>
                 </template>
               </div>
@@ -102,13 +106,14 @@ import Popper from 'vue-popperjs';
 import 'vue-popperjs/dist/vue-popper.css';
 
 import XHeader from './XHeader.vue';
+import XTaskNodeSearch from './XTaskNodeSearch.vue';
 import {
   routeTo2, durationString, getNodeBackground, isTaskStateIncomplete,
 } from '../utils';
 
 export default {
   name: 'XList',
-  components: { XHeader, Popper },
+  components: { XHeader, XTaskNodeSearch, Popper },
   props: {
     sort: { required: true },
     sortDirection: { required: true },
@@ -190,8 +195,8 @@ export default {
           background: getNodeBackground(t.exception, t.state),
         }));
     },
-    isDesc() {
-      return this.sortDirection === 'desc';
+    isAsc() {
+      return this.sortDirection === 'asc';
     },
   },
   methods: {
@@ -227,7 +232,7 @@ export default {
       if (columnName === this.sort) {
         this.updateRouteQuery({ sortDirection: this.sortDirection === 'asc' ? 'desc' : 'asc' });
       } else {
-        this.updateRouteQuery({ sort: columnName, sortDirection: 'desc' });
+        this.updateRouteQuery({ sort: columnName, sortDirection: 'asc' });
       }
     },
   },
