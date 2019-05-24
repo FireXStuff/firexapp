@@ -1,47 +1,63 @@
 <template>
-  <div style="display: flex">
-    <div v-if="searchOpen" v-on:keydown.esc="$store.commit('tasks/closeSearch')">
-      <div class="search-pos">
-        {{ searchResultCount === 0 ? 0 : selectedIndex + 1 }} / {{ searchResultCount }}
-      </div>
-      <input ref='search-input' type="text" :value="searchTerm"
-             @keyup.enter.exact="submitSearch($event.target.value.trim())"
-             @keyup.enter.shift="$store.dispatch('tasks/previousSearchResult')"
-             class="search" placeholder="Search" style="margin-right: 8px">
-    </div>
-    <div class="header-icon-button" title="Search"
-         v-on:click="$store.commit('tasks/toggleSearchOpen')"
-         :style="searchOpen ? 'color: #2B2;' : ''">
-      <font-awesome-icon icon="search"></font-awesome-icon>
-    </div>
-  </div>
+  <div>{{duration}}</div>
 </template>
 
 <script>
 import { mapState } from 'vuex';
+import {
+  durationString, isTaskStateIncomplete,
+} from '../../utils';
 
+/**
+ * Separate, trivial component to avoid peer checks on live-update rerender.
+ */
 export default {
-  name: 'XTaskNodeSearch',
+  name: 'XDuration',
   props: {
-    ignoreCollapsed: { default: true, type: Boolean },
+    runState: { required: true },
+    firstStarted: { required: true },
+    actualRuntime: { required: true },
+  },
+  data() {
+    return {
+      // Updated locally if the node is incomplete, otherwise the actual_runtime value is shown.
+      liveRunTime: 0,
+    };
+  },
+  created() {
+    this.updateLiveRuntimeAndSchedule();
   },
   computed: {
     ...mapState({
-      selectedIndex: state => state.tasks.search.selectedIndex,
-      searchResultCount: state => state.tasks.search.resultUuids.length,
-      searchOpen: state => state.tasks.search.isOpen,
-      searchTerm: state => state.tasks.search.term,
+      liveUpdate: state => state.graph.liveUpdate,
     }),
-  },
-  methods: {
-    submitSearch(term) {
-      this.$store.dispatch('tasks/search', { term, ignoreCollapsed: this.ignoreCollapsed });
+    duration() {
+      let runtime;
+      if (!isTaskStateIncomplete(this.runState) && this.actualRuntime) {
+        runtime = this.actualRuntime;
+      } else if (!runtime && this.firstStarted) {
+        runtime = this.liveRunTime;
+      } else {
+        return '';
+      }
+      return `time: ${durationString(runtime)}`;
     },
   },
-  watch: {
-    searchOpen(newIsOpen) {
-      if (newIsOpen) {
-        this.$nextTick(() => { this.$refs['search-input'].focus(); });
+  methods: {
+    updateLiveRuntimeAndSchedule() {
+      if (this.liveUpdate
+        && (isTaskStateIncomplete(this.runState))
+        && this.firstStarted) {
+        this.liveRunTime = (Date.now() / 1000) - this.firstStarted;
+        // TODO: could reduce total number of re-renders due to duration update by having
+        // a central timeout that updates all incomplete durations (instead of timeout
+        // per-incomplete task).
+        setTimeout(() => {
+          // Note liveUpdate may have changed since this timeout was set, so double check.
+          if (this.liveUpdate) {
+            this.updateLiveRuntimeAndSchedule();
+          }
+        }, 3000);
       }
     },
   },
@@ -49,25 +65,4 @@ export default {
 </script>
 
 <style scoped>
-.search {
-    font-family: 'Source Sans Pro',sans-serif;
-    line-height: 36px;
-    border: 2px solid #2980b9;
-    outline: 0;
-    display: inline-block;
-    font-size: 24px;
-    vertical-align: top;
-    width: 300px;
-    padding: 0 2px;
-}
-
-.search-pos {
-  font-family: 'Source Sans Pro', sans-serif;
-  display: inline-block;
-  color: #000;
-  line-height: 40px;
-  font-size: 20px;
-  cursor: default;
-}
-
 </style>

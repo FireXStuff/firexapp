@@ -43,7 +43,10 @@
 
         <div style="display: flex; flex-direction: row; font-size: 12px; margin-top: 4px;">
           <div style="align-self: start; flex: 1;">{{hostname}}</div>
-          <div style="align-self: end;">{{duration}}</div>
+          <x-duration :runState="runState"
+                      :firstStarted="firstStarted"
+                      :actualRuntime="actualRuntime"
+                      style="align-self: end;"></x-duration>
         </div>
       </div>
     </div>
@@ -53,12 +56,13 @@
 <script>
 import _ from 'lodash';
 import {
-  routeTo2, durationString, isTaskStateIncomplete, getNodeBackground, eventHub,
-  getTaskNodeBorderRadius,
+  routeTo2, getNodeBackground, eventHub, getTaskNodeBorderRadius,
 } from '../../utils';
+import XDuration from './XDuration.vue';
 
 export default {
   name: 'XNode',
+  components: { XDuration },
   props: {
     allowCollapse: { default: true },
     taskUuid: { required: true },
@@ -69,17 +73,12 @@ export default {
   },
   data() {
     return {
-      // Updated locally if the node is in-progress, otherwise the actual_runtime value is shown.
-      liveRunTime: 0,
       latestEmittedDimensions: { width: -1, height: -1 },
     };
   },
   computed: {
     task() {
       return this.$store.state.tasks.allTasksByUuid[this.taskUuid];
-    },
-    liveUpdate() {
-      return this.$store.state.graph.liveUpdate;
     },
     showTaskDetails() {
       return this.$store.state.graph.showTaskDetails;
@@ -133,17 +132,6 @@ export default {
       }
       return s;
     },
-    duration() {
-      let runtime;
-      if (!isTaskStateIncomplete(this.runState) && this.actualRuntime) {
-        runtime = this.actualRuntime;
-      } else if (!runtime && this.firstStarted) {
-        runtime = this.liveRunTime;
-      } else {
-        return '';
-      }
-      return `time: ${durationString(runtime)}`;
-    },
     showLegacyFlameAdditionalData() {
       return !_.includes(_.map(_.get(this.task, 'flame_data', {}),
         'type'), 'html');
@@ -161,9 +149,6 @@ export default {
       );
     },
   },
-  created() {
-    this.updateLiveRuntimeAndSchedule();
-  },
   mounted() {
     this.emit_dimensions();
   },
@@ -173,19 +158,6 @@ export default {
   methods: {
     emitCollapseToggle() {
       eventHub.$emit('toggle-task-collapse', this.taskUuid);
-    },
-    updateLiveRuntimeAndSchedule() {
-      if (this.liveUpdate
-        && (isTaskStateIncomplete(this.runState))
-        && this.firstStarted) {
-        this.liveRunTime = (Date.now() / 1000) - this.firstStarted;
-        setTimeout(() => {
-          // Note liveUpdate may have changed since this timeout was set, so double check.
-          if (this.liveUpdate) {
-            this.updateLiveRuntimeAndSchedule();
-          }
-        }, 3000);
-      }
     },
     routeToAttribute() {
       return routeTo2(this.$route.query, 'XNodeAttributes', { uuid: this.taskUuid });
