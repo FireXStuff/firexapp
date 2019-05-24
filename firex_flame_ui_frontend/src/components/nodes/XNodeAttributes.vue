@@ -64,6 +64,11 @@ export default {
   props: {
     uuid: { required: true, type: String },
   },
+  data() {
+    return {
+      showAllAttributes: false,
+    };
+  },
   computed: {
     simpleTask() {
       return this.$store.getters['tasks/runStateByUuid'][this.uuid];
@@ -80,6 +85,9 @@ export default {
         'parent_id', 'children_uuids', 'isLeaf', 'states',
       ];
       // TODO: remove 'children' key when it's the empty list.
+      if (this.showAllAttributes) {
+        return node;
+      }
       return _.omit(node, attributeBlacklist);
     },
     displayKeyNode() {
@@ -95,6 +103,14 @@ export default {
     },
     headerParams() {
       let links = [
+        {
+          name: 'showAllAttributes',
+          // eslint-disable-next-line
+          on: () => { this.showAllAttributes = !this.showAllAttributes; },
+          toggleState: this.showAllAttributes,
+          icon: 'plus-circle',
+          title: 'Show All Attributes',
+        },
         // TODO: use new 'log_filepath' field & central_server instead of 'logs_url'.
         { name: 'logs', href: this.detailedTask.logs_url, text: 'View Logs' },
         { name: 'support', href: this.detailedTask.support_location, text: 'Support' },
