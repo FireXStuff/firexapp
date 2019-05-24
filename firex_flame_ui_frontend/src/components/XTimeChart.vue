@@ -290,6 +290,7 @@ export default {
   .popover-container {
     background: white;
     padding: 0;
+    text-align: left;
     border: 1px solid black;
     font-family: 'Source Sans Pro', sans-serif;
   }
