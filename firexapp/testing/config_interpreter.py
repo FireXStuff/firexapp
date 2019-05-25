@@ -44,7 +44,7 @@ from firexkit.task import FireXTask
 def {0}(**kwargs):
     local_stuff = locals()
     local_stuff.update(kwargs)
-    import json
+    import pickle
 
     def str_default(o):
         return str(o)
@@ -53,8 +53,8 @@ def {0}(**kwargs):
     dir_path = os.path.dirname(file_path)
     if not os.path.isdir(dir_path):
         os.makedirs(dir_path)
-    with open(file_path, "w") as f:
-        f.write(json.dumps(local_stuff, indent=4, default=str_default))
+    with open(file_path, "wb") as f:
+        pickle.dump(local_stuff, f)
     if not os.path.isfile(file_path):
         raise Exception("Could not create result files")
     """
@@ -175,9 +175,9 @@ def {0}(**kwargs):
                 if not os.path.isfile(intercept_results_file):
                     raise FileNotFoundError(intercept_results_file + " was not found. Could not retrieve results.")
 
-                import json
-                with open(intercept_results_file) as results_file_f:
-                    captured_options = json.loads(results_file_f.read())
+                import pickle
+                with open(intercept_results_file, 'rb') as results_file_f:
+                    captured_options = pickle.load(results_file_f)
                 flow_test_config.assert_expected_options(captured_options)
 
             with open(std_out, 'r') as std_out_f, open(std_err, 'r') as std_err_f:
