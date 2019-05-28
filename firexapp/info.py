@@ -51,6 +51,7 @@ class InfoBaseApp:
         print("The following microservices are available:")
 
         services = [str(task) for task in apps]
+        services = [task for task in services if not task.startswith('celery.')]  # filter out base celery types
         services.sort()
         for service in services:
             print(service)
