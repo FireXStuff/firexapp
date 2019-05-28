@@ -1,19 +1,15 @@
 <template>
   <div style="border-left: 1px solid #000; padding: 0 8px;">
-    <font-awesome-layers
-      class="fa-fw collapse-button"
+    <span class="collapse-button"
       @click="dispatchCollapseAction('graph/expandAll')"
       title="Expand All">
-       <font-awesome-icon icon="expand-arrows-alt"/>
-       <font-awesome-layers-text
-         v-if="hasCollapsedNodes"
-         class="fa-layers-counter collapsed-tasks-counter"
-         :title="collasedNodeCount + ' Collapsed Tasks'"
-         transform="up-1 right-20" :value="collasedNodeCount"/>
-    </font-awesome-layers>
+     <font-awesome-icon icon="expand-arrows-alt"/>
+    </span>
 
-    <popper trigger="hover" :options="{ placement: 'bottom'}">
-      <div class="popper collapse-menu">
+    <popper v-if="anyCollapseOptionsAvailable"
+      trigger="hover" :options="{ placement: 'bottom'}"
+      :disabled="dropDownDisabled">
+      <div class="popper collapse-menu" @click="toggleDropdownDisabled">
         <div v-if="hasCollapsedNodes"
              class="collapse-menu-item"
              @click="dispatchCollapseAction('graph/expandAll')">
@@ -52,6 +48,11 @@ import { eventHub } from '../utils';
 export default {
   name: 'XCollapseButtons',
   components: { Popper },
+  data() {
+    return {
+      dropDownDisabled: false,
+    };
+  },
   computed: {
     ...mapState({
       collapseConfig: state => state.graph.collapseConfig,
@@ -62,9 +63,6 @@ export default {
       flameDataDisplayOperationsByUuid: 'graph/flameDataDisplayOperationsByUuid',
       runStateByUuid: 'tasks/runStateByUuid',
     }),
-    collasedNodeCount() {
-      return this.collapsedNodeUuids.length;
-    },
     hasCollapsedNodes() {
       return this.collapsedNodeUuids.length > 0;
     },
@@ -84,12 +82,20 @@ export default {
     hasFailures() {
       return _.some(_.values(this.runStateByUuid), { state: 'task-failed' });
     },
+    anyCollapseOptionsAvailable() {
+      return this.hasCollapsedNodes || this.canRestoreDefault || this.canShowOnlyFailed;
+    },
   },
   methods: {
     dispatchCollapseAction(action) {
       this.$store.dispatch(action);
       // TODO: should the event handler operate on nextTick?
       this.$nextTick(() => { eventHub.$emit('center'); });
+    },
+    toggleDropdownDisabled() {
+      this.dropDownDisabled = true;
+      // Disable just to dismiss popover -- re-enable on next tick.
+      this.$nextTick(() => { this.dropDownDisabled = false; });
     },
   },
 };
@@ -119,14 +125,6 @@ export default {
   .collapse-menu-item:hover {
     color: #2980ff;
     cursor: pointer;
-  }
-
-  .collapsed-tasks-counter {
-    color: black;
-    font-size: 11px;
-    overflow: visible;
-    width: fit-content;
-    background-color: deepskyblue;
   }
 
 </style>
