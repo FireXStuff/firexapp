@@ -12,7 +12,7 @@
     <div class="header-icon-button" title="Search"
          v-on:click="$store.commit('tasks/toggleSearchOpen')"
          :style="searchOpen ? 'color: #2B2;' : ''">
-      <font-awesome-icon icon="search"></font-awesome-icon>
+      <font-awesome-icon icon="search" fixed-width></font-awesome-icon>
     </div>
   </div>
 </template>

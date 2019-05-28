@@ -1,6 +1,6 @@
 import Vue from 'vue';
 import Router from 'vue-router';
-import XParent from '@/components/XParent.vue';
+import XTasksParent from '@/components/XTasksParent.vue';
 import XHeaderedGraph from '@/components/XHeaderedGraph.vue';
 import XList from '@/components/XList.vue';
 import XTimeChart from '@/components/XTimeChart.vue';
@@ -16,7 +16,7 @@ const router = new Router({
   routes: [
     {
       path: '/',
-      component: XParent,
+      component: XTasksParent,
       props: route => ({
         inputLogDir: route.query.logDir,
         inputFlameServer: route.query.flameServer,

@@ -65,6 +65,7 @@ export default {
               },
             },
             text: 'Help',
+            icon: 'question-circle',
           },
         ],
         legacyPath: '/shortcuts',

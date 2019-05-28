@@ -160,7 +160,8 @@ export default {
         {
           name: 'logs',
           href: this.$store.getters['firexRunMetadata/logsUrl'],
-          text: 'View Logs',
+          text: 'Logs',
+          icon: 'file-alt',
         },
         { name: 'help', to: routeTo2(this.$route.query, 'XHelp'), text: 'Help' },
       ];

@@ -108,6 +108,7 @@ export default {
               },
             },
             text: 'Help',
+            icon: 'question-circle',
           },
         ],
         legacyPath: '/help',

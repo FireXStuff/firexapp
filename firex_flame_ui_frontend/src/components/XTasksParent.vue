@@ -25,7 +25,7 @@ import {
 } from '../utils';
 
 export default {
-  name: 'XParent',
+  name: 'XTasksParent',
   props: {
     inputLogDir: { required: false, type: String },
     inputFlameServer: { required: false, type: String },

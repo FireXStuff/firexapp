@@ -22,6 +22,7 @@ function resolveDisplayConfigsToOpsByUuid(displayConfigs, nodesByUuid) {
     // If an operation has a source_node, only find nodes that are descendants of that
     // source_node.
     if (_.has(displayConfig, ['source_node', 'value'])) {
+      // TODO: This function should receive the pre-computed map from uuid to descendant list.
       const uuidsToConsider = getDescendantUuids(displayConfig.source_node.value, nodesByUuid);
       uuidsToConsider.push(displayConfig.source_node.value);
       nodesToConsiderByUuid = _.pick(nodesByUuid, uuidsToConsider);

@@ -24,11 +24,11 @@
                          :to="link.to"
                          :title="link.title"
                          :key="link.name">
-              <font-awesome-icon v-if="link.icon" :icon="link.icon"></font-awesome-icon>
+              <font-awesome-icon v-if="link.icon" :icon="link.icon" fixed-width/>
               <template v-if="link.text">{{link.text}}</template>
             </router-link>
             <a v-else-if="link.href" class="flame-link" :href="link.href" :key="link.name">
-              <font-awesome-icon v-if="link.icon" :icon="link.icon"></font-awesome-icon>
+              <font-awesome-icon v-if="link.icon" :icon="link.icon" fixed-width/>
               <template v-if="link.text">{{link.text}}</template>
             </a>
             <div v-else-if="link.on"
@@ -38,7 +38,7 @@
                  :style="link.toggleState ? 'color: #2B2;' : ''"
                  :title="link.title"
                  :key="link.name">
-              <font-awesome-icon v-if="link.icon" :icon="link.icon"></font-awesome-icon>
+              <font-awesome-icon v-if="link.icon" :icon="link.icon" fixed-width/>
               <template v-if="link.text">{{link.text}}</template>
             </div>
           </template>
@@ -105,7 +105,7 @@ export default {
 }
 
 .header-icon-button {
-  padding: 0 8px;
+  padding: 0 4px;
   border-left: 1px solid #000;
   justify-content: end;
   font-size: 20px;

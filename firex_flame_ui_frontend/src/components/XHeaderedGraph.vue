@@ -104,9 +104,15 @@ export default {
           name: 'logs',
           // TODO replace with central server from metadata.
           href: this.$store.getters['firexRunMetadata/logsUrl'],
-          text: 'View logs',
+          text: 'Logs',
+          icon: 'file-alt',
         },
-        { name: 'help', to: routeTo2(this.$route.query, 'XHelp'), text: 'Help' },
+        {
+          name: 'help',
+          to: routeTo2(this.$route.query, 'XHelp'),
+          text: 'Help',
+          icon: 'question-circle',
+        },
       ];
       // Remove live update and kill options if the run isn't alive.
       if (!this.canRevoke) {
