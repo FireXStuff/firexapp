@@ -1,4 +1,4 @@
-Welcome to FireX Kit's documentation!
+Welcome to FireX App's documentation!
 =====================================
 
 .. toctree::
