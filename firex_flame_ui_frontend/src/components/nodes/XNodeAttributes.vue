@@ -79,16 +79,15 @@ export default {
     },
     displayNode() {
       // If we haven't fetched the details for some reason, just show the base properties.
-      const node = _.merge({}, this.simpleTask, this.detailedTask);
+      const task = _.merge({}, this.simpleTask, this.detailedTask);
+      if (this.showAllAttributes) {
+        return task;
+      }
       const attributeBlacklist = ['long_name', 'name', 'flame_additional_data',
         'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data',
         'parent_id', 'children_uuids', 'isLeaf', 'states',
       ];
-      // TODO: remove 'children' key when it's the empty list.
-      if (this.showAllAttributes) {
-        return node;
-      }
-      return _.omit(node, attributeBlacklist);
+      return _.omit(task, attributeBlacklist);
     },
     displayKeyNode() {
       const origKeysToDisplayKeys = {
