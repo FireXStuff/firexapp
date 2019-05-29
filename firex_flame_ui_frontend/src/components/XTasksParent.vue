@@ -11,7 +11,9 @@
         <div :class="{spinner: updating}"></div>
       </div>
     </div>
-    <!-- Only show main panel after data is loaded -->
+    <!-- Only show main panel after data is loaded. This guarantees safe access to api operations
+    from child views, since the only way for tasks to be present is for the api accessor
+    to be initialized. -->
     <router-view v-if="hasTasks"></router-view>
   </div>
 </template>

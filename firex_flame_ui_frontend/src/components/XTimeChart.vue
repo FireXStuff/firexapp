@@ -54,7 +54,7 @@
                 {{displayTasksEndTime ? formatShortTime(displayTasksEndTime, shortTime) : ''}}
               </div>
             </th>
-            <!--<th>Links</th>-->
+            <th>Links</th>
           </tr>
         </thead>
         <tbody>
@@ -82,14 +82,20 @@
                 </div>
               </popper>
             </td>
-            <!--<td class="min">-->
-              <!--<a style="padding: 3px;" title="logs">-->
-                <!--<font-awesome-icon icon="file-alt"></font-awesome-icon>-->
-              <!--</a>-->
-              <!--<a style="padding: 3px;" title="subtree">-->
-                <!--<font-awesome-icon icon="sitemap"></font-awesome-icon>-->
-              <!--</a>-->
-            <!--</td>-->
+            <td class="min">
+              <div v-if="task.uuid in extraTaskFieldsByUuid" class="icon-links">
+                <a :href="extraTaskFieldsByUuid[task.uuid].logs_url" title="logs">
+                  <font-awesome-icon icon="file-alt"></font-awesome-icon>
+                </a>
+                <router-link :to="rootRoute(task.uuid)" title="subtree">
+                  <font-awesome-icon icon="sitemap"></font-awesome-icon>
+                </router-link>
+                <a :href="extraTaskFieldsByUuid[task.uuid].code_url" title="code">
+                  <font-awesome-icon icon="file-code"></font-awesome-icon>
+                </a>
+              </div>
+
+            </td>
           </tr>
         </tbody>
 
@@ -107,12 +113,13 @@ import 'vue-popperjs/dist/vue-popper.css';
 
 import XHeader from './XHeader.vue';
 import XTaskNodeSearch from './XTaskNodeSearch.vue';
+import * as api from '../api';
 import {
   routeTo2, durationString, getNodeBackground, isTaskStateIncomplete,
 } from '../utils';
 
 export default {
-  name: 'XList',
+  name: 'XTimeChart',
   components: { XHeader, XTaskNodeSearch, Popper },
   props: {
     sort: { required: true },
@@ -128,6 +135,7 @@ export default {
     return {
       shortTime,
       shortTimeSec: Object.assign({ second: '2-digit' }, shortTime),
+      extraTaskFieldsByUuid: {},
     };
   },
   computed: {
@@ -163,7 +171,12 @@ export default {
           text: 'Logs',
           icon: 'file-alt',
         },
-        { name: 'help', to: routeTo2(this.$route.query, 'XHelp'), text: 'Help' },
+        {
+          name: 'help',
+          to: routeTo2(this.$route.query, 'XHelp'),
+          text: 'Help',
+          icon: 'question-circle',
+        },
       ];
     },
     displayTasksStartTime() {
@@ -200,6 +213,11 @@ export default {
       return this.sortDirection === 'asc';
     },
   },
+  created() {
+    api.fetchTaskFields(['states', 'logs_url', 'code_url']).then((extraTaskFieldsByUuid) => {
+      this.extraTaskFieldsByUuid = extraTaskFieldsByUuid;
+    });
+  },
   methods: {
     getRuntime(task) {
       if (isTaskStateIncomplete(task.state)) {
@@ -235,6 +253,9 @@ export default {
       } else {
         this.updateRouteQuery({ sort: columnName, sortDirection: 'asc' });
       }
+    },
+    rootRoute(customRootUuid) {
+      return routeTo2(this.$route.query, 'custom-root', { rootUuid: customRootUuid });
     },
   },
   beforeRouteLeave(to, from, next) {
@@ -301,5 +322,14 @@ export default {
     text-align: center;
     border-bottom: 1px solid black;
     background-color: #EEE;
+  }
+
+  .icon-links a {
+    padding: 3px;
+    color: black;
+  }
+
+  .icon-links a:hover {
+    color: #2980ff;
   }
 </style>
