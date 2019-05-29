@@ -58,13 +58,13 @@ class FlowTestInfra(unittest.TestCase):
 
 def main(default_results_dir, default_test_dir):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--logs", help="The directory to store results and mocks",
+    parser.add_argument("--logs", '-l', help="The directory to store results and mocks",
                         default=default_results_dir)
-    parser.add_argument("--tests", "--test", dest="tests",
+    parser.add_argument("--tests", "--test", '-t', dest="tests",
                         help="The directory or python module containing the test configurations. "
                              "Supports comma delimited lists",
                         default=default_test_dir)
-    parser.add_argument("--config", "--configs", dest="config",
+    parser.add_argument("--config", "--configs", '-c', dest="config",
                         help="A comma separated list of test configurations to run", default=None)
     parser.add_argument("--xunit_file_name", help="Name of the xunit file", default=None)
     extras = parser.add_mutually_exclusive_group()
