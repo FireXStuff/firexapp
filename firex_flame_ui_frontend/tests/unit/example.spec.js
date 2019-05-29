@@ -2,19 +2,24 @@
 // import _ from 'lodash';
 import { mount, createLocalVue } from '@vue/test-utils';
 import VueRouter from 'vue-router';
+import Vuex from 'vuex'
 
 import XGraph from '@/components/XGraph.vue';
+import store from '@/store';
 
 const localVue = createLocalVue();
 localVue.use(VueRouter);
+localVue.use(Vuex);
 const router = new VueRouter();
 
 const simpleNodesByUuid = {
-  1: { uuid: '1', name: 'rootName', parent_id: null, children_uuids: [] },
+  1: {
+    uuid: '1',
+    name: 'rootName',
+    parent_id: null,
+  },
 };
-// _.keyBy([
-//   { uuid: '1', name: 'rootName' },
-// ], 'uuid');
+
 
 describe('XGraph.vue', () => {
   it('renders simple tree', () => {
@@ -26,8 +31,9 @@ describe('XGraph.vue', () => {
       },
       localVue,
       router,
+      store,
     });
-    console.log(wrapper.html());
+    // console.log(wrapper.html());
     // expect(wrapper.text()).toMatch(msg);
   });
 });
