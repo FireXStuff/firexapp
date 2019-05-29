@@ -168,5 +168,82 @@ Logs
 Flame
 -----
 
+While the logs are filled with wonderfully detailed information about the FireX run, it can be a little overwhelming to
+get a high level view of what has happened. Flame is a web interface to the FireX App run which provides a rich visual
+overview of the current execution. It needs to be installed separately, but is highly recommended.
+
+.. code-block:: text
+
+    > pip install firex-flame
+
+For details about Flame and it's capabilities, please refer to it's `Documentation <https://github.com/FireXStuff/firex-flame>`_
+
+
 Overriding tasks
 ----------------
+
+As mentioned above, plugins can be used to add new tasks available to be executed in FireX App. However, there is a
+slightly more powerful affect, which is to override existing tasks already installed. This provides a means of
+customizing the behaviour of existing chains and workflows without the need to overhaul the entire flow.
+
+For example, in a python module, add the following code:
+
+.. code-block:: python
+
+    from firexapp.engine.celery import app
+    from celery.utils.log import get_task_logger
+
+    logger = get_task_logger(__name__)
+
+    @app.task
+    def nop():
+        """ new and improved nop """
+        logger.debug('New and improved nop!')
+        logger.debug(__file__)
+
+When used with the --plugin argument, this version of task will replace the existing nop that ships with FireX App. This
+is highlighted when you use the list sub command.
+
+.. code-block:: text
+
+    > firexapp list --microservices --plugins ./my_plugin.py
+    External module my_plugin imported
+
+    The following microservices are available:
+    my_plugin.nop
+    firex_bundle_foobar.foo_tasks.bar
+    firex_bundle_foobar.foo_tasks.foo
+    firexapp.submit.report_trigger.RunInitialReport
+    firexapp.tasks.core_tasks.RootTask
+    firexapp.tasks.example.nop
+    firexapp.tasks.example.nop_orig
+    firexapp.tasks.example.sleep
+
+    Pointers (override -> original):
+    firexapp.tasks.example.nop -> my_plugin.nop
+
+    Use the info sub-command for more details
+
+The original microservice that was overridden can also be accessed and scheduled conveniently from the overrider. Modify
+your plugin to add an override for the sleep task:
+
+.. code-block:: python
+    import time
+
+    @app.task(bind=True)
+    def sleep(self, patience=5, **kwargs):
+        """ new and improved sleep """
+        logger.debug('Perform pre-sleep routine')
+        logger.debug('Brush Put on PJs')
+        logger.debug('Brush teeth')
+        logger.debug('Read bedtime stories')
+        while patience:
+            logger.debug('Stall..')
+            time.sleep(1)
+            patience -= 1
+
+        # now preform the original
+        self.enqueue_child(self.orig.s(**kwargs), block=True)
+
+In the above code, the new overriding task will schedule the original as a child task, performing the extra processing
+before hand.
