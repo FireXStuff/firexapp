@@ -175,12 +175,6 @@ export default {
         this.displayMessage = { content: 'Waiting for celery...', color: 'deepskyblue' };
       }
     },
-    fetchTaskDetails(uuid) {
-      api.fetchTaskDetails(uuid).then((data) => {
-        // TODO: add timeout on failure and  handle already disconntected.
-        this.$store.dispatch('tasks/setDetailedTask', data);
-      });
-    },
     setFlameRunMetadata() {
       api.getFireXRunMetadata().then((data) => {
         // TODO: is adding the server URL still necessary?
@@ -189,20 +183,7 @@ export default {
       });
     },
   },
-  beforeRouteEnter(to, from, next) {
-    next((vm) => {
-      if (to.name === 'XNodeAttributes') {
-        // Add all data needed by XNodeAttributes, such as
-        vm.fetchTaskDetails(to.params.uuid);
-      }
-    });
-  },
   watch: {
-    $route(to) {
-      if (to.name === 'XNodeAttributes') {
-        this.fetchTaskDetails(to.params.uuid);
-      }
-    },
     liveUpdate(newLiveUpdate) {
       if (newLiveUpdate) {
         this.fetchAllTasksAndStartLiveUpdate();

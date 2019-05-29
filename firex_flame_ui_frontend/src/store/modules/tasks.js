@@ -8,9 +8,6 @@ const tasksState = {
   // Main task data structure.
   allTasksByUuid: {},
   selectedRoot: null,
-  // TODO: this shouldn't be stored globally, but rather fetched by the attribute viewing
-  // component. This requires API operations to be externalized from XParent.
-  detailedTask: {},
   apiConnected: false,
   // unfortunately we need to track this manually. TODO: look for a better way.
   taskNodeSizeByUuid: {},
@@ -47,6 +44,8 @@ const tasksGetters = {
       _.pick(n, ['state', 'exception']),
     ),
   ),
+
+  taskNameByUuid: state => _.mapValues(state.allTasksByUuid, 'name'),
 
   // TODO: further prune to flame_data._default_display
   flameDataAndNameByUuid: state => _.mapValues(state.allTasksByUuid,
@@ -89,22 +88,6 @@ const tasksGetters = {
 
 // actions
 const actions = {
-  setDetailedTask(context, detailedTask) {
-    const childrenUuids = context.rootGetters['graph/childrenUuidsByUuid'][detailedTask.uuid];
-    const children = _.map(childrenUuids,
-      uuid => ({ uuid, name: context.state.allTasksByUuid[uuid].name }));
-
-    let parent;
-    if (!_.isNil(detailedTask.parent_id)) {
-      parent = {
-        uuid: detailedTask.parent_id,
-        name: context.state.allTasksByUuid[detailedTask.parent_id].name,
-      };
-    } else {
-      parent = {};
-    }
-    context.commit('setDetailedTask', _.assign({ children, parent }, detailedTask));
-  },
 
   setTasks(context, tasksByUuid) {
     context.commit('setTasks', Object.freeze(tasksByUuid));
@@ -119,7 +102,6 @@ const actions = {
   clearTaskData(context) {
     context.commit('setTasks', {});
     context.commit('clearTaskNodeSize');
-    context.commit('setDetailedTask', {});
   },
 
   addTaskNodeSize(context, taskNodeSize) {
@@ -183,10 +165,6 @@ const mutations = {
 
   setTasks(state, tasksByUuid) {
     state.allTasksByUuid = tasksByUuid;
-  },
-
-  setDetailedTask(state, detailedTask) {
-    state.detailedTask = detailedTask;
   },
 
   setApiConnected(state, apiConnected) {

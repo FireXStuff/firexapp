@@ -55,6 +55,8 @@
 <script>
 import _ from 'lodash';
 import { DateTime } from 'luxon';
+
+import * as api from '../../api';
 import { routeTo2, eventHub, isTaskStateIncomplete } from '../../utils';
 import XHeader from '../XHeader.vue';
 
@@ -67,15 +69,41 @@ export default {
   data() {
     return {
       showAllAttributes: false,
+      taskAttributes: {},
     };
   },
   computed: {
     simpleTask() {
       return this.$store.getters['tasks/runStateByUuid'][this.uuid];
     },
-    // unforuntately lazy loaded, so code defensively in this component.
+    taskNameByUuid() {
+      return this.$store.getters['tasks/taskNameByUuid'];
+    },
+    childrenUuids() {
+      return this.$store.getters['graph/childrenUuidsByUuid'][this.uuid];
+    },
+    taskChildren() {
+      return _.map(this.childrenUuids,
+        uuid => ({ uuid, name: this.taskNameByUuid[uuid] }));
+    },
+    parentUuid() {
+      return this.$store.getters['graph/parentUuidByUuid'][this.uuid];
+    },
+    taskParent() {
+      let parent;
+      if (!_.isNil(this.parentUuid)) {
+        parent = {
+          uuid: this.parentUuid,
+          name: this.taskNameByUuid[this.parentUuid],
+        };
+      } else {
+        parent = {};
+      }
+      return parent;
+    },
     detailedTask() {
-      return this.$store.state.tasks.detailedTask;
+      const addedFields = { children: this.taskChildren, parent: this.taskParent };
+      return _.assign(addedFields, this.taskAttributes);
     },
     displayNode() {
       // If we haven't fetched the details for some reason, just show the base properties.
@@ -146,6 +174,11 @@ export default {
     },
   },
   methods: {
+    fetchTaskAttributes() {
+      api.fetchTaskDetails(this.uuid).then((taskAttributes) => {
+        this.taskAttributes = taskAttributes;
+      });
+    },
     linkToUuid(uuid) {
       return routeTo2(this.$route.query, 'XNodeAttributes', { uuid });
     },
@@ -179,6 +212,13 @@ export default {
     formatTime(unixTime) {
       const humanTime = DateTime.fromSeconds(unixTime).toLocaleString(DateTime.DATETIME_FULL);
       return `${humanTime} (orig: ${unixTime})`;
+    },
+  },
+  watch: {
+    // eslint-disable-next-line
+    '$route': {
+      handler: 'fetchTaskAttributes',
+      immediate: true,
     },
   },
 };
