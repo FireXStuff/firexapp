@@ -235,7 +235,7 @@ your plugin to add an override for the sleep task:
     def sleep(self, patience=5, **kwargs):
         """ new and improved sleep """
         logger.debug('Perform pre-sleep routine')
-        logger.debug('Brush Put on PJs')
+        logger.debug('Put on PJs')
         logger.debug('Brush teeth')
         logger.debug('Read bedtime stories')
         while patience:
@@ -246,5 +246,5 @@ your plugin to add an override for the sleep task:
         # now preform the original
         self.enqueue_child(self.orig.s(**kwargs), block=True)
 
-In the above code, the new overriding task will schedule the original as a child task, performing the extra processing
-before hand.
+In the above code, the new overriding task will schedule the original as a child task, obtained using **self.orig**,
+performing the extra processing before hand.
