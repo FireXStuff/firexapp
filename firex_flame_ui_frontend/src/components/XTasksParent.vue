@@ -17,11 +17,11 @@
 </template>
 
 <script>
-import io from 'socket.io-client';
 import _ from 'lodash';
+
+import * as api from '../api';
 import {
-  parseRecFileContentsToNodesByUuid, eventHub, socketRequestResponse,
-  orderByTaskNum, twoDepthAssign,
+  parseRecFileContentsToNodesByUuid, eventHub, orderByTaskNum, twoDepthAssign,
 } from '../utils';
 
 export default {
@@ -33,9 +33,8 @@ export default {
   data() {
     return {
       logDir: this.inputLogDir,
-      socketUpdateInProgress: false,
+      updating: false,
       displayMessage: { content: '', color: '' },
-      socket: null,
       // Batch incoming task data in order to debounce incoming changes.
       newTaskDataToDispatch: {},
     };
@@ -72,44 +71,23 @@ export default {
     hasTasks() {
       return this.$store.getters['tasks/hasTasks'];
     },
-    useRecFile() {
-      return !this.flameServerUrl;
-    },
     hasIncompleteTasks() {
       return this.$store.getters['tasks/hasIncompleteTasks'];
     },
     canRevoke() {
       return this.$store.getters['tasks/canRevoke'];
     },
-    updating() {
-      return this.$asyncComputed.recFileNodesByUuid.updating || this.socketUpdateInProgress;
-    },
     liveUpdate() {
       return this.$store.state.graph.liveUpdate;
     },
-  },
-  asyncComputed: {
-    recFileNodesByUuid: {
-      get() {
-        if (!this.useRecFile) {
-          return null;
-        }
-        return this.fetchNodesByUuidFromRecFile(`${this.logDir}/flame.rec`);
-      },
-      // default: {},
+    isApiConnected() {
+      return this.$store.state.tasks.apiConnected;
     },
   },
   created() {
     eventHub.$on('revoke-root', () => { this.revokeTask(this.rootUuid); });
     eventHub.$on('revoke-task', (uuid) => { this.revokeTask(uuid); });
-    eventHub.$on('graph-refresh', () => {
-      if (this.useRecFile) {
-        this.$asyncComputed.recFileNodesByUuid.update();
-      } else {
-        this.updateSocketFullState(this.socket, false);
-      }
-    });
-    this.setFlameRunMetadata(this.socket);
+    eventHub.$on('graph-refresh', () => { this.updateFullTasksState(this.liveUpdate); });
   },
   methods: {
     fetchNodesByUuidFromRecFile(recFileUrl) {
@@ -117,52 +95,51 @@ export default {
         .then(r => r.text())
         .then(recFileContent => parseRecFileContentsToNodesByUuid(recFileContent));
     },
-    setSocketNodesByUuid(newNodesByUuid) {
+    setNodesByUuid(newNodesByUuid) {
       this.newTaskDataToDispatch = {};
       this.$store.dispatch('tasks/setTasks', orderByTaskNum(newNodesByUuid));
     },
-    // eslint-disable-next-line
-    debouncedDispatchTasksUpdate: _.debounce(function() {
-      this.$store.dispatch('tasks/addTasksData', this.newTaskDataToDispatch);
-      this.newTaskDataToDispatch = {};
-    }, 500, { maxWait: 1500, leading: true, trailing: true }),
+    debouncedDispatchTasksUpdate: _.debounce(
+      // eslint-disable-next-line
+      function () {
+        this.$store.dispatch('tasks/addTasksData', this.newTaskDataToDispatch);
+        this.newTaskDataToDispatch = {};
+      // Wait at least 500ms of no events before updating tasks, up to a max of 1.5s.
+      }, 500, { maxWait: 1500, leading: true, trailing: true },
+    ),
     mergeNodesByUuid(newDataByUuid) {
       this.newTaskDataToDispatch = Object.freeze(
         twoDepthAssign(this.newTaskDataToDispatch, newDataByUuid),
       );
       this.debouncedDispatchTasksUpdate();
     },
-    stopSocketListening(socket) {
-      // Stop listening on everything.
-      socket.off('graph-state');
-      socket.off('tasks-update');
+    startLiveUpdate() {
+      api.startLiveUpdate(this.mergeNodesByUuid);
     },
-    updateSocketFullState(socket, startListenForUpdates) {
+    updateFullTasksState(startListenForUpdates) {
+      this.updating = true;
       // full state refresh plus subscribe to incremental updates.
-      socket.on('graph-state', (nodesByUuid) => {
-        this.handleFullStateFromSocket(socket, nodesByUuid, startListenForUpdates);
+      const taskGraphPromise = api.getTaskGraph();
+      if (startListenForUpdates) {
+        taskGraphPromise.then((nodesByUuid) => {
+          this.startLiveUpdate();
+          return nodesByUuid;
+        });
+      }
+      taskGraphPromise.then((nodesByUuid) => {
+        this.setNodesByUuid(nodesByUuid);
       });
-      socket.emit('send-graph-state');
+      taskGraphPromise.finally(() => { this.updating = false; });
     },
-    startSocketListening(socket) {
-      this.updateSocketFullState(socket, true);
-      this.socketUpdateInProgress = true;
+    fetchAllTasksAndStartLiveUpdate() {
+      this.updateFullTasksState(true);
       // TODO: going back to old flame isn't necessarily the right thing to do.
       setTimeout(() => {
-        if (!this.hasTasks && this.socket.connected) {
+        if (!this.hasTasks && this.isApiConnected) {
           // How to handle no data? Fallback to rec?
           window.location.href = `${this.flameServerUrl}?noUpgrade=true`;
         }
       }, 10000);
-    },
-    handleFullStateFromSocket(socket, nodesByUuid, startListenForUpdates) {
-      this.setSocketNodesByUuid(nodesByUuid);
-      this.socketUpdateInProgress = false;
-      // Only start listening for incremental updates after we've processed the full state.
-      if (startListenForUpdates && this.hasIncompleteTasks) {
-        socket.on('tasks-update', this.mergeNodesByUuid);
-      }
-      socket.off('send-graph-state');
     },
     revokeTask(uuid) {
       if (!this.canRevoke) {
@@ -171,63 +148,43 @@ export default {
       const isRoot = uuid === this.rootUuid;
       const messageDetail = isRoot ? 'this FireX run' : 'this task';
 
-      // TODO: replace with toastr or similar.
+      // TODO: replace displayMessage display with toastr or similar.
       /* eslint-disable no-alert */
       const terminate = window.confirm(`Are you sure you want to terminate ${messageDetail}?`);
       if (terminate) {
-        socketRequestResponse(
-          this.socket,
-          { name: 'revoke-task', data: uuid },
-          {
-            name: 'revoke-success',
-            fn: () => {
-              const confirmationDetail = isRoot ? 'Run' : 'Task';
-              this.displayMessage = { content: `${confirmationDetail} terminated`, color: '#F40' };
-              setTimeout(() => { this.displayMessage = { content: '', color: '' }; }, 4000);
-            },
+        api.revokeTask(uuid).then(
+          () => {
+            const confirmationDetail = isRoot ? 'Run' : 'Task';
+            this.displayMessage = { content: `${confirmationDetail} terminated`, color: '#F40' };
+            setTimeout(() => {
+              this.displayMessage = { content: '', color: '' };
+            }, 4000);
           },
-          {
-            name: 'revoke-failed',
-            fn: () => {
+          (errResponse) => {
+            if (_.get(errResponse, 'timeout', false)) {
+              this.displayMessage = { content: 'No response from server.', color: '#BBB' };
+            } else {
+              // non-timeout failure.
               this.displayMessage = { content: 'UNSUCCESSFUL TERMINATION', color: '#BBB' };
               setTimeout(() => { this.displayMessage = { content: '', color: '' }; }, 6000);
-            },
-          },
-          {
-            waitTime: 5000,
-            fn: () => {
-              this.displayMessage = { content: 'No response from server.', color: '#BBB' };
-            },
+            }
           },
         );
         this.displayMessage = { content: 'Waiting for celery...', color: 'deepskyblue' };
       }
     },
     fetchTaskDetails(uuid) {
-      if (this.useRecFile) {
-        this.$store.dispatch('tasks/setDetailedTask', this.recFileNodesByUuid[uuid]);
-      } else {
-        const eventName = `task-details-${uuid}`;
-        this.socket.on(eventName, (data) => {
-          this.socket.off(eventName);
-          this.$store.dispatch('tasks/setDetailedTask', data);
-          // TODO: add timeout on failure and  handle already disconntected.
-        });
-        this.socket.emit('send-task-details', uuid);
-      }
+      api.fetchTaskDetails(uuid).then((data) => {
+        // TODO: add timeout on failure and  handle already disconntected.
+        this.$store.dispatch('tasks/setDetailedTask', data);
+      });
     },
-    setFlameRunMetadata(socket) {
-      if (!this.useRecFile) {
-        socketRequestResponse(socket,
-          { name: 'send-run-metadata' },
-          {
-            name: 'run-metadata',
-            fn: (data) => {
-              data.flameServerUrl = this.flameServerUrl;
-              this.$store.commit('firexRunMetadata/setFlameRunMetadata', data);
-            },
-          });
-      }
+    setFlameRunMetadata() {
+      api.getFireXRunMetadata().then((data) => {
+        // TODO: is adding the server URL still necessary?
+        data.flameServerUrl = this.flameServerUrl;
+        this.$store.commit('firexRunMetadata/setFlameRunMetadata', data);
+      });
     },
   },
   beforeRouteEnter(to, from, next) {
@@ -246,37 +203,25 @@ export default {
     },
     liveUpdate(newLiveUpdate) {
       if (newLiveUpdate) {
-        this.startSocketListening(this.socket);
+        this.fetchAllTasksAndStartLiveUpdate();
       } else {
-        this.stopSocketListening(this.socket);
+        api.stopLiveUpdate();
       }
     },
     flameServerUrl: {
       immediate: true,
       handler(newFlameServerUrl) {
-        // Clear data from previous socket.
-        this.setSocketNodesByUuid({});
+        // Clear data from previous api accessor.
+        this.setNodesByUuid({});
 
-        if (_.has(this.socket, 'off')) {
-          this.socket.off();
-        }
+        // TODO: should probably timeout trying to reconnect after some time.
+        api.setAccessor('socketio', newFlameServerUrl, {
+          onConnect: () => this.$store.commit('tasks/setApiConnected', true),
+          onDisconnect: () => this.$store.commit('tasks/setApiConnected', false),
+        });
 
-        if (this.useRecFile) {
-          this.socket = { connected: false };
-        } else {
-          // TODO: have UI indications of socket state (connected, connection lost, etc.).
-          // TODO: should probably timeout trying to reconnect after some time.
-          this.socket = io(newFlameServerUrl);
-
-          this.startSocketListening(this.socket);
-          this.setFlameRunMetadata(this.socket);
-          this.socket.on('connect', () => {
-            this.$store.commit('tasks/setSocketConnected', true);
-          });
-          this.socket.on('disconnect', () => {
-            this.$store.commit('tasks/setSocketConnected', false);
-          });
-        }
+        this.fetchAllTasksAndStartLiveUpdate();
+        this.setFlameRunMetadata();
       },
     },
   },

@@ -11,7 +11,7 @@ const tasksState = {
   // TODO: this shouldn't be stored globally, but rather fetched by the attribute viewing
   // component. This requires API operations to be externalized from XParent.
   detailedTask: {},
-  socketConnected: false,
+  apiConnected: false,
   // unfortunately we need to track this manually. TODO: look for a better way.
   taskNodeSizeByUuid: {},
 
@@ -74,7 +74,7 @@ const tasksGetters = {
     return _.isEmpty(nullParents) ? null : _.head(nullParents).uuid;
   },
 
-  canRevoke: (state, getters) => getters.hasIncompleteTasks && state.socketConnected,
+  canRevoke: (state, getters) => getters.hasIncompleteTasks && state.apiConnected,
 
   searchForUuids: state => (searchTerm) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
@@ -189,8 +189,8 @@ const mutations = {
     state.detailedTask = detailedTask;
   },
 
-  setSocketConnected(state, newSocketConnected) {
-    state.socketConnected = newSocketConnected;
+  setApiConnected(state, apiConnected) {
+    state.apiConnected = apiConnected;
   },
 
   addTaskNodeSize(state, taskNodeSizeByUuid) {

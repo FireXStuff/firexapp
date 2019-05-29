@@ -182,39 +182,6 @@ function getCenteringTransform(rectToCenter, container, scaleBounds, verticalPad
   return { x: -xTranslate, y: -yTranslate, scale };
 }
 
-function socketRequestResponse(socket, requestEvent, successEvent, failedEvent, timeout) {
-  let responseReceived = false;
-  socket.on(successEvent.name, (data) => {
-    responseReceived = true;
-    successEvent.fn(data);
-    socket.off(successEvent.name);
-    if (!_.isNil(failedEvent)) {
-      socket.off(failedEvent.name);
-    }
-  });
-  if (!_.isNil(failedEvent)) {
-    socket.on(failedEvent.name, (data) => {
-      responseReceived = true;
-      failedEvent.fn(data);
-      socket.off(successEvent.name);
-      socket.off(failedEvent.name);
-    });
-  }
-
-  if (!_.isNil(timeout)) {
-    setTimeout(() => {
-      if (!responseReceived) {
-        timeout.fn();
-      }
-    }, timeout.waitTime);
-  }
-  if (requestEvent.data !== undefined) {
-    socket.emit(requestEvent.name, requestEvent.data);
-  } else {
-    socket.emit(requestEvent.name);
-  }
-}
-
 function isTaskStateIncomplete(state) {
   const incompleteStates = ['task-blocked', 'task-started', 'task-received', 'task-unblocked'];
   return _.includes(incompleteStates, state);
@@ -410,7 +377,6 @@ export {
   eventHub,
   calculateNodesPositionByUuid,
   getCenteringTransform,
-  socketRequestResponse,
   routeTo2,
   isTaskStateIncomplete,
   hasIncompleteTasks,
