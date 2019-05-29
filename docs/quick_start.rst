@@ -248,3 +248,8 @@ your plugin to add an override for the sleep task:
 
 In the above code, the new overriding task will schedule the original as a child task, obtained using **self.orig**,
 performing the extra processing before hand.
+
+The view from flame looks as follows
+
+.. image:: sleep_override_flame.png
+   :align: center
