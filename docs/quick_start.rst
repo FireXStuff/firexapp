@@ -137,7 +137,8 @@ Now that we have our task available, let use learn more about it. You can use th
 
 Finally, let use our task. You use the 'submit' sub command to execute the task. In this example, we'll also include
 --sync so that the console is locked for the full execution of the run. This is useful for cases where firexapp needs
-to block the execution, such as in a Jenkin's job.
+to block the execution, such as in a Jenkin's job. Omitting --sync will send FireX App execution to the background
+instead of waiting till completion.
 
 .. code-block:: text
 
@@ -161,6 +162,64 @@ We can investigate the logs to find the printed statement.
 
 Assembling complex tasks
 ------------------------
+
+While running one task is nice, it is hardly revolutionary. One of the great benefits of FireX App is it's ability to
+easy stitch tasks together in chains or run them in parallel, all while providing clear understanding of where failures
+occur.
+
+.. code-block:: python
+
+    import os
+    from firexapp.engine.celery import app
+    from celery.utils.log import get_task_logger
+
+    logger = get_task_logger(__name__)
+
+    @app.task(bind=True)
+    def GatherResults(self, destination_dir):
+        logger.debug('')
+        locations = ['OTT', 'BGL', 'SJC']
+        for location in locations:
+            # depending on location, times may vary
+            loc_task = GatherResultsFromLocation.s(location=location, destination_dir=destination_dir)
+            self.enqueue_child(loc_task)
+
+         # This will wait for all GatherResultsFromLocation, which run in parallel, to complete
+         self.wait_for_children()
+
+         # assemble a post processing chain
+         final_report_dir = os.path.join(destination_dir, "final_report")
+         c = AggregateResults.s(results_dir=destination_dir, destination_dir=final_report_dir)
+
+         # chain validation behind the aggregation. The @ symbol indicates that the @returns of one task should be the
+         # input to the other
+         c |= ValidateResults.s(results_file='@aggregated_results_file')
+
+         # we enqueue the chain. block=True indicates that we want to wait for it's completion before proceeding
+         self.enqueue_child(c, block=True)
+
+        logger.debug('Completed successfully')
+
+
+    @app.task
+    def GatherResultsFromLocation(location, destination_dir):
+        logger.debug('Getting results from ' + location)
+        # ...
+
+    @app.task
+    @returns('aggregated_results_file')
+    def AggregateResults(results_dir, destination_dir)
+        logger.debug('Aggregating all results in directory')
+        # ...
+
+    @app.task
+    def ValidateResults(results_file):
+        logger.debug('Looking for failures')
+        # ...
+
+In the above example, a task is schedule 3 times, targeting different data. They will run in parallel until all are
+completed, before proceeding to process what the produced. The post-processing is assembled in a chain, and that chain
+is scheduled and the parent task waits for it to complete.
 
 Logs
 ----
