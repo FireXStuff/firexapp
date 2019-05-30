@@ -224,6 +224,39 @@ is scheduled and the parent task waits for it to complete.
 Logs
 ----
 
+For each FireX App run, a logs directory is created. All information about the run are collected there, providing a
+central place to find results, traces, and the answer to that age old question: "What the hell just happened".
+
+microservice_logs
+~~~~~~~~~~~~~~~~~
+
+This subdirectory contains all the logs that the tasks themselves log. Anytime you see `logger.debug('hello')` in a
+task, that log will go into files int the microservice_logs directory. The directory consists of:
+
+    - a main file, containing all the logs (including celery main logs). It will be named mc@host.html
+    - a subdirectory, containing all the logs by individual tasks. This help you get a view of one single task.
+
+debug
+~~~~~
+
+The debug subdirectory of the logs contains all the information pertaining to the actual FireX App engine and the
+execution of the run. Some important areas of note:
+
+    - submission.txt; This contains the debug log of the launch of the run
+    - environ.json; This is a dump of the users's env at run time
+    - celery/; this subdirectory contains celery's app output. This is not the log messages from the tasks themselves (see previous section), but of the celery process
+    - redis/; this subdirectory contains the broker output.
+
+Using logs_dir from inside a task
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+It is sometimes useful to store files or artifacts in the logs directory, either for debugging or for general storage.
+From within a task, the path to the logs directory can be obtained using the following statement.
+
+.. code-block:: python
+
+    logs_dir = app.backend.get("logs_dir").decode()
+
 Flame
 -----
 
