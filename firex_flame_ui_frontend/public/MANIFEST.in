@@ -2,5 +2,6 @@ include *.html
 include js/*.js
 include img/*
 include css/*.css
-include COMMITHASHinclude versioneer.py
+include COMMITHASH
+include versioneer.py
 include _version.py
