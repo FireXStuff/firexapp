@@ -18,7 +18,8 @@ setup(name='firex_flame_ui',
       include_package_data=True,
       package_data={
             # Files available to consumers of this python package (UI build artifacts).
-            'firex_flame_ui': ['*.html', 'js/*.js', 'img/*', 'css/*.css'],
+            # NOTE: these expressions must also be present in MANIFEST.in
+            'firex_flame_ui': ['*.html', 'js/*.js', 'img/*', 'css/*.css', 'COMMITHASH'],
       },
       entry_points={},
       )

@@ -1,3 +1,5 @@
+var GitRevisionPlugin = require('git-revision-webpack-plugin');
+
 module.exports = {
   lintOnSave: process.env.NODE_ENV !== 'production',
   runtimeCompiler: undefined,
@@ -6,5 +8,10 @@ module.exports = {
   assetsDir: undefined,
   productionSourceMap: undefined,
   parallel: undefined,
-  css: undefined
+  css: undefined,
+  configureWebpack: {
+    plugins: [
+      new GitRevisionPlugin(),
+    ],
+  },
 };
