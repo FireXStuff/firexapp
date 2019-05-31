@@ -140,14 +140,24 @@ export default {
     },
     headerLinks() {
       return [
-        { name: 'graph', to: routeTo2(this.$route.query, 'XGraph'), icon: 'sitemap' },
+        {
+          name: 'graph',
+          to: routeTo2(this.$route.query, 'XGraph'),
+          icon: 'sitemap',
+          title: 'Main Graph',
+        },
         {
           name: 'logs',
           href: this.$store.getters['firexRunMetadata/logsUrl'],
           text: 'Logs',
           icon: 'file-alt',
         },
-        { name: 'help', to: routeTo2(this.$route.query, 'XHelp'), text: 'Help' },
+        {
+          name: 'help',
+          to: routeTo2(this.$route.query, 'XHelp'),
+          text: 'Help',
+          icon: 'question-circle',
+        },
       ];
     },
     sortedTasksUuids() {

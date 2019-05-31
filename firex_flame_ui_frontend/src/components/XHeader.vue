@@ -10,7 +10,8 @@
         <div class="uid">{{title}}</div>
         <div v-if="chain" class="flame-link"><b>{{chain}}</b></div>
 
-        <a :href="legacyUrl" class="flame-link" style="font-size: 16px;">
+        <a  v-if="isCiscoDeployment"
+            :href="legacyUrl" class="flame-link" style="font-size: 16px;">
           🔥 Back to Legacy 🔥
         </a>
 
@@ -19,28 +20,14 @@
           <slot name="prebuttons" class="header-icon-button"></slot>
 
           <template v-for="link in links">
-            <router-link v-if="link.to"
-                         class="flame-link"
-                         :to="link.to"
-                         :title="link.title"
-                         :key="link.name">
-              <font-awesome-icon v-if="link.icon" :icon="link.icon" fixed-width/>
-              <template v-if="link.text">{{link.text}}</template>
-            </router-link>
-            <a v-else-if="link.href" class="flame-link" :href="link.href" :key="link.name">
-              <font-awesome-icon v-if="link.icon" :icon="link.icon" fixed-width/>
-              <template v-if="link.text">{{link.text}}</template>
-            </a>
-            <div v-else-if="link.on"
-                 class="header-icon-button"
-                 v-on:click="link.on()"
-                 :class="link._class"
-                 :style="link.toggleState ? 'color: #2B2;' : ''"
-                 :title="link.title"
-                 :key="link.name">
-              <font-awesome-icon v-if="link.icon" :icon="link.icon" fixed-width/>
-              <template v-if="link.text">{{link.text}}</template>
-            </div>
+            <popper :key="link.name"
+                    trigger="hover" :options="{ placement: 'bottom' }"
+                    :disabled="!Boolean(link.title)">
+              <div class="popper header-popover">{{link.title}}</div>
+              <div slot="reference">
+                <x-header-button :link="link"></x-header-button>
+              </div>
+            </popper>
           </template>
         </div>
       </div>
@@ -50,9 +37,14 @@
 <script>
 import _ from 'lodash';
 import { mapState } from 'vuex';
+import Popper from 'vue-popperjs';
+import 'vue-popperjs/dist/vue-popper.css';
+
+import XHeaderButton from './XHeaderButton.vue';
 
 export default {
   name: 'XHeader',
+  components: { XHeaderButton, Popper },
   props: {
     title: { default: '' },
     links: { default: () => [], type: Array },
@@ -61,6 +53,7 @@ export default {
   computed: {
     ...mapState({
       chain: state => state.firexRunMetadata.chain,
+      centralServer: state => state.firexRunMetadata.centralServer,
     }),
     legacyUrl() {
       // If there is no flame server query parameter, assume the app is being served from a flame
@@ -68,6 +61,9 @@ export default {
       // TODO: Not great reading flame server directly from route.
       const start = _.get(this.$route, 'query.flameServer', '');
       return `${start}${this.legacyPath}?noUpgrade=true`;
+    },
+    isCiscoDeployment() {
+      return this.centralServer === 'http://firex.cisco.com';
     },
   },
 };
@@ -88,20 +84,6 @@ export default {
   font-size: 20px;
   line-height: 40px;
   font-weight: normal;
-}
-
-.flame-link {
-  font-family: 'Source Sans Pro',sans-serif;
-  vertical-align: top;
-  border-left: 1px solid #000;
-  line-height: 40px;
-  text-align: center;
-  padding: 0 8px;
-  text-decoration: none;
-  color: #000;
-  border-radius: 0;
-  font-size: 20px;
-  justify-content: flex-end;
 }
 
 .header-icon-button {
@@ -133,6 +115,16 @@ a:hover {
 .kill-button:hover {
   color: #fff;
   background: #900;
+}
+
+.header-popover {
+  padding: 3px;
+  font-size: 13px;
+  line-height: 1em;
+  /*background: white;*/
+  border-color: black;
+  border-radius: 0;
+  box-shadow: 2px 1px 1px rgb(58, 58, 58);
 }
 
 </style>
