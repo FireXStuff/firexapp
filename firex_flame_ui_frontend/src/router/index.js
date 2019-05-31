@@ -64,13 +64,13 @@ const router = new Router({
       ],
     },
     {
-      path: 'help',
+      path: '/help',
       name: 'XHelp',
       component: XHelp,
       props: true,
     },
     {
-      path: 'shortcuts',
+      path: '/shortcuts',
       name: 'XShortcuts',
       component: XShortcuts,
       props: true,

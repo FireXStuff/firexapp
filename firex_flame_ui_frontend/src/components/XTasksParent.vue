@@ -158,17 +158,15 @@ export default {
           () => {
             const confirmationDetail = isRoot ? 'Run' : 'Task';
             this.displayMessage = { content: `${confirmationDetail} terminated`, color: '#F40' };
-            setTimeout(() => {
-              this.displayMessage = { content: '', color: '' };
-            }, 4000);
+            setTimeout(() => { this.displayMessage = { content: '', color: '' }; }, 4000);
           },
           (errResponse) => {
-            if (_.get(errResponse, 'timeout', false)) {
+            if (!_.isNil(errResponse) && _.get(errResponse, 'timeout', false)) {
               this.displayMessage = { content: 'No response from server.', color: '#BBB' };
             } else {
               // non-timeout failure.
               this.displayMessage = { content: 'UNSUCCESSFUL TERMINATION', color: '#BBB' };
-              setTimeout(() => { this.displayMessage = { content: '', color: '' }; }, 6000);
+              setTimeout(() => { this.displayMessage = { content: '', color: '' }; }, 8000);
             }
           },
         );

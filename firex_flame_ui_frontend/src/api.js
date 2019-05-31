@@ -89,7 +89,7 @@ function createSocketApiAccessor(url, options) {
 
     revoke: uuid => socketRequestResponse(
       socket, { name: 'revoke-task', data: uuid }, 'revoke-success',
-      'revoke-failed', 7000,
+      'revoke-failed', 10000,
     ),
 
     cleanup: () => socket.off(),

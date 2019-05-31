@@ -73,65 +73,80 @@
 <script>
 
 import _ from 'lodash';
+import { mapState } from 'vuex';
+
 import XNode from './nodes/XTaskNode.vue';
 import XHeader from './XHeader.vue';
+import { routeTo2 } from '../utils';
 
 export default {
   name: 'XHelp',
   components: { XHeader, XNode },
   data() {
     return {
-
-      headerParams: {
-        title: 'Help',
-        links: [
-          {
-            name: 'shortcuts',
-            to: {
-              name: 'XShortcuts',
-              query: {
-                logDir: this.$route.query.logDir,
-                flameServer: this.$route.query.flameServer,
-              },
-            },
-            text: 'Shortcuts',
-          },
-          // TODO: where should open-source documentation link to?
-          { name: 'documentation', href: 'http://firex.cisco.com', text: 'Documentation' },
-          {
-            name: 'help',
-            to: {
-              name: 'XHelp',
-              query: {
-                logDir: this.$route.query.logDir,
-                flameServer: this.$route.query.flameServer,
-              },
-            },
-            text: 'Help',
-            icon: 'question-circle',
-          },
-        ],
-        legacyPath: '/help',
+      baseNode: {
+        name: 'noop',
+        hostname: 'hostname',
+        task_num: 1,
+        actual_runtime: 0.5,
+        uuid: '372bcc97-36a0-45cd-a322-3253155da856',
       },
     };
   },
   created() {
-    const baseNode = {
-      name: 'noop',
-      hostname: 'hostname',
-      task_num: 1,
-      actual_runtime: 0.5,
-      uuid: '372bcc97-36a0-45cd-a322-3253155da856',
-    };
     const tasksByUuid = {
-      startedNode: _.merge({}, baseNode, { state: 'task-started' }),
-      succeededNode: _.merge({}, baseNode, { state: 'task-succeeded' }),
-      failedNode: _.merge({}, baseNode, { state: 'task-failed' }),
-      revokedNode: _.merge({}, baseNode, { state: 'task-revoked' }),
-      blockedNode: _.merge({}, baseNode, { state: 'task-blocked' }),
-      pluginSucceededNode: _.merge({}, baseNode, { state: 'task-succeeded', from_plugin: true }),
+      startedNode: _.merge({}, this.baseNode, { state: 'task-started' }),
+      succeededNode: _.merge({}, this.baseNode, { state: 'task-succeeded' }),
+      failedNode: _.merge({}, this.baseNode, { state: 'task-failed' }),
+      revokedNode: _.merge({}, this.baseNode, { state: 'task-revoked' }),
+      blockedNode: _.merge({}, this.baseNode, { state: 'task-blocked' }),
+      pluginSucceededNode: _.merge({}, this.baseNode, { state: 'task-succeeded', from_plugin: true }),
     };
     this.$store.dispatch('tasks/setTasks', tasksByUuid);
+  },
+  computed: {
+    ...mapState({
+      docUrl: state => state.firexRunMetadata.central_documentation_url,
+    }),
+    tasksByUuid() {
+      return {
+        startedNode: _.merge({}, this.baseNode, { state: 'task-started' }),
+        succeededNode: _.merge({}, this.baseNode, { state: 'task-succeeded' }),
+        failedNode: _.merge({}, this.baseNode, { state: 'task-failed' }),
+        revokedNode: _.merge({}, this.baseNode, { state: 'task-revoked' }),
+        blockedNode: _.merge({}, this.baseNode, { state: 'task-blocked' }),
+        pluginSucceededNode: _.merge({}, this.baseNode,
+          { state: 'task-succeeded', from_plugin: true }),
+      };
+    },
+    headerParams() {
+      return {
+        title: 'Help',
+        links: [
+          {
+            name: 'shortcuts',
+            to: routeTo2(this.$route.query, 'XShortcuts'),
+            text: 'Shortcuts',
+            icon: 'keyboard',
+          },
+          {
+            name: 'documentation',
+            href: this.docUrl,
+            text: 'Documentation',
+            icon: 'book',
+          },
+        ],
+        legacyPath: '/help',
+      };
+    },
+  },
+  watch: {
+    $route: {
+      immediate: true,
+      handler() {
+        this.$store.dispatch('tasks/setTasks', this.tasksByUuid);
+      },
+    },
   },
 };
 </script>

@@ -43,18 +43,11 @@ export default {
         title: 'Keyboard Shortcuts',
         links: [
           {
-            name: 'shortcuts',
-            to: {
-              name: 'XShortcuts',
-              query: {
-                logDir: this.$route.query.logDir,
-                flameServer: this.$route.query.flameServer,
-              },
-            },
-            text: 'Shortcuts',
+            name: 'documentation',
+            href: 'http://firex.cisco.com',
+            text: 'Documentation',
+            icon: 'book',
           },
-          // TODO: where should open-source documentation link to?
-          { name: 'documentation', href: 'http://firex.cisco.com', text: 'Documentation' },
           {
             name: 'help',
             to: {
