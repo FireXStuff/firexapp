@@ -1,4 +1,0 @@
-include dist/*.html
-include dist/js/*.js
-include dist/img/*
-include dist/css/*.css
