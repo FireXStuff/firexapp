@@ -1,10 +1,6 @@
 <template>
-  <div style="border-left: 1px solid #000; padding: 0 8px;">
-    <span class="collapse-button"
-      @click="dispatchCollapseAction('graph/expandAll')"
-      title="Expand All">
-     <font-awesome-icon icon="expand-arrows-alt"/>
-    </span>
+  <div style="padding-right: 8px; display: flex;">
+    <x-header-button :link="expandAllLink"></x-header-button>
 
     <popper v-if="anyCollapseOptionsAvailable"
       trigger="hover" :options="{ placement: 'bottom'}"
@@ -44,10 +40,11 @@ import Popper from 'vue-popperjs';
 import 'vue-popperjs/dist/vue-popper.css';
 
 import { eventHub } from '../utils';
+import XHeaderButton from './XHeaderButton.vue';
 
 export default {
   name: 'XCollapseButtons',
-  components: { Popper },
+  components: { XHeaderButton, Popper },
   data() {
     return {
       dropDownDisabled: false,
@@ -83,7 +80,14 @@ export default {
       return _.some(_.values(this.runStateByUuid), { state: 'task-failed' });
     },
     anyCollapseOptionsAvailable() {
-      return this.hasCollapsedNodes || this.canRestoreDefault || this.canShowOnlyFailed;
+      return this.canRestoreDefault || this.canShowOnlyFailed;
+    },
+    expandAllLink() {
+      return {
+        on: () => { this.dispatchCollapseAction('graph/expandAll'); },
+        title: 'Expand All',
+        icon: 'expand-arrows-alt',
+      };
     },
   },
   methods: {
@@ -125,6 +129,10 @@ export default {
   .collapse-menu-item:hover {
     color: #2980ff;
     cursor: pointer;
+  }
+
+  /deep/ .flame-link {
+    padding-right: 0;
   }
 
 </style>

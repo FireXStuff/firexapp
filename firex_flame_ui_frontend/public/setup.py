@@ -1,10 +1,9 @@
 from setuptools import setup
-# import versioneer
+import versioneer
 
 setup(name='firex_flame_ui',
-      # version=versioneer.get_version(),
-      version='0.5',
-      # cmdclass=versioneer.get_cmdclass(),
+      version=versioneer.get_version(),
+      cmdclass=versioneer.get_cmdclass(),
       description='UI for FireX.',
       url='https://github.com/FireXStuff/firex-flame-ui',
       author='Core FireX Team',

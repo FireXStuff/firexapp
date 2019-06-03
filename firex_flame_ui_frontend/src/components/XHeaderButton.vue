@@ -1,5 +1,9 @@
 <template>
-    <div class="flame-link">
+  <popper trigger="hover" :options="{ placement: 'bottom' }"
+          :disabled="!Boolean(link.title)">
+    <div class="popper header-popover">{{link.title}}</div>
+
+    <div slot="reference" class="flame-link">
       <router-link v-if="link.to" :to="link.to">
         <font-awesome-icon v-if="link.icon" :icon="link.icon" fixed-width/>
         <template v-if="link.text">{{link.text}}</template>
@@ -17,12 +21,16 @@
         <template v-if="link.text">{{link.text}}</template>
       </div>
     </div>
+  </popper>
 </template>
 
 <script>
+import Popper from 'vue-popperjs';
+import 'vue-popperjs/dist/vue-popper.css';
 
 export default {
   name: 'XHeaderButton',
+  components: { Popper },
   props: {
     link: { required: true, type: Object },
   },
@@ -65,6 +73,16 @@ a {
 
 a:hover {
     color: #2980ff;
+}
+
+.header-popover {
+  padding: 3px;
+  font-size: 13px;
+  line-height: 1em;
+  /*background: white;*/
+  border-color: black;
+  border-radius: 0;
+  box-shadow: 2px 1px 1px rgb(58, 58, 58);
 }
 
 </style>

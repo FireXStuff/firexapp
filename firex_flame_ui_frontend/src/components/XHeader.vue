@@ -17,17 +17,10 @@
 
         <div style="margin-left: auto; display: flex;">
 
-          <slot name="prebuttons" class="header-icon-button"></slot>
+          <slot name="prebuttons"></slot>
 
           <template v-for="link in links">
-            <popper :key="link.name"
-                    trigger="hover" :options="{ placement: 'bottom' }"
-                    :disabled="!Boolean(link.title)">
-              <div class="popper header-popover">{{link.title}}</div>
-              <div slot="reference">
-                <x-header-button :link="link"></x-header-button>
-              </div>
-            </popper>
+            <x-header-button :link="link" :key="link.name"></x-header-button>
           </template>
         </div>
       </div>
@@ -37,14 +30,12 @@
 <script>
 import _ from 'lodash';
 import { mapState } from 'vuex';
-import Popper from 'vue-popperjs';
-import 'vue-popperjs/dist/vue-popper.css';
 
 import XHeaderButton from './XHeaderButton.vue';
 
 export default {
   name: 'XHeader',
-  components: { XHeaderButton, Popper },
+  components: { XHeaderButton },
   props: {
     title: { default: '' },
     links: { default: () => [], type: Array },
@@ -86,20 +77,6 @@ export default {
   font-weight: normal;
 }
 
-.header-icon-button {
-  padding: 0 4px;
-  border-left: 1px solid #000;
-  justify-content: end;
-  font-size: 20px;
-  line-height: 40px;
-  cursor: pointer;
-  color: #000;
-}
-
-.header-icon-button:hover {
-    color: #2980ff;
-}
-
 a {
   color: #000;
 }
@@ -115,16 +92,6 @@ a:hover {
 .kill-button:hover {
   color: #fff;
   background: #900;
-}
-
-.header-popover {
-  padding: 3px;
-  font-size: 13px;
-  line-height: 1em;
-  /*background: white;*/
-  border-color: black;
-  border-radius: 0;
-  box-shadow: 2px 1px 1px rgb(58, 58, 58);
 }
 
 </style>
