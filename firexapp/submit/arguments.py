@@ -1,4 +1,5 @@
-
+import os
+import sys
 import re
 from firexkit.argument_conversion import ConverterRegister
 from typing import Union
@@ -161,6 +162,23 @@ def convert_booleans(kwargs):
             value = None
         kwargs[key] = value
     return kwargs
+
+
+@InputConverter.register
+def auto_load_pydev_debugging_plugin(kwargs):
+    if not sys.gettrace():
+        return
+
+    plugins = kwargs.get("plugins", "")
+    if "pydev_debug_plugin.py" in plugins:
+        return
+
+    # local and include the pydev debugging plugin
+    import firexapp.testing
+    debugging_plugin = os.path.join(os.path.dirname(firexapp.testing.__file__), "pydev_debug_plugin.py")
+    if plugins:
+        debugging_plugin = "," + debugging_plugin
+    return {"plugins": plugins + debugging_plugin}
 
 
 _global_argument_whitelist = set()
