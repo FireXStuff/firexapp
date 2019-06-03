@@ -63,24 +63,56 @@
             <td class="min">{{task.name}}</td>
             <td class="min">{{task.hostname}}</td>
             <td>
-              <popper trigger="hover" :options="{ placement: 'top'}" >
-                <div style="" class="popper popover-container">
-                  <div class="popover-title"><b>{{task.name}}</b></div>
-                  <div style="padding: 3px;">
-                    Started: {{formatShortTime(task.first_started, shortTimeSec)}}
-                  </div>
-                  <div style="padding: 3px;">
-                    Runtime: {{durationString(getRuntime(task))}}
-                    ({{(100 * getRuntime(task) / displayTasksDuration).toFixed(2)}}%)
-                  </div>
+              <div style="display: flex; flex-direction: column; height: 1.5em;"
+                   :style="taskRectOffsetStyleByUuid[task.uuid]">
+                <div style="height: 0.75em; display: flex; flex-direction: row;">
+                <div v-for="(stateData, uuid) in perStateRectByUuid[task.uuid]"
+                     :key="uuid" :style="stateData" class="state-rect">
+                  <popper trigger="hover"
+                          :options="{ placement: 'top' }"
+                          style="display: block;">
+                    <div class="popper popover-container">
+                      <div class="popover-title"><b>{{task.name}}</b></div>
+                      <div style="padding: 3px;">
+                        {{getRunstateDisplayName(stateData.state)}} at
+                        {{formatShortTime(stateData.timestamp, shortTimeSec)}}
+                      </div>
+                      <div style="padding: 3px;">
+                        {{getRunstateDisplayName(stateData.state)}}
+                        for {{durationString(stateData.stateDuraion)}}
+                        ({{(100 * stateData.stateDuraion
+                            / displayTasksDuration).toFixed(2)}}% of run)
+                      </div>
+                    </div>
+                    <span slot="reference" style="display: block; height: 0.75em">
+                    </span>
+                  </popper>
                 </div>
-                <div slot="reference"
-                    :style="chartRectStyleByUuid[task.uuid]" style="height: 1em;">
-                  <router-link :to="routeToAttribute(task.uuid)" class="task"
-                               style="display: block; height: 100%;">
-                  </router-link>
                 </div>
-              </popper>
+                <div v-if="!isTaskStateIncomplete(task.state)"
+                     style="display: block; height: 0.75em;">
+                  <popper trigger="hover"
+                          :options="{ placement: 'bottom'}">
+                    <div class="popper popover-container">
+                      <div class="popover-title"><b>{{task.name}}</b></div>
+                      <div style="padding: 3px;">
+                        Started: {{formatShortTime(task.first_started, shortTimeSec)}}
+                      </div>
+                      <div style="padding: 3px;">
+                        Runtime: {{durationString(getRuntime(task))}}
+                        ({{(100 * getRuntime(task) / displayTasksDuration).toFixed(2)}}%)
+                      </div>
+                    </div>
+                    <span slot="reference"
+                          :style="fullTaskRectStyleByUuid[task.uuid]"
+                          style="height: 0.75em;display: block;">
+                      <router-link :to="routeToAttribute(task.uuid)" class="task"
+                                   style="display: block; height: 100%;">
+                      </router-link>
+                    </span>
+                  </popper>
+                </div>
+              </div>
             </td>
             <td class="min">
               <div v-if="task.uuid in extraTaskFieldsByUuid" class="icon-links">
@@ -94,7 +126,6 @@
                   <font-awesome-icon icon="file-code"></font-awesome-icon>
                 </a>
               </div>
-
             </td>
           </tr>
         </tbody>
@@ -115,7 +146,7 @@ import XHeader from './XHeader.vue';
 import XTaskNodeSearch from './XTaskNodeSearch.vue';
 import * as api from '../api';
 import {
-  routeTo2, durationString, getNodeBackground, isTaskStateIncomplete,
+  routeTo2, durationString, getNodeBackground, isTaskStateIncomplete, getRunstateDisplayName,
 } from '../utils';
 
 export default {
@@ -163,8 +194,18 @@ export default {
     },
     headerLinks() {
       return [
-        { name: 'graph', to: routeTo2(this.$route.query, 'XGraph'), icon: 'sitemap' },
-        { name: 'list', to: routeTo2(this.$route.query, 'XList'), icon: 'list-ul' },
+        {
+          name: 'graph',
+          to: routeTo2(this.$route.query, 'XGraph'),
+          icon: 'sitemap',
+          title: 'Main Graph',
+        },
+        {
+          name: 'list',
+          to: routeTo2(this.$route.query, 'XList'),
+          icon: 'list-ul',
+          title: 'List View',
+        },
         {
           name: 'logs',
           href: this.$store.getters['firexRunMetadata/logsUrl'],
@@ -188,7 +229,7 @@ export default {
     displayTasksDuration() {
       return this.displayTasksEndTime - this.displayTasksStartTime;
     },
-    chartRectByUuid() {
+    fullTaskRectByUuid() {
       return _.mapValues(this.displayTasks,
         (t) => {
           const startOffsetPercentage = (t.first_started - this.displayTasksStartTime)
@@ -201,13 +242,50 @@ export default {
           };
         });
     },
-    chartRectStyleByUuid() {
+    perStateRectsByUuid() {
+      return _.mapValues(this.displayTasks, (t, u) => _.map(
+        _.get(this.extraTaskFieldsByUuid, [u, 'states'], []),
+        (stateTransition, i, transitions) => {
+          const startOffset = stateTransition.timestamp - this.displayTasksStartTime;
+          const startStateOffsetPercentage = startOffset / this.displayTasksDuration;
+          const endStateTimestamp = _.get(transitions, i + 1,
+            { timestamp: startStateOffsetPercentage });
+          const transitionDuration = endStateTimestamp.timestamp - stateTransition.timestamp;
+          const durationPercentage = transitionDuration / this.displayTasksDuration;
+          return {
+            offset: 100 * startStateOffsetPercentage,
+            // show something even for very small durations.
+            duration: 100 * durationPercentage,
+            state: stateTransition.state,
+            timestamp: stateTransition.timestamp,
+          };
+        },
+      ));
+    },
+    taskRectOffsetStyleByUuid() {
       return _.mapValues(this.displayTasks,
         t => ({
-          'margin-left': `${this.chartRectByUuid[t.uuid].offset}%`,
-          width: `${this.chartRectByUuid[t.uuid].duration}%`,
+          'padding-left': `${this.fullTaskRectByUuid[t.uuid].offset}%`,
+        }));
+    },
+    fullTaskRectStyleByUuid() {
+      return _.mapValues(this.displayTasks,
+        t => ({
+          // 'margin-left': `${this.fullTaskRectByUuid[t.uuid].offset}%`,
+          width: `${this.fullTaskRectByUuid[t.uuid].duration}%`,
           background: getNodeBackground(t.exception, t.state),
         }));
+    },
+    perStateRectByUuid() {
+      return _.mapValues(this.perStateRectsByUuid, (statesRects, u) => _.map(
+        statesRects, stateRect => ({
+          width: `${stateRect.duration}%`,
+          background: getNodeBackground(this.displayTasks[u].exception, stateRect.state),
+          state: stateRect.state,
+          timestamp: stateRect.timestamp,
+          stateDuraion: stateRect.duration
+        }),
+      ));
     },
     isAsc() {
       return this.sortDirection === 'asc';
@@ -257,6 +335,8 @@ export default {
     rootRoute(customRootUuid) {
       return routeTo2(this.$route.query, 'custom-root', { rootUuid: customRootUuid });
     },
+    getRunstateDisplayName,
+    isTaskStateIncomplete,
   },
   beforeRouteLeave(to, from, next) {
     // TODO: this should be cleared on FireX UID change or keyed on by FireX UID.
@@ -331,5 +411,11 @@ export default {
 
   .icon-links a:hover {
     color: #2980ff;
+  }
+
+  .state-rect:hover {
+    /*border: 2px solid lightgray;*/
+    box-shadow: 0px 3px 3px rgb(58, 58, 58);
+    z-index: 10;
   }
 </style>

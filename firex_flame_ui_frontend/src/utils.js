@@ -246,22 +246,51 @@ function uuidv4() {
 
 const successGreen = '#2A2';
 const statusToProps = {
-  'task-received': {background: '#888', priority: 6},
-  'task-blocked': {background: '#888', priority: 7},
+  'task-received': {
+    background: '#888',
+    priority: 6,
+    display: 'Received',
+  },
+  'task-blocked': {
+    background: '#888',
+    priority: 7,
+    display: 'Blocked',
+  },
   'task-started': {
     background: 'cornflowerblue', // animated in SVG, not in HTML.
     priority: 1,
+    display: 'In-Progress',
   },
-  'task-succeeded': {background: successGreen, priority: 9},
-  'task-shutdown': {background: successGreen, priority: 10},
-  'task-failed': {background: '#900', priority: 3},
-  'task-revoked': {background: '#F40', priority: 4},
+  'task-succeeded': {
+    background: successGreen,
+    priority: 9,
+    display: 'Success',
+  },
+  'task-shutdown': {
+    background: successGreen,
+    priority: 10,
+    display: 'Success',
+  },
+  'task-failed': {
+    background: '#900',
+    priority: 3,
+    display: 'Failed',
+  },
+  'task-revoked': {
+    background: '#F40',
+    priority: 4,
+    display: 'Revoked',
+  },
   'task-incomplete': {
     background: 'repeating-linear-gradient(45deg,#888,#888 5px,#444 5px,#444 10px)',
     priority: 5,
+    display: 'Incomplete',
   },
-  'task-completed': {background: '#AAA', priority: 8},
-  'task-unblocked': {background: 'cornflowerblue', priority: 2},
+  'task-unblocked': {
+    background: 'cornflowerblue',
+    priority: 2,
+    display: 'In-Progress',
+  },
 };
 
 function getNodeBackground(exception, state) {
@@ -276,6 +305,10 @@ function getPrioritizedTaskStateBackground(states) {
   const minState = _.minBy(states, s =>
     _.get(statusToProps, [s, 'priority'], 1000));
   return getNodeBackground(null, minState);
+}
+
+function getRunstateDisplayName(state) {
+  return _.get(statusToProps, state, { display: 'Unknown' }).display;
 }
 
 function getCollapsedGraphByNodeUuid(rootUuid, childrenUuidsByUuid, isCollapsedByUuid) {
@@ -387,6 +420,7 @@ export {
   uuidv4,
   getNodeBackground,
   getPrioritizedTaskStateBackground,
+  getRunstateDisplayName,
   getCollapsedGraphByNodeUuid,
   createCollapseOpsByUuid,
   createRunStateExpandOperations,
