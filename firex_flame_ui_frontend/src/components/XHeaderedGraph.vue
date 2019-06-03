@@ -12,7 +12,7 @@
               :links="headerParams.links"
               :legacyPath="headerParams.legacyPath">
       <template v-slot:prebuttons>
-        <x-task-node-search :findUncollapsedAncestor="true" class="header-icon-button">
+        <x-task-node-search :findUncollapsedAncestor="true">
         </x-task-node-search>
         <x-collapse-buttons></x-collapse-buttons>
       </template>
