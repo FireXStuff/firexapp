@@ -1,7 +1,7 @@
 
 steps:
 - name: gcr.io/cloud-builders/git
-  args: ['clone', 'https://github.com:FireXStuff/firex-flame-ui.git']
+  args: ['clone', 'https://github.com/FireXStuff/firex-flame-ui.git']
   dir: '$BUILD_ID'
 - name: gcr.io/$PROJECT_ID/firex-alpine-build
   args: ['sh', '-c', 'npm ci && npm run build && cd dist/ && python3 setup.py sdist && twine upload dist/*']
