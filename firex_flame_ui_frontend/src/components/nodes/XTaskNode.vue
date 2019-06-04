@@ -151,6 +151,14 @@ export default {
   },
   mounted() {
     this.emit_dimensions();
+    // TODO: might still be worth considering in conjunction with other solutions.
+    // Confirmed not affected by zoom, but still doesn't solve all flame-data node-sizing issues.
+    // if (this.emitDimensions && typeof ResizeObserver !== 'undefined') {
+    //   const resizeObserver = new ResizeObserver(() => {
+    //     this.emit_dimensions();
+    //   });
+    //   resizeObserver.observe(this.$el);
+    // }
   },
   updated() {
     this.emit_dimensions();
