@@ -136,12 +136,12 @@ export default {
     fetchAllTasksAndStartLiveUpdate() {
       this.updateFullTasksState(true);
       // TODO: going back to old flame isn't necessarily the right thing to do.
-      setTimeout(() => {
-        if (!this.hasTasks && this.isApiConnected) {
-          // How to handle no data? Fallback to rec?
-          window.location.href = `${this.flameServerUrl}?noUpgrade=true`;
-        }
-      }, 10000);
+      // setTimeout(() => {
+      //   if (!this.hasTasks && this.isApiConnected) {
+      //     // How to handle no data? Fallback to rec?
+      //     window.location.href = `${this.flameServerUrl}?noUpgrade=true`;
+      //   }
+      // }, 10000);
     },
     revokeTask(uuid) {
       if (!this.canRevoke) {

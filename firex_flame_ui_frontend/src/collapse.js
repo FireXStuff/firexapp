@@ -239,7 +239,6 @@ function resolveCollapseStatusByUuid(rootUuid, graphDataByUuid, collapseOpsByUui
 }
 
 function recursiveGetCollapseNodes(curUuid, childrenUuidsByUuid, parentId, isCollapsedByUuid) {
-
   const childResults = _.map(childrenUuidsByUuid[curUuid],
     childUuid => recursiveGetCollapseNodes(
       childUuid, childrenUuidsByUuid, curUuid, isCollapsedByUuid));
@@ -256,7 +255,8 @@ function recursiveGetCollapseNodes(curUuid, childrenUuidsByUuid, parentId, isCol
     const uncollapsedGrandchildrenParentCollapsed = _.filter(childrenUuidsByUuid[ccUuid],
       grandchildUuid => !isCollapsedByUuid[grandchildUuid]);
     _.each(uncollapsedGrandchildrenParentCollapsed,
-      (grandchildUuid) => { resultDescendantsByUuid[grandchildUuid].parentId = curUuid });
+      (grandchildUuid) => { resultDescendantsByUuid[grandchildUuid].parentId = curUuid; },
+    );
   });
 
   return _.assign({
