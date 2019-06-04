@@ -238,6 +238,42 @@ function resolveCollapseStatusByUuid(rootUuid, graphDataByUuid, collapseOpsByUui
   return resultNodesByUuid;
 }
 
+function recursiveGetCollapseNodes(curUuid, childrenUuidsByUuid, parentId, isCollapsedByUuid) {
+
+  const childResults = _.map(childrenUuidsByUuid[curUuid],
+    childUuid => recursiveGetCollapseNodes(
+      childUuid, childrenUuidsByUuid, curUuid, isCollapsedByUuid));
+  const resultDescendantsByUuid = _.reduce(childResults, _.merge, {});
+
+  const collapsedChildrenUuids = _.filter(childrenUuidsByUuid[curUuid],
+    childUuid => isCollapsedByUuid[childUuid]);
+  const collapsedDescendantUuids = _.flatMap(collapsedChildrenUuids,
+    cUuid => [cUuid].concat(resultDescendantsByUuid[cUuid].collapsedUuids));
+
+  // Every uncollapsed child of a collapsed child (i.e. uncollapsed grandchildren whose parents
+  // are collapsed) need to have this node set as their parent.
+  _.each(collapsedChildrenUuids, (ccUuid) => {
+    const uncollapsedGrandchildrenParentCollapsed = _.filter(childrenUuidsByUuid[ccUuid],
+      grandchildUuid => !isCollapsedByUuid[grandchildUuid]);
+    _.each(uncollapsedGrandchildrenParentCollapsed,
+      (grandchildUuid) => { resultDescendantsByUuid[grandchildUuid].parentId = curUuid });
+  });
+
+  return _.assign({
+    [[curUuid]]: {
+      collapsedUuids: collapsedDescendantUuids,
+      parentId,
+    },
+  }, resultDescendantsByUuid);
+}
+
+function getCollapsedGraphByNodeUuid(rootUuid, childrenUuidsByUuid, isCollapsedByUuid) {
+  // TODO: collapse operations on the root node are ignored. Could collapse 'down',
+  //  though it's unclear if that's preferable.
+  return recursiveGetCollapseNodes(rootUuid,
+    childrenUuidsByUuid, null, isCollapsedByUuid);
+}
+
 const stackOffset = 12;
 const stackCount = 2; // Always have 2 stacked behind the front.
 
@@ -248,4 +284,5 @@ export {
   stackOffset,
   stackCount,
   resolveCollapseStatusByUuid,
+  getCollapsedGraphByNodeUuid,
 };

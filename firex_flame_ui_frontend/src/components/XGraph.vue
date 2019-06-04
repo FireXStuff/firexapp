@@ -149,11 +149,6 @@ export default {
     uncollapsedNodeUuids() {
       return this.$store.getters['graph/uncollapsedNodeUuids'];
     },
-    allDescendantsCollapsedByUuid() {
-      return _.mapValues(this.uncollapsedGraphByNodeUuid,
-        (collapseData, uuid) => containsAll(collapseData.collapsedUuids,
-          this.graphDataByUuid[uuid].descendantUuids));
-    },
     focusedNodeUuid() {
       return this.$store.state.tasks.focusedTaskUuid;
     },
@@ -242,7 +237,7 @@ export default {
     toggleCollapseDescendants(parentNodeId) {
       const allChildrenExpanded = _.every(this.childrenUuidsByUuid[parentNodeId],
         cuuid => this.isCollapsedByUuid[cuuid]);
-      const allDescendantsCollapsed = this.allDescendantsCollapsedByUuid[parentNodeId];
+      const allDescendantsCollapsed = this.allDescendantsCollapsed(parentNodeId);
       const resolvedOperation = resolveToggleOperation(parentNodeId,
         allDescendantsCollapsed, allChildrenExpanded,
         this.collapseConfig.uiCollapseOperationsByUuid);
@@ -254,6 +249,10 @@ export default {
             resolvedOperation.operation, resolvedOperation.target, parentNodeId),
         },
       );
+    },
+    allDescendantsCollapsed(uuid) {
+      const collapseData = this.uncollapsedGraphByNodeUuid[uuid];
+      return containsAll(collapseData.collapsedUuids, this.graphDataByUuid[uuid].descendantUuids);
     },
     handleUiCollapseEvent(event) {
       // Specifying a node to maintain position relative to is optional.

@@ -1,8 +1,7 @@
 import _ from 'lodash';
 
-import { getCollapsedGraphByNodeUuid } from '@/utils.js';
 import { getGraphDataByUuid } from '@/graph-utils.js';
-import { resolveCollapseStatusByUuid } from '@/collapse.js';
+import { resolveCollapseStatusByUuid, getCollapsedGraphByNodeUuid } from '@/collapse.js';
 
 describe('utils.js', () => {
 

@@ -311,39 +311,6 @@ function getRunstateDisplayName(state) {
   return _.get(statusToProps, state, { display: 'Unknown' }).display;
 }
 
-function getCollapsedGraphByNodeUuid(rootUuid, childrenUuidsByUuid, isCollapsedByUuid) {
-  // TODO: collapse operations on the root node are ignored. Could collapse 'down',
-  //  though it's unclear if that's preferable.
-  return recursiveGetCollapseNodes(rootUuid,
-    childrenUuidsByUuid, null, isCollapsedByUuid);
-}
-
-function recursiveGetCollapseNodes(curUuid, childrenUuidsByUuid, parentId, isCollapsedByUuid) {
-
-  let childResults = _.map(childrenUuidsByUuid[curUuid], childUuid =>
-    recursiveGetCollapseNodes(childUuid, childrenUuidsByUuid, curUuid, isCollapsedByUuid));
-  let resultDescendantsByUuid = _.reduce(childResults, _.merge, {});
-
-  let collapsedChildrenUuids = _.filter(childrenUuidsByUuid[curUuid],
-      childUuid => isCollapsedByUuid[childUuid]);
-  let collapsedDescendantUuids = _.flatMap(collapsedChildrenUuids,
-      cUuid => [cUuid].concat(resultDescendantsByUuid[cUuid].collapsedUuids));
-
-  // Every uncollapsed child of a collapsed child (i.e. uncollapsed grandchildren whose parents
-  // are collapsed) need to have this node set as their parent.
-  _.each(collapsedChildrenUuids, ccUuid => {
-    const uncollapsedGrandchildrenParentCollapsed = _.filter(childrenUuidsByUuid[ccUuid],
-      (grandchildUuid) => !isCollapsedByUuid[grandchildUuid]);
-    _.each(uncollapsedGrandchildrenParentCollapsed,
-        grandchildUuid => resultDescendantsByUuid[grandchildUuid].parentId = curUuid);
-  })
-
-  return _.assign({[[curUuid]]: {
-      collapsedUuids: collapsedDescendantUuids,
-      parentId: parentId,
-    }}, resultDescendantsByUuid);
-}
-
 function createCollapseOpsByUuid(uuids, operation, target, sourceUuid) {
   const priority = -(new Date).getTime();
   return _.mapValues(_.keyBy(uuids),
@@ -421,7 +388,6 @@ export {
   getNodeBackground,
   getPrioritizedTaskStateBackground,
   getRunstateDisplayName,
-  getCollapsedGraphByNodeUuid,
   createCollapseOpsByUuid,
   createRunStateExpandOperations,
   loadDisplayConfigs,
