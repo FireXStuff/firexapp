@@ -3,6 +3,10 @@ import sys
 import re
 from firexkit.argument_conversion import ConverterRegister
 from typing import Union
+from firexapp.submit.console import setup_console_logging
+
+
+logger = setup_console_logging(__name__)
 
 
 def get_chain_args(other_args: []):
@@ -169,11 +173,14 @@ def auto_load_pydev_debugging_plugin(kwargs):
     if not sys.gettrace():
         return
 
+    logger.debug("Debug detected")
     plugins = kwargs.get("plugins", "")
     if "pydev_debug_plugin.py" in plugins:
+        logger.debug("Debug plugin already included")
         return
 
     # local and include the pydev debugging plugin
+    logger.debug("Auto-including debug plugin")
     import firexapp.testing
     debugging_plugin = os.path.join(os.path.dirname(firexapp.testing.__file__), "pydev_debug_plugin.py")
     if plugins:
