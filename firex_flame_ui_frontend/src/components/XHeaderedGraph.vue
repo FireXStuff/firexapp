@@ -4,9 +4,9 @@
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
        @keydown.ctrl.f.prevent="focusOnFind"
        @keyup.191.prevent="focusOnFind"
-       @keydown.u.exact="$store.dispatch('graph/toggleLiveUpdate')"
-       @keydown.d.exact="$store.dispatch('graph/toggleShowTaskDetails')"
-       @keydown.r.exact="refreshGraph"
+       @keyup.u.exact="$store.dispatch('graph/toggleLiveUpdate')"
+       @keyup.d.exact="$store.dispatch('graph/toggleShowTaskDetails')"
+       @keyup.r.exact="refreshGraph"
        tabindex="0">
     <x-header :title="headerParams.title"
               :links="headerParams.links"

@@ -1,5 +1,6 @@
 <template>
-  <div style="display: flex; border: none; border-left: 1px solid #000;">
+  <!-- Use keyup.stop because search typing shouldn't cause outer keybindings to trigger. -->
+  <div style="display: flex; border: none; border-left: 1px solid #000;" @keyup.stop>
     <div v-if="searchOpen" v-on:keydown.esc="$store.commit('tasks/closeSearch')">
       <div class="search-pos">
         {{ searchResultCount === 0 ? 0 : selectedIndex + 1 }} / {{ searchResultCount }}
@@ -9,11 +10,6 @@
              @keyup.enter.shift="$store.dispatch('tasks/previousSearchResult')"
              class="search" placeholder="Search" style="margin-right: 8px">
     </div>
-    <!--<div class="header-icon-button" title="Search"-->
-         <!--v-on:click="$store.commit('tasks/toggleSearchOpen')"-->
-      <!--<font-awesome-icon icon="search" fixed-width></font-awesome-icon>-->
-      <!--<x-header-button :link="buttonLink"></x-header-button>-->
-    <!--</div>-->
     <x-header-button :link="buttonLink" :style="searchOpen ? 'color: #2B2;' : ''"></x-header-button>
   </div>
 </template>
