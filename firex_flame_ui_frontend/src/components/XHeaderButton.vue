@@ -3,7 +3,7 @@
           :disabled="!Boolean(link.title)">
     <div class="popper header-popover">{{link.title}}</div>
 
-    <div slot="reference" class="flame-link">
+    <div slot="reference" class="flame-link" :class="link._class">
       <router-link v-if="link.to" :to="link.to">
         <font-awesome-icon v-if="link.icon" :icon="link.icon" fixed-width/>
         <template v-if="link.text">{{link.text}}</template>
@@ -12,14 +12,12 @@
         <font-awesome-icon v-if="link.icon" :icon="link.icon" fixed-width/>
         <template v-if="link.text">{{link.text}}</template>
       </a>
-      <div v-else-if="link.on"
-           class="header-icon-button"
+      <a v-else-if="link.on"
            v-on:click="link.on()"
-           :class="link._class"
            :style="link.toggleState ? 'color: #2B2;' : ''">
         <font-awesome-icon v-if="link.icon" :icon="link.icon" fixed-width/>
         <template v-if="link.text">{{link.text}}</template>
-      </div>
+      </a>
     </div>
   </popper>
 </template>
@@ -56,33 +54,37 @@ export default {
 .flame-link a {
   text-decoration: none;
   font-family: 'Source Sans Pro',sans-serif;
-}
-
-.header-icon-button {
-  justify-content: end;
   cursor: pointer;
-}
-
-.header-icon-button:hover {
-    color: #2980ff;
 }
 
 a {
   color: #000;
+
 }
 
 a:hover {
-    color: #2980ff;
+  color: #2980ff;
 }
 
 .header-popover {
   padding: 3px;
   font-size: 13px;
   line-height: 1em;
-  /*background: white;*/
   border-color: black;
   border-radius: 0;
   box-shadow: 2px 1px 1px rgb(58, 58, 58);
+}
+
+.kill-button {
+  color: #900;
+}
+
+.kill-button:hover {
+  background: #900;
+}
+
+.kill-button:hover a {
+  color: #fff;
 }
 
 </style>

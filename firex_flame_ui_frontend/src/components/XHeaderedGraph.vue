@@ -67,6 +67,7 @@ export default {
           on: () => this.$store.dispatch('graph/toggleLiveUpdate'),
           toggleState: this.toggleStates.liveUpdate,
           icon: ['far', 'eye'],
+          title: 'Live Update',
         },
         {
           name: 'center',
