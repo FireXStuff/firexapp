@@ -24,9 +24,6 @@ export default {
       liveRunTime: 0,
     };
   },
-  created() {
-    this.updateLiveRuntimeAndSchedule();
-  },
   computed: {
     ...mapState({
       liveUpdate: state => state.graph.liveUpdate,
@@ -59,6 +56,14 @@ export default {
           }
         }, 3000);
       }
+    },
+  },
+  watch: {
+    liveUpdate: {
+      handler() {
+        this.updateLiveRuntimeAndSchedule();
+      },
+      immediate: true,
     },
   },
 };
