@@ -170,7 +170,7 @@ def convert_booleans(kwargs):
 
 @InputConverter.register
 def auto_load_pydev_debugging_plugin(kwargs):
-    if not sys.gettrace():
+    if not sys.gettrace() or sys.gettrace().__class__.__module__ == "coverage":
         return
 
     logger.debug("Debug detected")
