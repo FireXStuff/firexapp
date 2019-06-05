@@ -8,6 +8,7 @@ const metaDataState = {
   flameServerUrl: null,
   chain: null,
   central_documentation_url: 'http://firex.cisco.com',
+  centralServerUiPath: null,
 };
 
 // getters

@@ -1,26 +1,36 @@
 <template>
   <div class="settings">
-    <h1>Settings</h1>
+    <h1><font-awesome-icon icon="cogs"></font-awesome-icon> Settings</h1>
     <!-- TODO: replace with messaging library (e.g. toastr) -->
     <div style="background: lightgreen;">
       {{ successDisplayMsg }}
     </div>
     <!-- TODO: warn when loaded from non-central server. Make read-only.-->
+    <div v-if="!canEditSettings" style="background: salmon; padding: 4px;">
+      These settings are read-only.
+      <a v-if="centralServerSettingsUrl" :href="centralServerSettingsUrl">
+        Click here to modify settings.
+      </a>
+    </div>
     <div style="background: salmon;">
       {{ failureDisplayMsg }}
     </div>
     <div>
       <h3>Auto-upgrade</h3>
+      <div style="margin-left: 3em;">
       <select id="auto-upgrade" :value="selectedAutoUpgrade"
-              @input="setAutoUpgrade($event.target.value)">
+              @input="setAutoUpgrade($event.target.value)"
+              :disabled="disableEdit">
         <option value="true">Central FireX Server</option>
         <option value="relative">Relative Flame Server</option>
         <option value="none">Disable Auto-Upgrade</option>
       </select>
+      </div>
     </div>
     <div>
       <h3>Display Configuration</h3>
 
+      <div style="margin-left: 3em;">
       <button type="button"
               style="margin-bottom: 10px;"
               v-clipboard:copy="displayConfigsJson"
@@ -56,11 +66,13 @@
       </table>
 
       <div style="margin-top: 15px;">
-        <input type="checkbox" id="isNameRegex" v-model="inputDisplayConfig.isNameRegex">
+        <input type="checkbox" id="isNameRegex" v-model="inputDisplayConfig.isNameRegex"
+          :disabled="disableEdit">
         <label for="isNameRegex" style="margin-right: 4px;">Regex</label>
         <input type="text" placeholder="Service Name" v-model="inputDisplayConfig.serviceName"
-          style="margin-right: 10px">
-        <select style="margin: 10px;" v-model="inputDisplayConfig.operation">
+          style="margin-right: 10px" :disabled="disableEdit">
+        <select style="margin: 10px;" v-model="inputDisplayConfig.operation"
+                :disabled="disableEdit">
           <option value="collapse">collapse</option>
           <option value="expand">expand</option>
         </select>
@@ -68,25 +80,25 @@
         <div style="display: inline; padding: 10px;">
           <div style="display: inline; padding: 3px;">
             <input type="checkbox" id="self" value="self"
-                   v-model="inputDisplayConfig.targets">
+                   v-model="inputDisplayConfig.targets" :disabled="disableEdit">
             <label for="self">Self</label>
           </div>
 
           <div style="display: inline; padding: 3px;">
             <input type="checkbox" id="descendants" value="descendants"
-                   v-model="inputDisplayConfig.targets">
+                   v-model="inputDisplayConfig.targets" :disabled="disableEdit">
             <label for="descendants">Descendants</label>
           </div>
 
           <div style="display: inline;">
             <input type="checkbox" id="grandchildren" value="grandchildren"
-              v-model="inputDisplayConfig.targets">
+              v-model="inputDisplayConfig.targets" :disabled="disableEdit">
             <label for="grandchildren">Grandchildren</label>
           </div>
 
           <div style="display: inline; padding: 3px;">
             <input type="checkbox" id="ancestors" value="ancestors"
-                   v-model="inputDisplayConfig.targets">
+                   v-model="inputDisplayConfig.targets" :disabled="disableEdit">
             <label for="ancestors">Ancestors</label>
           </div>
         </div>
@@ -96,7 +108,8 @@
         {{displayConfigError}}
       </div>
 
-      <button @click="saveDisplayConfigEntry">Save Display Config</button>
+      <button @click="saveDisplayConfigEntry" :disabled="disableEdit">Save Display Config</button>
+      </div>
 
     </div>
 
@@ -105,10 +118,16 @@
 
 <script>
 import _ from 'lodash';
+import { mapState } from 'vuex';
+
+import * as api from '../api';
 import { uuidv4, loadDisplayConfigs } from '../utils';
 
 export default {
   name: 'XSettings',
+  props: {
+    inputFlameServer: { required: false, type: String },
+  },
   data() {
     const autoUpgradeKey = 'auto-flame-upgrade';
     return {
@@ -122,8 +141,27 @@ export default {
     };
   },
   computed: {
+    ...mapState({
+      uid: state => state.firexRunMetadata.uid,
+      centralServerUiPath: state => state.firexRunMetadata.centralServerUiPath,
+      centralServer: state => state.firexRunMetadata.centralServer,
+    }),
     displayConfigsJson() {
       return JSON.stringify(this.displayConfigs, null, 2);
+    },
+    canEditSettings() {
+      return window.location.origin === this.centralServer;
+    },
+    disableEdit() {
+      return !this.canEditSettings;
+    },
+    centralServerSettingsUrl() {
+      if (!this.centralServer || !this.centralServerUiPath) {
+        return null;
+      }
+      const centralServerUrl = new URL(this.centralServer);
+      const settingsUrl = new URL(`${this.centralServerUiPath}#/settings`, centralServerUrl);
+      return settingsUrl.toString();
     },
   },
   created() {
@@ -196,6 +234,19 @@ export default {
     },
     onCopyFail() {
       this.failureDisplayMsg = 'Failed to copy to clipboard';
+    },
+  },
+  watch: {
+    inputFlameServer: {
+      handler(newFlameServerUrl) {
+        if (!this.uid) {
+          api.setAccessor('socketio', newFlameServerUrl);
+          api.getFireXRunMetadata().then((data) => {
+            this.$store.commit('firexRunMetadata/setFlameRunMetadata', data);
+          });
+        }
+      },
+      immediate: true,
     },
   },
 };

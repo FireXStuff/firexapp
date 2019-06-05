@@ -78,6 +78,7 @@ const router = new Router({
     {
       path: '/settings',
       component: XSettings,
+      props: route => ({ inputFlameServer: route.query.flameServer }),
     },
   ],
   // always scroll to top.
