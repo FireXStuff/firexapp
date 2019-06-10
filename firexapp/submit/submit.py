@@ -120,7 +120,7 @@ class SubmitBaseApp:
         if args.sync:
             logger.info("Waiting for chain to complete...")
             wait_on_async_results(chain_result)
-            failures = find_unsuccessful(chain_result)
+            failures = find_unsuccessful(chain_result, ignore_non_ready=True)
             if failures:
                 logger.error("Failures occurred in the following tasks:")
                 failures = sorted(failures.values())
