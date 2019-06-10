@@ -77,21 +77,4 @@ export default {
   font-weight: normal;
 }
 
-a {
-  color: #000;
-}
-
-a:hover {
-    color: #2980ff;
-}
-
-.kill-button {
-  color: #900;
-}
-
-.kill-button:hover {
-  color: #fff;
-  background: #900;
-}
-
 </style>

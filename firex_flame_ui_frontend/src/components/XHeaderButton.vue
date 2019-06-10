@@ -57,12 +57,12 @@ export default {
   cursor: pointer;
 }
 
-a {
+.flame-link a {
   color: #000;
 
 }
 
-a:hover {
+.flame-link a:hover {
   color: #2980ff;
 }
 
@@ -75,7 +75,7 @@ a:hover {
   box-shadow: 2px 1px 1px rgb(58, 58, 58);
 }
 
-.kill-button {
+.flame-link.kill-button a{
   color: #900;
 }
 
