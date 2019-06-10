@@ -14,6 +14,17 @@ function prioritizeCollapseOps(opsByUuid, stateSourceName) {
     o => _.merge({ priority, stateSource: stateSourceName }, o)));
 }
 
+function normalizeUiCollaseStateToOps(uiCollapseStateByUuid) {
+  return _.mapValues(uiCollapseStateByUuid, uiState => (
+    [{
+      targets: [uiState.target],
+      operation: uiState.operation,
+      priority: uiState.priority,
+      stateSource: 'ui',
+    }]
+  ));
+}
+
 function resolveDisplayConfigsToOpsByUuid(displayConfigs, nodesByUuid) {
   const resolvedByNameConfigs = _.flatMap(displayConfigs, (displayConfig) => {
     let uuids;
@@ -52,92 +63,6 @@ function resolveDisplayConfigsToOpsByUuid(displayConfigs, nodesByUuid) {
     ops => _.map(ops, o => _.pick(o, ['operation', 'targets'])));
 }
 
-// Possible cases:
-//    All Collapsed via 'collapse descendants':
-//      Action: remove 'collapse descendants' op causing full collapse.
-//
-//    All Collapsed via default:
-//      Action: 'expand descendants', if user just wants to expand collapsed, click that.
-//
-//    All expanded, no default ops:
-//      Action: 'collapse descendants'
-//
-//    All expanded, default ops expanded:
-//      Action: remove 'expand self' descendants with this task UUID
-//        -> restores default collapse
-//
-//    Default collapsed, some expanded (implies default ops)
-//      Action: 'collapse descendants'
-//
-// TODO: based on how complex this function is, it's probably worth exploring adding a 'clear'
-//  operation to the core collapse resolution algorithm, then sending simpler operations from here.
-function resolveToggleOperation(toggledTaskUuid, allDescendantsCollapsed, allChildrenExpanded,
-  uiCollapseOperationsByUuid) {
-  let resolvedOperation;
-  if (allDescendantsCollapsed) {
-    const collapsedByExistingOp = _.some(
-      _.get(uiCollapseOperationsByUuid, toggledTaskUuid, []),
-      op => op.operation === 'collapse' && _.isEqual(op.targets, ['descendants']),
-    );
-    if (collapsedByExistingOp) {
-      resolvedOperation = {
-        uuids: [toggledTaskUuid],
-        operation: 'clear',
-        target: 'descendants',
-      };
-    } else {
-      // descendants collapsed by default, expand all.
-      // TODO: is this a safe assumption?
-      resolvedOperation = {
-        uuids: [toggledTaskUuid],
-        operation: 'expand',
-        target: 'descendants',
-      };
-    }
-  } else if (allChildrenExpanded) {
-    const uuidsExpandedFromDefaultByParent = _.keys(_.pickBy(
-      uiCollapseOperationsByUuid,
-      ops => _.some(ops, op => op.sourceTaskUuid === toggledTaskUuid
-        && _.isEqual(op.targets, ['self'])
-        && op.operation === 'expand'),
-    ));
-    if (!_.isEmpty(uuidsExpandedFromDefaultByParent)) {
-      resolvedOperation = {
-        uuids: uuidsExpandedFromDefaultByParent,
-        operation: 'clear',
-        target: 'self',
-      };
-    } else {
-      const expandedByExistingOp = _.some(
-        _.get(uiCollapseOperationsByUuid, toggledTaskUuid, []),
-        op => op.operation === 'expand' && _.isEqual(op.targets, ['descendants']),
-      );
-      if (expandedByExistingOp) {
-        // All expanded without any default ops to restore, so just collapse everything.
-        resolvedOperation = {
-          uuids: [toggledTaskUuid],
-          operation: 'clear',
-          target: 'descendants',
-        };
-      } else {
-        // All expanded without any default ops to restore, so just collapse everything.
-        resolvedOperation = {
-          uuids: [toggledTaskUuid],
-          operation: 'collapse',
-          target: 'descendants',
-        };
-      }
-    }
-  } else {
-    // Neither all collapsed nor all expanded -- default collapsed, some expanded.
-    resolvedOperation = {
-      uuids: [toggledTaskUuid],
-      operation: 'collapse',
-      target: 'descendants',
-    };
-  }
-  return resolvedOperation;
-}
 
 function getOpsAndDistanceForTarget(uuids, collapseOpsByUuid, target) {
   // Note we map before we filter so that we have the real distance, not the distance of only
@@ -179,8 +104,9 @@ function getAllOpsAffectingCollapseState(
   };
   // at otherwise equal priorities, expand beats collapse.
   const operationToPriority = {
-    expand: 0,
-    collapse: 1,
+    deny_child_collapse: 0, // Implies expand self.
+    expand: 1,
+    collapse: 2,
   };
 
   return _.flatMap(expandCollapseInfluences,
@@ -211,24 +137,36 @@ function findMinPriorityOp(
   return _.head(sorted);
 }
 
+function resolveNodeCollapseStatus(uuid, ancestorUuids, descendantUuids, collapseOpsByUuid) {
+  // assumes walking root-down (parent collapsed state already calced).
+  const minPriorityOp = findMinPriorityOp(uuid, collapseOpsByUuid, ancestorUuids, descendantUuids);
+  return {
+    // If no rules affect this node (minPriorityOp undefined), default to false (not collapsed).
+    collapsed: _.isUndefined(minPriorityOp) ? false : minPriorityOp.operation === 'collapse',
+    minPriorityOp,
+  };
+}
+
 function resolveCollapseStatusByUuid(rootUuid, graphDataByUuid, collapseOpsByUuid) {
   const resultNodesByUuid = {};
   let toCheckUuids = [rootUuid];
   while (toCheckUuids.length > 0) {
     const curUuid = toCheckUuids.pop();
+    const parentMinOp = _.get(resultNodesByUuid,
+      [graphDataByUuid[curUuid].parentId, 'minPriorityOp', 'operation'], null);
 
-    // assumes walking root-down (parent collapsed state already calced).
-    const minPriorityOp = findMinPriorityOp(
-      curUuid,
-      collapseOpsByUuid,
-      graphDataByUuid[curUuid].ancestorUuids,
-      graphDataByUuid[curUuid].descendantUuids,
-    );
-    resultNodesByUuid[curUuid] = {
-      // If no rules affect this node (minPriorityOp undefined), default to false (not collapsed).
-      collapsed: _.isUndefined(minPriorityOp) ? false : minPriorityOp.operation === 'collapse',
-      minPriorityOp,
-    };
+    let curNodeResult;
+    if (parentMinOp === 'deny_child_collapse') {
+      curNodeResult = { collapsed: false, minPriorityOp: { operation: 'parent_denies_collapse' } };
+    } else {
+      curNodeResult = resolveNodeCollapseStatus(
+        curUuid,
+        graphDataByUuid[curUuid].ancestorUuids,
+        graphDataByUuid[curUuid].descendantUuids,
+        collapseOpsByUuid,
+      );
+    }
+    resultNodesByUuid[curUuid] = curNodeResult;
     toCheckUuids = toCheckUuids.concat(graphDataByUuid[curUuid].childrenUuids);
   }
   // TODO: this is unfortunately necessary b/c collapsing the root shows nothing.
@@ -241,7 +179,8 @@ function resolveCollapseStatusByUuid(rootUuid, graphDataByUuid, collapseOpsByUui
 function recursiveGetCollapseNodes(curUuid, childrenUuidsByUuid, parentId, isCollapsedByUuid) {
   const childResults = _.map(childrenUuidsByUuid[curUuid],
     childUuid => recursiveGetCollapseNodes(
-      childUuid, childrenUuidsByUuid, curUuid, isCollapsedByUuid));
+      childUuid, childrenUuidsByUuid, curUuid, isCollapsedByUuid,
+    ));
   const resultDescendantsByUuid = _.reduce(childResults, _.merge, {});
 
   const collapsedChildrenUuids = _.filter(childrenUuidsByUuid[curUuid],
@@ -255,8 +194,7 @@ function recursiveGetCollapseNodes(curUuid, childrenUuidsByUuid, parentId, isCol
     const uncollapsedGrandchildrenParentCollapsed = _.filter(childrenUuidsByUuid[ccUuid],
       grandchildUuid => !isCollapsedByUuid[grandchildUuid]);
     _.each(uncollapsedGrandchildrenParentCollapsed,
-      (grandchildUuid) => { resultDescendantsByUuid[grandchildUuid].parentId = curUuid; },
-    );
+      (grandchildUuid) => { resultDescendantsByUuid[grandchildUuid].parentId = curUuid; });
   });
 
   return _.assign({
@@ -274,15 +212,21 @@ function getCollapsedGraphByNodeUuid(rootUuid, childrenUuidsByUuid, isCollapsedB
     childrenUuidsByUuid, null, isCollapsedByUuid);
 }
 
+function createUiCollapseOp(operation, target) {
+  const priority = -(new Date()).getTime();
+  return { target, operation, priority };
+}
+
 const stackOffset = 12;
 const stackCount = 2; // Always have 2 stacked behind the front.
 
 export {
   prioritizeCollapseOps,
+  normalizeUiCollaseStateToOps,
   resolveDisplayConfigsToOpsByUuid,
-  resolveToggleOperation,
   stackOffset,
   stackCount,
   resolveCollapseStatusByUuid,
   getCollapsedGraphByNodeUuid,
+  createUiCollapseOp,
 };

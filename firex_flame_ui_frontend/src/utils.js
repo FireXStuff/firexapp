@@ -311,21 +311,6 @@ function getRunstateDisplayName(state) {
   return _.get(statusToProps, state, { display: 'Unknown' }).display;
 }
 
-function createCollapseOpsByUuid(uuids, operation, target, sourceUuid) {
-  const priority = -(new Date).getTime();
-  return _.mapValues(_.keyBy(uuids),
-    () => ({
-      // TODO: note that ui operations currently only specify one target. Might be worth reflecting
-      // that here & transforming to a list before collapse state sources are merged.
-      targets: [target],
-      operation: operation,
-      priority: priority,
-      stateSource: 'ui', // TODO: remove here & add during collapse state source merge.
-      sourceTaskUuid: sourceUuid,
-    }));
-}
-
-// TODO: move in to new file persistence.js with other local storage ops.
 function concatArrayMergeCustomizer(objValue, srcValue) {
   if (_.isArray(objValue)) {
     return objValue.concat(srcValue);
@@ -375,7 +360,6 @@ export {
   getNodeBackground,
   getPrioritizedTaskStateBackground,
   getRunstateDisplayName,
-  createCollapseOpsByUuid,
   createRunStateExpandOperations,
   concatArrayMergeCustomizer,
   containsAll,

@@ -32,11 +32,10 @@ import XSvgTaskNodes from './nodes/XSvgTaskNodes.vue';
 import XTaskCapturingNodes from './nodes/XSizeCapturingNodes.vue';
 import XLink from './XLinks.vue';
 import {
-  eventHub, calculateNodesPositionByUuid, getCenteringTransform,
-  createCollapseOpsByUuid, containsAll,
+  eventHub, calculateNodesPositionByUuid, getCenteringTransform, containsAll,
 } from '../utils';
 import {
-  resolveToggleOperation,
+  createUiCollapseOp,
 } from '../collapse';
 import {
   readPathsFromLocalStorage, addLocalStorageData, getLocalStorageCollapseConfig,
@@ -77,6 +76,9 @@ export default {
     }),
     collapseConfig() {
       return this.$store.state.graph.collapseConfig;
+    },
+    uiCollapseStateByUuid() {
+      return this.$store.state.graph.collapseConfig.uiCollapseStateByUuid;
     },
     runMetadata() {
       return this.$store.state.firexRunMetadata;
@@ -156,12 +158,12 @@ export default {
   created() {
     // TODO: replace with action listeners.
     eventHub.$on('center', this.center);
-    eventHub.$on('ui-collapse', this.handleUiCollapseEvent);
+    eventHub.$on('show-collapsed-tasks', this.showTasksCollapsedTo);
     eventHub.$on('toggle-task-collapse', this.toggleCollapseDescendants);
     eventHub.$on('zoom', this.zoomed);
   },
   beforeDestroy() {
-    eventHub.$off('ui-collapse');
+    eventHub.$off('show-collapsed-tasks');
     eventHub.$off('toggle-task-collapse');
     eventHub.$off('zoom');
     eventHub.$off('center');
@@ -232,65 +234,168 @@ export default {
     /**
      * Collapse the descendants of the supplied node if no descendants are currently collapsed.
      * If any descendant is currently collapsed, show all.
-     * @param parentNodeId
+     * @param uuid
      */
-    toggleCollapseDescendants(parentNodeId) {
-      const allChildrenExpanded = _.every(this.childrenUuidsByUuid[parentNodeId],
-        cuuid => this.isCollapsedByUuid[cuuid]);
-      const allDescendantsCollapsed = this.allDescendantsCollapsed(parentNodeId);
-      const resolvedOperation = resolveToggleOperation(parentNodeId,
-        allDescendantsCollapsed, allChildrenExpanded,
-        this.collapseConfig.uiCollapseOperationsByUuid);
+    toggleCollapseDescendants(uuid) {
+      let uiCollapseEvent;
+      if (this.allDescendantsCollapsed(uuid)) {
+        // All descendants are collapsed.
+        const isCollapsedByUiOp = _.has(this.uiCollapseStateByUuid, uuid);
 
-      this.handleUiCollapseEvent(
-        {
-          keep_rel_pos_uuid: parentNodeId,
-          operationsByUuid: createCollapseOpsByUuid(resolvedOperation.uuids,
-            resolvedOperation.operation, resolvedOperation.target, parentNodeId),
-        },
-      );
+        if (isCollapsedByUiOp) {
+          // TODO: removing this op doesn't necessarily create the pressure to expand.
+          // If default state is collapsed, then nothing happens, which is wrong.
+          console.log('all desc collapsed currently collapsed by UI op -- removing');
+          uiCollapseEvent = { uuid, remove: true };
+        } else {
+          uiCollapseEvent = {
+            uuid,
+            remove: false,
+            add_operation: {
+              operation: 'expand',
+              target: 'descendants',
+            },
+          };
+        }
+      } else if (this.noChildCollapsed(uuid)) {
+        // There are a couple different reasons why no child is collapsed, and each
+        // require a different action.
+
+        // TODO: can deny_child_collapse be lumped in with 'has any UI op' case?
+        const uuidOp = _.get(
+          this.uiCollapseStateByUuid, [uuid, 'operation'], false,
+        );
+        const isChildCollapseDenied = uuidOp === 'deny_child_collapse';
+
+        if (isChildCollapseDenied) {
+          // clear child collapse denial operation.
+          console.log('child collapsed currently denied -- removing');
+          uiCollapseEvent = { uuid, remove: true };
+        } else {
+          const isExpandedByUiOp = this.isExpandedByUiOp(uuid);
+
+          if (isExpandedByUiOp) {
+            // TODO: Just because children are exapnded by UI op doesn't mean removing the
+            // op ADDs pressure to collapse.
+            console.log('all children expanded by UI op -- removing');
+            uiCollapseEvent = { uuid, remove: true };
+          } else {
+            // Not caused by existing operation, create a collapse operation.
+            uiCollapseEvent = {
+              uuid,
+              remove: false,
+              add_operation: {
+                operation: 'collapse',
+                target: 'descendants',
+              },
+            };
+          }
+        }
+      } else {
+        // Partial collapse: collapse all descendants.
+        const isExpandedByUiOp = this.isExpandedByUiOp(uuid);
+        if (isExpandedByUiOp) {
+          console.log('partial collapse currently expanded by UI op -- removing');
+          uiCollapseEvent = { uuid, remove: true };
+        } else {
+          uiCollapseEvent = {
+            uuid,
+            remove: false,
+            add_operation: {
+              operation: 'collapse',
+              target: 'descendants',
+            },
+          };
+        }
+      }
+      this.handleUiCollapseEvent(uiCollapseEvent);
+    },
+    isExpandedByUiOp(uuid) {
+      if (_.has(this.uiCollapseStateByUuid, uuid)) {
+        const op = this.uiCollapseStateByUuid[uuid].operation;
+        return op === 'expand';
+      }
+      return false;
+    },
+    // isCollapsedByUiOp(uuid) {
+    //   if (_.has(this.uiCollapseStateByUuid, uuid)) {
+    //     const op = this.uiCollapseStateByUuid[uuid].operation;
+    //     return op === 'collapse';
+    //   }
+    //   return false;
+    // },
+    noChildCollapsed(uuid) {
+      return _.every(this.childrenUuidsByUuid[uuid], cuuid => !this.isCollapsedByUuid[cuuid]);
     },
     allDescendantsCollapsed(uuid) {
       const collapseData = this.uncollapsedGraphByNodeUuid[uuid];
       return containsAll(collapseData.collapsedUuids, this.graphDataByUuid[uuid].descendantUuids);
     },
-    handleUiCollapseEvent(event) {
-      // Specifying a node to maintain position relative to is optional.
-      const initialRelPos = event.keep_rel_pos_uuid
-        ? this.getCurrentRelPos(event.keep_rel_pos_uuid) : undefined;
+    showTasksCollapsedTo({ uuid }) {
+      let uiCollapseEvent;
+      if (this.allDescendantsCollapsed(uuid)) {
+        // All collapsed, just expand all.
+        console.log("all desc collapsed -- expanding descs");
+        uiCollapseEvent = {
+          uuid,
+          remove: false,
+          add_operation: {
+            operation: 'expand',
+            target: 'descendants',
+          },
+        };
 
-      const resultOpsByUuid = _.mapValues(event.operationsByUuid, (op, uuid) => {
-        const existingOps = _.get(this.collapseConfig.uiCollapseOperationsByUuid, uuid, []);
-        let resultOps;
-        if (op.operation === 'clear') {
-          resultOps = _.reject(existingOps,
-            existingOp => _.isEqual(existingOp.targets, op.targets)
-              && existingOp.sourceTaskUuid === op.sourceTaskUuid);
-        } else {
-          // All other operations are just accumulated.
-          resultOps = existingOps.concat([op]);
-        }
-        return resultOps;
-      });
-      this.$store.dispatch('graph/setCollapseOpsByUuid', resultOpsByUuid);
-
-      if (initialRelPos) {
-        // Since we're changing the nodes being displayed, the layout might drastically change.
-        // Maintain the position of the node whose descendants have been added/removed so that
-        // the user remains oriented.
-        this.$nextTick(() => {
-          const nextRelPos = this.getCurrentRelPos(event.keep_rel_pos_uuid);
-          const xShift = (initialRelPos.x - nextRelPos.x) * this.transform.scale;
-          const finalTranslateX = this.transform.x + xShift;
-          // Since we're viewing hierarchies, the y position shouldn't ever change when
-          // children are collapsed.
-          this.updateTransformViaZoom({
-            x: finalTranslateX,
-            y: this.transform.y,
-            scale: this.transform.scale,
-          });
-        });
+      // else if (this.noChildCollapsed(uuid)) {
+      //   // Not possible -- that means nothing is collapsed to the supplied uuid.
+      // }
+      } else {
+        // Partial collapse: showing collapsed tasks means preventing them from collapsing to the
+        // supplied UUID.
+        uiCollapseEvent = {
+          uuid,
+          remove: false,
+          add_operation: {
+            operation: 'deny_child_collapse',
+            target: 'self',
+          },
+        };
       }
+      this.handleUiCollapseEvent(uiCollapseEvent);
+    },
+    handleUiCollapseEvent(event) {
+      const initialRelPos = this.getCurrentRelPos(event.uuid);
+
+      console.log(event);
+
+      let resultOpsByUuid;
+      if (event.remove) {
+        resultOpsByUuid = _.omit(this.uiCollapseStateByUuid,
+          _.concat(this.graphDataByUuid[event.uuid].descendantUuids, event.uuid));
+      } else {
+        const toAdd = {
+          [[event.uuid]]: createUiCollapseOp(
+            event.add_operation.operation, event.add_operation.target,
+          ),
+        };
+        resultOpsByUuid = Object.assign({}, this.uiCollapseStateByUuid, toAdd);
+      }
+      this.$store.dispatch('graph/setUiCollapseStateByUuid', resultOpsByUuid);
+
+      // Since we're changing the nodes being displayed, the layout might drastically change.
+      // Maintain the position of the node whose descendants have been added/removed so that
+      // the user remains oriented.
+      this.$nextTick(() => {
+        const nextRelPos = this.getCurrentRelPos(event.uuid);
+        const xShift = (initialRelPos.x - nextRelPos.x) * this.transform.scale;
+        const finalTranslateX = this.transform.x + xShift;
+        // Since we're viewing hierarchies, the y position shouldn't ever change when
+        // children are collapsed.
+        this.updateTransformViaZoom({
+          x: finalTranslateX,
+          y: this.transform.y,
+          scale: this.transform.scale,
+        });
+      });
     },
     isTransformValid(transform) {
       if (_.isNil(transform)) {
@@ -307,16 +412,6 @@ export default {
       // Default to the centering transform.
       return this.getCenterTransform();
     },
-    // eslint-disable-next-line
-    // updateLayout: _.debounce(function () {
-    //   const positionsByUuid = calculateNodesPositionByUuid(
-    //     this.uncollapsedTaskNodeDimensionsByUuid,
-    //   );
-    //   this.nodeLayoutsByUuid = Object.freeze(_.mapValues(positionsByUuid,
-    //     (p, uuid) => _.assign(p, _.pick(
-    //       this.uncollapsedTaskNodeDimensionsByUuid[uuid], 'width', 'height',
-    //     ))));
-    // }, 1000, { maxWait: 2000, leading: true, trailing: true }),
     updateLayout() {
       const positionsByUuid = calculateNodesPositionByUuid(
         this.uncollapsedTaskNodeDimensionsByUuid,

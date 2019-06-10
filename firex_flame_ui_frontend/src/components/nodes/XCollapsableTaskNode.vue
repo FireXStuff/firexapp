@@ -25,7 +25,7 @@
 <script>
 import _ from 'lodash';
 import {
-  eventHub, containsAll, createCollapseOpsByUuid,
+  eventHub, containsAll,
 } from '../../utils';
 import {
   stackOffset, stackCount,
@@ -107,14 +107,6 @@ export default {
     },
   },
   methods: {
-    emitExpandUuids(uuids) {
-      const expandDescendantEvents = createCollapseOpsByUuid(uuids, 'expand', 'self',
-        this.taskUuid);
-      eventHub.$emit('ui-collapse', {
-        keep_rel_pos_uuid: this.taskUuid,
-        operationsByUuid: expandDescendantEvents,
-      });
-    },
     getNonFrontBoxMargins(level) {
       return {
         // One pixel to offset for border.
@@ -132,7 +124,7 @@ export default {
         });
     },
     expandAll() {
-      this.emitExpandUuids(this.collapseDetails.collapsedUuids);
+      eventHub.$emit('show-collapsed-tasks', { uuid: this.taskUuid });
     },
   },
 };

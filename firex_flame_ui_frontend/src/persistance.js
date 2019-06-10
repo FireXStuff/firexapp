@@ -38,14 +38,13 @@ function readValidatedPathFromLocalStorage(localStorageKey, path, validator, _de
 
 function getLocalStorageCollapseConfig(firexUid) {
   const storedCollapseConfig = readPathFromLocalStorage(firexUid, 'collapseConfig');
-  const expectedKeys = ['hideSuccessPaths', 'uiCollapseOperationsByUuid',
+  const expectedKeys = ['hideSuccessPaths', 'uiCollapseStateByUuid',
     'applyDefaultCollapseOps'];
   // TODO: fill in remaining validation of collapseConfig.
   const containsAllRequired = containsAll(_.keys(storedCollapseConfig), expectedKeys);
   const collapseByUuidContainsAllRequired = _.every(
-    _.values(_.get(storedCollapseConfig, 'uiCollapseOperationsByUuid', {})),
-    ops => _.every(ops, op => containsAll(_.keys(op),
-      ['operation', 'priority', 'targets', 'sourceTaskUuid'])),
+    _.values(_.get(storedCollapseConfig, 'uiCollapseStateByUuid', {})),
+    op => containsAll(_.keys(op), ['operation', 'priority', 'target']),
   );
   if (containsAllRequired && collapseByUuidContainsAllRequired) {
     return storedCollapseConfig;
@@ -54,7 +53,7 @@ function getLocalStorageCollapseConfig(firexUid) {
   return {
     // This is just a container for states that have been touched by the user -- it doesn't
     // contain an entry for every node's UUID (there is a computed property for that).
-    uiCollapseOperationsByUuid: {},
+    uiCollapseStateByUuid: {},
     // Hiding paths that don't include a failure or in progress.
     hideSuccessPaths: false,
     // Default to apply backend & user config display state.

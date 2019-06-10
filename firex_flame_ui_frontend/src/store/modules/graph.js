@@ -6,13 +6,13 @@ import {
 } from '../../utils';
 import {
   prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid, stackOffset, stackCount,
-  resolveCollapseStatusByUuid, getCollapsedGraphByNodeUuid,
+  resolveCollapseStatusByUuid, getCollapsedGraphByNodeUuid, normalizeUiCollaseStateToOps,
 } from '../../collapse';
 import { loadDisplayConfigs } from '../../persistance';
 
 const graphState = {
   collapseConfig: {
-    uiCollapseOperationsByUuid: {},
+    uiCollapseStateByUuid: {},
     hideSuccessPaths: false,
     applyDefaultCollapseOps: true,
   },
@@ -96,7 +96,9 @@ const graphGetters = {
         ),
       );
     }
-    enabledCollapseStateSources.push(state.collapseConfig.uiCollapseOperationsByUuid);
+    enabledCollapseStateSources.push(
+      normalizeUiCollaseStateToOps(state.collapseConfig.uiCollapseStateByUuid),
+    );
     return _.mergeWith({}, ...enabledCollapseStateSources, concatArrayMergeCustomizer);
   },
 
@@ -154,8 +156,8 @@ const actions = {
   toggleLiveUpdate(context) {
     context.commit('toggleLiveUpdate');
   },
-  setCollapseOpsByUuid(context, uiCollapseOpsByUuid) {
-    context.commit('setCollapseOpsByUuid', uiCollapseOpsByUuid);
+  setUiCollapseStateByUuid(context, uiCollapseOpsByUuid) {
+    context.commit('setUiCollapseStateByUuid', uiCollapseOpsByUuid);
   },
   expandAll(context) {
     context.dispatch('setCollapseConfigWithDefaults', {});
@@ -169,7 +171,7 @@ const actions = {
   setCollapseConfigWithDefaults(context, partialConfig) {
     context.commit('setCollapseConfig', {
       hideSuccessPaths: _.get(partialConfig, 'hideSuccessPaths', false),
-      uiCollapseOperationsByUuid: _.get(partialConfig, 'uiCollapseOperationsByUuid', {}),
+      uiCollapseStateByUuid: _.get(partialConfig, 'uiCollapseStateByUuid', {}),
       applyDefaultCollapseOps: _.get(partialConfig, 'applyDefaultCollapseOps', false),
     });
   },
@@ -177,11 +179,9 @@ const actions = {
 
 // mutations
 const mutations = {
-  setCollapseOpsByUuid(state, uiCollapseOpsByUuid) {
-    const newUiCollapseOperationsByUuid = Object.assign({},
-      state.collapseConfig.uiCollapseOperationsByUuid, uiCollapseOpsByUuid);
+  setUiCollapseStateByUuid(state, uiCollapseStateByUuid) {
     state.collapseConfig = Object.assign({},
-      state.collapseConfig, { uiCollapseOperationsByUuid: newUiCollapseOperationsByUuid });
+      state.collapseConfig, { uiCollapseStateByUuid });
   },
 
   setCollapseConfig(state, collapseConfig) {

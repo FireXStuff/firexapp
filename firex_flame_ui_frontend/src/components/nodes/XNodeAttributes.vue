@@ -109,6 +109,7 @@ export default {
       // If we haven't fetched the details for some reason, just show the base properties.
       const task = _.merge({}, this.simpleTask, this.detailedTask);
       if (this.showAllAttributes) {
+        task.minPriorityCollapseOp = this.minPriorityOp;
         return task;
       }
       const attributeBlacklist = ['long_name', 'name', 'flame_additional_data',
@@ -176,6 +177,9 @@ export default {
         legacyPath: `/task/${this.uuid}`,
         links,
       };
+    },
+    minPriorityOp() {
+      return this.$store.getters['graph/resolvedCollapseStateByUuid'][this.uuid].minPriorityOp;
     },
   },
   methods: {

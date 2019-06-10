@@ -65,7 +65,7 @@ export default {
     },
     canRestoreDefault() {
       const otherConfigApplied = this.collapseConfig.hideSuccessPaths
-        || !_.isEmpty(this.collapseConfig.uiCollapseOperationsByUuid);
+        || !_.isEmpty(this.collapseConfig.uiCollapseStateByUuid);
       const hasDefaultAffectingOps = _.size(this.userDisplayConfigOperationsByUuid) > 0
         || _.size(this.flameDataDisplayOperationsByUuid) > 0;
       return hasDefaultAffectingOps
@@ -73,7 +73,7 @@ export default {
     },
     canShowOnlyFailed() {
       const alreadyApplied = this.collapseConfig.hideSuccessPaths;
-      const userTouched = !_.isEmpty(this.collapseConfig.uiCollapseOperationsByUuid);
+      const userTouched = !_.isEmpty(this.collapseConfig.uiCollapseStateByUuid);
       return this.hasFailures && (!alreadyApplied || userTouched);
     },
     hasFailures() {
