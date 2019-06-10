@@ -18,6 +18,8 @@ Vue.use(VueClipboard);
 
 Vue.config.productionTip = false;
 
+store.watch(state => state.firexRunMetadata.uid, (uid) => { document.title = uid; });
+
 /* eslint-disable no-new */
 new Vue({
   el: '#app',
