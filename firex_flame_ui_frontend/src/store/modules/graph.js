@@ -2,13 +2,13 @@ import _ from 'lodash';
 
 import { getChildrenUuidsByUuid, getGraphDataByUuid } from '../../graph-utils';
 import {
-  getPrioritizedTaskStateBackground, concatArrayMergeCustomizer,
-  loadDisplayConfigs, createRunStateExpandOperations,
+  getPrioritizedTaskStateBackground, concatArrayMergeCustomizer, createRunStateExpandOperations,
 } from '../../utils';
 import {
   prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid, stackOffset, stackCount,
   resolveCollapseStatusByUuid, getCollapsedGraphByNodeUuid,
 } from '../../collapse';
+import { loadDisplayConfigs } from '../../persistance';
 
 const graphState = {
   collapseConfig: {
