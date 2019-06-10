@@ -2,28 +2,38 @@ import _ from 'lodash';
 
 import { containsAll } from './utils';
 
-function readPathsFromLocalStorage(firexUid, paths) {
+const USER_CONFIGS_KEY = 'firexUserConfigs';
+
+function readPathsFromLocalStorage(localStorageKey, paths) {
   try {
-    const runLocalData = JSON.parse(localStorage[firexUid]);
+    const runLocalData = JSON.parse(localStorage[localStorageKey]);
     if (paths === '*') {
       return runLocalData;
     }
     return _.pick(runLocalData, paths);
   } catch (e) {
     // Delete bad persisted state, provide default.
-    localStorage.removeItem(firexUid);
+    localStorage.removeItem(localStorageKey);
   }
   return {};
 }
 
-function addLocalStorageData(firexUid, newData) {
-  const storedData = readPathsFromLocalStorage(firexUid, '*');
+function addLocalStorageData(key, newData) {
+  const storedData = readPathsFromLocalStorage(key, '*');
   const toStoreData = _.assign(storedData, newData);
-  localStorage[firexUid] = JSON.stringify(toStoreData);
+  localStorage[key] = JSON.stringify(toStoreData);
 }
 
-function readPathFromLocalStorage(firexUid, path, def) {
-  return _.get(readPathsFromLocalStorage(firexUid, [path]), path, def);
+function readPathFromLocalStorage(firexUid, path, _default) {
+  return _.get(readPathsFromLocalStorage(firexUid, [path]), path, _default);
+}
+
+function readValidatedPathFromLocalStorage(localStorageKey, path, validator, _default) {
+  const value = _.get(readPathsFromLocalStorage(localStorageKey, [path]), path, _default);
+  if (validator(value)) {
+    return value;
+  }
+  return _default;
 }
 
 function getLocalStorageCollapseConfig(firexUid) {
@@ -52,9 +62,18 @@ function getLocalStorageCollapseConfig(firexUid) {
   };
 }
 
+function loadDisplayConfigs() {
+  // TODO: validate display config.
+  const validator = () => true;
+  return readValidatedPathFromLocalStorage(USER_CONFIGS_KEY, 'displayConfigs', validator, []);
+}
+
 export {
   readPathsFromLocalStorage,
   addLocalStorageData,
   readPathFromLocalStorage,
   getLocalStorageCollapseConfig,
+  readValidatedPathFromLocalStorage,
+  loadDisplayConfigs,
+  USER_CONFIGS_KEY,
 };

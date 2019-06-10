@@ -21,7 +21,7 @@
       <select id="auto-upgrade" :value="selectedAutoUpgrade"
               @input="setAutoUpgrade($event.target.value)"
               :disabled="disableEdit">
-        <option value="true">Central FireX Server</option>
+        <option value="central">Central FireX Server</option>
         <option value="relative">Relative Flame Server</option>
         <option value="none">Disable Auto-Upgrade</option>
       </select>
@@ -121,7 +121,10 @@ import _ from 'lodash';
 import { mapState } from 'vuex';
 
 import * as api from '../api';
-import { uuidv4, loadDisplayConfigs } from '../utils';
+import { uuidv4 } from '../utils';
+import {
+  addLocalStorageData, readValidatedPathFromLocalStorage, loadDisplayConfigs, USER_CONFIGS_KEY,
+} from '../persistance';
 
 export default {
   name: 'XSettings',
@@ -129,7 +132,7 @@ export default {
     inputFlameServer: { required: false, type: String },
   },
   data() {
-    const autoUpgradeKey = 'auto-flame-upgrade';
+    const autoUpgradeKey = 'autoFlameUpgrade';
     return {
       successDisplayMsg: '',
       autoUpgradeKey,
@@ -140,6 +143,17 @@ export default {
       failureDisplayMsg: '',
     };
   },
+  asyncComputed: {
+    canEditSettings:
+      {
+        get() {
+          const baseUrl = new URL(window.location.path, window.location.origin);
+          const fileMarkingCentralServer = new URL('send-firex-user-config.html', baseUrl);
+          return fetch(fileMarkingCentralServer).then(() => true, () => false);
+        },
+        default: false,
+      },
+  },
   computed: {
     ...mapState({
       uid: state => state.firexRunMetadata.uid,
@@ -149,9 +163,6 @@ export default {
     displayConfigsJson() {
       return JSON.stringify(this.displayConfigs, null, 2);
     },
-    canEditSettings() {
-      return window.location.origin === this.centralServer;
-    },
     disableEdit() {
       return !this.canEditSettings;
     },
@@ -159,8 +170,7 @@ export default {
       if (!this.centralServer || !this.centralServerUiPath) {
         return null;
       }
-      const centralServerUrl = new URL(this.centralServer);
-      const settingsUrl = new URL(`${this.centralServerUiPath}#/settings`, centralServerUrl);
+      const settingsUrl = new URL(`${this.centralServerUiPath}#/settings`, this.centralServer);
       return settingsUrl.toString();
     },
   },
@@ -170,12 +180,14 @@ export default {
     }
   },
   methods: {
+    addUserConfigs(newData) {
+      addLocalStorageData(USER_CONFIGS_KEY, newData);
+    },
     setAutoUpgrade(selectedValue) {
       this.selectedAutoUpgrade = selectedValue;
-      localStorage.setItem(this.autoUpgradeKey, selectedValue);
+      this.addUserConfigs({ [[this.autoUpgradeKey]]: selectedValue });
       const displayString = {
-        // To be backwards compatible, 'true' means central.
-        true: 'enabled central FireX',
+        central: 'enabled central Flame',
         relative: 'enabled relative Flame',
         none: 'disabled',
       }[selectedValue];
@@ -183,11 +195,10 @@ export default {
       this.successDisplayMsg = `Successfully ${displayString} auto-upgrade.`;
     },
     readAutoUpgradeFromLocalStorage(autoUpgradeKey) {
-      const storedValue = localStorage.getItem(autoUpgradeKey);
-      if (_.includes(['true', 'relative'], storedValue)) {
-        return storedValue;
-      }
-      return 'none';
+      const validator = value => _.includes(['true', 'relative'], value);
+      return readValidatedPathFromLocalStorage(
+        USER_CONFIGS_KEY, autoUpgradeKey, validator, 'none',
+      );
     },
     createEmptyDisplayConfigEntry() {
       return {
@@ -220,11 +231,11 @@ export default {
       };
       this.displayConfigs.push(newEntry);
       this.inputDisplayConfig = this.createEmptyDisplayConfigEntry();
-      localStorage.setItem('displayConfigs', JSON.stringify(this.displayConfigs));
+      this.addUserConfigs({ displayConfigs: this.displayConfigs });
     },
     deleteDisplayConfig(id) {
       this.displayConfigs = _.filter(this.displayConfigs, c => c.id !== id);
-      localStorage.setItem('displayConfigs', JSON.stringify(this.displayConfigs));
+      this.addUserConfigs({ displayConfigs: this.displayConfigs });
     },
     join(array) {
       return _.join(array, ', ');
@@ -237,6 +248,8 @@ export default {
     },
   },
   watch: {
+    // Might need to fetch firexRunMetadata from server to determine if settings should be
+    // editable.
     inputFlameServer: {
       handler(newFlameServerUrl) {
         if (!this.uid) {

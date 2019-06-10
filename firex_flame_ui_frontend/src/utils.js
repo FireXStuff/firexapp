@@ -326,19 +326,6 @@ function createCollapseOpsByUuid(uuids, operation, target, sourceUuid) {
 }
 
 // TODO: move in to new file persistence.js with other local storage ops.
-function loadDisplayConfigs() {
-  if (_.has(localStorage, 'displayConfigs')) {
-    try {
-      // TODO: validate stored configs.
-      return JSON.parse(localStorage.getItem('displayConfigs'));
-    } catch (e) {
-      // Delete bad persisted state, provide default.
-      localStorage.removeItem('displayConfigs');
-    }
-  }
-  return [];
-}
-
 function concatArrayMergeCustomizer(objValue, srcValue) {
   if (_.isArray(objValue)) {
     return objValue.concat(srcValue);
@@ -390,7 +377,6 @@ export {
   getRunstateDisplayName,
   createCollapseOpsByUuid,
   createRunStateExpandOperations,
-  loadDisplayConfigs,
   concatArrayMergeCustomizer,
   containsAll,
   containsAny,
