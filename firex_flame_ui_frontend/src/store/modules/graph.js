@@ -56,9 +56,12 @@ const graphGetters = {
     return resolveDisplayConfigsToOpsByUuid(ops, rootGetters['tasks/flameDataAndNameByUuid']);
   },
 
-  userDisplayConfigOperationsByUuid: (state, getters) => {
+  userDisplayConfigOperationsByUuid: (state, getters, rootState, rootGetters) => {
+    // TODO: note this state is coming from local storage, should use library for syncing
+    // localStorage state with app (vuex) state.
     const displayConfigs = loadDisplayConfigs();
-    return resolveDisplayConfigsToOpsByUuid(displayConfigs, getters.flameDataAndNameByUuid);
+    return resolveDisplayConfigsToOpsByUuid(displayConfigs,
+      rootGetters['tasks/flameDataAndNameByUuid']);
   },
 
   runStateExpandOperationsByUuid(__, ___, ____, rootGetters) {
