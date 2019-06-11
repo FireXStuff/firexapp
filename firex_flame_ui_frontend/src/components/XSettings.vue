@@ -149,7 +149,7 @@ export default {
         get() {
           const baseUrl = new URL(window.location.path, window.location.origin);
           const fileMarkingCentralServer = new URL('send-firex-user-config.html', baseUrl);
-          return fetch(fileMarkingCentralServer).then(() => true, () => false);
+          return fetch(fileMarkingCentralServer).then(r => r.ok, () => false);
         },
         default: false,
       },
@@ -173,11 +173,6 @@ export default {
       const settingsUrl = new URL(`${this.centralServerUiPath}#/settings`, this.centralServer);
       return settingsUrl.toString();
     },
-  },
-  created() {
-    if (_.isNull(localStorage.getItem(this.autoUpgradeKey))) {
-      this.setAutoUpgrade('relative');
-    }
   },
   methods: {
     addUserConfigs(newData) {
