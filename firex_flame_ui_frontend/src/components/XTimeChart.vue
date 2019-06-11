@@ -14,24 +14,24 @@
       </template>
     </x-header>
 
-    <div style="display:flex; flex-direction: column; margin-left: 5px" class="time-table">
+    <div style="display: table; width: 100%;" class="time-table">
       <table>
         <thead>
           <tr style="text-align: center;">
-            <th @click="sortOn('task_num')" class="sortable-header">
+            <th @click="sortOn('task_num')" class="sortable-header min">
               #<template v-if="sort === 'task_num'">
                 <font-awesome-icon v-if="isAsc" icon="caret-down"></font-awesome-icon>
                 <font-awesome-icon v-else icon="caret-up"></font-awesome-icon>
               </template>
             </th>
-            <th @click="sortOn('name')" class="sortable-header">
+            <th @click="sortOn('name')" class="sortable-header min">
               Task
               <template v-if="sort === 'name'">
                 <font-awesome-icon v-if="isAsc" icon="caret-down"></font-awesome-icon>
                 <font-awesome-icon v-else icon="caret-up"></font-awesome-icon>
               </template>
             </th>
-            <th @click="sortOn('hostname')"  class="sortable-header">
+            <th @click="sortOn('hostname')"  class="sortable-header min">
               Host
               <template v-if="sort === 'hostname'">
                 <font-awesome-icon v-if="isAsc" icon="caret-down"></font-awesome-icon>
@@ -54,7 +54,7 @@
                 {{displayTasksEndTime ? formatShortTime(displayTasksEndTime, shortTime) : ''}}
               </div>
             </th>
-            <th>Links</th>
+            <th class="min">Links</th>
           </tr>
         </thead>
         <tbody>
@@ -126,6 +126,9 @@
                   <font-awesome-icon icon="file-code"></font-awesome-icon>
                 </a>
               </div>
+              <!-- TODO: consider adding collapse-hidden icons, since lazy-loading causes
+                  table expansion instead of column width re-calc.
+              -->
             </td>
           </tr>
         </tbody>
@@ -254,8 +257,9 @@ export default {
           const durationPercentage = transitionDuration / this.displayTasksDuration;
           return {
             offset: 100 * startStateOffsetPercentage,
-            // show something even for very small durations.
-            duration: 100 * durationPercentage,
+            // TODO: show something even for very small durations.
+            durationPercentage: 100 * durationPercentage,
+            duration: transitionDuration,
             state: stateTransition.state,
             timestamp: stateTransition.timestamp,
           };
@@ -279,11 +283,11 @@ export default {
     perStateRectByUuid() {
       return _.mapValues(this.perStateRectsByUuid, (statesRects, u) => _.map(
         statesRects, stateRect => ({
-          width: `${stateRect.duration}%`,
+          width: `${stateRect.durationPercentage}%`,
           background: getNodeBackground(this.displayTasks[u].exception, stateRect.state),
           state: stateRect.state,
           timestamp: stateRect.timestamp,
-          stateDuraion: stateRect.duration
+          stateDuraion: stateRect.duration,
         }),
       ));
     },
@@ -361,13 +365,22 @@ export default {
     font-family: 'Source Sans Pro', sans-serif;
   }
 
-  table {border: none;}
+  table {
+    border: none;
+    width: 100%;
+    /*padding-left: 0.5em;*/
+  }
 
   td {
     width: auto;
   }
 
   td.min {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  th.min {
     width: 1%;
     white-space: nowrap;
   }
