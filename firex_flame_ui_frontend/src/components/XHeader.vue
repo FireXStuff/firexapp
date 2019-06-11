@@ -10,10 +10,11 @@
         <div class="uid">{{title}}</div>
         <div v-if="chain" class="flame-link"><b>{{chain}}</b></div>
 
-        <a  v-if="isCiscoDeployment"
-            :href="legacyUrl" class="flame-link" style="font-size: 16px;">
-          🔥 Back to Legacy 🔥
-        </a>
+        <div class="flame-link">
+          <a  v-if="isCiscoDeployment" :href="legacyUrl"  style="font-size: 12px;">
+            Back to Legacy
+          </a>
+        </div>
 
         <div style="margin-left: auto; display: flex;">
 

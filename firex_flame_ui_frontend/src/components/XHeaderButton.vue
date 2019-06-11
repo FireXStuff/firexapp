@@ -71,8 +71,10 @@ export default {
   font-size: 13px;
   line-height: 1em;
   border-color: black;
+  border-width: 1px;
   border-radius: 0;
   box-shadow: 2px 1px 1px rgb(58, 58, 58);
+  font-family: 'Source Sans Pro',sans-serif;
 }
 
 .flame-link.kill-button a{
