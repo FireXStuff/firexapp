@@ -3,10 +3,12 @@
 <head>
   <meta charset="utf-8">
   <script type="text/javascript">
-    const userConfigData = window.localStorage.getItem('firexUserConfigs');
-    if (userConfigData) {
+    const userConfigDataString = window.localStorage.getItem('firexUserConfigs');
+    if (userConfigDataString) {
+      const userConfigData = JSON.parse(userConfigDataString);
       const messageData = {};
-      messageData.firexUserConfigs = userConfigData;
+      // Send the data as a string, not the parsed data.
+      messageData.firexUserConfigs = userConfigDataString;
       messageData.cookieIndicatesRelativeUpgrade = (userConfigData.autoFlameUpgrade === 'relative');
       messageData.cookieIndicatesCentralUpgrade = (userConfigData.autoFlameUpgrade === 'central');
       window.parent.postMessage(messageData, '*')
