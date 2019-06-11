@@ -147,7 +147,7 @@ export default {
     canEditSettings:
       {
         get() {
-          const baseUrl = new URL(window.location.path, window.location.origin);
+          const baseUrl = new URL(window.location.pathname, window.location.origin);
           const fileMarkingCentralServer = new URL('send-firex-user-config.html', baseUrl);
           return fetch(fileMarkingCentralServer).then(r => r.ok, () => false);
         },
