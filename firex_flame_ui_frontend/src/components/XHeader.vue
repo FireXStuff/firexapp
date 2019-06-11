@@ -66,6 +66,7 @@ export default {
 .header {
   background-color: #EEE;
   border-bottom: 1px solid #000;
+  height: 40px;
 }
 
 .uid {

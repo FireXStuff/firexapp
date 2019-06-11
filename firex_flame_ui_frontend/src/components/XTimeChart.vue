@@ -54,7 +54,7 @@
                 {{displayTasksEndTime ? formatShortTime(displayTasksEndTime, shortTime) : ''}}
               </div>
             </th>
-            <th class="min">Links</th>
+            <th style="width: 5%;">Links</th>
           </tr>
         </thead>
         <tbody>

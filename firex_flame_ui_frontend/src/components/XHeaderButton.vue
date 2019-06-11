@@ -1,9 +1,10 @@
 <template>
   <popper trigger="hover" :options="{ placement: 'bottom' }"
+          class="flame-link"
           :disabled="!Boolean(link.title)">
     <div class="popper header-popover">{{link.title}}</div>
 
-    <div slot="reference" class="flame-link" :class="link._class">
+    <div slot="reference"  :class="link._class">
       <router-link v-if="link.to" :to="link.to">
         <font-awesome-icon v-if="link.icon" :icon="link.icon" fixed-width/>
         <template v-if="link.text">{{link.text}}</template>
