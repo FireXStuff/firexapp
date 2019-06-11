@@ -5,6 +5,7 @@
   <script type="text/javascript">
     const userConfigData = window.localStorage.getItem('firexUserConfigs');
     if (userConfigData) {
+      const messageData = {};
       messageData.firexUserConfigs = userConfigData;
       messageData.cookieIndicatesRelativeUpgrade = (userConfigData.autoFlameUpgrade === 'relative');
       messageData.cookieIndicatesCentralUpgrade = (userConfigData.autoFlameUpgrade === 'central');
