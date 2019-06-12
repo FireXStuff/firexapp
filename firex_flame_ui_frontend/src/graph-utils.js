@@ -36,13 +36,13 @@ function getAncestorsByUuid(rootUuid, childrenUuidsByUuid) {
   return recursiveGetAncestorsByUuid(rootUuid, childrenUuidsByUuid, []);
 }
 
-function recursivegetDescendantsByUuid(uuid, childrenUuidsByUuid) {
+function getDescendantsByUuid(uuid, childrenUuidsByUuid) {
   const childrenUuids = childrenUuidsByUuid[uuid];
   if (_.isEmpty(childrenUuids)) {
     return { [[uuid]]: [] };
   }
   const descendantDescendantsByUuid = _.reduce(
-    _.map(childrenUuids, cUuid => recursivegetDescendantsByUuid(cUuid, childrenUuidsByUuid)),
+    _.map(childrenUuids, cUuid => getDescendantsByUuid(cUuid, childrenUuidsByUuid)),
     _.assign,
     {},
   );
@@ -50,11 +50,54 @@ function recursivegetDescendantsByUuid(uuid, childrenUuidsByUuid) {
   return descendantDescendantsByUuid;
 }
 
-function getDescendantsByUuid(rootUuid, childrenUuidsByUuid) {
-  return recursivegetDescendantsByUuid(rootUuid, childrenUuidsByUuid);
+function findChainRootUuid(parentUuidByUuid, chainDepthByUuid, uuid) {
+  let uuidToCheck = uuid;
+  while (uuidToCheck) {
+    const uuidChainDepth = chainDepthByUuid[uuidToCheck];
+    if (uuidChainDepth === 0) {
+      return uuidToCheck;
+    }
+    const parentUuid = parentUuidByUuid[uuidToCheck];
+    if (uuidChainDepth === 1) {
+      // If a task has chain depth of 1, that means the previous task in the chain (it's parent)
+      // is the first task in the chain, and therefore it's grandparent is the root of the chain.
+      return parentUuidByUuid[parentUuid];
+    }
+    uuidToCheck = parentUuid;
+  }
+  return null;
 }
 
-function getGraphDataByUuid(rootUuid, parentUuidByUuid, inputChildrenUuidsByUuid) {
+function getUnchainedParentUuidByUuid(parentUuidByUuid, chainDepthByUuid) {
+  return _.mapValues(parentUuidByUuid,
+    (parentUuid, uuid) => {
+      if (chainDepthByUuid[uuid] > 0) {
+        return findChainRootUuid(parentUuidByUuid, chainDepthByUuid, uuid);
+      }
+      // UUIDs with chain_depth 0 already have the 'correct' parent_id.
+      return parentUuid;
+    });
+}
+
+/**
+ * Creates a list of ancestors per UUID where if a node A executes a chain B | C | D,
+ * the nodes in the chain are all considered immediate children of A. This means B is not
+ * an ancestor of C, like in the ordinary hierarchy.
+ *
+ * @param rootUuid The UUID from which to start traversal.
+ * @param parentUuidByUuid A mapping from node UUIDs to that node's parent UUID.
+ * @param chainDepthByUuid A mapping from node UUID to that node's chain depth.
+ * @returns {{}} see above.
+ */
+function getUnchainedAncestorsByUuid(rootUuid, parentUuidByUuid, chainDepthByUuid) {
+  const unchainedParentUuidByUuid = getUnchainedParentUuidByUuid(parentUuidByUuid,
+    chainDepthByUuid);
+  const unchainedChildrenUuidsByUuid = getChildrenUuidsByUuid(unchainedParentUuidByUuid);
+  return getAncestorsByUuid(rootUuid, unchainedChildrenUuidsByUuid);
+}
+
+function getGraphDataByUuid(rootUuid, parentUuidByUuid, inputChildrenUuidsByUuid,
+  chainDepthByUuid) {
   let childrenUuidsByUuid;
   if (_.isNil(childrenUuidsByUuid)) {
     childrenUuidsByUuid = getChildrenUuidsByUuid(parentUuidByUuid);
@@ -62,14 +105,15 @@ function getGraphDataByUuid(rootUuid, parentUuidByUuid, inputChildrenUuidsByUuid
     childrenUuidsByUuid = inputChildrenUuidsByUuid;
   }
 
-  // TODO: could combine ancestor and descendant aggregation in to single walk.
-  const ancestorUuidsByUuid = getAncestorsByUuid(rootUuid, childrenUuidsByUuid);
+  // TODO: combine ancestor and descendant aggregation in to single walk.
   const descendantUuidsByUuid = getDescendantsByUuid(rootUuid, childrenUuidsByUuid);
+  const unnchainedAncestorsByUuid = getUnchainedAncestorsByUuid(rootUuid, parentUuidByUuid,
+    chainDepthByUuid);
 
   return _.mapValues(parentUuidByUuid, (__, uuid) => ({
     parentId: parentUuidByUuid[uuid],
     childrenUuids: childrenUuidsByUuid[uuid],
-    ancestorUuids: ancestorUuidsByUuid[uuid],
+    unchainedAncestorUuids: unnchainedAncestorsByUuid[uuid],
     descendantUuids: descendantUuidsByUuid[uuid],
     isLeaf: childrenUuidsByUuid[uuid].length === 0,
   }));

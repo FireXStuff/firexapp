@@ -5,11 +5,14 @@ import { resolveCollapseStatusByUuid, getCollapsedGraphByNodeUuid } from '@/coll
 
 describe('utils.js', () => {
   const trivRoot = 1;
+  const trivChainDepthByUuid = _.keyBy(['1', '2', '3'], () => 0);
   const trivialGraph = getGraphDataByUuid(trivRoot, {
     1: null,
     2: '1',
     3: '2',
-  });
+  },
+  null,
+  trivChainDepthByUuid);
 
   it('collects children', () => {
     expect(trivialGraph[1].childrenUuids).toEqual(['2']);
@@ -30,10 +33,10 @@ describe('utils.js', () => {
   });
 
   it('handles single node graph', () => {
-    const graphDataByUuid = getGraphDataByUuid('1', { '1': null });
+    const graphDataByUuid = getGraphDataByUuid('1', { 1: null }, null, { 1: 0 });
     expect(graphDataByUuid['1'].parentId).toBe(null);
     expect(graphDataByUuid['1'].childrenUuids).toEqual([]);
     expect(graphDataByUuid['1'].descendantUuids).toEqual([]);
-    expect(graphDataByUuid['1'].ancestorUuids).toEqual([]);
+    expect(graphDataByUuid['1'].unchainedAncestorUuids).toEqual([]);
   });
 });

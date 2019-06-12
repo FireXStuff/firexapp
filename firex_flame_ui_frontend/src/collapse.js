@@ -161,7 +161,9 @@ function resolveCollapseStatusByUuid(rootUuid, graphDataByUuid, collapseOpsByUui
     } else {
       curNodeResult = resolveNodeCollapseStatus(
         curUuid,
-        graphDataByUuid[curUuid].ancestorUuids,
+        // If B is collapsed and chained before C, a rule that collapses B's descendants
+        // SHOULD NOT collapse C. We therefore use the 'unchained' descendant structure.
+        graphDataByUuid[curUuid].unchainedAncestorUuids,
         graphDataByUuid[curUuid].descendantUuids,
         collapseOpsByUuid,
       );

@@ -33,6 +33,7 @@ const graphGetters = {
       rootGetters['tasks/rootUuid'],
       parentUuidByUuid,
       childrenUuidsByUuid,
+      rootGetters['tasks/chainDepthByUuid'],
     );
     return {
       parentUuidByUuid,

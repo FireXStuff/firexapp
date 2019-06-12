@@ -4,13 +4,15 @@ import { getGraphDataByUuid } from '@/graph-utils.js';
 import { resolveCollapseStatusByUuid, getCollapsedGraphByNodeUuid } from '@/collapse.js';
 
 describe('utils.js', () => {
-
   const trivRoot = 1;
+  const trivChainDepthByUuid = _.keyBy(['1', '2', '3'], () => 0);
   const trivialGraph = getGraphDataByUuid(trivRoot, {
     1: null,
     2: '1',
     3: '2',
-  });
+  },
+  null,
+  trivChainDepthByUuid);
 
   it('collapses trivial node via self', () => {
     const collapseOpsByUuid = {

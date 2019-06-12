@@ -47,6 +47,8 @@ const tasksGetters = {
 
   taskNameByUuid: state => _.mapValues(state.allTasksByUuid, 'name'),
 
+  chainDepthByUuid: state => _.mapValues(state.allTasksByUuid, 'chain_depth'),
+
   // TODO: further prune to flame_data._default_display
   flameDataAndNameByUuid: state => _.mapValues(state.allTasksByUuid,
     n => _.pick(n, ['flame_data', 'name', 'parent_id', 'uuid'])),
