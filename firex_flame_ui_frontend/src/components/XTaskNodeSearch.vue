@@ -1,16 +1,17 @@
 <template>
   <!-- Use keyup.stop because search typing shouldn't cause outer keybindings to trigger. -->
-  <div style="display: flex; border: none; border-left: 1px solid #000;" @keyup.stop>
-    <div v-if="searchOpen" v-on:keydown.esc="$store.commit('tasks/closeSearch')">
+  <div style="display: flex; height: 100%;" class="header-entry" @keyup.stop>
+    <div v-if="searchOpen" style="height: 100%;"
+         v-on:keydown.esc="$store.commit('tasks/closeSearch')">
       <div class="search-pos">
         {{ searchResultCount === 0 ? 0 : selectedIndex + 1 }} / {{ searchResultCount }}
       </div>
       <input ref='search-input' type="text" :value="searchTerm"
              @keyup.enter.exact="submitSearch($event.target.value.trim())"
              @keyup.enter.shift="$store.dispatch('tasks/previousSearchResult')"
-             class="search" placeholder="Search" style="margin-right: 8px">
+             class="search" placeholder="Search">
     </div>
-    <x-header-button :link="buttonLink" :style="searchOpen ? 'color: #2B2;' : ''"></x-header-button>
+    <x-header-button :link="buttonLink" style="border-left: none;" ></x-header-button>
   </div>
 </template>
 
@@ -36,6 +37,7 @@ export default {
         on: () => { this.$store.commit('tasks/toggleSearchOpen'); },
         icon: 'search',
         title: 'Search',
+        _class: this.searchOpen ? 'active-icon' : null,
       };
     },
   },
@@ -70,12 +72,13 @@ export default {
 
 .search-pos {
   font-family: 'Source Sans Pro', sans-serif;
-  display: inline-block;
   color: #000;
-  line-height: 40px;
   font-size: 20px;
   cursor: default;
   padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
 }
 
   /deep/ .flame-link {

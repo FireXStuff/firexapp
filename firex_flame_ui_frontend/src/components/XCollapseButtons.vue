@@ -1,5 +1,5 @@
 <template>
-  <div style="padding-right: 8px; display: flex;">
+  <div style="padding-right: 8px; display: flex; height: 100%; align-items: center;">
     <x-header-button :link="expandAllLink"></x-header-button>
 
     <popper v-if="anyCollapseOptionsAvailable"
@@ -116,7 +116,6 @@ export default {
 
   .collapse-button {
     font-size: 20px;
-    line-height: 40px;
     cursor: pointer;
     color: #000;
   }

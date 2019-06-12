@@ -1,6 +1,6 @@
 <template>
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
-    <div class="header">
+    <div class="tasks-header">
       <!-- TODO: replace with toastr or similar -->
       <div v-if="displayMessage.content" class='notification'
            :style="'background: ' + displayMessage.color">
@@ -211,7 +211,7 @@ export default {
 
 <style scoped>
 
-.header {
+.tasks-header {
   background-color: #EEE;
   border-bottom: 1px solid #000;
 }

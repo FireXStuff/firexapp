@@ -1,10 +1,10 @@
 <template>
   <popper trigger="hover" :options="{ placement: 'bottom' }"
-          class="flame-link"
+          style="border-left: 1px solid #000; height: 100%;"
           :disabled="!Boolean(link.title)">
     <div class="popper header-popover">{{link.title}}</div>
 
-    <div slot="reference"  :class="link._class">
+    <div slot="reference"  class="flame-link" :class="link._class">
       <router-link v-if="link.to" :to="link.to">
         <font-awesome-icon v-if="link.icon" :icon="link.icon" fixed-width/>
         <template v-if="link.text">{{link.text}}</template>
@@ -41,8 +41,6 @@ export default {
 .flame-link {
   font-family: 'Source Sans Pro',sans-serif;
   vertical-align: top;
-  border-left: 1px solid #000;
-  line-height: 40px;
   text-align: center;
   text-decoration: none;
   padding: 0 8px;
@@ -50,6 +48,9 @@ export default {
   border-radius: 0;
   font-size: 20px;
   justify-content: flex-end;
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .flame-link a {
@@ -89,5 +90,9 @@ export default {
 .kill-button:hover a {
   color: #fff;
 }
+
+  .flame-link.active-icon  a {
+    color: #2B2;
+  }
 
 </style>

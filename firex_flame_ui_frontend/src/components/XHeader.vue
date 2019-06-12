@@ -1,6 +1,6 @@
 <template>
     <div class="header">
-      <div style="display: flex; flex-direction: row;">
+      <div style="display: flex; flex-direction: row; align-items: center; height: 100%;">
         <div>
           <router-link :to="{ name: 'XGraph',
             query: {logDir: $route.query.logDir, flameServer: $route.query.flameServer}}">
@@ -8,15 +8,19 @@
           </router-link>
         </div>
         <div class="uid">{{title}}</div>
-        <div v-if="chain" class="flame-link"><b>{{chain}}</b></div>
+        <!-- Unfortuntate that this comp needs to know search is in the slot.-->
+        <!-- TODO: find a better fix for when no space for search bar (i.e. long chain value)-->
+        <div v-if="chain && !isSearchOpen" class="flame-link header-entry">
+          <b>{{chain}}</b>
+        </div>
 
-        <div class="flame-link">
+        <div class="flame-link header-entry">
           <a  v-if="isCiscoDeployment" :href="legacyUrl"  style="font-size: 12px;">
             Back to Legacy
           </a>
         </div>
 
-        <div style="margin-left: auto; display: flex;">
+        <div style="margin-left: auto; display: flex; align-items: center; height: 100%;">
 
           <slot name="prebuttons"></slot>
 
@@ -46,6 +50,7 @@ export default {
     ...mapState({
       chain: state => state.firexRunMetadata.chain,
       centralServer: state => state.firexRunMetadata.centralServer,
+      isSearchOpen: state => state.tasks.search.isOpen,
     }),
     legacyUrl() {
       // If there is no flame server query parameter, assume the app is being served from a flame
@@ -61,12 +66,15 @@ export default {
 };
 </script>
 
-<style scoped>
+<style>
 
 .header {
   background-color: #EEE;
   border-bottom: 1px solid #000;
-  height: 40px;
+}
+
+.header-entry {
+  border-left: 1px solid #000;
 }
 
 .uid {
@@ -75,7 +83,6 @@ export default {
   padding: 0;
   white-space: nowrap;
   font-size: 20px;
-  line-height: 40px;
   font-weight: normal;
 }
 
