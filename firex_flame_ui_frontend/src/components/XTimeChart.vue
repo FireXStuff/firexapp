@@ -318,6 +318,11 @@ export default {
       return DateTime.fromSeconds(unixTime).toLocaleString(DateTime.DATETIME_FULL);
     },
     formatShortTime(unixTime, format) {
+      if (_.isNil(unixTime)) {
+        // TODO: Only necessary because kludge-states don't include timestamp. After fixed on
+        //  server, this nil check can be performed.
+        return 'Unknown';
+      }
       return DateTime.fromSeconds(unixTime).toLocaleString(format);
     },
     routeToAttribute(uuid) {
