@@ -93,7 +93,7 @@ def {0}(**kwargs):
             cmd += ["--plugins", ",".join(plugins)]
 
         submit_test = self.is_submit_command(flow_test_config)
-        if submit_test:
+        if submit_test and getattr(flow_test_config, "sync", True):
             cmd += ["--sync"]
         return cmd
 
