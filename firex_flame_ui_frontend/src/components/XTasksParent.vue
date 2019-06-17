@@ -1,15 +1,12 @@
 <template>
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
-    <div class="tasks-header">
-      <!-- TODO: replace with toastr or similar -->
-      <div v-if="displayMessage.content" class='notification'
+    <!-- TODO: replace with toastr or similar -->
+    <div v-if="displayMessage.content" class='tasks-header notification'
            :style="'background: ' + displayMessage.color">
         <span style="top: 50%">{{displayMessage.content}}</span>
-      </div>
-
-      <div style="text-align: center; padding: 0 10px">
+    </div>
+    <div v-if="updating" style="text-align: center; padding: 0 10px">
         <div :class="{spinner: updating}"></div>
-      </div>
     </div>
     <!-- Only show main panel after data is loaded. This guarantees safe access to api operations
     from child views, since the only way for tasks to be present is for the api accessor

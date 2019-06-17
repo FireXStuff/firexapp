@@ -1,5 +1,5 @@
 <template>
-  <div style="width: 100%; height: 100%; display: flex; flex-direction: column; overflow: auto;"
+  <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
        @keydown.ctrl.f.prevent="focusOnFind"
        @keyup.191.prevent="focusOnFind"
        tabindex="0"
@@ -13,57 +13,55 @@
       </template>
     </x-header>
 
-    <div style="display:flex; flex-direction: column; margin-left: 5px">
-      <div>Sort by:
-        <div style="display:flex; margin-left: 20px">
-          <div v-for="option in sortOptions" :key="option.value" style="margin: 0 3px;">
-            <input type="radio" :id="option.value" name="list-order" :value="option.value"
-                   v-model="selectedOptions.sortOption">
-            <label :for="option.value">{{option.text}}</label>
-          </div>
+    <div style="margin-left: 5px;">Sort by:
+      <div style="display:flex; margin-left: 20px">
+        <div v-for="option in sortOptions" :key="option.value" style="margin: 0 3px;">
+          <input type="radio" :id="option.value" name="list-order" :value="option.value"
+                 v-model="selectedOptions.sortOption">
+          <label :for="option.value">{{option.text}}</label>
+        </div>
 
-          <div style="margin-left: 25px;">
-            <input type="radio" id="ascending" name="list-order-direction" value="ascending"
-                   v-model="selectedOptions.sortDirection">
-            <label for="ascending">Ascending</label>
-          </div>
-          <div style="margin-left: 3px;">
-            <input type="radio" id="descending" name="list-order-direction" value="descending"
-                   v-model="selectedOptions.sortDirection">
-            <label for="descending">Descending</label>
-          </div>
+        <div style="margin-left: 25px;">
+          <input type="radio" id="ascending" name="list-order-direction" value="ascending"
+                 v-model="selectedOptions.sortDirection">
+          <label for="ascending">Ascending</label>
+        </div>
+        <div style="margin-left: 3px;">
+          <input type="radio" id="descending" name="list-order-direction" value="descending"
+                 v-model="selectedOptions.sortDirection">
+          <label for="descending">Descending</label>
         </div>
       </div>
+    </div>
 
-      <div>Filter by run state:
-        <div style="display:flex; margin-left: 20px">
-          <div style="display: inline-block; margin: 0 15px;">
-            <input type="checkbox" id="all" v-on:change="toggleShowAll"
-                   :checked="allRunStatesSelected">
-            <label for="all">All</label>
-          </div>
-          <div v-for="(_, stateSelector) in runStateSelectorsToStates" :key="stateSelector"
-               style="display: inline-block; margin: 0 15px;">
-            <input type="checkbox" :id="stateSelector" name="list-filter" :value="stateSelector"
-                   v-model="selectedOptions.runStates">
-            <label :for="stateSelector">{{stateSelector}}</label>
-          </div>
+    <div style="margin-left: 5px;">Filter by run state:
+      <div style="display:flex; margin-left: 20px">
+        <div style="display: inline-block; margin: 0 15px;">
+          <input type="checkbox" id="all" v-on:change="toggleShowAll"
+                 :checked="allRunStatesSelected">
+          <label for="all">All</label>
+        </div>
+        <div v-for="(_, stateSelector) in runStateSelectorsToStates" :key="stateSelector"
+             style="display: inline-block; margin: 0 15px;">
+          <input type="checkbox" :id="stateSelector" name="list-filter" :value="stateSelector"
+                 v-model="selectedOptions.runStates">
+          <label :for="stateSelector">{{stateSelector}}</label>
         </div>
       </div>
+    </div>
 
-      <div>
-        <hr>
-      </div>
+    <div>
+      <hr>
+    </div>
 
-      <!-- TODO: Add no nodes matching filters result. -->
-      <div class="list-container" ref="task-list">
-        <x-node v-for="uuid in displayTaskUuids" :key="uuid"
-                :taskUuid="uuid"
-                style="margin: 10px"
-                :isLeaf="true"
-                :ref="'task-' + uuid"
-        ></x-node>
-      </div>
+    <!-- TODO: Add no nodes matching filters result. -->
+    <div class="list-container" ref="task-list">
+      <x-node v-for="uuid in displayTaskUuids" :key="uuid"
+              :taskUuid="uuid"
+              style="margin: 10px"
+              :isLeaf="true"
+              :ref="'task-' + uuid"
+      ></x-node>
     </div>
   </div>
 </template>
