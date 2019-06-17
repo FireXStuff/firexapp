@@ -245,7 +245,7 @@ export default {
         if (isCollapsedByUiOp) {
           // TODO: removing this op doesn't necessarily create the pressure to expand.
           // If default state is collapsed, then nothing happens, which is wrong.
-          console.log('all desc collapsed currently collapsed by UI op -- removing');
+          // console.log('all desc collapsed currently collapsed by UI op -- removing');
           uiCollapseEvent = { uuid, remove: true };
         } else {
           uiCollapseEvent = {
@@ -269,7 +269,7 @@ export default {
 
         if (isChildCollapseDenied) {
           // clear child collapse denial operation.
-          console.log('child collapsed currently denied -- removing');
+          // console.log('child collapsed currently denied -- removing');
           uiCollapseEvent = { uuid, remove: true };
         } else {
           const isExpandedByUiOp = this.isExpandedByUiOp(uuid);
@@ -277,7 +277,7 @@ export default {
           if (isExpandedByUiOp) {
             // TODO: Just because children are exapnded by UI op doesn't mean removing the
             // op ADDs pressure to collapse.
-            console.log('all children expanded by UI op -- removing');
+            // console.log('all children expanded by UI op -- removing');
             uiCollapseEvent = { uuid, remove: true };
           } else {
             // Not caused by existing operation, create a collapse operation.
@@ -295,7 +295,7 @@ export default {
         // Partial collapse: collapse all descendants.
         const isExpandedByUiOp = this.isExpandedByUiOp(uuid);
         if (isExpandedByUiOp) {
-          console.log('partial collapse currently expanded by UI op -- removing');
+          // console.log('partial collapse currently expanded by UI op -- removing');
           uiCollapseEvent = { uuid, remove: true };
         } else {
           uiCollapseEvent = {
