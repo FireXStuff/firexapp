@@ -120,7 +120,6 @@
 import _ from 'lodash';
 import { mapState } from 'vuex';
 
-import * as api from '../api';
 import { uuidv4 } from '../utils';
 import {
   addLocalStorageData, readValidatedPathFromLocalStorage, loadDisplayConfigs, USER_CONFIGS_KEY,
@@ -156,7 +155,6 @@ export default {
   },
   computed: {
     ...mapState({
-      uid: state => state.firexRunMetadata.uid,
       centralServerUiPath: state => state.firexRunMetadata.centralServerUiPath,
       centralServer: state => state.firexRunMetadata.centralServer,
     }),
@@ -240,21 +238,6 @@ export default {
     },
     onCopyFail() {
       this.failureDisplayMsg = 'Failed to copy to clipboard';
-    },
-  },
-  watch: {
-    // Might need to fetch firexRunMetadata from server to determine if settings should be
-    // editable.
-    inputFlameServer: {
-      handler(newFlameServerUrl) {
-        if (!this.uid) {
-          api.setAccessor('socketio', newFlameServerUrl);
-          api.getFireXRunMetadata().then((data) => {
-            this.$store.commit('firexRunMetadata/setFlameRunMetadata', data);
-          });
-        }
-      },
-      immediate: true,
     },
   },
 };
