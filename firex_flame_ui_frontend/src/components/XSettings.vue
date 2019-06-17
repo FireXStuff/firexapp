@@ -188,9 +188,10 @@ export default {
       this.successDisplayMsg = `Successfully ${displayString} auto-upgrade.`;
     },
     readAutoUpgradeFromLocalStorage(autoUpgradeKey) {
-      const validator = value => _.includes(['true', 'relative'], value);
+      const validator = value => _.includes(['central', 'relative', 'none'], value);
+      const defaultAutoUpgrade = 'relative';
       return readValidatedPathFromLocalStorage(
-        USER_CONFIGS_KEY, autoUpgradeKey, validator, 'none',
+        USER_CONFIGS_KEY, autoUpgradeKey, validator, defaultAutoUpgrade,
       );
     },
     createEmptyDisplayConfigEntry() {
