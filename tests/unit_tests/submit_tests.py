@@ -235,7 +235,7 @@ class ArgumentApplicabilityTests(unittest.TestCase):
         pass  # pragma: no cover
 
     @test_app.task(base=FireXTask, bind=True)
-    def micro_for_close_args_test(self, bypass_reason, ignored=True):
+    def micro_for_close_args_test(self, bypass_reason, short, ignored=True):
         pass  # pragma: no cover
 
     @property
@@ -270,13 +270,21 @@ class ArgumentApplicabilityTests(unittest.TestCase):
         self.assertEqual(len(unused), 0)
 
     def test_close_match(self):
-        # Test for near match to 'bypass_reason'
+        # Test for near match to 'bypass_reason' - ratio method
         kwargs = {'byepass_reason': 'True'}
         unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
         self.assertEqual(len(unused), 1)
         self.assertEqual(list(unused.keys())[0], list(kwargs.keys())[0])
         self.assertEqual(len(close_matches), 1)
         self.assertEqual('bypass_reason', close_matches[list(kwargs.keys())[0]])
+
+        # Test for near match to 'short' - ratio method
+        kwargs = {'sgort': 'True'}
+        unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
+        self.assertEqual(len(unused), 1)
+        self.assertEqual(list(unused.keys())[0], list(kwargs.keys())[0])
+        self.assertEqual(len(close_matches), 1)
+        self.assertEqual('short', close_matches[list(kwargs.keys())[0]])
 
         # Test for no near matches
         kwargs = {'a_completely_bogus_argument': 'doesnt_matter'}
