@@ -19,7 +19,7 @@ setup(name='firexapp',
           "xmlrunner",
           "celery[redis] >= 4.2.1",
           "psutil",
-          "Levenshtein"
+          "python-Levenshtein"
       ],
       classifiers=[
           "Programming Language :: Python :: 3",
