@@ -290,16 +290,19 @@ class SubmitBaseApp:
         if isinstance(args, dict):
             args = list(args.keys())
 
-        unused_chain_args = find_unused_arguments(chain_args=chain_args,
-                                                  ignore_list=args,
-                                                  all_tasks=all_tasks)
+        unused_chain_args, matches = find_unused_arguments(chain_args=chain_args,
+                                                           ignore_list=args,
+                                                           all_tasks=all_tasks)
         if not unused_chain_args:
             # everything is used. Good job!
             return True
 
         logger.error("Invalid arguments provided. The following arguments are not used by any microservices:")
         for arg in unused_chain_args:
-            logger.error("--" + arg)
+            if arg in matches:
+                logger.error("--" + arg + " (Did you mean '%s'?)" % matches[arg])
+            else:
+                logger.error("--" + arg)
         return False
 
     @contextmanager

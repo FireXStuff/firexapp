@@ -234,6 +234,10 @@ class ArgumentApplicabilityTests(unittest.TestCase):
     def micro_for_args_check_test(self, uid, ignored=True):
         pass  # pragma: no cover
 
+    @test_app.task(base=FireXTask, bind=True)
+    def micro_for_close_args_test(self, bypass_reason, ignored=True):
+        pass  # pragma: no cover
+
     @property
     def base_kwargs(self):
         return {"chain": "test"}
@@ -243,16 +247,16 @@ class ArgumentApplicabilityTests(unittest.TestCase):
         kwargs["uid"] = "valid stuff"
 
         kwargs["not_applicable"] = "invalid stuff"
-        unused = find_unused_arguments(kwargs, ["chain"], self.test_app.tasks)
+        unused, _ = find_unused_arguments(kwargs, ["chain"], self.test_app.tasks)
         self.assertEqual(len(unused), 1)
 
     def test_only_applicable(self):
-        unused = find_unused_arguments({}, [], self.test_app.tasks)
+        unused, _ = find_unused_arguments({}, [], self.test_app.tasks)
         self.assertEqual(len(unused), 0)
 
         kwargs = {'chain': 'noop',
                   'uid': 'FireX-mdelahou-161215-150725-21939'}
-        unused = find_unused_arguments(kwargs, ["chain"], self.test_app.tasks)
+        unused, _ = find_unused_arguments(kwargs, ["chain"], self.test_app.tasks)
         self.assertEqual(len(unused), 0)
 
     def test_white_list(self):
@@ -262,8 +266,24 @@ class ArgumentApplicabilityTests(unittest.TestCase):
                   'str_arg': "a str"}
         whitelist_arguments(["list_arg"])
         whitelist_arguments('str_arg')
-        unused = find_unused_arguments(kwargs, ["chain", "anything"], self.test_app.tasks)
+        unused, _ = find_unused_arguments(kwargs, ["chain", "anything"], self.test_app.tasks)
         self.assertEqual(len(unused), 0)
+
+    def test_close_match(self):
+        # Test for near match to 'bypass_reason'
+        kwargs = {'byepass_reason': 'True'}
+        unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
+        self.assertEqual(len(unused), 1)
+        self.assertEqual(list(unused.keys())[0], list(kwargs.keys())[0])
+        self.assertEqual(len(close_matches), 1)
+        self.assertEqual('bypass_reason', close_matches[list(kwargs.keys())[0]])
+
+        # Test for no near matches
+        kwargs = {'a_completely_bogus_argument': 'doesnt_matter'}
+        unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
+        self.assertEqual(len(unused), 1)
+        self.assertEqual(list(unused.keys())[0], list(kwargs.keys())[0])
+        self.assertEqual(len(close_matches), 0)
 
 
 class UidTests(unittest.TestCase):

@@ -217,8 +217,10 @@ def find_unused_arguments(chain_args: {}, ignore_list: [], all_tasks: []):
     :param all_tasks: A list of all microservices. Usually app.tasks
     :return: A dictionary of un-applicable arguments
     """
+    import Levenshtein as Lev
+
     if len(chain_args) is 0:
-        return {}
+        return {}, {}
 
     ignore_list += _global_argument_whitelist
 
@@ -228,13 +230,37 @@ def find_unused_arguments(chain_args: {}, ignore_list: [], all_tasks: []):
         if std_arg in unused_chain_args:
             unused_chain_args.pop(std_arg)
 
+    # build up used chain arg list
+    used_chain_args = []
     for _, task in all_tasks.items():
-        for arg in getattr(task, "required_args", []) + list(getattr(task, "optional_args", [])):
-            if arg in unused_chain_args:
-                unused_chain_args.pop(arg)
+        used_chain_args.extend(getattr(task, "required_args", []))
+        used_chain_args.extend(getattr(task, "optional_args", []))
 
-                if not unused_chain_args:
-                    return unused_chain_args
+    # Loop through used args and remove any found in unused list
+    for used_arg in used_chain_args:
+        if used_arg in unused_chain_args:
+            unused_chain_args.pop(used_arg)
 
-    # if we reached here, some un-applicable kwarg was provided
-    return unused_chain_args
+    # Loop through remaining unused chain args and build near-match dict
+    close_matches = {}
+    for unused_arg in unused_chain_args:
+        close_match = {}
+        for used_arg in used_chain_args:
+            # for unused args less than 10 chars long, use distance method, otherwise use ratio method.
+            if len(unused_arg) < 10:
+                distance = Lev.distance(used_arg, unused_arg)
+                if distance < 3:
+                    if not close_match or close_match['distance'] > distance:
+                        close_match['arg'] = used_arg
+                        close_match['distance'] = distance
+            else:
+                match_ratio = Lev.ratio(used_arg, unused_arg)
+                if match_ratio > 0.9:
+                    if not close_match or close_match['ratio'] < match_ratio:
+                        close_match['arg'] = used_arg
+                        close_match['ratio'] = match_ratio
+        # Store the closest match in the returned dict
+        if close_match:
+            close_matches[unused_arg] = close_match['arg']
+
+    return unused_chain_args, close_matches
