@@ -5,14 +5,13 @@ import { resolveCollapseStatusByUuid, getCollapsedGraphByNodeUuid } from '@/coll
 
 describe('utils.js', () => {
   const trivRoot = 1;
-  const trivChainDepthByUuid = _.keyBy(['1', '2', '3'], () => 0);
-  const trivialGraph = getGraphDataByUuid(trivRoot, {
+  const trivParentById = {
     1: null,
     2: '1',
     3: '2',
-  },
-  null,
-  trivChainDepthByUuid);
+  };
+  const trivChainDepthByUuid = _.keyBy(['1', '2', '3'], () => 0);
+  const trivialGraph = getGraphDataByUuid(trivRoot, trivParentById, null, trivChainDepthByUuid);
 
   it('collapses trivial node via self', () => {
     const collapseOpsByUuid = {
@@ -131,16 +130,36 @@ describe('utils.js', () => {
     expect(result['3'].collapsed).toBe(false);
   });
 
-  it('collapses grandchildren', () => {
+  // Grandchildren disabled for now.
+  // it('collapses grandchildren', () => {
+  //   const collapseOpsByUuid = {
+  //     1: [{ operation: 'collapse', priority: 1, targets: ['grandchildren'] }],
+  //   };
+  //
+  //   const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
+  //   expect(_.size(result)).toEqual(3);
+  //   expect(result['1'].collapsed).toBe(false);
+  //   expect(result['2'].collapsed).toBe(false);
+  //   expect(result['3'].collapsed).toBe(true);
+  // });
+
+  it('Does not collapse chained descendants.', () => {
     const collapseOpsByUuid = {
-      1: [{ operation: 'collapse', priority: 1, targets: ['grandchildren'] }],
+      2: [{ operation: 'collapse', priority: 1, targets: ['unchained-descendants'] }],
     };
 
-    const result = resolveCollapseStatusByUuid(trivRoot, trivialGraph, collapseOpsByUuid);
+    // This chains means 2 collapsing descendants should not collapse 3, since it's chained.
+    const chainDepthByUuid = {
+      1: 0,
+      2: 0,
+      3: 1,
+    };
+    const graph = getGraphDataByUuid(trivRoot, trivParentById, null, chainDepthByUuid);
+    const result = resolveCollapseStatusByUuid(trivRoot, graph, collapseOpsByUuid);
     expect(_.size(result)).toEqual(3);
     expect(result['1'].collapsed).toBe(false);
     expect(result['2'].collapsed).toBe(false);
-    expect(result['3'].collapsed).toBe(true);
+    expect(result['3'].collapsed).toBe(false);
   });
 
   it('does not collapse root node', () => {

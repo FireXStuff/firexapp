@@ -78,29 +78,40 @@ function getOpsAndDistanceForTarget(uuids, collapseOpsByUuid, target) {
 }
 
 function getAllOpsAffectingCollapseState(
-  curNodeUuid, collapseOpsByUuid, curNodeAncestorUuids, curNodeDescendantUuids,
+  curNodeUuid,
+  collapseOpsByUuid,
+  ancestorUuids,
+  curNodeUnchainedAncestorUuids,
+  curNodeDescendantUuids,
 ) {
   const expandCollapseInfluences = {
     self: _.filter(_.get(collapseOpsByUuid, curNodeUuid, []),
       op => _.includes(op.targets, 'self')),
 
     ancestor:
-      getOpsAndDistanceForTarget(curNodeAncestorUuids,
-        _.pick(collapseOpsByUuid, curNodeAncestorUuids), 'descendants'),
+      getOpsAndDistanceForTarget(ancestorUuids,
+        _.pick(collapseOpsByUuid, ancestorUuids), 'descendants'),
+
+    unchainedAncestor:
+      getOpsAndDistanceForTarget(curNodeUnchainedAncestorUuids,
+        _.pick(collapseOpsByUuid, curNodeUnchainedAncestorUuids), 'unchained-descendants'),
 
     descendant:
       getOpsAndDistanceForTarget(curNodeDescendantUuids,
         _.pick(collapseOpsByUuid, curNodeDescendantUuids), 'ancestors'),
 
-    grandparent:
-      getOpsAndDistanceForTarget(_.tail(curNodeAncestorUuids),
-        _.pick(collapseOpsByUuid, _.tail(curNodeAncestorUuids)), 'grandchildren'),
+    // Unclear if it's worth support both chained and unchained verisons for grandchildren,
+    // so disable for now.
+    // grandparent:
+    //   getOpsAndDistanceForTarget(_.tail(curNodeUnchainedAncestorUuids),
+    //     _.pick(collapseOpsByUuid, _.tail(curNodeUnchainedAncestorUuids)), 'grandchildren'),
   };
   const targetNameToPriority = {
     self: 1,
     ancestor: 2,
-    descendant: 3,
-    grandparent: 4,
+    unchainedAncestor: 3,
+    descendant: 4,
+    // grandparent: 5,
   };
   // at otherwise equal priorities, expand beats collapse.
   const operationToPriority = {
@@ -119,7 +130,11 @@ function getAllOpsAffectingCollapseState(
 }
 
 function findMinPriorityOp(
-  curNodeUuid, collapseOpsByUuid, curNodeAncestorUuids, curNodeDescendantUuids,
+  curNodeUuid,
+  collapseOpsByUuid,
+  ancestorUuids,
+  curNodeUnchainedAncestorUuids,
+  curNodeDescendantUuids,
 ) {
   // TODO: optimize this function. It's more debug-friendly to find all affecting ops then
   // minimize, but this is slow in the presence of many collapse ops. Instead walk ops in
@@ -127,7 +142,8 @@ function findMinPriorityOp(
   const affectingOps = getAllOpsAffectingCollapseState(
     curNodeUuid,
     collapseOpsByUuid,
-    curNodeAncestorUuids,
+    ancestorUuids,
+    curNodeUnchainedAncestorUuids,
     curNodeDescendantUuids,
   );
 
@@ -137,9 +153,16 @@ function findMinPriorityOp(
   return _.head(sorted);
 }
 
-function resolveNodeCollapseStatus(uuid, ancestorUuids, descendantUuids, collapseOpsByUuid) {
+function resolveNodeCollapseStatus(
+  uuid, ancestorUuids, unchainedAncestorUuids, descendantUuids, collapseOpsByUuid) {
   // assumes walking root-down (parent collapsed state already calced).
-  const minPriorityOp = findMinPriorityOp(uuid, collapseOpsByUuid, ancestorUuids, descendantUuids);
+  const minPriorityOp = findMinPriorityOp(
+    uuid,
+    collapseOpsByUuid,
+    ancestorUuids,
+    unchainedAncestorUuids,
+    descendantUuids,
+  );
   return {
     // If no rules affect this node (minPriorityOp undefined), default to false (not collapsed).
     collapsed: _.isUndefined(minPriorityOp) ? false : minPriorityOp.operation === 'collapse',
@@ -161,6 +184,7 @@ function resolveCollapseStatusByUuid(rootUuid, graphDataByUuid, collapseOpsByUui
     } else {
       curNodeResult = resolveNodeCollapseStatus(
         curUuid,
+        graphDataByUuid[curUuid].ancestorUuids,
         // If B is collapsed and chained before C, a rule that collapses B's descendants
         // SHOULD NOT collapse C. We therefore use the 'unchained' descendant structure.
         graphDataByUuid[curUuid].unchainedAncestorUuids,

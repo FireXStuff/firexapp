@@ -52,9 +52,25 @@ const graphGetters = {
     const displayPath = ['flame_data', '_default_display', 'value'];
     // TODO: Each task can send updates that should override previous op entries for that task.
     //  Do that filtering here.
-    const ops = _.flatMap(rootGetters['tasks/flameDataAndNameByUuid'],
+    const flameDataOps = _.flatMap(rootGetters['tasks/flameDataAndNameByUuid'],
       n => _.get(n, displayPath, []));
-    return resolveDisplayConfigsToOpsByUuid(ops, rootGetters['tasks/flameDataAndNameByUuid']);
+    const resolvedOpsByUuid = resolveDisplayConfigsToOpsByUuid(flameDataOps,
+      rootGetters['tasks/flameDataAndNameByUuid']);
+
+    // The tree that ops from flameData operate on are different thanthe UI hierarchy. Specifically,
+    // flame collapse ops operate on a tree that ignores chains-to-descendant relationships.
+    // We therefore transform 'descendants' to 'unchained-descendants' for all targets from
+    // flame data ops.
+    return _.mapValues(resolvedOpsByUuid, ops => _.map(ops, (op) => {
+      const transformedTargets = _.map(op.targets,
+        (t) => {
+          if (t === 'descendants') {
+            return 'unchained-descendants';
+          }
+          return t;
+        });
+      return _.assign({}, op, { targets: transformedTargets });
+    }));
   },
 
   userDisplayConfigOperationsByUuid: (state, getters, rootState, rootGetters) => {

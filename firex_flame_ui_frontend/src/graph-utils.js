@@ -107,6 +107,7 @@ function getGraphDataByUuid(rootUuid, parentUuidByUuid, inputChildrenUuidsByUuid
 
   // TODO: combine ancestor and descendant aggregation in to single walk.
   const descendantUuidsByUuid = getDescendantsByUuid(rootUuid, childrenUuidsByUuid);
+  const ancestorUuidsByUuid = getAncestorsByUuid(rootUuid, childrenUuidsByUuid);
   const unnchainedAncestorsByUuid = getUnchainedAncestorsByUuid(rootUuid, parentUuidByUuid,
     chainDepthByUuid);
 
@@ -114,6 +115,7 @@ function getGraphDataByUuid(rootUuid, parentUuidByUuid, inputChildrenUuidsByUuid
     parentId: parentUuidByUuid[uuid],
     childrenUuids: childrenUuidsByUuid[uuid],
     unchainedAncestorUuids: unnchainedAncestorsByUuid[uuid],
+    ancestorUuids: ancestorUuidsByUuid[uuid],
     descendantUuids: descendantUuidsByUuid[uuid],
     isLeaf: childrenUuidsByUuid[uuid].length === 0,
   }));
