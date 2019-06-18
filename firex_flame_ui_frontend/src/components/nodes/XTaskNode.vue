@@ -33,7 +33,6 @@
         navigating to task node attribute page. Should likely find a better way.-->
         <div class="flame-data" v-on:click="flameDataClick">
           <div v-if="showTaskDetails">{{taskUuid}}</div>
-          <div v-if="showTaskDetails">{{minPriorityOp}}</div>
           <!-- We're really trusting data from the server here (rendering raw HTML) -->
           <div v-if="showLegacyFlameAdditionalData" v-html="flameAdditionalData"></div>
           <template v-else>
@@ -118,9 +117,6 @@ export default {
     },
     fromPlugin() {
       return this.task.from_plugin;
-    },
-    minPriorityOp() {
-      return this.$store.getters['graph/resolvedCollapseStateByUuid'][this.taskUuid].minPriorityOp;
     },
     topLevelStyle() {
       const s = {
