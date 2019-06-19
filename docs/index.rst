@@ -16,7 +16,7 @@ Want to learn more?
    development
    api_reference
 
-Indices and tables
+API Reference Indices
 ==================
 
 * :ref:`genindex`
