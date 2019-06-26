@@ -10,7 +10,8 @@ from contextlib import contextmanager
 
 from celery.exceptions import NotRegistered
 
-from firexkit.result import wait_on_async_results, disable_async_result, find_unsuccessful
+from firexkit.result import wait_on_async_results, disable_async_result, find_unsuccessful, ChainRevokedException, \
+    ChainInterruptedException
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
@@ -119,20 +120,28 @@ class SubmitBaseApp:
 
         if args.sync:
             logger.info("Waiting for chain to complete...")
-            wait_on_async_results(chain_result)
-            failures = find_unsuccessful(chain_result, ignore_non_ready=True)
-            if failures:
-                logger.error("Failures occurred in the following tasks:")
-                failures = sorted(failures.values())
-                for failure in failures:
-                    logger.error(failure)
+            try:
+                wait_on_async_results(chain_result)
+                self.check_for_failures(chain_result, chain_args)
+            except (ChainRevokedException, ChainInterruptedException):
+                self.check_for_failures(chain_result, chain_args)
                 self.main_error_exit_handler(chain_details=(chain_result, chain_args))
                 sys.exit(-1)
             else:
                 logger.info("All tasks succeeded")
-            self.copy_submission_log()
-            self.self_destruct(chain_details=(chain_result, chain_args))
-            self.wait_for_broker_shutdown()
+                self.copy_submission_log()
+                self.self_destruct(chain_details=(chain_result, chain_args))
+                self.wait_for_broker_shutdown()
+
+    def check_for_failures(self, chain_result, chain_args):
+        failures = find_unsuccessful(chain_result, ignore_non_ready=True)
+        if failures:
+            logger.error("Failures occurred in the following tasks:")
+            failures = sorted(failures.values())
+            for failure in failures:
+                logger.error(failure)
+            self.main_error_exit_handler(chain_details=(chain_result, chain_args))
+            sys.exit(-1)
 
     def set_broker_in_app(self):
         from firexapp.engine.celery import app
