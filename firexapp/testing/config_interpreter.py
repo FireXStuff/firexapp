@@ -189,6 +189,9 @@ def {0}(**kwargs):
             print("\t%s!" % type(e).__name__, file=sys.stderr)
             self.cleanup_after_timeout(std_out, std_err)
             raise
+        except Exception as e:
+            print('\tException: {}: {}'.format(type(e).__name__, e), file=sys.stderr)
+            raise
         finally:
             self.on_test_exit(std_out, std_err)
 
