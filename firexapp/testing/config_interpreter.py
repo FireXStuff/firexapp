@@ -99,7 +99,7 @@ def {0}(**kwargs):
 
     def get_exe(self, flow_test_config)->[]:
         import firexapp
-        if self.coverage:
+        if self.coverage and not hasattr(flow_test_config, 'no_coverage'):
             return ["coverage", "run", "--branch", "--append", "-m", firexapp.__name__]
         if self.profile:
             base_dir = os.path.dirname(firexapp.__file__)
@@ -116,7 +116,7 @@ def {0}(**kwargs):
 
         submit_test = self.is_submit_command(flow_test_config)
         if submit_test:
-            if self.coverage:
+            if self.coverage and not hasattr(flow_test_config, 'no_coverage'):
                 # add the coverage plugin to restart celery in coverage mode
                 from firexapp.testing import coverage_plugin
                 plugins.append(coverage_plugin.__file__)
