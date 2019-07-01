@@ -1,7 +1,7 @@
 <template>
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
     <x-header :title="headerParams.title"
-              :links="headerParams.links"
+              :links="links"
               :legacyPath="headerParams.legacyPath"></x-header>
 
     <div class="help-content">
@@ -31,6 +31,7 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
 
 import XHeader from './XHeader.vue';
 
@@ -41,29 +42,18 @@ export default {
     return {
       headerParams: {
         title: 'Keyboard Shortcuts',
-        links: [
-          {
-            name: 'documentation',
-            href: 'http://firex.cisco.com',
-            text: 'Documentation',
-            icon: 'book',
-          },
-          {
-            name: 'help',
-            to: {
-              name: 'XHelp',
-              query: {
-                logDir: this.$route.query.logDir,
-                flameServer: this.$route.query.flameServer,
-              },
-            },
-            text: 'Help',
-            icon: 'question-circle',
-          },
-        ],
         legacyPath: '/shortcuts',
       },
     };
+  },
+  computed: {
+    ...mapGetters({
+      documentationHeaderEntry: 'header/documentationHeaderEntry',
+      helpViewHeaderEntry: 'header/helpViewHeaderEntry',
+    }),
+    links() {
+      return [this.documentationHeaderEntry, this.helpViewHeaderEntry];
+    },
   },
 };
 </script>

@@ -1,5 +1,5 @@
 <template>
-  <router-link :to="allowClickToAttributes ? routeToAttribute() : currentRoute()">
+  <router-link :to="allowClickToAttributes ? routeToAttribute() : currentRoute()" append>
     <div :style="topLevelStyle" class="node" v-on:click.shift.prevent="nodeShiftClick">
       <div style="overflow: hidden; text-overflow: ellipsis;">
         <div style="display: flex;">

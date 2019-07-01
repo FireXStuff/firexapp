@@ -1,5 +1,9 @@
 import _ from 'lodash';
 import io from 'socket.io-client';
+import untar from 'js-untar';
+import { ungzip } from 'pako';
+
+import { getFireXIdParts } from './utils';
 
 function socketRequestResponse(socket, requestEvent, successEventName, failedEventName, timeout) {
   const p = new Promise(
@@ -97,16 +101,70 @@ function createSocketApiAccessor(url, options) {
   };
 }
 
+function createWebFileAccessor(firexId, modelPathTemplate) {
+  const firexIdParts = getFireXIdParts(firexId);
+  const templateOptions = { evaluate: null, interpolate: null };
+  const modelBasePath = _.template(modelPathTemplate, templateOptions)(firexIdParts);
+
+  const modelBaseUrl = new URL(modelBasePath, window.location.origin);
+
+  const metadataUrl = (new URL('run-metadata.json', modelBaseUrl)).toString();
+  const graphUrl = (new URL('slim-tasks.json', modelBaseUrl)).toString();
+
+  return {
+    // TODO: add failure, timeout, or auto-handle elsewhere.
+    getFireXRunMetadata: () => fetch(metadataUrl).then(r => r.json(), () => {}),
+
+    // TODO: add failure, timeout, or auto-handle elsewhere.
+    getTaskGraph: () => fetch(graphUrl).then(r => r.json(), () => {}),
+
+    // TODO: add failure, timeout, or auto-handle elsewhere.
+    fetchTaskDetails: uuid => fetch((new URL(`full-tasks/${uuid}.json`, modelBaseUrl)).toString())
+      .then(r => r.json(), () => {}),
+
+    // TODO: add failure, timeout, or auto-handle elsewhere.
+    fetchTaskFields: fields => fetch((new URL('full-run-state.tar.gz', modelBaseUrl))
+      .toString())
+      .then(r => r.arrayBuffer())
+      .then(blob => ungzip(blob))
+      .then(ungzippedContent => untar(ungzippedContent.buffer))
+      .then((extractedFiles) => {
+        const fieldsByUuid = {};
+
+        extractedFiles.forEach((extractedFile) => {
+          const fileName = extractedFile.name;
+
+          // Get requested fields from the full task dump files.
+          if (fileName.startsWith('full-tasks/') && fileName.endsWith('.json')) {
+            const task = extractedFile.readAsJSON();
+            fieldsByUuid[task.uuid] = _.pick(task, fields);
+          }
+        });
+        return fieldsByUuid;
+      }),
+
+    /*
+     * Noop operations, since this accessor is only used on completed runs.
+     */
+    startLiveUpdate: () => {},
+    stopLiveUpdate: () => {},
+    revoke: () => {},
+    cleanup: () => {},
+  };
+}
+
 let apiAccessor = null;
 
-function setAccessor(apiType, url, options) {
+function setAccessor(apiType, apiTypeKey, options) {
   // Cleanup current accessor.
   if (!_.isNull(apiAccessor)) {
     apiAccessor.cleanup();
   }
 
   if (apiType === 'socketio') {
-    apiAccessor = createSocketApiAccessor(url, options);
+    apiAccessor = createSocketApiAccessor(apiTypeKey, options);
+  } else if (apiType === 'dump-files') {
+    apiAccessor = createWebFileAccessor(apiTypeKey, options.modelPathTemplate);
   } else {
     console.error(`Unknown API type: ${apiType}`);
   }
@@ -140,6 +198,10 @@ function revokeTask(uuid) {
   return apiAccessor.revoke(uuid);
 }
 
+const defaultUiConfig = {
+  access_mode: 'webserver-file',
+};
+
 export {
   setAccessor,
   getFireXRunMetadata,
@@ -149,4 +211,5 @@ export {
   startLiveUpdate,
   stopLiveUpdate,
   revokeTask,
+  defaultUiConfig,
 };

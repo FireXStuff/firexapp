@@ -119,8 +119,8 @@ const graphGetters = {
     return _.mergeWith({}, ...enabledCollapseStateSources, concatArrayMergeCustomizer);
   },
 
-  resolvedCollapseStateByUuid(state, getters, rootState) {
-    const rootUuid = rootState.firexRunMetadata.root_uuid;
+  resolvedCollapseStateByUuid(state, getters, rootState, rootGetters) {
+    const rootUuid = rootGetters['tasks/rootUuid'];
     if (!_.has(getters.graphDataByUuid, rootUuid)) {
       return {};
     }

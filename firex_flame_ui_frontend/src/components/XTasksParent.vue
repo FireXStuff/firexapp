@@ -28,6 +28,7 @@ export default {
   props: {
     inputLogDir: { required: false, type: String },
     inputFlameServer: { required: false, type: String },
+    inputFireXId: { required: false, type: String },
   },
   data() {
     return {
@@ -81,6 +82,9 @@ export default {
     },
     isApiConnected() {
       return this.$store.state.tasks.apiConnected;
+    },
+    uiConfig() {
+      return this.$store.state.firexRunMetadata.uiConfig;
     },
   },
   created() {
@@ -172,10 +176,43 @@ export default {
     },
     setFlameRunMetadata() {
       api.getFireXRunMetadata().then((data) => {
-        // TODO: is adding the server URL still necessary?
+        // TODO: is adding the server URL still necessary? This should be fetched from server.
         data.flameServerUrl = this.flameServerUrl;
         this.$store.commit('firexRunMetadata/setFlameRunMetadata', data);
       });
+    },
+    setApiAccessor(uiConfig) {
+      if (uiConfig.access_mode === 'webserver-file') {
+        const options = {
+          modelPathTemplate: '/auto/firex-logs/<%- year %>/<%- month %>/'
+            + '<%- day %>/<%- firex_id %>/flame_model/',
+        };
+        api.setAccessor('dump-files', this.inputFireXId, options);
+      } else {
+        // TODO: should probably timeout trying to reconnect after some time.
+        api.setAccessor('socketio', this.flameServerUrl, {
+          onConnect: () => this.$store.commit('tasks/setApiConnected', true),
+          onDisconnect: () => this.$store.commit('tasks/setApiConnected', false),
+        });
+      }
+      this.fetchAllTasksAndStartLiveUpdate();
+      this.setFlameRunMetadata();
+    },
+    updateApiAccessor() {
+      if (_.isNull(this.uiConfig)) {
+        fetch('flame-ui-config.json')
+          .then((r) => {
+            if (r.ok) {
+              return r.json();
+            }
+            return api.defaultUiConfig;
+          },
+          () => api.defaultUiConfig)
+          .then(uiConfig => this.$store.commit('firexRunMetadata/setFlameUiConfig', uiConfig))
+          .finally(() => this.setApiAccessor(this.uiConfig));
+      } else {
+        this.setApiAccessor(this.uiConfig);
+      }
     },
   },
   watch: {
@@ -188,18 +225,10 @@ export default {
     },
     flameServerUrl: {
       immediate: true,
-      handler(newFlameServerUrl) {
+      handler() {
         // Clear data from previous api accessor.
         this.setNodesByUuid({});
-
-        // TODO: should probably timeout trying to reconnect after some time.
-        api.setAccessor('socketio', newFlameServerUrl, {
-          onConnect: () => this.$store.commit('tasks/setApiConnected', true),
-          onDisconnect: () => this.$store.commit('tasks/setApiConnected', false),
-        });
-
-        this.fetchAllTasksAndStartLiveUpdate();
-        this.setFlameRunMetadata();
+        this.updateApiAccessor();
       },
     },
   },

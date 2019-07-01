@@ -3,7 +3,8 @@
       <div style="display: flex; flex-direction: row; align-items: center; height: 100%;">
         <div>
           <router-link :to="{ name: 'XGraph',
-            query: {logDir: $route.query.logDir, flameServer: $route.query.flameServer}}">
+            query: {logDir: $route.query.logDir, flameServer: $route.query.flameServer}}"
+            >
             <img style='height: 36px;' src="../assets/firex_logo.png" alt="firex logo">
           </router-link>
         </div>
@@ -12,12 +13,6 @@
         <!-- TODO: find a better fix for when no space for search bar (i.e. long chain value)-->
         <div v-if="chain && !isSearchOpen" class="flame-link header-entry">
           <b>{{chain}}</b>
-        </div>
-
-        <div class="flame-link header-entry">
-          <a  v-if="isCiscoDeployment" :href="legacyUrl"  style="font-size: 12px;">
-            Back to Legacy
-          </a>
         </div>
 
         <div style="margin-left: auto; display: flex; align-items: center; height: 100%;">
@@ -52,13 +47,13 @@ export default {
       centralServer: state => state.firexRunMetadata.centralServer,
       isSearchOpen: state => state.tasks.search.isOpen,
     }),
-    legacyUrl() {
-      // If there is no flame server query parameter, assume the app is being served from a flame
-      // server and make the url relative to the server root.
-      // TODO: Not great reading flame server directly from route.
-      const start = _.get(this.$route, 'query.flameServer', '');
-      return `${start}${this.legacyPath}?noUpgrade=true`;
-    },
+    // legacyUrl() {
+    //   // If there is no flame server query parameter, assume the app is being served from a flame
+    //   // server and make the url relative to the server root.
+    //   // TODO: Not great reading flame server directly from route.
+    //   const start = _.get(this.$route, 'query.flameServer', '');
+    //   return `${start}${this.legacyPath}?noUpgrade=true`;
+    // },
     isCiscoDeployment() {
       return this.centralServer === 'http://firex.cisco.com';
     },

@@ -141,7 +141,7 @@
 <script>
 import _ from 'lodash';
 import { DateTime } from 'luxon';
-import { mapState } from 'vuex';
+import { mapState, mapGetters } from 'vuex';
 import Popper from 'vue-popperjs';
 import 'vue-popperjs/dist/vue-popper.css';
 
@@ -178,6 +178,12 @@ export default {
       title: state => state.firexRunMetadata.uid,
       search: state => state.tasks.search,
     }),
+    ...mapGetters({
+      graphViewHeaderEntry: 'header/graphViewHeaderEntry',
+      listViewHeaderEntry: 'header/listViewHeaderEntry',
+      runLogsViewHeaderEntry: 'header/runLogsViewHeaderEntry',
+      helpViewHeaderEntry: 'header/helpViewHeaderEntry',
+    }),
     tasksWithRuntimeByUuid() {
       return _.mapValues(this.allTasksByUuid,
         t => Object.assign({ runtime: this.getRuntime(t) }, t));
@@ -197,30 +203,10 @@ export default {
     },
     headerLinks() {
       return [
-        {
-          name: 'graph',
-          to: routeTo2(this.$route.query, 'XGraph'),
-          icon: 'sitemap',
-          title: 'Main Graph',
-        },
-        {
-          name: 'list',
-          to: routeTo2(this.$route.query, 'XList'),
-          icon: 'list-ul',
-          title: 'List View',
-        },
-        {
-          name: 'logs',
-          href: this.$store.getters['firexRunMetadata/logsUrl'],
-          text: 'Logs',
-          icon: 'file-alt',
-        },
-        {
-          name: 'help',
-          to: routeTo2(this.$route.query, 'XHelp'),
-          text: 'Help',
-          icon: 'question-circle',
-        },
+        this.graphViewHeaderEntry,
+        this.listViewHeaderEntry,
+        this.runLogsViewHeaderEntry,
+        this.helpViewHeaderEntry,
       ];
     },
     displayTasksStartTime() {

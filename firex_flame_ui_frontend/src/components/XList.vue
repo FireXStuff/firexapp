@@ -68,12 +68,12 @@
 
 <script>
 import _ from 'lodash';
-import { mapState } from 'vuex';
+import { mapState, mapGetters } from 'vuex';
 
 import XNode from './nodes/XTaskNode.vue';
 import XHeader from './XHeader.vue';
 import XTaskNodeSearch from './XTaskNodeSearch.vue';
-import { routeTo2, containsAll } from '../utils';
+import { containsAll } from '../utils';
 
 export default {
   name: 'XList',
@@ -120,6 +120,12 @@ export default {
       allTasksByUuid: state => state.tasks.allTasksByUuid,
       search: state => state.tasks.search,
     }),
+    ...mapGetters({
+      graphViewHeaderEntry: 'header/graphViewHeaderEntry',
+      runLogsViewHeaderEntry: 'header/runLogsViewHeaderEntry',
+      helpViewHeaderEntry: 'header/helpViewHeaderEntry',
+      timeChartViewHeaderEntry: 'header/timeChartViewHeaderEntry',
+    }),
     // Want to go over results based on selected sort order, not based on task_num.
     orderedSearchResultUuids() {
       return _.intersection(this.sortedTasksUuids, this.search.resultUuids);
@@ -137,26 +143,8 @@ export default {
       return this.$store.state.firexRunMetadata.uid;
     },
     headerLinks() {
-      return [
-        {
-          name: 'graph',
-          to: routeTo2(this.$route.query, 'XGraph'),
-          icon: 'sitemap',
-          title: 'Main Graph',
-        },
-        {
-          name: 'logs',
-          href: this.$store.getters['firexRunMetadata/logsUrl'],
-          text: 'Logs',
-          icon: 'file-alt',
-        },
-        {
-          name: 'help',
-          to: routeTo2(this.$route.query, 'XHelp'),
-          text: 'Help',
-          icon: 'question-circle',
-        },
-      ];
+      return [this.graphViewHeaderEntry, this.timeChartViewHeaderEntry,
+        this.runLogsViewHeaderEntry, this.helpViewHeaderEntry];
     },
     sortedTasksUuids() {
       const optionsToSortFields = {

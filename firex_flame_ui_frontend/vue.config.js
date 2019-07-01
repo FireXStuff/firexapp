@@ -14,4 +14,11 @@ module.exports = {
       new GitRevisionPlugin(),
     ],
   },
+  devServer: {
+    proxy: {
+      '^/auto': {
+        target: 'http://firex.cisco.com',
+      },
+    },
+  },
 };

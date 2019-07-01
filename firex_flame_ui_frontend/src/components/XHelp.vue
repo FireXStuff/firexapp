@@ -8,7 +8,7 @@
       <h1>Types of Tasks</h1>
       <div style="display: flex; margin-left: 100px">
         <div style="margin: 15px">
-          <h2 class="node-type">Started</h2>
+          <h2 class="node-type">Running</h2>
           <div style="display: inline-block; width: 200px;">
             <x-node taskUuid="startedNode" :allow-click-to-attributes="false" :isLeaf="true">
             </x-node>
@@ -73,11 +73,10 @@
 <script>
 
 import _ from 'lodash';
-import { mapState } from 'vuex';
+import { mapGetters } from 'vuex';
 
 import XNode from './nodes/XTaskNode.vue';
 import XHeader from './XHeader.vue';
-import { routeTo2 } from '../utils';
 
 export default {
   name: 'XHelp',
@@ -105,8 +104,8 @@ export default {
     this.$store.dispatch('tasks/setTasks', tasksByUuid);
   },
   computed: {
-    ...mapState({
-      docUrl: state => state.firexRunMetadata.central_documentation_url,
+    ...mapGetters({
+      documentationHeaderEntry: 'header/documentationHeaderEntry',
     }),
     tasksByUuid() {
       return {
@@ -125,16 +124,11 @@ export default {
         links: [
           {
             name: 'shortcuts',
-            to: routeTo2(this.$route.query, 'XShortcuts'),
+            to: { name: 'XShortcuts' },
             text: 'Shortcuts',
             icon: 'keyboard',
           },
-          {
-            name: 'documentation',
-            href: this.docUrl,
-            text: 'Documentation',
-            icon: 'book',
-          },
+          this.documentationHeaderEntry,
         ],
         legacyPath: '/help',
       };

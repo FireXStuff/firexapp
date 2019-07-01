@@ -341,6 +341,25 @@ function twoDepthAssign(existingData, newData) {
   return result;
 }
 
+const FIREX_ID_REGEX = new RegExp('FireX-.*-(\\d\\d)(\\d\\d)(\\d\\d)-\\d{6}-\\d+');
+
+function isFireXIdValid(firexId) {
+  return FIREX_ID_REGEX.test(firexId)
+}
+
+function getFireXIdParts(firexId) {
+  if (!isFireXIdValid(firexId)) {
+    throw Error(`Invalid firex_id can't have parts extracted: ${firexId}`);
+  }
+  const match = FIREX_ID_REGEX.exec(firexId);
+  return {
+    'year': match[1],
+    'month': match[2],
+    'day': match[3],
+    'firex_id': firexId,
+  };
+}
+
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
 const eventHub = new Vue();
 
@@ -366,4 +385,6 @@ export {
   containsAny,
   getTaskNodeBorderRadius,
   twoDepthAssign,
+  isFireXIdValid,
+  getFireXIdParts,
 };

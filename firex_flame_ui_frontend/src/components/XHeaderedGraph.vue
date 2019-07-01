@@ -25,15 +25,14 @@
 
 <script>
 import _ from 'lodash';
+import { mapGetters } from 'vuex';
 
 import XGraph from './XGraph.vue';
 import XHeader from './XHeader.vue';
 import XCollapseButtons from './XCollapseButtons.vue';
 import XTaskNodeSearch from './XTaskNodeSearch.vue';
 
-import {
-  eventHub, routeTo2,
-} from '../utils';
+import { eventHub } from '../utils';
 
 export default {
   name: 'XHeaderedGraph',
@@ -48,6 +47,17 @@ export default {
     rootUuid: { default: null },
   },
   computed: {
+    ...mapGetters({
+      canRevoke: 'tasks/canRevoke',
+      listViewHeaderEntry: 'header/listViewHeaderEntry',
+      runLogsViewHeaderEntry: 'header/runLogsViewHeaderEntry',
+      helpViewHeaderEntry: 'header/helpViewHeaderEntry',
+      timeChartViewHeaderEntry: 'header/timeChartViewHeaderEntry',
+      centerHeaderEntry: 'header/centerHeaderEntry',
+      showTaskDetailsHeaderEntry: 'header/showTaskDetailsHeaderEntry',
+      liveUpdateToggleHeaderEntry: 'header/liveUpdateToggleHeaderEntry',
+      killHeaderEntry: 'header/killHeaderEntry',
+    }),
     toggleStates() {
       return {
         liveUpdate: this.$store.state.graph.liveUpdate,
@@ -57,63 +67,18 @@ export default {
     runMetadata() {
       return this.$store.state.firexRunMetadata;
     },
-    canRevoke() {
-      return this.$store.getters['tasks/canRevoke'];
-    },
     headerParams() {
       let links = [
-        {
-          name: 'liveUpdate',
-          on: () => this.$store.dispatch('graph/toggleLiveUpdate'),
-          toggleState: this.toggleStates.liveUpdate,
-          icon: ['far', 'eye'],
-          title: 'Live Update',
-        },
-        {
-          name: 'center',
-          on: () => eventHub.$emit('center'),
-          icon: 'bullseye',
-          title: 'Center',
-        },
-        {
-          name: 'showTaskDetails',
-          on: () => this.$store.dispatch('graph/toggleShowTaskDetails'),
-          toggleState: this.toggleStates.showTaskDetails,
-          icon: 'plus-circle',
-          title: 'Show Details',
-        },
-        {
-          name: 'list',
-          to: routeTo2(this.$route.query, 'XList'),
-          icon: 'list-ul',
-          title: 'List View',
-        },
-        {
-          name: 'time-chart',
-          to: routeTo2(this.$route.query, 'XTimeChart'),
-          icon: 'clock',
-          title: 'Time Chart',
-        },
-        {
-          name: 'kill',
-          on: () => eventHub.$emit('revoke-root'),
-          _class: 'kill-button',
-          icon: 'times',
-          title: 'Kill',
-        },
-        {
-          name: 'logs',
-          // TODO replace with central server from metadata.
-          href: this.$store.getters['firexRunMetadata/logsUrl'],
-          text: 'Logs',
-          icon: 'file-alt',
-        },
-        {
-          name: 'help',
-          to: routeTo2(this.$route.query, 'XHelp'),
-          text: 'Help',
-          icon: 'question-circle',
-        },
+        this.liveUpdateToggleHeaderEntry(() => this.$store.dispatch('graph/toggleLiveUpdate')),
+        this.centerHeaderEntry,
+        this.showTaskDetailsHeaderEntry(
+          () => this.$store.dispatch('graph/toggleShowTaskDetails'),
+        ),
+        this.listViewHeaderEntry,
+        this.timeChartViewHeaderEntry,
+        this.killHeaderEntry,
+        this.runLogsViewHeaderEntry,
+        this.helpViewHeaderEntry,
       ];
       // Remove live update and kill options if the run isn't alive.
       if (!this.canRevoke) {

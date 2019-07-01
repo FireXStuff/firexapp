@@ -9,18 +9,28 @@ import _ from 'lodash';
 import XHelp from '@/components/XHelp.vue';
 import XSettings from '@/components/XSettings.vue';
 import XShortcuts from '@/components/XShortcuts.vue';
+import XFindFirexId from '@/components/XFindFirexId.vue';
 
 Vue.use(Router);
 
 const router = new Router({
   routes: [
     {
-      path: '/',
+      path: '/:inputFireXId(FireX-.*)?',
       component: XTasksParent,
       props: route => ({
         inputLogDir: route.query.logDir,
         inputFlameServer: route.query.flameServer,
+        inputFireXId: route.params.inputFireXId,
       }),
+      beforeEnter: (to, from, next) => {
+        if (_.isNil(to.params.inputFireXId) && _.isNil(to.query.flameServer)) {
+          // re-direct to find page if no source of run data supplied.
+          next('/find');
+        } else {
+          next();
+        }
+      },
       children: [
         {
           path: 'list',

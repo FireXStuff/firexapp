@@ -3,6 +3,7 @@ import Vuex from 'vuex';
 import tasks from './modules/tasks';
 import graph from './modules/graph';
 import firexRunMetadata from './modules/firexRunMetadata';
+import header from './modules/header';
 
 Vue.use(Vuex);
 
@@ -13,6 +14,7 @@ export default new Vuex.Store({
     tasks,
     graph,
     firexRunMetadata,
+    header,
   },
   strict: debug,
   devtools: debug,

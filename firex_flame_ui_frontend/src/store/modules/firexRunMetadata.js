@@ -9,6 +9,9 @@ const metaDataState = {
   chain: null,
   central_documentation_url: 'http://firex.cisco.com',
   centralServerUiPath: null,
+  // TODO: this isn't really firex run metadata, but it isn't expected to change per-UI instance,
+  // so fits in well here with other largely static data. It might be worth putting it elsewhere.
+  uiConfig: null,
 };
 
 // getters
@@ -38,7 +41,14 @@ const actions = {
 // mutations
 const mutations = {
   setFlameRunMetadata(state, firexRunMetadata) {
-    _.each(_.keys(state), (k) => { state[k] = firexRunMetadata[k]; });
+    _.each(_.keys(state), (k) => {
+      if (_.has(firexRunMetadata, k)) {
+        state[k] = firexRunMetadata[k];
+      }
+    });
+  },
+  setFlameUiConfig(state, newUiConfig) {
+    state.uiConfig = newUiConfig;
   },
 };
 
