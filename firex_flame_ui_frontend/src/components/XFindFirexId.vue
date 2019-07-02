@@ -15,54 +15,61 @@
 </template>
 
 <script>
+import { isFireXIdValid, getFireXIdParts } from '../utils';
 
 export default {
   name: 'XFindFirexId',
   data() {
     return {
       inputFireXId: '',
-      firexIdRegex: new RegExp('FireX-.*-(\\d\\d)(\\d\\d)(\\d\\d)-\\d{6}-\\d+'),
     };
   },
   asyncComputed: {
-    foundFirexIdLogs:
+    runMetadata:
       {
         get() {
           if (!this.isFirexIdValid) {
             return false;
           }
-          return fetch(this.logsPath).then(r => r.ok, () => false);
+          return fetch(this.runMetadataModePath).then(r => r.json(), () => false);
         },
         default: false,
       },
   },
   computed: {
     isFirexIdValid() {
-      return this.firexIdRegex.test(this.inputFireXId);
+      return isFireXIdValid(this.inputFireXId);
     },
     errorMessage() {
       if (this.inputFireXId) {
         if (!this.isFirexIdValid) {
           return 'The entered FireX ID is not valid.';
         }
-        if (!this.foundFirexIdLogs) {
+        if (!this.runMetadata && !this.$asyncComputed.runMetadata.updating) {
           return 'Could not find logs for FireX ID.';
         }
       }
       return null;
     },
-    logsPath() {
-      const match = this.firexIdRegex.exec(this.inputFireXId);
-      if (match == null) {
+    runMetadataModePath() {
+      if (!this.isFirexIdValid) {
         return null;
       }
-      return `/auto/firex-logs/${match[1]}/${match[2]}/${match[3]}/${this.inputFireXId}/`;
+      const p = getFireXIdParts(this.inputFireXId);
+      // TODO: get format from UI config stored on server.
+      return `/auto/firex-logs/${p.year}/${p.month}/${p.day}/${p.firex_id}/flame_model/run-metadata.json`;
     },
   },
-  methods: {
-    findFirexId() {
-      if (this.foundFirexIdLogs) {
-        this.$router.push({ name: 'XGraph', params: { inputFireXId: this.inputFireXId } });
+  watch: {
+    runMetadata(runMetadata) {
+      if (runMetadata) {
+        fetch((new URL('/alive', runMetadata.flame_url)).toString(), { mode: 'no-cors' })
+          .then(
+            // If the flame for the selected run is still alive, redirect the user there.
+            () => { window.location.href = runMetadata.flame_url; },
+            // If the flame is not still alive, take the user to the graph for the selected run.
+            () => this.$router.push({ name: 'XGraph', params: { inputFireXId: this.inputFireXId } }),
+          );
       }
     },
   },
