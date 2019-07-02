@@ -74,6 +74,11 @@ const router = new Router({
       ],
     },
     {
+      path: '/find',
+      name: 'FindFirexId',
+      component: XFindFirexId,
+    },
+    {
       path: '/help',
       name: 'XHelp',
       component: XHelp,
