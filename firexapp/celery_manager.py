@@ -192,7 +192,7 @@ class CeleryManager(object):
         self.pid_files[workername] = pid_file
 
         cmd = '%s worker --hostname=%s@%%h --app=%s --loglevel=%s ' \
-              '--logfile=%s --pidfile=%s --events -Ofair' % (self.celery_bin, workername,
+              '--logfile=%s --pidfile=%s --events --without-heartbeat -Ofair' % (self.celery_bin, workername,
                                                              app, worker_log_level, log_file, pid_file)
         if queues:
             cmd += ' --queues=%s' % queues
