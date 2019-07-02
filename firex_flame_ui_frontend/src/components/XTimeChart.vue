@@ -106,7 +106,7 @@
                     <span slot="reference"
                           :style="fullTaskRectStyleByUuid[task.uuid]"
                           style="height: 0.75em;display: block;">
-                      <router-link :to="routeToAttribute(task.uuid)" class="task"
+                      <router-link :to="getTaskRoute(task.uuid)" class="task"
                                    style="display: block; height: 100%;">
                       </router-link>
                     </span>
@@ -119,7 +119,7 @@
                 <a :href="extraTaskFieldsByUuid[task.uuid].logs_url" title="logs">
                   <font-awesome-icon icon="file-alt"></font-awesome-icon>
                 </a>
-                <router-link :to="rootRoute(task.uuid)" title="subtree">
+                <router-link :to="getCustomRootRoute(task.uuid)" title="subtree">
                   <font-awesome-icon icon="sitemap"></font-awesome-icon>
                 </router-link>
                 <a :href="extraTaskFieldsByUuid[task.uuid].code_url" title="code">
@@ -149,7 +149,7 @@ import XHeader from './XHeader.vue';
 import XTaskNodeSearch from './XTaskNodeSearch.vue';
 import * as api from '../api';
 import {
-  routeTo2, durationString, getNodeBackground, isTaskStateIncomplete, getRunstateDisplayName,
+  durationString, getNodeBackground, isTaskStateIncomplete, getRunstateDisplayName,
 } from '../utils';
 
 export default {
@@ -183,6 +183,8 @@ export default {
       listViewHeaderEntry: 'header/listViewHeaderEntry',
       runLogsViewHeaderEntry: 'header/runLogsViewHeaderEntry',
       helpViewHeaderEntry: 'header/helpViewHeaderEntry',
+      getTaskRoute: 'header/getTaskRoute',
+      getCustomRootRoute: 'header/getCustomRootRoute',
     }),
     tasksWithRuntimeByUuid() {
       return _.mapValues(this.allTasksByUuid,
@@ -311,9 +313,6 @@ export default {
       }
       return DateTime.fromSeconds(unixTime).toLocaleString(format);
     },
-    routeToAttribute(uuid) {
-      return routeTo2(this.$route.query, 'XNodeAttributes', { uuid });
-    },
     durationString,
     updateRouteQuery(newParams) {
       const newQuery = Object.assign({}, this.$route.query, newParams);
@@ -326,9 +325,6 @@ export default {
       } else {
         this.updateRouteQuery({ sort: columnName, sortDirection: 'asc' });
       }
-    },
-    rootRoute(customRootUuid) {
-      return routeTo2(this.$route.query, 'custom-root', { rootUuid: customRootUuid });
     },
     getRunstateDisplayName,
     isTaskStateIncomplete,

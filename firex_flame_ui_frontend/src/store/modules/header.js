@@ -2,11 +2,16 @@ import _ from 'lodash';
 
 import { eventHub } from '../../utils';
 
-function firexRunRoute(name, dataSourceKey) {
+function firexRunRoute(routeBase, dataSourceKey) {
   const query = dataSourceKey.is_flame_url ? { flameServer: dataSourceKey.key } : {};
   const params = dataSourceKey.is_firex_id ? { inputFireXId: dataSourceKey.key } : {};
 
-  return { name, query, params };
+  const newVals = { query, params };
+  if (routeBase.path && dataSourceKey.is_firex_id) {
+    newVals.path = `/${dataSourceKey.key}/${routeBase.path}`;
+  }
+
+  return _.merge({}, routeBase, newVals);
 }
 
 // getters
@@ -28,12 +33,20 @@ const headerGetters = {
     return {}; // Not all routes need a data source key, e.g. Help view.
   },
 
-  runRoute: (state, getters) => name => firexRunRoute(name, getters.dataSourceKey),
+  runRouteFromName: (state, getters) => name => firexRunRoute({ name }, getters.dataSourceKey),
+
+  getTaskRoute: (state, getters) => taskUuid => firexRunRoute(
+    { path: `tasks/${taskUuid}` }, getters.dataSourceKey,
+  ),
+
+  getCustomRootRoute: (state, getters) => newRootUuid => firexRunRoute(
+    { path: `root/${newRootUuid}` }, getters.dataSourceKey,
+  ),
 
   listViewHeaderEntry(state, getters) {
     return {
       name: 'list',
-      to: getters.runRoute('XList'),
+      to: getters.runRouteFromName('XList'),
       icon: 'list-ul',
       title: 'List View',
     };
@@ -42,7 +55,7 @@ const headerGetters = {
   graphViewHeaderEntry(state, getters) {
     return {
       name: 'graph',
-      to: getters.runRoute('XGraph'),
+      to: getters.runRouteFromName('XGraph'),
       icon: 'sitemap',
       title: 'Main Graph',
     };
@@ -60,7 +73,7 @@ const headerGetters = {
   timeChartViewHeaderEntry(state, getters) {
     return {
       name: 'time-chart',
-      to: getters.runRoute('XTimeChart'),
+      to: getters.runRouteFromName('XTimeChart'),
       icon: 'clock',
       title: 'Time Chart',
     };
@@ -69,7 +82,7 @@ const headerGetters = {
   helpViewHeaderEntry(state, getters) {
     return {
       name: 'help',
-      to: getters.runRoute('XHelp'),
+      to: getters.runRouteFromName('XHelp'),
       text: 'Help',
       icon: 'question-circle',
     };

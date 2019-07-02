@@ -1,5 +1,5 @@
 <template>
-  <router-link :to="allowClickToAttributes ? routeToAttribute() : currentRoute()" append>
+  <router-link :to="allowClickToAttributes ? routeToAttribute() : currentRoute()">
     <div :style="topLevelStyle" class="node" v-on:click.shift.prevent="nodeShiftClick">
       <div style="overflow: hidden; text-overflow: ellipsis;">
         <div style="display: flex;">
@@ -54,8 +54,10 @@
 
 <script>
 import _ from 'lodash';
+import { mapGetters } from 'vuex';
+
 import {
-  routeTo2, getNodeBackground, eventHub, getTaskNodeBorderRadius,
+  getNodeBackground, eventHub, getTaskNodeBorderRadius,
 } from '../../utils';
 import XDuration from './XDuration.vue';
 
@@ -76,6 +78,10 @@ export default {
     };
   },
   computed: {
+    ...mapGetters({
+      getTaskRoute: 'header/getTaskRoute',
+      getCustomRootRoute: 'header/getCustomRootRoute',
+    }),
     task() {
       return this.$store.state.tasks.allTasksByUuid[this.taskUuid];
     },
@@ -164,7 +170,7 @@ export default {
       eventHub.$emit('toggle-task-collapse', this.taskUuid);
     },
     routeToAttribute() {
-      return routeTo2(this.$route.query, 'XNodeAttributes', { uuid: this.taskUuid });
+      return this.getTaskRoute(this.taskUuid);
     },
     currentRoute() {
       // The 'to' supplied to a router-link must be mutable for some reason.
@@ -175,7 +181,7 @@ export default {
     },
     nodeShiftClick() {
       if (this.allowClickToAttributes) {
-        this.$router.push(routeTo2(this.$route.query, 'custom-root', { rootUuid: this.taskUuid }));
+        this.$router.push(this.getCustomRootRoute(this.taskUuid));
       }
     },
     // TODO: debounce?

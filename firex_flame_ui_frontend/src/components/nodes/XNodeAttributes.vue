@@ -12,14 +12,14 @@
         <!-- Add parent {name, uuid} to store-->
         <div v-if="key === 'parent' && displayKeyNode[key]" style="display: inline">
           {{displayKeyNode[key].name}}
-          <router-link :to="linkToUuid(displayKeyNode[key].uuid)"
+          <router-link :to="getTaskRoute(displayKeyNode[key].uuid)"
           >{{displayKeyNode[key].uuid}}</router-link>
         </div>
         <div v-else-if="key === 'children'">
           <div v-for="child in displayKeyNode[key]" :key="'child-' + child.uuid"
                style="margin-left: 25px; padding: 3px;">
             <strong>{{child.name}}: </strong>
-            <router-link :to="linkToUuid(child.uuid)">{{child.uuid}}</router-link>
+            <router-link :to="getTaskRoute(child.uuid)">{{child.uuid}}</router-link>
           </div>
         </div>
         <div v-else-if="key === 'support_location'" style="display: inline">
@@ -55,9 +55,10 @@
 <script>
 import _ from 'lodash';
 import { DateTime } from 'luxon';
+import { mapGetters } from 'vuex';
 
 import * as api from '../../api';
-import { routeTo2, eventHub, isTaskStateIncomplete } from '../../utils';
+import { eventHub, isTaskStateIncomplete } from '../../utils';
 import XHeader from '../XHeader.vue';
 
 export default {
@@ -73,6 +74,9 @@ export default {
     };
   },
   computed: {
+    ...mapGetters({
+      getTaskRoute: 'header/getTaskRoute',
+    }),
     simpleTask() {
       return this.$store.getters['tasks/runStateByUuid'][this.uuid];
     },
@@ -187,9 +191,6 @@ export default {
       api.fetchTaskDetails(this.uuid).then((taskAttributes) => {
         this.taskAttributes = taskAttributes;
       });
-    },
-    linkToUuid(uuid) {
-      return routeTo2(this.$route.query, 'XNodeAttributes', { uuid });
     },
     isObject(val) {
       return _.isObject(val);

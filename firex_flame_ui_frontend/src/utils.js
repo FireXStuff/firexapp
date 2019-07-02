@@ -142,20 +142,6 @@ function calculateNodesPositionByUuid(nodesByUuid) {
   return calcedDimensionsByUuid;
 }
 
-function routeTo2(query, name, params) {
-  const route = {
-    name,
-    query: {
-      logDir: query.logDir,
-      flameServer: query.flameServer,
-    },
-  };
-  if (params) {
-    route.params = params;
-  }
-  return route;
-}
-
 function getCenteringTransform(rectToCenter, container, scaleBounds, verticalPadding) {
   // TODO: padding as percentage of available area.
   const widthToCenter = rectToCenter.right - rectToCenter.left;
@@ -368,7 +354,6 @@ export {
   eventHub,
   calculateNodesPositionByUuid,
   getCenteringTransform,
-  routeTo2,
   isTaskStateIncomplete,
   hasIncompleteTasks,
   isChainInterrupted,
