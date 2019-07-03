@@ -16,7 +16,7 @@ Vue.use(Router);
 const router = new Router({
   routes: [
     {
-      path: '/:inputFireXId(FireX-.*)?',
+      path: '/:inputFireXId(FireX-.*-\\d+)?',
       component: XTasksParent,
       props: route => ({
         inputLogDir: route.query.logDir,

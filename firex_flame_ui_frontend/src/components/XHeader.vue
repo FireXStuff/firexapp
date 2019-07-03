@@ -2,9 +2,7 @@
     <div class="header">
       <div style="display: flex; flex-direction: row; align-items: center; height: 100%;">
         <div>
-          <router-link :to="{ name: 'XGraph',
-            query: {logDir: $route.query.logDir, flameServer: $route.query.flameServer}}"
-            >
+          <router-link :to="runRouteFromName('XGraph')">
             <img style='height: 36px;' src="../assets/firex_logo.png" alt="firex logo">
           </router-link>
         </div>
@@ -28,8 +26,7 @@
 </template>
 
 <script>
-import _ from 'lodash';
-import { mapState } from 'vuex';
+import { mapState, mapGetters } from 'vuex';
 
 import XHeaderButton from './XHeaderButton.vue';
 
@@ -46,6 +43,9 @@ export default {
       chain: state => state.firexRunMetadata.chain,
       centralServer: state => state.firexRunMetadata.centralServer,
       isSearchOpen: state => state.tasks.search.isOpen,
+    }),
+    ...mapGetters({
+      runRouteFromName: 'header/runRouteFromName',
     }),
     // legacyUrl() {
     //   // If there is no flame server query parameter, assume the app is being served from a flame

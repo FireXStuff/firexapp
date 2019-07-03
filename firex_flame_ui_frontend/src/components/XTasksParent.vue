@@ -183,10 +183,7 @@ export default {
     },
     setApiAccessor(uiConfig) {
       if (uiConfig.access_mode === 'webserver-file') {
-        const options = {
-          modelPathTemplate: '/auto/firex-logs/<%- year %>/<%- month %>/'
-            + '<%- day %>/<%- firex_id %>/flame_model/',
-        };
+        const options = { modelPathTemplate: this.uiConfig.model_path_template };
         api.setAccessor('dump-files', this.inputFireXId, options);
       } else {
         // TODO: should probably timeout trying to reconnect after some time.

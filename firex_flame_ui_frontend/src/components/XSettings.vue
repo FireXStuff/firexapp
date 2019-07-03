@@ -147,6 +147,7 @@ export default {
       {
         get() {
           const baseUrl = new URL(window.location.pathname, window.location.origin);
+          // FIXME: use the field from the UI config instead of this.
           const fileMarkingCentralServer = new URL('send-firex-user-config.html', baseUrl);
           return fetch(fileMarkingCentralServer).then(r => r.ok, () => false);
         },
