@@ -85,6 +85,13 @@ Let's begin by creating a Hello World task. Start by creating a new python file 
 
 FireXApp can now access this task by including the --plugins argument
 
+Using an environment variable
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Finally, you can set an **'firex_tasks_directory'** environment variable to provide a directory to import tasks. After
+setting the env, you can move the above defined python file into the folder and the hello task will become available
+without the need to include the --plugins argument.
+
 Basic Usage
 -----------
 

@@ -3,6 +3,8 @@ import sys
 import logging
 from distlib.database import DistributionPath
 
+TASKS_DIRECTORY = "firex_tasks_directory"
+
 
 def _get_paths_without_cwd():
     # This is needed because Celery temporarily adds the cwd into the sys.path via a context switcher,
@@ -66,7 +68,18 @@ def discover_package_modules(current_path, root_path=None) -> []:
 
 
 def find_firex_task_bundles()->[]:
+    # look for task modules in dependant packages
     bundles = []
     for location in _get_firex_dependant_package_locations():
         bundles += discover_package_modules(location)
+
+    # look for task modules in env defined location
+    if TASKS_DIRECTORY in os.environ:
+        include_location = os.environ[TASKS_DIRECTORY]
+        if os.path.isdir(include_location):
+            if include_location not in sys.path:
+                sys.path.append(include_location)
+            include_tasks = discover_package_modules(include_location, root_path=include_location)
+            bundles += include_tasks
+
     return bundles
