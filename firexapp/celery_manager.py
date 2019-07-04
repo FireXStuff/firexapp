@@ -23,6 +23,9 @@ MICROSERVICE_LOGS_REGISTRY_KEY = 'microservice_logs'
 FileRegistry().register_file(MICROSERVICE_LOGS_REGISTRY_KEY, 'microservice_logs')
 
 
+class CeleryWorkerStartFailed(Exception):
+    pass
+
 class CeleryManager(object):
     celery_bin_name = 'celery'
 
@@ -173,8 +176,12 @@ class CeleryManager(object):
     def cap_cpu_count(count, cap_concurrency):
         return min(count, cap_concurrency) if cap_concurrency else count
 
-    def wait_until_active(self, pid_file, timeout=15*60):
-        poll_until_file_not_empty(pid_file, timeout=timeout)
+    def wait_until_active(self, pid_file, stdout_file, workername, timeout=15*60):
+        try:
+            poll_until_file_not_empty(pid_file, timeout=timeout)
+        except AssertionError:
+            raise CeleryWorkerStartFailed('The worker %s did not come up after %d seconds.'
+                                          'Please look into %s for details.' % (workername, timeout, stdout_file))
         pid = self.get_pid_from_file(pid_file)
         self.log('pid %d became active' % pid, level=INFO)
 
@@ -219,7 +226,7 @@ class CeleryManager(object):
                                   cwd=cwd)
 
         if wait:
-            self.wait_until_active(pid_file, timeout=timeout)
+            self.wait_until_active(pid_file=pid_file, timeout=timeout, stdout_file=stdout_file, workername=workername)
 
     @classmethod
     def kill(cls, pid):
