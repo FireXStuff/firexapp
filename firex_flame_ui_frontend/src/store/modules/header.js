@@ -2,45 +2,54 @@ import _ from 'lodash';
 
 import { eventHub } from '../../utils';
 
-function firexRunRoute(routeBase, dataSourceKey) {
-  const query = dataSourceKey.is_flame_url ? { flameServer: dataSourceKey.key } : {};
-  const params = dataSourceKey.is_firex_id ? { inputFireXId: dataSourceKey.key } : {};
-
-  const newVals = { query, params };
-  if (routeBase.path && dataSourceKey.is_firex_id) {
-    newVals.path = `/${dataSourceKey.key}/${routeBase.path}`;
-  }
-
-  return _.merge({}, routeBase, newVals);
-}
+const headerState = {
+  uiConfig: null,
+};
 
 // getters
 const headerGetters = {
 
-  inputFlameServer: (state, getters, rootState) => rootState.route.query.flameServer,
+  inputFlameServer: (state, getters, rootState) => {
+    if (_.get(state.uiConfig, 'access_mode', '') === 'socketio-origin') {
+      return window.location.origin;
+    }
+    return rootState.route.query.flameServer;
+  },
 
   inputFireXId: (state, getters, rootState) => rootState.route.params.inputFireXId,
 
-  dataSourceKey: (state, getters) => {
-    if (!_.isNil(getters.inputFlameServer)) {
-      return { is_flame_url: true, key: getters.inputFlameServer };
-    }
-    if (!_.isNil(getters.inputFireXId)) {
-      return { is_firex_id: true, key: getters.inputFireXId };
-    }
-    // TODO: store error state and send errors somewhere.
-    // throw Error("No data source key provided -- can't fetch run data.")
-    return {}; // Not all routes need a data source key, e.g. Help view.
+  isDataKeyFlameUrl: (state, getters) => !_.isNil(getters.inputFlameServer),
+
+  isDataKeyFireXId(state, getters) {
+    return !getters.isDataKeyFlameUrl && !_.isNil(getters.inputFireXId);
   },
 
-  runRouteFromName: (state, getters) => name => firexRunRoute({ name }, getters.dataSourceKey),
+  taskDataKey: (state, getters) => {
+    if (getters.isDataKeyFlameUrl) {
+      return getters.inputFlameServer;
+    }
+    if (getters.isDataKeyFireXId) {
+      return getters.inputFireXId;
+    }
+    return null; // Not all routes need a data source key, e.g. Help view.
+  },
 
-  getTaskRoute: (state, getters) => taskUuid => firexRunRoute(
-    { path: `tasks/${taskUuid}` }, getters.dataSourceKey,
+  runRouteParamsAndQuery: (state, getters) => {
+    const flameUrlFromQuery = _.get(state.uiConfig, 'access_mode', '') === 'socketio-param';
+    const query = getters.isDataKeyFlameUrl && flameUrlFromQuery
+      ? { flameServer: getters.taskDataKey } : {};
+    const params = getters.isDataKeyFireXId ? { inputFireXId: getters.taskDataKey } : {};
+    return { params, query };
+  },
+
+  runRouteFromName: (state, getters) => name => _.merge({ name }, getters.runRouteParamsAndQuery),
+
+  getTaskRoute: (state, getters) => taskUuid => _.merge(
+    { path: `tasks/${taskUuid}` }, getters.runRouteParamsAndQuery,
   ),
 
-  getCustomRootRoute: (state, getters) => newRootUuid => firexRunRoute(
-    { path: `root/${newRootUuid}` }, getters.dataSourceKey,
+  getCustomRootRoute: (state, getters) => newRootUuid => _.merge(
+    { path: `root/${newRootUuid}` }, getters.runRouteParamsAndQuery,
   ),
 
   listViewHeaderEntry(state, getters) {
@@ -138,10 +147,17 @@ const headerGetters = {
   },
 };
 
+// mutations
+const mutations = {
+  setFlameUiConfig(state, newUiConfig) {
+    state.uiConfig = newUiConfig;
+  },
+};
+
 export default {
   namespaced: true,
-  state: {},
+  state: headerState,
   getters: headerGetters,
   actions: {},
-  mutations: {},
+  mutations,
 };

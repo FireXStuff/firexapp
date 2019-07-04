@@ -42,12 +42,10 @@ export default {
     XCollapseButtons,
     XTaskNodeSearch,
   },
-  props: {
-    // The root UUID to show, not necessarily the root UUID from the runMetadata.
-    rootUuid: { default: null },
-  },
   computed: {
     ...mapGetters({
+      // The root UUID to show, not necessarily the root UUID from the runMetadata.
+      rootUuid: 'tasks/selectedRoot',
       canRevoke: 'tasks/canRevoke',
       listViewHeaderEntry: 'header/listViewHeaderEntry',
       runLogsViewHeaderEntry: 'header/runLogsViewHeaderEntry',
@@ -105,10 +103,9 @@ export default {
       handler() {
         // Center new graph when root node changes on next render
         // (after nodes for only the new root are shown).
-        if (this.rootUuid !== null) {
+        if (!_.isNil(this.rootUuid)) {
           this.$nextTick(() => { eventHub.$emit('center'); });
         }
-        this.$store.dispatch('tasks/selectRootUuid', this.rootUuid);
       },
       immediate: true,
     },

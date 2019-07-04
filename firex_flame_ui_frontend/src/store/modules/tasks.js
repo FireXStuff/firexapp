@@ -7,7 +7,6 @@ import {
 const tasksState = {
   // Main task data structure.
   allTasksByUuid: {},
-  selectedRoot: null,
   apiConnected: false,
   // unfortunately we need to track this manually. TODO: look for a better way.
   taskNodeSizeByUuid: {},
@@ -25,11 +24,13 @@ const tasksState = {
 // getters
 const tasksGetters = {
 
+  selectedRoot: (state, getters, rootState) => rootState.route.params.rootUuid,
+
   tasksByUuid(state, getters) {
-    if (_.isNull(state.selectedRoot) || !_.has(state.allTasksByUuid, state.selectedRoot)) {
+    if (_.isNil(getters.selectedRoot) || !_.has(state.allTasksByUuid, getters.selectedRoot)) {
       return state.allTasksByUuid;
     }
-    return getters.descendantTasksByUuid(state.selectedRoot);
+    return getters.descendantTasksByUuid(getters.selectedRoot);
   },
 
   // TODO: could split this in to selected visible (via root) & literally all in order to
@@ -64,8 +65,8 @@ const tasksGetters = {
   hasTasks: state => !_.isEmpty(state.allTasksByUuid),
 
   rootUuid: (state, getters, rootState) => {
-    if (!_.isNil(state.selectedRoot)) {
-      return state.selectedRoot;
+    if (!_.isNil(getters.selectedRoot)) {
+      return getters.selectedRoot;
     }
     if (!_.isNil(rootState.firexRunMetadata.root_uuid)) {
       return rootState.firexRunMetadata.root_uuid;
@@ -181,10 +182,6 @@ const mutations = {
 
   clearTaskNodeSize(state) {
     state.taskNodeSizeByUuid = {};
-  },
-
-  selectRootUuid(state, newRootUuid) {
-    state.selectedRoot = newRootUuid;
   },
 
   setFocusedTaskUuid(state, newFocusedTaskUuid) {

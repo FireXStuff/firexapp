@@ -3,7 +3,7 @@ import io from 'socket.io-client';
 import untar from 'js-untar';
 import { ungzip } from 'pako';
 
-import { getFireXIdParts } from './utils';
+import { templateFireXId } from './utils';
 
 function socketRequestResponse(socket, requestEvent, successEventName, failedEventName, timeout) {
   const p = new Promise(
@@ -96,15 +96,13 @@ function createSocketApiAccessor(url, options) {
       'revoke-failed', 10000,
     ),
 
-    cleanup: () => socket.off(),
+    cleanup: () => { socket.off(); socket.removeAllListeners(); },
 
   };
 }
 
 function createWebFileAccessor(firexId, modelPathTemplate) {
-  const firexIdParts = getFireXIdParts(firexId);
-  const templateOptions = { evaluate: null, interpolate: null };
-  const modelBasePath = _.template(modelPathTemplate, templateOptions)(firexIdParts);
+  const modelBasePath = templateFireXId(modelPathTemplate,firexId );
 
   const modelBaseUrl = new URL(modelBasePath, window.location.origin);
 
@@ -198,10 +196,6 @@ function revokeTask(uuid) {
   return apiAccessor.revoke(uuid);
 }
 
-const defaultUiConfig = {
-  access_mode: 'webserver-file',
-};
-
 export {
   setAccessor,
   getFireXRunMetadata,
@@ -211,5 +205,5 @@ export {
   startLiveUpdate,
   stopLiveUpdate,
   revokeTask,
-  defaultUiConfig,
+  templateFireXId,
 };

@@ -17,22 +17,18 @@
 
 <script>
 import _ from 'lodash';
+import { mapGetters, mapState } from 'vuex';
 
 import * as api from '../api';
 import {
   parseRecFileContentsToNodesByUuid, eventHub, orderByTaskNum, twoDepthAssign,
+  tasksViewKeyRouteChange,
 } from '../utils';
 
 export default {
   name: 'XTasksParent',
-  props: {
-    inputLogDir: { required: false, type: String },
-    inputFlameServer: { required: false, type: String },
-    inputFireXId: { required: false, type: String },
-  },
   data() {
     return {
-      logDir: this.inputLogDir,
       updating: false,
       displayMessage: { content: '', color: '' },
       // Batch incoming task data in order to debounce incoming changes.
@@ -40,52 +36,23 @@ export default {
     };
   },
   computed: {
-    logDirUid() {
-      const matches = this.logDir.match(/.*(FireX-.*)\/?$/);
-      if (matches.length) {
-        return matches[1];
-      }
-      return 'Unknown';
-    },
-    rootUuid() {
-      return this.$store.getters['tasks/rootUuid'];
-    },
-    logRunMetadata() {
-      return {
-        uid: this.logDirUid,
-        logs_dir: this.logDir,
-        root_uuid: this.rootUuid,
-      };
-    },
-    flameServerUrl() {
-      if (this.inputFlameServer) {
-        return this.inputFlameServer;
-      }
-      if (!this.logDir) {
-        // If we have neither an input flame server or a log dir (i.e. if we have no data source),
-        // assume we're being hosted by a flame server and use the current origin.
-        return window.location.origin;
-      }
-      return null;
-    },
-    hasTasks() {
-      return this.$store.getters['tasks/hasTasks'];
-    },
-    hasIncompleteTasks() {
-      return this.$store.getters['tasks/hasIncompleteTasks'];
-    },
-    canRevoke() {
-      return this.$store.getters['tasks/canRevoke'];
-    },
-    liveUpdate() {
-      return this.$store.state.graph.liveUpdate;
-    },
-    isApiConnected() {
-      return this.$store.state.tasks.apiConnected;
-    },
-    uiConfig() {
-      return this.$store.state.firexRunMetadata.uiConfig;
-    },
+    ...mapState({
+      liveUpdate: state => state.graph.liveUpdate,
+      isApiConnected: state => state.tasks.apiConnected,
+      uiConfig: state => state.header.uiConfig,
+    }),
+    ...mapGetters({
+      rootUuid: 'tasks/rootUuid',
+      hasTasks: 'tasks/hasTasks',
+      hasIncompleteTasks: 'tasks/hasIncompleteTasks',
+      canRevoke: 'tasks/canRevoke',
+      // TODO: at one time there is exclusively either a server URL or a firex_id.
+      // It'd be better if the store knew which type of key there was, and this component
+      // reasoned in terms of a general key. This might mean moving some (or all) of the
+      // API accessor config to the store (or wherever handles the different data key types).
+      flameServerUrl: 'header/inputFlameServer',
+      inputFireXId: 'header/inputFireXId',
+    }),
   },
   created() {
     eventHub.$on('revoke-root', () => { this.revokeTask(this.rootUuid); });
@@ -136,13 +103,6 @@ export default {
     },
     fetchAllTasksAndStartLiveUpdate() {
       this.updateFullTasksState(true);
-      // TODO: going back to old flame isn't necessarily the right thing to do.
-      // setTimeout(() => {
-      //   if (!this.hasTasks && this.isApiConnected) {
-      //     // How to handle no data? Fallback to rec?
-      //     window.location.href = `${this.flameServerUrl}?noUpgrade=true`;
-      //   }
-      // }, 10000);
     },
     revokeTask(uuid) {
       if (!this.canRevoke) {
@@ -177,12 +137,23 @@ export default {
     setFlameRunMetadata() {
       api.getFireXRunMetadata().then((data) => {
         // TODO: is adding the server URL still necessary? This should be fetched from server.
-        data.flameServerUrl = this.flameServerUrl;
+        if (!_.has(data, 'flameServerUrl')) {
+          data.flameServerUrl = this.flameServerUrl;
+        }
         this.$store.commit('firexRunMetadata/setFlameRunMetadata', data);
       });
     },
-    setApiAccessor(uiConfig) {
-      if (uiConfig.access_mode === 'webserver-file') {
+    updateApiAccessor() {
+      if (_.isNull(this.uiConfig)) {
+        // uiConfig is fetched from server and therefore lazy loaded. We can't initialize
+        // an API accessor without the uiConfig, since the access_mode is needed.
+        // This function will be re-executed once the uiConfig is non-null,
+        // then the accessor will be created.
+        return;
+      }
+      // Clear data from previous api accessor.
+      this.setNodesByUuid({});
+      if (this.uiConfig.access_mode === 'webserver-file') {
         const options = { modelPathTemplate: this.uiConfig.model_path_template };
         api.setAccessor('dump-files', this.inputFireXId, options);
       } else {
@@ -195,21 +166,8 @@ export default {
       this.fetchAllTasksAndStartLiveUpdate();
       this.setFlameRunMetadata();
     },
-    updateApiAccessor() {
-      if (_.isNull(this.uiConfig)) {
-        fetch('flame-ui-config.json')
-          .then((r) => {
-            if (r.ok) {
-              return r.json();
-            }
-            return api.defaultUiConfig;
-          },
-          () => api.defaultUiConfig)
-          .then(uiConfig => this.$store.commit('firexRunMetadata/setFlameUiConfig', uiConfig))
-          .finally(() => this.setApiAccessor(this.uiConfig));
-      } else {
-        this.setApiAccessor(this.uiConfig);
-      }
+    commitUiConfig(uiConfig) {
+      this.$store.commit('header/setFlameUiConfig', uiConfig);
     },
   },
   watch: {
@@ -220,14 +178,25 @@ export default {
         api.stopLiveUpdate();
       }
     },
+    // TODO: does it make sense for the 'update api accessor on data source change' logic to be
+    // here? Should it be in the store itself?
     flameServerUrl: {
       immediate: true,
-      handler() {
-        // Clear data from previous api accessor.
-        this.setNodesByUuid({});
-        this.updateApiAccessor();
-      },
+      handler() { this.updateApiAccessor(); },
     },
+    inputFireXId: {
+      immediate: true,
+      handler() { this.updateApiAccessor(); },
+    },
+    uiConfig() { this.updateApiAccessor(); },
+  },
+  // TODO: these route guards might be the best place to redirect if
+  //  uiConfig.redirect_to_alive_flame is true, remembering to keep path on redirect.
+  beforeRouteEnter(to, from, next) {
+    tasksViewKeyRouteChange(to, from, next, (vm, uiConfig) => vm.commitUiConfig(uiConfig));
+  },
+  beforeRouteUpdate(to, from, next) {
+    tasksViewKeyRouteChange(to, from, next, (vm, uiConfig) => vm.commitUiConfig(uiConfig));
   },
 };
 </script>

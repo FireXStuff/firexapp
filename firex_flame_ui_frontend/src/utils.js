@@ -327,6 +327,67 @@ function twoDepthAssign(existingData, newData) {
   return result;
 }
 
+const DEFAULT_UI_CONFIG = {
+  /*
+   * Allowed values: webserver-file, socketio-param, socketio-origin
+   */
+  access_mode: 'socketio-origin',
+  is_central: false,
+  model_path_template: null,
+  redirect_to_alive_flame: false,
+};
+
+function isRequiredDataPresent(accessMode, route) {
+  if (accessMode === 'socketio-origin') {
+    // Always have origin, no data needed from route.
+    return true;
+  }
+  if (accessMode === 'webserver-file' && !_.isNil(route.params.inputFireXId)) {
+    return true;
+  }
+  if (accessMode === 'socketio-param' && !_.isNil(route.query.flameServer)) {
+    return true;
+  }
+  return false;
+}
+
+function supportsFindView(accessMode) {
+  return accessMode === 'webserver-file';
+}
+
+function fetchUiConfig() {
+  return fetch('flame-ui-config.json')
+    .then((r) => {
+        if (r.ok) {
+          return r.json();
+        }
+        return DEFAULT_UI_CONFIG;
+      },
+      () => DEFAULT_UI_CONFIG)
+    .catch(() => DEFAULT_UI_CONFIG);
+}
+
+function tasksViewKeyRouteChange(to, from, next, setUiConfigFn) {
+  fetchUiConfig().then(uiConfig => {
+    if (isRequiredDataPresent(uiConfig.access_mode, to)) {
+      next(vm => setUiConfigFn(vm, uiConfig));
+    } else {
+      if (supportsFindView(uiConfig.access_mode)) {
+        next('/find');
+      } else {
+        // TODO: create an error view and redirect there with better message.
+        throw Error(`Can't show tasks for access mode '${uiConfig.access_mode}'.`)
+      }
+    }
+  });
+}
+
+function templateFireXId(template, firexId) {
+  const firexIdParts = getFireXIdParts(firexId);
+  const templateOptions = { evaluate: null, interpolate: null };
+  return _.template(template, templateOptions)(firexIdParts);
+}
+
 const FIREX_ID_REGEX = new RegExp('FireX-.*-(\\d\\d)(\\d\\d)(\\d\\d)-\\d{6}-\\d+');
 
 function isFireXIdValid(firexId) {
@@ -372,4 +433,7 @@ export {
   twoDepthAssign,
   isFireXIdValid,
   getFireXIdParts,
+  tasksViewKeyRouteChange,
+  fetchUiConfig,
+  templateFireXId,
 };
