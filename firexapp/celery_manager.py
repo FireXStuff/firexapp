@@ -180,8 +180,11 @@ class CeleryManager(object):
         try:
             poll_until_file_not_empty(pid_file, timeout=timeout)
         except AssertionError:
-            raise CeleryWorkerStartFailed('The worker %s did not come up after %d seconds.'
-                                          'Please look into %s for details.' % (workername, timeout, stdout_file))
+            raise CeleryWorkerStartFailed('The worker %s@%s did not come up after %d seconds.'
+                                          'Please look into %s for details.' % (workername,
+                                                                                self.hostname,
+                                                                                timeout,
+                                                                                stdout_file))
         pid = self.get_pid_from_file(pid_file)
         self.log('pid %d became active' % pid, level=INFO)
 
