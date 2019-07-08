@@ -9,8 +9,8 @@
         <div class="uid">{{title}}</div>
         <!-- Unfortuntate that this comp needs to know search is in the slot.-->
         <!-- TODO: find a better fix for when no space for search bar (i.e. long chain value)-->
-        <div v-if="chain && !isSearchOpen" class="flame-link header-entry">
-          <b>{{chain}}</b>
+        <div v-if="chain && !isSearchOpen" class="flame-link" style="flex: 1;">
+          <b style="width: 100%;">{{chain}}</b>
         </div>
 
         <div style="margin-left: auto; display: flex; align-items: center; height: 100%;">

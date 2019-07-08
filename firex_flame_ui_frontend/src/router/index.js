@@ -16,7 +16,7 @@ Vue.use(Router);
 const router = new Router({
   routes: [
     {
-      path: '/find',
+      path: '/find/:inputFireXId(FireX-.*-\\d+)?',
       name: 'FindFirexId',
       component: XFindFirexId,
     },

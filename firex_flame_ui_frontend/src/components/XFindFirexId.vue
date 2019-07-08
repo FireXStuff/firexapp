@@ -4,7 +4,7 @@
       <img style='height: 150px;' src="../assets/firex_logo.png" alt="firex logo">
     </div>
     <div style="width: 40%">
-      <input type="text" v-model.trim="inputFireXId"
+      <input type="text" v-model.trim="firexId"
              style="width: 100%; text-align: center;"
              placeholder="Enter FireX ID like FireX-user-xxxxxx-xxxxxx-xxxx">
       <div v-if="errorMessage" class="error-message">
@@ -21,7 +21,7 @@ export default {
   name: 'XFindFirexId',
   data() {
     return {
-      inputFireXId: '',
+      firexId: '',
       // Lazy loaded on route enter.
       uiConfig: null,
     };
@@ -42,10 +42,10 @@ export default {
   },
   computed: {
     isFirexIdValid() {
-      return isFireXIdValid(this.inputFireXId);
+      return isFireXIdValid(this.firexId);
     },
     errorMessage() {
-      if (this.inputFireXId) {
+      if (this.firexId) {
         if (!this.isFirexIdValid) {
           return 'The entered FireX ID is not valid.';
         }
@@ -59,12 +59,12 @@ export default {
       if (!this.isFirexIdValid) {
         return null;
       }
-      return templateFireXId(this.uiConfig.model_path_template, this.inputFireXId);
+      return templateFireXId(this.uiConfig.model_path_template, this.firexId);
     },
   },
   methods: {
     routeToInputFirexId() {
-      this.$router.push({ name: 'XGraph', params: { inputFireXId: this.inputFireXId } });
+      this.$router.push({ name: 'XGraph', params: { inputFireXId: this.firexId } });
     },
   },
   watch: {
@@ -89,7 +89,10 @@ export default {
     },
   },
   beforeRouteEnter(to, from, next) {
-    fetchUiConfig().then(uiConfig => next((vm) => { vm.uiConfig = uiConfig; }));
+    fetchUiConfig().then(uiConfig => next((vm) => {
+      vm.firexId = to.params.inputFireXId;
+      vm.uiConfig = uiConfig;
+    }));
   },
 };
 </script>
