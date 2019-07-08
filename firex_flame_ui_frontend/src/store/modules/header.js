@@ -6,6 +6,11 @@ const headerState = {
   uiConfig: null,
 };
 
+function prependFirexIdPath(path, isDataKeyFireXId, taskDataKey) {
+  const p = isDataKeyFireXId ? `/${taskDataKey}/${path}` : path;
+  return { path: p };
+}
+
 // getters
 const headerGetters = {
 
@@ -45,11 +50,13 @@ const headerGetters = {
   runRouteFromName: (state, getters) => name => _.merge({ name }, getters.runRouteParamsAndQuery),
 
   getTaskRoute: (state, getters) => taskUuid => _.merge(
-    { path: `tasks/${taskUuid}` }, getters.runRouteParamsAndQuery,
+    prependFirexIdPath(`tasks/${taskUuid}`, getters.isDataKeyFireXId, getters.taskDataKey),
+    getters.runRouteParamsAndQuery,
   ),
 
   getCustomRootRoute: (state, getters) => newRootUuid => _.merge(
-    { path: `root/${newRootUuid}` }, getters.runRouteParamsAndQuery,
+    prependFirexIdPath(`root/${newRootUuid}`, getters.isDataKeyFireXId, getters.taskDataKey),
+    getters.runRouteParamsAndQuery,
   ),
 
   listViewHeaderEntry(state, getters) {

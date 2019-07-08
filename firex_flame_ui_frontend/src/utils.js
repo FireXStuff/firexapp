@@ -332,9 +332,12 @@ const DEFAULT_UI_CONFIG = {
    * Allowed values: webserver-file, socketio-param, socketio-origin
    */
   access_mode: 'socketio-origin',
-  is_central: false,
   model_path_template: null,
   redirect_to_alive_flame: false,
+  is_central: false,
+  central_server: null,
+  central_server_ui_path: null,
+  central_documentation_url: null,
 };
 
 function isRequiredDataPresent(accessMode, route) {

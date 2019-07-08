@@ -114,6 +114,15 @@ export default {
       const task = _.merge({}, this.simpleTask, this.detailedTask);
       if (this.showAllAttributes) {
         task.minPriorityCollapseOp = this.minPriorityOp;
+
+        _.each(task.states, (state, i) => {
+          if (_.has(task.states, i + 1)) {
+            const nextState = task.states[i + 1];
+            state.duration = nextState.timestamp - state.timestamp;
+            state['% of task'] = 100 * state.duration / task.actual_runtime;
+            state['% of run'] = 100 * state.duration / task.actual_runtime;
+          }
+        });
         return task;
       }
       const attributeBlacklist = ['long_name', 'name', 'flame_additional_data',

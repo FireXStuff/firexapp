@@ -65,7 +65,7 @@ export default {
   methods: {
     routeToInputFirexId() {
       this.$router.push({ name: 'XGraph', params: { inputFireXId: this.inputFireXId } });
-    }
+    },
   },
   watch: {
     runMetadata(runMetadata) {
