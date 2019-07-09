@@ -87,6 +87,24 @@ const tasksGetters = {
         attr => _.includes(attr.toLowerCase(), lowerSearchTerm))));
   },
 
+  runStartTime(state) {
+    return _.min(_.map(state.allTasksByUuid, 'first_started'));
+  },
+
+  runEndTime(state, getters) {
+    if (getters.hasIncompleteTasks) {
+      return Date.now() / 1000;
+    }
+    return _.max(_.map(state.allTasksByUuid,
+      // Default to 0 since backend doesn't always fill in actual_runtime, even when runstate is
+      // terminal.
+      t => t.first_started + _.get(t, 'actual_runtime', 0)));
+  },
+
+  runDuration(state, getters) {
+    return getters.runEndTime - getters.runStartTime;
+  },
+
 };
 
 // actions

@@ -57,7 +57,7 @@ import { DateTime } from 'luxon';
 import { mapGetters } from 'vuex';
 
 import * as api from '../../api';
-import { eventHub, isTaskStateIncomplete } from '../../utils';
+import { eventHub, isTaskStateIncomplete, durationString } from '../../utils';
 import XHeader from '../XHeader.vue';
 
 export default {
@@ -74,6 +74,7 @@ export default {
   },
   computed: {
     ...mapGetters({
+      runDuration: 'tasks/runDuration',
       getTaskRoute: 'header/getTaskRoute',
     }),
     simpleTask() {
@@ -111,23 +112,32 @@ export default {
     displayNode() {
       // If we haven't fetched the details for some reason, just show the base properties.
       const task = _.merge({}, this.simpleTask, this.detailedTask);
+
+      let attributeBlacklist;
       if (this.showAllAttributes) {
+        attributeBlacklist = [];
         task.minPriorityCollapseOp = this.minPriorityOp;
 
         _.each(task.states, (state, i) => {
           if (_.has(task.states, i + 1)) {
             const nextState = task.states[i + 1];
-            state.duration = nextState.timestamp - state.timestamp;
-            state['% of task'] = 100 * state.duration / task.actual_runtime;
-            state['% of run'] = 100 * state.duration / task.actual_runtime;
+            const stateDuration = nextState.timestamp - state.timestamp;
+            state.duration = durationString(stateDuration);
+            state['% of task'] = 100 * stateDuration / task.actual_runtime;
+            state['% of run'] = 100 * stateDuration / this.runDuration;
           }
         });
-        return task;
+      } else {
+        attributeBlacklist = ['long_name', 'name', 'flame_additional_data',
+          'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data',
+          'parent_id', 'children_uuids', 'isLeaf', 'states',
+        ];
       }
-      const attributeBlacklist = ['long_name', 'name', 'flame_additional_data',
-        'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data',
-        'parent_id', 'children_uuids', 'isLeaf', 'states',
-      ];
+      if (task.actual_runtime) {
+        const humanDuration = durationString(task.actual_runtime);
+        task.actual_runtime = `${humanDuration} (orig: ${task.actual_runtime})`;
+      }
+
       return _.omit(task, attributeBlacklist);
     },
     displayKeyNode() {

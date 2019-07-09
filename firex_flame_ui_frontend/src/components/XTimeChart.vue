@@ -1,5 +1,5 @@
 <template>
-  <div style="width: 100%; height: 100%; display: flex; flex-direction: column; overflow: auto;"
+  <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
        @keydown.ctrl.f.prevent="$store.commit('tasks/toggleSearchOpen')"
        @keyup.191.prevent="$store.commit('tasks/toggleSearchOpen')"
        tabindex="0"
@@ -13,7 +13,7 @@
       </template>
     </x-header>
 
-    <div style="display: table; width: 100%;" class="time-table">
+    <div class="time-table">
       <table>
         <thead>
           <tr style="text-align: center;">
@@ -62,9 +62,12 @@
             <td class="min">{{task.name}}</td>
             <td class="min">{{task.hostname}}</td>
             <td>
-              <div style="display: flex; flex-direction: column; height: 1.5em;"
-                   :style="taskRectOffsetStyleByUuid[task.uuid]">
+              <div style="display: flex; flex-direction: column; height: 1.5em;">
                 <div style="height: 0.75em; display: flex; flex-direction: row;">
+                <!-- Next div is offset.-->
+                <div :style="{width: taskRectOffsetStyleByUuid[task.uuid]['padding-left']}"></div>
+
+                <!-- Each runstate is represented by a div -->
                 <div v-for="(stateData, uuid) in perStateRectByUuid[task.uuid]"
                      :key="uuid" :style="stateData" class="state-rect">
                   <popper trigger="hover"
@@ -89,27 +92,30 @@
                 </div>
                 </div>
                 <div v-if="!isTaskStateIncomplete(task.state)"
-                     style="display: block; height: 0.75em;">
-                  <popper trigger="hover"
-                          :options="{ placement: 'bottom'}">
-                    <div class="popper popover-container">
-                      <div class="popover-title"><b>{{task.name}}</b></div>
-                      <div style="padding: 3px;">
-                        Started: {{formatShortTime(task.first_started, shortTimeSec)}}
+                     style="height: 0.75em; display: flex; flex-direction: row;">
+                  <!-- next div is offset -->
+                  <div :style="{width: taskRectOffsetStyleByUuid[task.uuid]['padding-left']}"></div>
+                  <div :style="fullTaskRectStyleByUuid[task.uuid]" style="height: 0.75em;">
+                    <popper trigger="hover"
+                            :options="{ placement: 'bottom' }">
+                      <div class="popper popover-container">
+                        <div class="popover-title"><b>{{task.name}}</b></div>
+                        <div style="padding: 3px;">
+                          Started: {{formatShortTime(task.first_started, shortTimeSec)}}
+                        </div>
+                        <div style="padding: 3px;">
+                          Runtime: {{durationString(getTaskRuntime(task))}}
+                          ({{(100 * getTaskRuntime(task) / displayTasksDuration).toFixed(2)}}%)
+                        </div>
                       </div>
-                      <div style="padding: 3px;">
-                        Runtime: {{durationString(getRuntime(task))}}
-                        ({{(100 * getRuntime(task) / displayTasksDuration).toFixed(2)}}%)
-                      </div>
-                    </div>
-                    <span slot="reference"
-                          :style="fullTaskRectStyleByUuid[task.uuid]"
-                          style="height: 0.75em;display: block;">
-                      <router-link :to="getTaskRoute(task.uuid)" class="task"
-                                   style="display: block; height: 100%;">
-                      </router-link>
-                    </span>
-                  </popper>
+                      <span slot="reference"
+                            style="display: block; height: 0.75em">
+                          <router-link :to="getTaskRoute(task.uuid)" class="task"
+                                       style="display: block; height: 100%; display: block;">
+                          </router-link>
+                      </span>
+                    </popper>
+                  </div>
                 </div>
               </div>
             </td>
@@ -178,6 +184,7 @@ export default {
       search: state => state.tasks.search,
     }),
     ...mapGetters({
+      runEndTime: 'tasks/runEndTime',
       graphViewHeaderEntry: 'header/graphViewHeaderEntry',
       listViewHeaderEntry: 'header/listViewHeaderEntry',
       runLogsViewHeaderEntry: 'header/runLogsViewHeaderEntry',
@@ -187,7 +194,7 @@ export default {
     }),
     tasksWithRuntimeByUuid() {
       return _.mapValues(this.allTasksByUuid,
-        t => Object.assign({ runtime: this.getRuntime(t) }, t));
+        t => Object.assign({ runtime: this.getTaskRuntime(t) }, t));
     },
     displayTasks() {
       let tasks;
@@ -214,7 +221,7 @@ export default {
       return _.min(_.map(this.displayTasks, 'first_started'));
     },
     displayTasksEndTime() {
-      return _.max(_.map(this.displayTasks, t => t.first_started + this.getRuntime(t)));
+      return _.max(_.map(this.displayTasks, t => t.first_started + this.getTaskRuntime(t)));
     },
     displayTasksDuration() {
       return this.displayTasksEndTime - this.displayTasksStartTime;
@@ -224,7 +231,7 @@ export default {
         (t) => {
           const startOffsetPercentage = (t.first_started - this.displayTasksStartTime)
             / this.displayTasksDuration;
-          const durationPercentage = this.getRuntime(t) / this.displayTasksDuration;
+          const durationPercentage = this.getTaskRuntime(t) / this.displayTasksDuration;
           return {
             offset: 100 * startOffsetPercentage,
             // show something even for very small durations.
@@ -288,18 +295,16 @@ export default {
     });
   },
   methods: {
-    getRuntime(task) {
+    getTaskRuntime(task) {
       if (isTaskStateIncomplete(task.state)) {
         return (Date.now() / 1000) - task.first_started;
       }
       if (_.has(task, 'actual_runtime')) {
         return task.actual_runtime;
       }
-      // hack since backend doesn't always fill in actual_runtime, even when runstate is terminal.
-      // assume not filled in values ended when the entire run ended.
-      const runEndTime = _.max(_.map(this.allTasksByUuid,
-        t => t.first_started + _.get(t, 'actual_runtime', 0)));
-      return runEndTime - task.first_started;
+      // Hack since backend doesn't always fill in actual_runtime, even when runstate is
+      // terminal. Assume not filled in actual_runtime tasks ended when the entire run ended.
+      return this.runEndTime - task.first_started;
     },
     formatTime(unixTime) {
       return DateTime.fromSeconds(unixTime).toLocaleString(DateTime.DATETIME_FULL);
@@ -349,6 +354,11 @@ export default {
 <style scoped>
   .time-table {
     font-family: 'Source Sans Pro', sans-serif;
+    flex: 1;
+    overflow: auto;
+    align-items: center;
+    display: flex;
+    flex-direction: column;
   }
 
   table {
@@ -413,8 +423,8 @@ export default {
   }
 
   .state-rect:hover {
-    /*border: 2px solid lightgray;*/
     box-shadow: 0px 3px 3px rgb(58, 58, 58);
     z-index: 10;
   }
+
 </style>
