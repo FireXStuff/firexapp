@@ -9,8 +9,7 @@
        @keyup.r.exact="refreshGraph"
        tabindex="0">
     <x-header :title="headerParams.title"
-              :links="headerParams.links"
-              :legacyPath="headerParams.legacyPath">
+              :links="headerParams.links">
       <template v-slot:prebuttons>
         <x-task-node-search :findUncollapsedAncestor="true">
         </x-task-node-search>
@@ -85,7 +84,6 @@ export default {
 
       return {
         title: this.runMetadata.uid,
-        legacyPath: '/',
         links,
       };
     },

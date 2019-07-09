@@ -1,8 +1,7 @@
 <template>
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
     <x-header :title="headerParams.title"
-              :links="headerParams.links"
-              :legacyPath="headerParams.legacyPath"></x-header>
+              :links="headerParams.links"></x-header>
 
     <div class="help-content">
       <h1>Types of Tasks</h1>
@@ -130,7 +129,6 @@ export default {
           },
           this.documentationHeaderEntry,
         ],
-        legacyPath: '/help',
       };
     },
   },

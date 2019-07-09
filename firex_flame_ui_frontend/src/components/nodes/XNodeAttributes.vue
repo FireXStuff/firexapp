@@ -1,8 +1,7 @@
 <template>
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
     <x-header :title="headerParams.title"
-              :links="headerParams.links"
-              :legacyPath="headerParams.legacyPath"></x-header>
+              :links="headerParams.links"></x-header>
 
     <div class="node-attributes">
       <div v-for="(key, i) in sortedDisplayNodeKeys" :key="key"
@@ -187,7 +186,6 @@ export default {
 
       return {
         title: this.detailedTask.long_name,
-        legacyPath: `/task/${this.uuid}`,
         links,
       };
     },

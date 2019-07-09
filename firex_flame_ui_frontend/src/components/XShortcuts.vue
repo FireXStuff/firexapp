@@ -1,8 +1,7 @@
 <template>
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
     <x-header :title="headerParams.title"
-              :links="links"
-              :legacyPath="headerParams.legacyPath"></x-header>
+              :links="links"></x-header>
 
     <div class="help-content">
       <h1>General</h1>
@@ -42,7 +41,6 @@ export default {
     return {
       headerParams: {
         title: 'Keyboard Shortcuts',
-        legacyPath: '/shortcuts',
       },
     };
   },

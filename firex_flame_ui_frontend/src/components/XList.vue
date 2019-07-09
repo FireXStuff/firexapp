@@ -5,8 +5,7 @@
        tabindex="0"
   >
     <x-header :title="title"
-              :links="headerLinks"
-              legacyPath="/list">
+              :links="headerLinks">
       <template v-slot:prebuttons>
         <x-task-node-search :findUncollapsedAncestor="false">
         </x-task-node-search>

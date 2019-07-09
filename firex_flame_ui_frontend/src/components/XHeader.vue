@@ -36,27 +36,15 @@ export default {
   props: {
     title: { default: '' },
     links: { default: () => [], type: Array },
-    legacyPath: { default: '' },
   },
   computed: {
     ...mapState({
       chain: state => state.firexRunMetadata.chain,
-      centralServer: state => state.firexRunMetadata.centralServer,
       isSearchOpen: state => state.tasks.search.isOpen,
     }),
     ...mapGetters({
       runRouteFromName: 'header/runRouteFromName',
     }),
-    // legacyUrl() {
-    //   // If there is no flame server query parameter, assume the app is being served from a flame
-    //   // server and make the url relative to the server root.
-    //   // TODO: Not great reading flame server directly from route.
-    //   const start = _.get(this.$route, 'query.flameServer', '');
-    //   return `${start}${this.legacyPath}?noUpgrade=true`;
-    // },
-    isCiscoDeployment() {
-      return this.centralServer === 'http://firex.cisco.com';
-    },
   },
 };
 </script>
