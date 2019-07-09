@@ -188,10 +188,9 @@ export default {
       immediate: true,
       handler() { this.updateApiAccessor(); },
     },
+    // UI Config is lazy loaded and not valid initially, therefore don't set 'immediate'.
     uiConfig() { this.updateApiAccessor(); },
   },
-  // TODO: these route guards might be the best place to redirect if
-  //  uiConfig.redirect_to_alive_flame is true, remembering to keep path on redirect.
   beforeRouteEnter(to, from, next) {
     tasksViewKeyRouteChange(to, from, next, (vm, uiConfig) => vm.commitUiConfig(uiConfig));
   },

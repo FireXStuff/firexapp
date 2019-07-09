@@ -15,7 +15,9 @@
 </template>
 
 <script>
-import { isFireXIdValid, fetchUiConfig, templateFireXId } from '../utils';
+import {
+  isFireXIdValid, fetchUiConfig, fetchRunModelMetadata, redirectToFlameIfAlive, findRunPathSuffix,
+} from '../utils';
 
 export default {
   name: 'XFindFirexId',
@@ -30,11 +32,10 @@ export default {
     runMetadata:
       {
         get() {
-          if (!this.isFirexIdValid) {
+          if (!this.isFirexIdValid || !this.uiConfig) {
             return false;
           }
-          return fetch(this.runMetadataModePath)
-            .then(r => r.json(), () => false)
+          return fetchRunModelMetadata(this.firexId, this.uiConfig.model_path_template)
             .catch(() => false);
         },
         default: false,
@@ -55,36 +56,25 @@ export default {
       }
       return null;
     },
-    runMetadataModePath() {
-      if (!this.isFirexIdValid) {
-        return null;
-      }
-      return templateFireXId(this.uiConfig.model_path_template, this.firexId);
-    },
   },
   methods: {
     routeToInputFirexId() {
-      this.$router.push({ name: 'XGraph', params: { inputFireXId: this.firexId } });
+      const pathSuffix = findRunPathSuffix(this.$route.path);
+      this.$router.push({
+        path: `/${this.firexId}${pathSuffix}`,
+      });
     },
   },
   watch: {
     runMetadata(runMetadata) {
       if (runMetadata) {
-        fetch((new URL('/alive', runMetadata.flame_url)).toString(), { mode: 'no-cors' })
-          .then(
-            // If the flame for the selected run is still alive, redirect the user there.
-            // TODO: move where this redirect happens to XTTaskParent and maintain
-            //  path on redirect, so that users are sent to /tasks/<uuid>, for example.
-            () => {
-              if (this.uiConfig.redirect_to_alive_flame) {
-                window.location.href = runMetadata.flame_url;
-              } else {
-                this.routeToInputFirexId();
-              }
-            },
-            // If the flame is not still alive, take the user to the graph for the selected run.
-            () => this.routeToInputFirexId(),
-          );
+        if (this.uiConfig.redirect_to_alive_flame) {
+          redirectToFlameIfAlive(runMetadata.flame_url, this.$route.path)
+          // If the flame is not still alive, take the user to the graph for the selected run.
+            .catch(this.routeToInputFirexId);
+        } else {
+          this.routeToInputFirexId();
+        }
       }
     },
   },

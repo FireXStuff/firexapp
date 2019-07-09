@@ -2,6 +2,9 @@ import _ from 'lodash';
 import Vue from 'vue';
 import { flextree } from 'd3-flextree';
 
+const FIREX_ID_REGEX_STR = 'FireX-.*-(\\d\\d)(\\d\\d)(\\d\\d)-\\d{6}-\\d+';
+const FIREX_ID_REGEX = new RegExp(FIREX_ID_REGEX_STR);
+
 function captureEventState(event, tasksByUuid, taskNum) {
   let isNew = false;
   if (!_.has(event, 'uuid')) {
@@ -370,11 +373,31 @@ function fetchUiConfig() {
     .catch(() => DEFAULT_UI_CONFIG);
 }
 
+function fetchRunModelMetadata(firexId, modelPathTemplate) {
+  if (!isFireXIdValid(firexId)) {
+    return false;
+  }
+  return fetch(templateFireXId(modelPathTemplate, firexId))
+    .then(r => r.json(), () => false)
+    .catch(() => false);
+}
+
 function tasksViewKeyRouteChange(to, from, next, setUiConfigFn) {
   fetchUiConfig().then(uiConfig => {
     if (isRequiredDataPresent(uiConfig.access_mode, to)) {
-      next(vm => setUiConfigFn(vm, uiConfig));
+      // If UI Config indicates redirect, check if the flame server is still alive & redirect
+      // if it is.
+      console.log(to)
+      if (uiConfig.redirect_to_alive_flame && to.params.inputFireXId) {
+        fetchRunModelMetadata(to.params.inputFireXId, uiConfig.model_path_template)
+          .then((runMetadata) => redirectToFlameIfAlive(runMetadata.flame_url, to.path))
+          // If can't fetch metadata or flame server is not alive, just route to local task view.
+          .catch(() => next(vm => setUiConfigFn(vm, uiConfig)))
+      } else {
+        next(vm => setUiConfigFn(vm, uiConfig));
+      }
     } else {
+      // Missing key required to show task data -- send to find view if supported.
       if (supportsFindView(uiConfig.access_mode)) {
         next('/find');
       } else {
@@ -385,13 +408,24 @@ function tasksViewKeyRouteChange(to, from, next, setUiConfigFn) {
   });
 }
 
+function findRunPathSuffix(path) {
+  return _.replace(path, new RegExp(`^#?/.*${FIREX_ID_REGEX_STR}`), '')
+}
+
+function redirectToFlameIfAlive(flameServerUrl, path) {
+  return fetch((new URL('/alive', flameServerUrl)).toString(), {mode: 'no-cors'})
+    // If the flame for the selected run is still alive, redirect the user there.
+    .then(() => {
+      const redirectPath = findRunPathSuffix(path);
+      window.location.href = (new URL(`#${redirectPath}`, flameServerUrl)).toString();
+    });
+}
+
 function templateFireXId(template, firexId) {
   const firexIdParts = getFireXIdParts(firexId);
   const templateOptions = { evaluate: null, interpolate: null };
   return _.template(template, templateOptions)(firexIdParts);
 }
-
-const FIREX_ID_REGEX = new RegExp('FireX-.*-(\\d\\d)(\\d\\d)(\\d\\d)-\\d{6}-\\d+');
 
 function isFireXIdValid(firexId) {
   return FIREX_ID_REGEX.test(firexId)
@@ -439,4 +473,7 @@ export {
   tasksViewKeyRouteChange,
   fetchUiConfig,
   templateFireXId,
+  redirectToFlameIfAlive,
+  fetchRunModelMetadata,
+  findRunPathSuffix,
 };
