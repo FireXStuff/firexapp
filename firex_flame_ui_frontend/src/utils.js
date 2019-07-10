@@ -387,7 +387,6 @@ function tasksViewKeyRouteChange(to, from, next, setUiConfigFn) {
     if (isRequiredDataPresent(uiConfig.access_mode, to)) {
       // If UI Config indicates redirect, check if the flame server is still alive & redirect
       // if it is.
-      console.log(to)
       if (uiConfig.redirect_to_alive_flame && to.params.inputFireXId) {
         fetchRunModelMetadata(to.params.inputFireXId, uiConfig.model_path_template)
           .then((runMetadata) => redirectToFlameIfAlive(runMetadata.flame_url, to.path))
@@ -409,7 +408,11 @@ function tasksViewKeyRouteChange(to, from, next, setUiConfigFn) {
 }
 
 function findRunPathSuffix(path) {
-  return _.replace(path, new RegExp(`^#?/.*${FIREX_ID_REGEX_STR}`), '')
+  const pathFireXIdRegex = new RegExp(`^#?/.*${FIREX_ID_REGEX_STR}`);
+  if (pathFireXIdRegex.test(path)) {
+    return _.replace(path, pathFireXIdRegex, '')
+  }
+  return '/';
 }
 
 function redirectToFlameIfAlive(flameServerUrl, path) {
