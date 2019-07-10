@@ -5,6 +5,7 @@ import os
 import argparse
 import time
 import traceback
+from celery.signals import celeryd_init
 from shutil import copyfile
 from contextlib import contextmanager
 
@@ -356,3 +357,8 @@ def get_log_dir_from_output(cmd_output: str)->str:
         return log_dir_line.strip()
     except IndexError:
         return ""
+
+
+@celeryd_init.connect()
+def add_uid_to_conf(conf=None, **kwargs):
+    conf.uid = app.backend.get('uid').decode()
