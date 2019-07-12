@@ -5,3 +5,4 @@ include css/*.css
 include COMMITHASH
 include versioneer.py
 include _version.py
+include ../LICENSE
