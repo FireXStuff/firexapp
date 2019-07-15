@@ -416,7 +416,11 @@ function findRunPathSuffix(path) {
 }
 
 function redirectToFlameIfAlive(flameServerUrl, path) {
-  return fetch((new URL('/alive', flameServerUrl)).toString(), {mode: 'no-cors'})
+  return fetchWithTimeout(
+    (new URL('/alive', flameServerUrl)).toString(),
+    {mode: 'no-cors'},
+    6000,
+    () => new Error('fetch timeout'))
     // If the flame for the selected run is still alive, redirect the user there.
     .then(() => {
       const redirectPath = findRunPathSuffix(path);
@@ -445,6 +449,15 @@ function getFireXIdParts(firexId) {
     'day': match[3],
     'firex_id': firexId,
   };
+}
+
+function fetchWithTimeout(fetchUrl, fetchOptions, timeout = 5000, onTimeout) {
+  return Promise.race([
+        fetch(fetchUrl, fetchOptions),
+        new Promise((_, reject) =>
+            setTimeout(() => reject(onTimeout()), timeout)
+        )
+    ]);
 }
 
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
