@@ -387,7 +387,10 @@ function tasksViewKeyRouteChange(to, from, next, setUiConfigFn) {
     if (isRequiredDataPresent(uiConfig.access_mode, to)) {
       // If UI Config indicates redirect, check if the flame server is still alive & redirect
       // if it is.
-      if (uiConfig.redirect_to_alive_flame && to.params.inputFireXId) {
+      if (uiConfig.redirect_to_alive_flame && to.params.inputFireXId
+          // Avoid re-querying the flame server if the firexId hasn't changed, since timeouts
+          // aren't cached and introduce delays between view transitions.
+          && to.params.inputFireXId !== from.params.inputFireXId) {
         fetchRunModelMetadata(to.params.inputFireXId, uiConfig.model_path_template)
           .then((runMetadata) => redirectToFlameIfAlive(runMetadata.flame_url, to.path))
           // If can't fetch metadata or flame server is not alive, just route to local task view.
@@ -419,7 +422,7 @@ function redirectToFlameIfAlive(flameServerUrl, path) {
   return fetchWithTimeout(
     (new URL('/alive', flameServerUrl)).toString(),
     {mode: 'no-cors'},
-    6000,
+    5000,
     () => new Error('fetch timeout'))
     // If the flame for the selected run is still alive, redirect the user there.
     .then(() => {
