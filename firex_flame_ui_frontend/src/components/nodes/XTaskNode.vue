@@ -1,5 +1,5 @@
 <template>
-  <router-link :to="allowClickToAttributes ? routeToAttribute() : currentRoute()">
+  <router-link :to="allowClickToAttributes ? routeToAttributes() : currentRoute()">
     <div :style="topLevelStyle" class="node" v-on:click.shift.prevent="nodeShiftClick">
       <div style="overflow: hidden; text-overflow: ellipsis;">
         <div style="display: flex;">
@@ -169,7 +169,7 @@ export default {
     emitCollapseToggle() {
       eventHub.$emit('toggle-task-collapse', this.taskUuid);
     },
-    routeToAttribute() {
+    routeToAttributes() {
       return this.getTaskRoute(this.taskUuid);
     },
     currentRoute() {

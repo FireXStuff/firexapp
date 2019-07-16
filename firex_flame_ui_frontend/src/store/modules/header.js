@@ -7,8 +7,14 @@ const headerState = {
 };
 
 function prependFirexIdPath(path, isDataKeyFireXId, taskDataKey) {
-  const p = isDataKeyFireXId ? `/${taskDataKey}/${path}` : path;
-  return { path: p };
+  let resultPath;
+  if (isDataKeyFireXId) {
+    const sep = path.startsWith('/') ? '' : '/';
+    resultPath = `/${taskDataKey}${sep}${path}`;
+  } else {
+    resultPath = path;
+  }
+  return { path: resultPath };
 }
 
 // getters
@@ -50,7 +56,7 @@ const headerGetters = {
   runRouteFromName: (state, getters) => name => _.merge({ name }, getters.runRouteParamsAndQuery),
 
   getTaskRoute: (state, getters) => taskUuid => _.merge(
-    prependFirexIdPath(`tasks/${taskUuid}`, getters.isDataKeyFireXId, getters.taskDataKey),
+    prependFirexIdPath(`/tasks/${taskUuid}`, getters.isDataKeyFireXId, getters.taskDataKey),
     getters.runRouteParamsAndQuery,
   ),
 
