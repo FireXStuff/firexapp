@@ -33,7 +33,8 @@ def get_available_port(so_reuseport=True):
 
 
 def silent_mkdir(path, mode=0o777, exist_ok=True):
-    os.makedirs(path, mode=mode, exist_ok=exist_ok)
+    if not os.path.exists(path):
+        os.makedirs(path, mode=mode, exist_ok=exist_ok)
 
 
 def poll_until_file_exist(file_path, timeout=10):
