@@ -1,3 +1,9 @@
 {
-  "accessor-mode": "webserver-file"
+  "access_mode": "socketio-param",
+  "model_path_template": "/auto/firex-logs/<%- year %>/<%- month %>/<%- day %>/<%- firex_id %>/flame_model/run-metadata.json",
+  "redirect_to_alive_flame": false,
+  "is_central": false,
+  "central_server": null,
+  "central_server_ui_path": null,
+  "central_documentation_url": "http://www.firex.cisco.com/"
 }
