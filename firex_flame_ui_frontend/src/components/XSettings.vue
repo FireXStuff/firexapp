@@ -120,7 +120,7 @@
 import _ from 'lodash';
 import { mapState } from 'vuex';
 
-import { uuidv4 } from '../utils';
+import { uuidv4, fetchUiConfig } from '../utils';
 import {
   addLocalStorageData, readValidatedPathFromLocalStorage, loadDisplayConfigs, USER_CONFIGS_KEY,
 } from '../persistance';

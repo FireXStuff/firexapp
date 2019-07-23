@@ -102,7 +102,7 @@ function createSocketApiAccessor(url, options) {
 }
 
 function createWebFileAccessor(firexId, modelPathTemplate) {
-  const modelBasePath = templateFireXId(modelPathTemplate,firexId );
+  const modelBasePath = templateFireXId(modelPathTemplate, firexId);
 
   const modelBaseUrl = new URL(modelBasePath, window.location.origin);
 
