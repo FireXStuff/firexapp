@@ -41,10 +41,19 @@
             </x-node>
           </div>
         </div>
+      </div>
+      <div style="display: flex; margin-left: 100px">
         <div style="margin: 15px">
           <h2 class="node-type">Plugin with Success</h2>
           <div style="display: inline-block; width: 200px;">
             <x-node taskUuid="pluginSucceededNode" :allow-click-to-attributes="false"
+                    :isLeaf="true"></x-node>
+          </div>
+        </div>
+        <div style="margin: 15px">
+          <h2 class="node-type">Failed by Descendant</h2>
+          <div style="display: inline-block; width: 200px;">
+            <x-node taskUuid="descendantFailedNode" :allow-click-to-attributes="false"
                     :isLeaf="true"></x-node>
           </div>
         </div>
@@ -99,6 +108,8 @@ export default {
       revokedNode: _.merge({}, this.baseNode, { state: 'task-revoked' }),
       blockedNode: _.merge({}, this.baseNode, { state: 'task-blocked' }),
       pluginSucceededNode: _.merge({}, this.baseNode, { state: 'task-succeeded', from_plugin: true }),
+      descendantFailedNode: _.merge({}, this.baseNode,
+        { state: 'task-failed', exception: 'ChainInterruptedException' }),
     };
     this.$store.dispatch('tasks/setTasks', tasksByUuid);
   },
