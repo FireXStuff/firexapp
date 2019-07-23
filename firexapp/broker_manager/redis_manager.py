@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import shlex
@@ -22,6 +23,11 @@ REDIS_PID_REGISTRY_KEY = 'REDIS_PID_REGISTRY_KEY'
 FileRegistry().register_file(REDIS_PID_REGISTRY_KEY,
                              os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), 'redis.pid'))
 
+REDIS_METADATA_REGISTRY_KEY = 'REDIS_METDATA_REGISTRY_KEY'
+FileRegistry().register_file(REDIS_METADATA_REGISTRY_KEY,
+                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY),
+                                          'run-metadata.json'))
+
 
 class RedisDidNotBecomeActive(Exception):
     pass
@@ -41,6 +47,7 @@ class RedisManager(BrokerManager):
 
         self._log_file = None
         self._pid_file = None
+        self._metadata_file = None
 
     @property
     def redis_cli_cmd(self):
@@ -81,6 +88,10 @@ class RedisManager(BrokerManager):
     def get_pid_file(logs_dir):
         return FileRegistry().get_file(REDIS_PID_REGISTRY_KEY, logs_dir)
 
+    @staticmethod
+    def get_metdata_file(logs_dir):
+        return FileRegistry().get_file(REDIS_METADATA_REGISTRY_KEY, logs_dir)
+
     @property
     def log_file(self):
         if not self._log_file and self.logs_dir:
@@ -97,6 +108,21 @@ class RedisManager(BrokerManager):
             self._pid_file = _pid_file
         return self._pid_file
 
+    @property
+    def metadata_file(self):
+        if not self._metadata_file and self.logs_dir:
+            _metadata_file = self.get_metdata_file(self.logs_dir)
+            os.makedirs(os.path.dirname(_metadata_file), exist_ok=True)
+            self._metadata_file = _metadata_file
+        return self._metadata_file
+
+    def create_metadata_file(self):
+        if self.metadata_file:
+            self.log('Creating %s' % self.metadata_file)
+            data = {'broker_url': self.broker_url}
+            with open(self.metadata_file, 'w') as f:
+                json.dump(data, f, sort_keys=True, indent=2)
+
     def _start(self):
         try:
             port = self.port
@@ -111,6 +137,7 @@ class RedisManager(BrokerManager):
         subprocess.check_call(shlex.split(cmd))
         self.wait_until_active(port=port)
         self.port = port
+        self.create_metadata_file()
         self.log('redis started.')
 
     def start(self, max_retries=3):
