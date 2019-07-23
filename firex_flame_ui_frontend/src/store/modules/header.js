@@ -83,10 +83,10 @@ const headerGetters = {
     };
   },
 
-  runLogsViewHeaderEntry(state, getters, rootState, rootGetters) {
+  runLogsViewHeaderEntry(state, getters) {
     return {
       name: 'logs',
-      href: rootGetters['firexRunMetadata/logsUrl'],
+      href: getters.logsUrl,
       text: 'Logs',
       icon: 'file-alt',
     };
@@ -110,10 +110,11 @@ const headerGetters = {
     };
   },
 
-  documentationHeaderEntry(state, getters, rootState) {
+  documentationHeaderEntry(state) {
     return {
       name: 'documentation',
-      href: rootState.firexRunMetadata.central_documentation_url,
+
+      href: _.get(state.uiConfig, 'central_documentation_url', 'http://firex.cisco.com'),
       text: 'Documentation',
       icon: 'book',
     };
@@ -158,6 +159,19 @@ const headerGetters = {
       title: 'Kill',
     };
   },
+
+  logsUrl(state, getters, rootState) {
+    // TODO: Is it even safe/reasonable to expect the central server to always serve the logs?
+    //    Is it better to always serve relatively?
+    const origin = _.get(state.uiConfig, 'central_server', null);
+    let logsUrl = '';
+    if (!_.isNil(origin)) {
+      logsUrl += origin;
+    }
+    logsUrl += rootState.firexRunMetadata.logs_dir;
+    return logsUrl;
+  },
+
 };
 
 // mutations

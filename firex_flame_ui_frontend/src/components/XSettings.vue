@@ -142,25 +142,17 @@ export default {
       failureDisplayMsg: '',
     };
   },
-  asyncComputed: {
-    canEditSettings:
-      {
-        get() {
-          const baseUrl = new URL(window.location.pathname, window.location.origin);
-          // FIXME: use the field from the UI config instead of this.
-          const fileMarkingCentralServer = new URL('send-firex-user-config.html', baseUrl);
-          return fetch(fileMarkingCentralServer).then(r => r.ok, () => false);
-        },
-        default: false,
-      },
-  },
   computed: {
     ...mapState({
-      centralServerUiPath: state => state.firexRunMetadata.centralServerUiPath,
-      centralServer: state => state.firexRunMetadata.centralServer,
+      centralServerUiPath: state => _.get(state.header.uiConfig, 'central_server_ui_path', null),
+      centralServer: state => _.get(state.header.uiConfig, 'central_server', null),
+      isCentral: state => _.get(state.header.uiConfig, 'is_central', false),
     }),
     displayConfigsJson() {
       return JSON.stringify(this.displayConfigs, null, 2);
+    },
+    canEditSettings() {
+      return this.isCentral;
     },
     disableEdit() {
       return !this.canEditSettings;
@@ -241,6 +233,11 @@ export default {
     onCopyFail() {
       this.failureDisplayMsg = 'Failed to copy to clipboard';
     },
+  },
+  beforeRouteEnter(to, from, next) {
+    fetchUiConfig().then((uiConfig) => {
+      next(vm => vm.$store.commit('header/setFlameUiConfig', uiConfig));
+    });
   },
 };
 </script>
