@@ -6,6 +6,7 @@ import argparse
 import time
 import traceback
 from celery.signals import celeryd_init
+from firexkit.inspect import get_active
 from shutil import copyfile
 from contextlib import contextmanager
 
@@ -329,7 +330,7 @@ class SubmitBaseApp:
 
 def revoke_active_tasks(revoke_root):
     revoked = []
-    active = app.control.inspect().active()
+    active = get_active()
     if active:
         for host in active.values():
             if host:
