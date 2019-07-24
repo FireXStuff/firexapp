@@ -39,6 +39,8 @@ class RedisPortNotAssigned(Exception):
 
 class RedisManager(BrokerManager):
 
+    METADATA_BROKER_URL_KEY = 'broker_url'
+
     def __init__(self, redis_bin_base, hostname=gethostname(), port=None, logs_dir=None):
         self.redis_bin_base = redis_bin_base
         self.host = hostname
@@ -92,6 +94,17 @@ class RedisManager(BrokerManager):
     def get_metdata_file(logs_dir):
         return FileRegistry().get_file(REDIS_METADATA_REGISTRY_KEY, logs_dir)
 
+    @classmethod
+    def read_metadata(cls, logs_dir):
+        with open(cls.get_metdata_file(logs_dir)) as fp:
+            metadata = json.load(fp)
+        return metadata
+
+    @classmethod
+    def get_broker_url_from_metadata(cls, logs_dir):
+        metadata = cls.read_metadata(logs_dir)
+        return metadata[cls.METADATA_BROKER_URL_KEY]
+
     @property
     def log_file(self):
         if not self._log_file and self.logs_dir:
@@ -119,7 +132,7 @@ class RedisManager(BrokerManager):
     def create_metadata_file(self):
         if self.metadata_file:
             self.log('Creating %s' % self.metadata_file)
-            data = {'broker_url': self.broker_url}
+            data = {self.METADATA_BROKER_URL_KEY: self.broker_url}
             with open(self.metadata_file, 'w') as f:
                 json.dump(data, f, sort_keys=True, indent=2)
 
