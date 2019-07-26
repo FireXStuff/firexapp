@@ -26,8 +26,8 @@ def _get_firex_dependant_package_locations()-> []:
     try:
         logging.raiseExceptions = False
         firex_app_name = __name__.split(".")[0]
-        logging.getLogger('distlib.metadata').setLevel(logging.WARNING)
-        logging.getLogger('distlib.database').setLevel(logging.WARNING)
+        logging.getLogger('distlib.metadata').setLevel(logging.ERROR)
+        logging.getLogger('distlib.database').setLevel(logging.ERROR)
         dependants = [d for d in distributions if firex_app_name in d.run_requires]
     finally:
         logging.raiseExceptions = old_raise
