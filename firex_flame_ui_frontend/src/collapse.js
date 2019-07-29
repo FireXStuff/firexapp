@@ -154,7 +154,8 @@ function findMinPriorityOp(
 }
 
 function resolveNodeCollapseStatus(
-  uuid, ancestorUuids, unchainedAncestorUuids, descendantUuids, collapseOpsByUuid) {
+  uuid, ancestorUuids, unchainedAncestorUuids, descendantUuids, collapseOpsByUuid,
+) {
   // assumes walking root-down (parent collapsed state already calced).
   const minPriorityOp = findMinPriorityOp(
     uuid,

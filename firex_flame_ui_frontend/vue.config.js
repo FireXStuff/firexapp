@@ -1,4 +1,4 @@
-var GitRevisionPlugin = require('git-revision-webpack-plugin');
+const GitRevisionPlugin = require('git-revision-webpack-plugin');
 
 module.exports = {
   lintOnSave: process.env.NODE_ENV !== 'production',

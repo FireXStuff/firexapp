@@ -335,7 +335,7 @@ export default {
       let uiCollapseEvent;
       if (this.allDescendantsCollapsed(uuid)) {
         // All collapsed, just expand all.
-        console.log('all desc collapsed -- expanding descs');
+        // console.log('all desc collapsed -- expanding descs');
         uiCollapseEvent = {
           uuid,
           remove: false,
@@ -364,8 +364,6 @@ export default {
     },
     handleUiCollapseEvent(event) {
       const initialRelPos = this.getCurrentRelPos(event.uuid);
-
-      console.log(event);
 
       let resultOpsByUuid;
       if (event.remove) {

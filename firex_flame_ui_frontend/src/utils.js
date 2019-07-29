@@ -344,7 +344,7 @@ const DEFAULT_UI_CONFIG = {
   firex_bin: null,
 };
 
-function isRequiredDataPresent(accessMode, route) {
+function isRequiredAccessModeDataPresent(accessMode, route) {
   if (accessMode === 'socketio-origin') {
     // Always have origin, no data needed from route.
     return true;
@@ -385,7 +385,7 @@ function fetchRunModelMetadata(firexId, modelPathTemplate) {
 
 function tasksViewKeyRouteChange(to, from, next, setUiConfigFn) {
   fetchUiConfig().then(uiConfig => {
-    if (isRequiredDataPresent(uiConfig.access_mode, to)) {
+    if (isRequiredAccessModeDataPresent(uiConfig.access_mode, to)) {
       // If UI Config indicates redirect, check if the flame server is still alive & redirect
       // if it is.
       if (uiConfig.redirect_to_alive_flame && to.params.inputFireXId

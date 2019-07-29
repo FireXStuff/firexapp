@@ -2,7 +2,7 @@
 // import _ from 'lodash';
 import { mount, createLocalVue } from '@vue/test-utils';
 import VueRouter from 'vue-router';
-import Vuex from 'vuex'
+import Vuex from 'vuex';
 
 import XGraph from '@/components/XGraph.vue';
 import store from '@/store';

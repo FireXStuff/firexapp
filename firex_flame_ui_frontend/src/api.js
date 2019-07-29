@@ -164,7 +164,7 @@ function setAccessor(apiType, apiTypeKey, options) {
   } else if (apiType === 'dump-files') {
     apiAccessor = createWebFileAccessor(apiTypeKey, options.modelPathTemplate);
   } else {
-    console.error(`Unknown API type: ${apiType}`);
+    throw Error(`Unknown API type: ${apiType}`);
   }
 }
 

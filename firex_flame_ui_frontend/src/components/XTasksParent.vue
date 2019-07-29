@@ -156,12 +156,14 @@ export default {
       if (this.uiConfig.access_mode === 'webserver-file') {
         const options = { modelPathTemplate: this.uiConfig.model_path_template };
         api.setAccessor('dump-files', this.inputFireXId, options);
-      } else {
+      } else if (this.uiConfig.access_mode === 'socketio-origin') {
         // TODO: should probably timeout trying to reconnect after some time.
         api.setAccessor('socketio', this.flameServerUrl, {
           onConnect: () => this.$store.commit('tasks/setApiConnected', true),
           onDisconnect: () => this.$store.commit('tasks/setApiConnected', false),
         });
+      } else {
+
       }
       this.fetchAllTasksAndStartLiveUpdate();
       this.setFlameRunMetadata();
