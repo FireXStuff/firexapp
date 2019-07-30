@@ -1,7 +1,7 @@
 import _ from 'lodash';
 
-import { getGraphDataByUuid } from '@/graph-utils.js';
-import { resolveCollapseStatusByUuid, getCollapsedGraphByNodeUuid } from '@/collapse.js';
+import { getGraphDataByUuid } from '@/graph-utils';
+import { resolveCollapseStatusByUuid, getCollapsedGraphByNodeUuid } from '@/collapse';
 
 describe('utils.js', () => {
   const trivRoot = 1;
