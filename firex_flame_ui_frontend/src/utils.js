@@ -341,6 +341,7 @@ const DEFAULT_UI_CONFIG = {
   central_server: null,
   central_server_ui_path: null,
   central_documentation_url: null,
+  firex_bin: null,
 };
 
 function isRequiredDataPresent(accessMode, route) {

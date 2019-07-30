@@ -22,6 +22,7 @@ import { faQuestionCircle } from '@fortawesome/free-solid-svg-icons/faQuestionCi
 import { faKeyboard } from '@fortawesome/free-solid-svg-icons/faKeyboard';
 import { faBook } from '@fortawesome/free-solid-svg-icons/faBook';
 import { faCogs } from '@fortawesome/free-solid-svg-icons/faCogs';
+import { faClipboard } from '@fortawesome/free-solid-svg-icons/faClipboard';
 
 
 import {
@@ -32,7 +33,7 @@ library.add(faBullseye, faEye, faSearch, faListUl, faPlusCircle,
   faSitemap, faFileCode, faTimes, faFire, faTrash,
   faExpandArrowsAlt, faCompressArrowsAlt, faFileAlt, faCaretUp, faCaretDown,
   faUndo, faExclamationCircle, faClock, faQuestionCircle, faKeyboard, faBook,
-  faCogs);
+  faCogs, faClipboard);
 
 Vue.component('font-awesome-icon', FontAwesomeIcon);
 Vue.component('font-awesome-layers', FontAwesomeLayers);

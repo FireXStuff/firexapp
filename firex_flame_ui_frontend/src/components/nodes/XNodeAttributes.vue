@@ -31,6 +31,18 @@
         <div v-else-if="key === 'exception'" style="display: inline; color: darkred">
           {{displayKeyNode[key].trim()}}
         </div>
+        <div v-else-if="key === 'replay command line'">
+          <div style="margin-left: 30px;margin-top:10px">
+            <div>
+              {{replayCommandLine}}
+            </div>
+            <div style="margin-top:6px">
+              <button type="button" @click="doCopy">
+                <font-awesome-icon icon="clipboard"></font-awesome-icon> Copy
+              </button>
+            </div>
+          </div>
+        </div>
         <div v-else-if="isTimeKey(key)" style="display: inline">
           {{formatTime(displayKeyNode[key])}}
         </div>
@@ -54,7 +66,7 @@
 <script>
 import _ from 'lodash';
 import { DateTime } from 'luxon';
-import { mapGetters } from 'vuex';
+import { mapGetters, mapState } from 'vuex';
 
 import * as api from '../../api';
 import { eventHub, isTaskStateIncomplete, durationString } from '../../utils';
@@ -76,6 +88,10 @@ export default {
     ...mapGetters({
       runDuration: 'tasks/runDuration',
       getTaskRoute: 'header/getTaskRoute',
+    }),
+    ...mapState({
+      logsDir: state => state.firexRunMetadata.logs_dir,
+      firexBin: state => _.get(state.header.uiConfig, 'firex_bin', 'firex'),
     }),
     simpleTask() {
       return this.$store.getters['tasks/runStateByUuid'][this.uuid];
@@ -149,7 +165,9 @@ export default {
       return _.mapKeys(this.displayNode, (v, k) => _.get(origKeysToDisplayKeys, k, k));
     },
     sortedDisplayNodeKeys() {
-      return _.sortBy(_.keys(this.displayKeyNode));
+      const displayKeys = _.sortBy(_.keys(this.displayKeyNode));
+      displayKeys.push('replay command line');
+      return displayKeys;
     },
     headerParams() {
       let links = [
@@ -202,6 +220,9 @@ export default {
     minPriorityOp() {
       return this.$store.getters['graph/resolvedCollapseStateByUuid'][this.uuid].minPriorityOp;
     },
+    replayCommandLine() {
+      return `${this.firexBin} submit --chain Replay --uuid ${this.taskAttributes.uuid} --previous_logs_dir ${this.logsDir}`;
+    },
   },
   methods: {
     fetchTaskAttributes() {
@@ -239,6 +260,9 @@ export default {
     formatTime(unixTime) {
       const humanTime = DateTime.fromSeconds(unixTime).toLocaleString(DateTime.DATETIME_FULL);
       return `${humanTime} (orig: ${unixTime})`;
+    },
+    doCopy() {
+      this.$copyText(this.replayCommandLine);
     },
   },
   watch: {
