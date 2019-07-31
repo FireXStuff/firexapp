@@ -23,6 +23,8 @@ root_task = "firexapp.tasks.core_tasks.RootTask"
 accept_content = ['pickle']
 task_serializer = 'pickle'
 result_serializer = 'pickle'
+task_compression = 'lzma'
+result_compression = 'lzma'
 
 result_expires = None
 
