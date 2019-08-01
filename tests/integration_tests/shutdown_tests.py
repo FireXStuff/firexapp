@@ -183,3 +183,33 @@ class NoBrokerLeakOnCeleryFailure(NoBrokerLeakBase):
 
     def assert_expected_return_code(self, ret_value):
         pass  # it's better if the test fails on the redis leak
+
+
+@app.task
+def revoke_root_task():
+    from firexapp.tasks.core_tasks import get_configured_root_task
+    root = get_configured_root_task()
+    from firexkit.inspect import get_active
+    active = get_active()
+    if active:
+        for host in active.values():
+            for task in host:
+                if root.__name__ in task['name']:
+                    app.control.revoke(task_id=task["id"], terminate=True)
+
+    # sleep till shutdown revokes us
+    from time import sleep
+    sleep(5)
+
+
+class NoBrokerLeakOnRootRevoke(NoBrokerLeakBase):
+    no_coverage = True
+
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "revoke_root_task"]
+
+    def expected_error(self):
+        return "Aborting FireX submission..."
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_bad_run(ret_value)
