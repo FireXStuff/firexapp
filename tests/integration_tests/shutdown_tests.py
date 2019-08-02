@@ -1,5 +1,8 @@
 import os
 import abc
+from glob import glob
+from pathlib import Path
+from psutil import Process
 import signal
 
 from firexapp.engine.celery import app
@@ -213,3 +216,19 @@ class NoBrokerLeakOnRootRevoke(NoBrokerLeakBase):
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
+
+@app.task
+def terminate_celery(uid):
+    pid_file = glob(os.path.join(uid.logs_dir, 'debug', 'celery', 'pids', '*.pid'))[0]
+    Process(int(Path(pid_file).read_text())).kill()
+
+
+class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "terminate_celery"]
+
+    def assert_expected_return_code(self, ret_value):
+        pass  # it's better if the test fails on the redis leak
+
+    def expected_error(self):
+        return ""

@@ -292,7 +292,9 @@ class SubmitBaseApp:
                 break
             time.sleep(0.1)
         else:
-            logger.debug("Warning! Broker was not shut down after %s seconds." % str(timeout))
+            logger.debug("Warning! Broker was not shut down after %s seconds. FORCE KILLING BROKER." % str(timeout))
+            self.broker.force_kill()
+
 
     @classmethod
     def validate_argument_applicability(cls, chain_args, args, all_tasks):

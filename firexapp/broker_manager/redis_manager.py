@@ -8,6 +8,8 @@ from firexapp.submit.uid import Uid
 from socket import gethostname
 from urllib.parse import urlsplit
 from logging import ERROR, INFO
+from psutil import Process
+from pathlib import Path
 
 from firexapp.broker_manager import BrokerManager
 from firexapp.common import get_available_port
@@ -176,6 +178,13 @@ class RedisManager(BrokerManager):
             self.cli('shutdown')
         except subprocess.CalledProcessError:
             RedisManager.log('could not shutdown.')
+
+    def force_kill(self):
+        try:
+            RedisManager.log('force killing...')
+            Process(int(Path(self.pid_file).read_text())).kill()
+        except Exception:
+            RedisManager.log('could not force kill.')
 
     def get_url(self) -> str:
         return self.broker_url
