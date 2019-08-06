@@ -219,6 +219,7 @@ class NoBrokerLeakOnRootRevoke(NoBrokerLeakBase):
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
 
+
 @app.task
 def terminate_celery(uid):
     pid_file = glob(os.path.join(uid.logs_dir, 'debug', 'celery', 'pids', '*.pid'))[0]
@@ -226,6 +227,12 @@ def terminate_celery(uid):
 
 
 class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
+    # TODO: note this test is slow because it deliberately waits 15s for normal celery shutdown.
+    # It might be worth making the celery shutdown timeout a parameter.
+
+    # It isn't completely clear why, but coverage causes the CI to hang after this test has completed.
+    no_coverage = True
+
     def initial_firex_options(self) -> list:
         return ["submit", "--chain", "terminate_celery"]
 
