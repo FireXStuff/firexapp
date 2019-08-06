@@ -6,7 +6,7 @@ import subprocess
 import psutil
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from socket import gethostname
-from firexapp.common import poll_until_file_not_empty
+from firexapp.common import poll_until_file_not_empty, poll_until_dir_empty, find_procs
 from firexapp.plugins import PLUGGING_ENV_NAME, cdl2list
 from firexapp.fileregistry import FileRegistry
 
@@ -231,11 +231,17 @@ class CeleryManager(object):
         if wait:
             self.wait_until_active(pid_file=pid_file, timeout=timeout, stdout_file=stdout_file, workername=workername)
 
-    @classmethod
-    def kill(cls, pid):
-        cls.log('Killing  pid %d' % pid, level=INFO)
-        p = psutil.Process(pid)
-        p.kill()
+    @staticmethod
+    def find_procs(pid_file):
+        return find_procs('celery', cmdline_contains='--pidfile=%s' % pid_file)
+
+    def kill_all_forked(self, pid_file):
+        for proc in self.find_procs(pid_file):
+            self.log('Killing  pid %d' % proc.pid, level=INFO)
+            try:
+                proc.kill()
+            except Exception:
+                self.log('Failed to kill pid %d' % proc.pid, level=WARNING)
 
     @classmethod
     def terminate(cls, pid, timeout=60):
@@ -254,7 +260,10 @@ class CeleryManager(object):
             else:
                 try:
                     self.terminate(pid, timeout=timeout)
-                except psutil.TimeoutExpired:
-                    self.kill(pid)
+                except (psutil.TimeoutExpired, psutil.NoSuchProcess):
+                    self.kill_all_forked(pid_file)
                 except Exception as e:
                     self.log(e)
+
+    def wait_for_shutdown(self, timeout=15):
+        return poll_until_dir_empty(self.celery_pids_dir, timeout=timeout)

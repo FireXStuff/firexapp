@@ -11,7 +11,9 @@ from firexapp.submit.arguments import InputConverter
 from firexapp.submit.reporting import ReportGenerator, report
 from firexapp.submit.tracking_service import TrackingService, get_tracking_services
 import firexapp.submit.tracking_service
+from firexapp.submit.submit import get_log_dir_from_output
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
+from firexapp.celery_manager import CeleryManager
 
 
 def get_broker_url_from_output(cmd_output):
@@ -232,3 +234,14 @@ class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
 
     def expected_error(self):
         return ""
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        super().assert_expected_firex_output(cmd_output, cmd_err)
+        logs_dir = get_log_dir_from_output(cmd_output)
+
+        existing_procs = []
+        celery_pids_dir = CeleryManager(logs_dir=logs_dir).celery_pids_dir
+        for f in os.listdir(celery_pids_dir):
+            existing_procs += CeleryManager.find_procs(os.path.join(celery_pids_dir, f))
+
+        assert not existing_procs, "Expected no remaining celery processes, found: %s" % existing_procs

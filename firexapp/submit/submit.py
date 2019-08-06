@@ -280,6 +280,16 @@ class SubmitBaseApp:
 
             logger.debug("Sending Celery shutdown")
             app.control.shutdown()
+
+            celery_shutdown_wait = 15
+            celery_shutdown_success = self.celery_manager.wait_for_shutdown(celery_shutdown_wait)
+            if not celery_shutdown_success:
+                logger.warning("Celery not shutdown after %d secs, force killing instead." % celery_shutdown_wait)
+                self.celery_manager.shutdown()
+                # Ordinarily, celery shuts down redis from a boot step. Since celery failed to
+                # shutdown, it might be necessary to shutdown redis here.
+                if self.broker.is_alive():
+                    self.broker.shutdown()
         elif self.broker:
             # broker will be shut down by celery if active
             self.broker.shutdown()
@@ -291,9 +301,12 @@ class SubmitBaseApp:
             if not self.broker.is_alive():
                 break
             time.sleep(0.1)
-        else:
+
+        if self.broker.is_alive():
             logger.debug("Warning! Broker was not shut down after %s seconds. FORCE KILLING BROKER." % str(timeout))
             self.broker.force_kill()
+        else:
+            logger.debug("Confirmed successful graceful broker shutdown.")
 
 
     @classmethod

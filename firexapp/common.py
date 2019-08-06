@@ -1,8 +1,10 @@
 import time
 
 import os
+import psutil
 import re
 import socket
+
 
 def delimit2list(str_to_split, delimiters=(',', ';', '|', ' ')) -> []:
     if not str_to_split:
@@ -55,3 +57,40 @@ def poll_until_file_not_empty(file_path, timeout=10):
     poll_until_file_exist(file_path, timeout)
     remaining_timeout = timeout - (time.time() - start_time)
     poll_until_existing_file_not_empty(file_path, remaining_timeout)
+
+
+def poll_until_dir_empty(dir_path, timeout=15):
+    timeout_time = time.time() + timeout
+    while len(os.listdir(dir_path)) > 0 and time.time() < timeout_time:
+        time.sleep(0.1)
+    return not os.listdir(dir_path)
+
+
+def proc_matches(proc_info, pname, cmdline_regex, cmdline_contains):
+    if proc_info['name'] == pname:
+        if cmdline_regex:
+            return any(cmdline_regex.search(item) for item in proc_info['cmdline'])
+        elif cmdline_contains:
+            return any(cmdline_contains in item for item in proc_info['cmdline'])
+        else:
+            return True
+    else:
+        return False
+
+
+def find_procs(name, cmdline_regex=None, cmdline_contains=None):
+    matching_procs = []
+    if cmdline_regex:
+        cmdline_regex = re.compile(cmdline_regex)
+    else:
+        cmdline_regex = None
+    for proc in psutil.process_iter():
+        try:
+            pinfo = proc.as_dict(attrs=['name', 'cmdline', 'pid'])
+        except psutil.NoSuchProcess:
+            pass
+        else:
+            if proc_matches(pinfo, name, cmdline_regex, cmdline_contains):
+                matching_procs.append(proc)
+
+    return matching_procs
