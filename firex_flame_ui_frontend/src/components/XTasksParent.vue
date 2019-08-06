@@ -22,7 +22,7 @@ import { mapGetters, mapState } from 'vuex';
 import * as api from '../api';
 import {
   parseRecFileContentsToNodesByUuid, eventHub, orderByTaskNum, twoDepthAssign,
-  tasksViewKeyRouteChange,
+  tasksViewKeyRouteChange, errorRoute,
 } from '../utils';
 
 export default {
@@ -53,6 +53,12 @@ export default {
       flameServerUrl: 'header/inputFlameServer',
       inputFireXId: 'header/inputFireXId',
     }),
+    taskDataKey() {
+      if (this.inputFireXId) {
+        return this.inputFireXId;
+      }
+      return this.flameServerUrl;
+    },
   },
   created() {
     eventHub.$on('revoke-root', () => { this.revokeTask(this.rootUuid); });
@@ -135,13 +141,16 @@ export default {
       }
     },
     setFlameRunMetadata() {
-      api.getFireXRunMetadata().then((data) => {
-        // TODO: is adding the server URL still necessary? This should be fetched from server.
-        if (!_.has(data, 'flameServerUrl')) {
-          data.flameServerUrl = this.flameServerUrl;
-        }
-        this.$store.commit('firexRunMetadata/setFlameRunMetadata', data);
-      });
+      api.getFireXRunMetadata().then(
+        (data) => {
+          // TODO: is adding the server URL still necessary? This should be fetched from server.
+          if (!_.has(data, 'flameServerUrl')) {
+            data.flameServerUrl = this.flameServerUrl;
+          }
+          this.$store.commit('firexRunMetadata/setFlameRunMetadata', data);
+        },
+        () => { this.$router.push(errorRoute(`Failed to fetch task for ${this.taskDataKey}`)); },
+      );
     },
     updateApiAccessor() {
       if (_.isNull(this.uiConfig)) {
@@ -156,14 +165,16 @@ export default {
       if (this.uiConfig.access_mode === 'webserver-file') {
         const options = { modelPathTemplate: this.uiConfig.model_path_template };
         api.setAccessor('dump-files', this.inputFireXId, options);
-      } else if (this.uiConfig.access_mode === 'socketio-origin') {
+      } else if (_.includes(['socketio-origin', 'socketio-param'], this.uiConfig.access_mode)) {
         // TODO: should probably timeout trying to reconnect after some time.
         api.setAccessor('socketio', this.flameServerUrl, {
           onConnect: () => this.$store.commit('tasks/setApiConnected', true),
           onDisconnect: () => this.$store.commit('tasks/setApiConnected', false),
         });
       } else {
-
+        this.$router.push(
+          errorRoute(`UI misconfiguration: unknown access_mode ${this.uiConfig.access_mode}`),
+        );
       }
       this.fetchAllTasksAndStartLiveUpdate();
       this.setFlameRunMetadata();
@@ -184,11 +195,19 @@ export default {
     // here? Should it be in the store itself?
     flameServerUrl: {
       immediate: true,
-      handler() { this.updateApiAccessor(); },
+      handler() {
+        if (this.flameServerUrl) {
+          this.updateApiAccessor();
+        }
+      },
     },
     inputFireXId: {
       immediate: true,
-      handler() { this.updateApiAccessor(); },
+      handler() {
+        if (this.inputFireXId) {
+          this.updateApiAccessor();
+        }
+      },
     },
     // UI Config is lazy loaded and not valid initially, therefore don't set 'immediate'.
     uiConfig() { this.updateApiAccessor(); },

@@ -376,7 +376,7 @@ function fetchUiConfig() {
 
 function fetchRunModelMetadata(firexId, modelPathTemplate) {
   if (!isFireXIdValid(firexId)) {
-    return false;
+    return new Promise((resolve) => resolve(false));
   }
   return fetch(templateFireXId(modelPathTemplate, firexId))
     .then(r => r.json(), () => false)
@@ -393,8 +393,16 @@ function tasksViewKeyRouteChange(to, from, next, setUiConfigFn) {
           // aren't cached and introduce delays between view transitions.
           && to.params.inputFireXId !== from.params.inputFireXId) {
         fetchRunModelMetadata(to.params.inputFireXId, uiConfig.model_path_template)
-          .then((runMetadata) => redirectToFlameIfAlive(runMetadata.flame_url, to.path))
-          // If can't fetch metadata or flame server is not alive, just route to local task view.
+          .then(
+            (runMetadata) => {
+              if (runMetadata === false) {
+                // If can't fetch metadata, route to error
+                next(errorRoute(`Can't find data for ${to.params.inputFireXId}`));
+              } else {
+                return redirectToFlameIfAlive(runMetadata.flame_url, to.path);
+              }
+            })
+          // If flame server is not alive, just route to local task view.
           .catch(() => next(vm => setUiConfigFn(vm, uiConfig)))
       } else {
         next(vm => setUiConfigFn(vm, uiConfig));
@@ -404,11 +412,15 @@ function tasksViewKeyRouteChange(to, from, next, setUiConfigFn) {
       if (supportsFindView(uiConfig.access_mode)) {
         next('/find');
       } else {
-        // TODO: create an error view and redirect there with better message.
-        throw Error(`Can't show tasks for access mode '${uiConfig.access_mode}'.`)
+        next(errorRoute(`Can't show tasks for access mode '${uiConfig.access_mode}'.`));
       }
     }
   });
+}
+
+function errorRoute(message) {
+  console.error(message);
+  return { name: 'error', query: { message } };
 }
 
 function findRunPathSuffix(path) {
@@ -496,4 +508,5 @@ export {
   redirectToFlameIfAlive,
   fetchRunModelMetadata,
   findRunPathSuffix,
+  errorRoute,
 };

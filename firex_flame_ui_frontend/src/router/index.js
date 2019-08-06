@@ -10,6 +10,7 @@ import XHelp from '@/components/XHelp.vue';
 import XSettings from '@/components/XSettings.vue';
 import XShortcuts from '@/components/XShortcuts.vue';
 import XFindFirexId from '@/components/XFindFirexId.vue';
+import XError from '@/components/XError.vue';
 
 Vue.use(Router);
 
@@ -41,6 +42,13 @@ const router = new Router({
       path: '/settings',
       component: XSettings,
       props: route => ({ inputFlameServer: route.query.flameServer }),
+    },
+    {
+      path: '/error',
+      name: 'error',
+      component: XError,
+      meta: { message: null },
+      props: route => ({ message: route.query.message }),
     },
     {
       path: '/:inputFireXId(FireX-.*-\\d+)?',

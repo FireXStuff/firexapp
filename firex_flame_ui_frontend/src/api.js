@@ -111,7 +111,7 @@ function createWebFileAccessor(firexId, modelPathTemplate) {
 
   return {
     // TODO: add failure, timeout, or auto-handle elsewhere.
-    getFireXRunMetadata: () => fetch(metadataUrl).then(r => r.json(), () => {}),
+    getFireXRunMetadata: () => fetch(metadataUrl).then(r => r.json()),
 
     // TODO: add failure, timeout, or auto-handle elsewhere.
     getTaskGraph: () => fetch(graphUrl).then(r => r.json(), () => {}),
