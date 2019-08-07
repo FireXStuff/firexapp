@@ -18,7 +18,7 @@ from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsE
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
 from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args, find_unused_arguments
-from firexapp.submit.tracking_service import get_tracking_services
+from firexapp.submit.tracking_service import get_tracking_services, get_service_name
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
 from firexapp.application import import_microservices, get_app_tasks, get_app_task
@@ -116,6 +116,7 @@ class SubmitBaseApp:
             logger.error(e)
             self.main_error_exit_handler()
             sys.exit(-1)
+        self.wait_tracking_services_task_ready()
         chain_result = root_task.s(chain=args.chain, submit_app=self, sync=args.sync, **chain_args).delay()
 
         self.copy_submission_log()
@@ -134,6 +135,8 @@ class SubmitBaseApp:
                 self.copy_submission_log()
                 self.self_destruct(chain_details=(chain_result, chain_args))
                 self.wait_for_broker_shutdown()
+
+        self.wait_tracking_services_release_console_ready()
 
     def check_for_failures(self, chain_result, chain_args):
         failures = find_unsuccessful(chain_result, ignore_non_ready=True)
@@ -241,7 +244,7 @@ class SubmitBaseApp:
     def start_tracking_services(self, args, **chain_args)->{}:
         if get_tracking_services():
             logger.debug("Tracking services:")
-            [logger.debug("\t" + e.__class__.__name__)for e in get_tracking_services()]
+            [logger.debug("\t%s" % get_service_name(e)) for e in get_tracking_services()]
 
         additional_chain_args = {}
         for service in get_tracking_services():
@@ -249,6 +252,30 @@ class SubmitBaseApp:
             if extra:
                 additional_chain_args.update(extra)
         return additional_chain_args
+
+    @staticmethod
+    def wait_tracking_services_pred(service_predicate, description, timeout)->None:
+        services_by_name = {get_service_name(s): s for s in get_tracking_services()}
+        not_passed_pred_services = list(services_by_name.keys())
+        timeout_max = time.time() + timeout
+
+        while not_passed_pred_services and time.time() < timeout_max:
+            for service_name in not_passed_pred_services:
+                if service_predicate(services_by_name[service_name]):
+                    # Service has passed the predicate, remove it from the list of not passed services.
+                    not_passed_pred_services = [n for n in not_passed_pred_services if service_name != n]
+            if not_passed_pred_services:
+                time.sleep(0.5)
+
+        if not_passed_pred_services:
+            logger.warning("The following services are still not %s after %s secs: %s"
+                           % (description, timeout, not_passed_pred_services))
+
+    def wait_tracking_services_task_ready(self, timeout=5)->None:
+        self.wait_tracking_services_pred(lambda s: s.ready_for_tasks(), 'ready for tasks', timeout)
+
+    def wait_tracking_services_release_console_ready(self, timeout=5)->None:
+        self.wait_tracking_services_pred(lambda s: s.ready_release_console(), 'ready to release console', timeout)
 
     def main_error_exit_handler(self, chain_details=None):
         logger.error('Aborting FireX submission...')

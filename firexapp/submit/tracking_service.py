@@ -21,5 +21,15 @@ class TrackingService(ABC):
         pass
 
     @abstractmethod
-    def start(self, args, **kwargs)->{}:
+    def start(self, args, **kwargs) -> {}:
         pass
+
+    def ready_for_tasks(self, **kwargs) -> bool:
+        return True
+
+    def ready_release_console(self, **kwargs) -> bool:
+        return True
+
+
+def get_service_name(service: TrackingService) -> str:
+    return service.__class__.__name__
