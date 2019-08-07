@@ -220,30 +220,4 @@ class NoBrokerLeakOnRootRevoke(NoBrokerLeakBase):
         assert_is_bad_run(ret_value)
 
 
-@app.task
-def terminate_celery(uid):
-    pid_file = glob(os.path.join(uid.logs_dir, 'debug', 'celery', 'pids', '*.pid'))[0]
-    Process(int(Path(pid_file).read_text())).kill()
-
-
-# TODO: add similar async test.
-class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
-    # TODO: note this test is slow because it deliberately waits 15s for normal celery shutdown.
-    # It might be worth making the celery shutdown timeout a parameter.
-
-    # It isn't completely clear why, but coverage causes the CI to hang after this test has completed.
-    no_coverage = True
-
-    def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "terminate_celery"]
-
-    def assert_expected_return_code(self, ret_value):
-        pass  # it's better if the test fails on the redis leak
-
-    def expected_error(self):
-        return ""
-
-    def assert_expected_firex_output(self, cmd_output, cmd_err):
-        super().assert_expected_firex_output(cmd_output, cmd_err)
-        # logs_dir = get_log_dir_from_output(cmd_output)
-        # TODO: clean up celery pids.
+# TODO: add async terminate test.
