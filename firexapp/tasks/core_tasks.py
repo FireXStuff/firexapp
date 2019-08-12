@@ -62,6 +62,7 @@ class BrokerShutdown(bootsteps.StartStopStep):
             # shut down the broker
             from firexapp.broker_manager.broker_factory import BrokerFactory
             BrokerFactory.get_broker_manager().shutdown()
+            logger.debug("Broker shut down from boot step.")
         else:
             logger.debug("Not the primary celery instance. Broker will not be shut down.")
 

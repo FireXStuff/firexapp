@@ -235,6 +235,13 @@ class CeleryManager(object):
     def find_procs(pid_file):
         return find_procs('celery', cmdline_contains='--pidfile=%s' % pid_file)
 
+    def find_all_procs(self):
+        procs = []
+        for pid_file in os.listdir(self.celery_pids_dir):
+            procs += self.find_procs(os.path.join(self.celery_pids_dir, pid_file))
+        logger.info("Found procs: %s" % procs)
+        return procs
+
     def kill_all_forked(self, pid_file):
         for proc in self.find_procs(pid_file):
             self.log('Killing  pid %d' % proc.pid, level=INFO)
@@ -251,8 +258,15 @@ class CeleryManager(object):
         p.wait(timeout=timeout)
 
     def shutdown(self, timeout=60):
-        for worker, pid_file in self.pid_files.items():
-            self.log('Attempting shutdown of %s' % worker)
+        if self.pid_files:
+            name_to_pid_file = self.pid_files
+        else:
+            # self.pid_files is only populated when starting celery, so if this manager didn't start the celery
+            # instance being operated on, fallback to the pid directory.
+            name_to_pid_file = {pf: os.path.join(self.celery_pids_dir, pf) for pf in os.listdir(self.celery_pids_dir)}
+
+        for name, pid_file in name_to_pid_file.items():
+            self.log('Attempting shutdown of %s' % name)
             try:
                 pid = self.get_pid_from_file(pid_file)
             except Exception as e:

@@ -24,6 +24,7 @@ from firexapp.submit.console import setup_console_logging
 from firexapp.application import import_microservices, get_app_tasks, get_app_task
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
+import firexapp.shutdown
 
 logger = setup_console_logging(__name__)
 
@@ -134,7 +135,6 @@ class SubmitBaseApp:
                 logger.info("All tasks succeeded")
                 self.copy_submission_log()
                 self.self_destruct(chain_details=(chain_result, chain_args))
-                self.wait_for_broker_shutdown()
 
         self.wait_tracking_services_release_console_ready()
 
@@ -281,7 +281,6 @@ class SubmitBaseApp:
         logger.error('Aborting FireX submission...')
         if self.broker:
             self.self_destruct(chain_details=chain_details)
-            self.wait_for_broker_shutdown()
         if self.uid:
             self.copy_submission_log()
 
@@ -289,9 +288,9 @@ class SubmitBaseApp:
         if chain_details:
             chain_result, chain_args = chain_details
             try:
-                    logger.debug("Generating reports")
-                    from firexapp.submit.reporting import ReportersRegistry
-                    ReportersRegistry.post_run_report(results=chain_result, kwargs=chain_args)
+                logger.debug("Generating reports")
+                from firexapp.submit.reporting import ReportersRegistry
+                ReportersRegistry.post_run_report(results=chain_result, kwargs=chain_args)
             except Exception as e:
                 # Under no circumstances should report generation prevent celery and broker cleanup
                 logger.debug(traceback.format_exc())
@@ -301,30 +300,7 @@ class SubmitBaseApp:
                     disable_async_result(chain_result)
 
         logger.debug("Running FireX self destruct")
-        if self.celery_manager:
-            # clean up any orphan'd tasks
-            revoke_active_tasks(revoke_root=self.is_sync)
-
-            logger.debug("Sending Celery shutdown")
-            app.control.shutdown()
-        elif self.broker:
-            # broker will be shut down by celery if active
-            self.broker.shutdown()
-
-    def wait_for_broker_shutdown(self, timeout=15):
-        logger.debug("Waiting for broker to shut down")
-        shutdown_wait_time = time.time() + timeout
-        while time.time() < shutdown_wait_time:
-            if not self.broker.is_alive():
-                break
-            time.sleep(0.1)
-
-        if self.broker.is_alive():
-            logger.debug("Warning! Broker was not shut down after %s seconds. FORCE KILLING BROKER." % str(timeout))
-            self.broker.force_kill()
-        else:
-            logger.debug("Confirmed successful graceful broker shutdown.")
-
+        firexapp.shutdown.launch_background_shutdown(self.uid.logs_dir)
 
     @classmethod
     def validate_argument_applicability(cls, chain_args, args, all_tasks):
@@ -358,24 +334,6 @@ class SubmitBaseApp:
             logger.error(e)
             self.main_error_exit_handler()
             sys.exit(-1)
-
-
-def revoke_active_tasks(revoke_root):
-    revoked = []
-    active = get_active()
-    if active:
-        for host in active.values():
-            if host:
-                logger.info('Revoking lingering tasks...')
-            for task in host:
-                from firexapp.tasks.core_tasks import get_configured_root_task
-                if not revoke_root and get_configured_root_task().__name__ in task["name"]:
-                    logger.info("Skipping revoking root task")
-                    continue
-                revoked.append(task["id"])
-                logger.warning("Revoking " + task['name'])
-                app.control.revoke(task_id=task["id"], terminate=True)
-    return revoked
 
 
 def get_log_dir_from_output(cmd_output: str)->str:

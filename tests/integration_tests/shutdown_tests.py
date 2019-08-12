@@ -4,6 +4,9 @@ from glob import glob
 from pathlib import Path
 from psutil import Process
 import signal
+from time import sleep
+
+from celery.utils.log import get_task_logger
 
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
@@ -12,9 +15,11 @@ from firexapp.submit.reporting import ReportGenerator, report
 from firexapp.submit.tracking_service import TrackingService, get_tracking_services
 import firexapp.submit.tracking_service
 from firexapp.submit.submit import get_log_dir_from_output
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
+from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexapp.celery_manager import CeleryManager
+from firexapp.common import wait_until
 
+logger = get_task_logger(__name__)
 
 def get_broker_url_from_output(cmd_output):
     lines = cmd_output.split("\n")
@@ -25,7 +30,7 @@ def get_broker_url_from_output(cmd_output):
     return export_line.split(export_broker_tag)[-1]
 
 
-def get_leaked_broker_process(cmd_output):
+def get_broker(cmd_output):
     broker_url = get_broker_url_from_output(cmd_output)
     assert broker_url, "No broker was exported"
 
@@ -35,13 +40,15 @@ def get_leaked_broker_process(cmd_output):
         os.environ[BrokerFactory.broker_env_variable] = broker_url
         broker_manager = BrokerFactory.get_broker_manager()
         assert broker_manager.get_url() == broker_url
-        if broker_manager.is_alive():
-            return broker_manager
-        return None
+        return broker_manager
     finally:
         # don't disrupt the environment
         if old_broker_env_variable:
             os.environ[BrokerFactory.broker_env_variable] = old_broker_env_variable
+
+
+def wait_until_broker_not_alive(broker):
+    return wait_until(lambda b: not b.is_alive(), 15, 0.5, broker)
 
 
 class NoBrokerLeakBase(FlowTestConfiguration):
@@ -51,8 +58,9 @@ class NoBrokerLeakBase(FlowTestConfiguration):
         raise NotImplementedError("This is a base class")
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        broker = get_leaked_broker_process(cmd_output)
-        assert not broker, "We are leaking a broker: " + str(broker)
+        broker = get_broker(cmd_output)
+        broker_not_alive = wait_until_broker_not_alive(broker)
+        assert broker_not_alive, "We are leaking a broker: " + str(broker)
         assert self.expected_error() in cmd_err, "Different error expected"
 
     @abc.abstractmethod
@@ -200,11 +208,11 @@ def revoke_root_task():
         for host in active.values():
             for task in host:
                 if root.__name__ in task['name']:
+                    logger.info("Revoking %s" % task['name'])
                     app.control.revoke(task_id=task["id"], terminate=True)
 
-    # sleep till shutdown revokes us
-    from time import sleep
-    sleep(5)
+    # sleep till shutdown revokes us. We should not end up sleeping for this long.
+    sleep(100)
 
 
 class NoBrokerLeakOnRootRevoke(NoBrokerLeakBase):
@@ -220,4 +228,66 @@ class NoBrokerLeakOnRootRevoke(NoBrokerLeakBase):
         assert_is_bad_run(ret_value)
 
 
-# TODO: add async terminate test.
+class AsyncNoBrokerLeakOnRootRevoke(NoBrokerLeakBase):
+    no_coverage = True
+    sync = False
+
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "revoke_root_task"]
+
+    def expected_error(self):
+        return ""
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
+
+
+@app.task
+def terminate_celery(uid):
+    pid_file = glob(os.path.join(uid.logs_dir, 'debug', 'celery', 'pids', '*.pid'))[0]
+    Process(int(Path(pid_file).read_text())).kill()
+
+
+class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
+    # TODO: note this test is slow because it deliberately waits 15s for normal celery shutdown.
+    # It might be worth making the celery shutdown timeout a parameter.
+
+    # It isn't completely clear why, but coverage causes the CI to hang after this test has completed.
+    no_coverage = True
+
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "terminate_celery"]
+
+    def assert_expected_return_code(self, ret_value):
+        pass  # it's better if the test fails on the redis leak
+
+    def expected_error(self):
+        return ""
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        super().assert_expected_firex_output(cmd_output, cmd_err)
+        logs_dir = get_log_dir_from_output(cmd_output)
+        existing_procs = []
+        celery_pids_dir = CeleryManager(logs_dir=logs_dir).celery_pids_dir
+        for f in os.listdir(celery_pids_dir):
+            existing_procs += CeleryManager.find_procs(os.path.join(celery_pids_dir, f))
+
+        assert not existing_procs, "Expected no remaining celery processes, found: %s" % existing_procs
+
+
+class AsyncNoBrokerLeakOnCeleryTerminated(NoBrokerLeakOnCeleryTerminated):
+    # TODO: note this test is slow because it deliberately waits 15s for normal celery shutdown.
+    # It might be worth making the celery shutdown timeout a parameter.
+
+    # It isn't completely clear why, but coverage causes the CI to hang after this test has completed.
+    no_coverage = True
+    sync = False
+
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "terminate_celery"]
+
+    def assert_expected_return_code(self, ret_value):
+        pass  # it's better if the test fails on the redis leak
+
+    def expected_error(self):
+        return ""

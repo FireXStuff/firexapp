@@ -6,6 +6,9 @@ import re
 import socket
 
 
+FIREX_BIN_DIR_ENV = 'firex_bin_dir'
+
+
 def delimit2list(str_to_split, delimiters=(',', ';', '|', ' ')) -> []:
     if not str_to_split:
         return []
@@ -94,3 +97,22 @@ def find_procs(name, cmdline_regex=None, cmdline_contains=None):
                 matching_procs.append(proc)
 
     return matching_procs
+
+
+def wait_until(predicate, timeout, sleep_for, *args, **kwargs):
+    max_time = time.time() + timeout
+    while time.time() < max_time:
+        if predicate(*args, **kwargs):
+            return True
+        time.sleep(sleep_for)
+    return predicate(*args, **kwargs)
+
+
+def wait_until_pid_not_exist(pid, timeout=7, sleep_for=1):
+    return wait_until(lambda p: not psutil.pid_exists(p), timeout, sleep_for, pid)
+
+
+def qualify_firex_bin(bin_name):
+    if FIREX_BIN_DIR_ENV in os.environ:
+        return os.path.join(os.environ[FIREX_BIN_DIR_ENV], bin_name)
+    return bin_name
