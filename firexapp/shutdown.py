@@ -68,7 +68,7 @@ def shutdown_run(logs_dir):
     broker = BrokerFactory.get_broker_manager(logs_dir=logs_dir)
     celery_app = Celery(broker=broker.broker_url)
 
-    if get_active(celery_app=celery_app):
+    if get_active(inspect_retry_timeout=2, celery_app=celery_app):
         revoke_active_tasks(celery_app)
 
         logger.info("Found active Celery; sending Celery shutdown.")
