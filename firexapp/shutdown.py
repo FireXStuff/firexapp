@@ -65,7 +65,7 @@ def init():
 
 def shutdown_run(logs_dir):
     celery_manager = CeleryManager(logs_dir=logs_dir)
-    broker = BrokerFactory.get_broker_manager(logs_dir=logs_dir)
+    broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
     celery_app = Celery(broker=broker.broker_url)
 
     if get_active(inspect_retry_timeout=2, celery_app=celery_app):

@@ -238,7 +238,7 @@ class SubmitBaseApp:
 
     def start_broker(self, args):
         from firexapp.broker_manager.broker_factory import BrokerFactory
-        self.broker = BrokerFactory.get_broker_manager(logs_dir=self.uid.logs_dir)
+        self.broker = BrokerFactory.create_new_broker_manager(logs_dir=self.uid.logs_dir)
         self.broker.start()
 
     def start_tracking_services(self, args, **chain_args)->{}:

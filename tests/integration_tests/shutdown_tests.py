@@ -10,6 +10,7 @@ from celery.utils.log import get_task_logger
 
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
+from firexapp.broker_manager.redis_manager import RedisManager
 from firexapp.submit.arguments import InputConverter
 from firexapp.submit.reporting import ReportGenerator, report
 from firexapp.submit.tracking_service import TrackingService, get_tracking_services
@@ -21,6 +22,7 @@ from firexapp.common import wait_until
 
 logger = get_task_logger(__name__)
 
+
 def get_broker_url_from_output(cmd_output):
     lines = cmd_output.split("\n")
 
@@ -31,20 +33,15 @@ def get_broker_url_from_output(cmd_output):
 
 
 def get_broker(cmd_output):
-    broker_url = get_broker_url_from_output(cmd_output)
-    assert broker_url, "No broker was exported"
+    output_broker_url = get_broker_url_from_output(cmd_output)
+    assert output_broker_url, "No broker was exported"
 
-    old_broker_env_variable = os.environ.get(BrokerFactory.broker_env_variable)
-    try:
-        # temporarily set the broker_url to get the same broker manager as the run
-        os.environ[BrokerFactory.broker_env_variable] = broker_url
-        broker_manager = BrokerFactory.get_broker_manager()
-        assert broker_manager.get_url() == broker_url
-        return broker_manager
-    finally:
-        # don't disrupt the environment
-        if old_broker_env_variable:
-            os.environ[BrokerFactory.broker_env_variable] = old_broker_env_variable
+    logs_dir = get_log_dir_from_output(cmd_output)
+    file_exists = wait_until(lambda: os.path.exists(RedisManager.get_metdata_file(logs_dir)), timeout=10, sleep_for=0.5)
+    assert file_exists, "No broker metadata file."
+    broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
+    assert broker.get_url() == output_broker_url
+    return broker
 
 
 def wait_until_broker_not_alive(broker):
@@ -268,7 +265,7 @@ class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
         super().assert_expected_firex_output(cmd_output, cmd_err)
         logs_dir = get_log_dir_from_output(cmd_output)
         existing_procs = []
-        celery_pids_dir = CeleryManager(logs_dir=logs_dir).celery_pids_dir
+        celery_pids_dir = CeleryManager(logs_dir=logs_dir, broker=get_broker(cmd_output)).celery_pids_dir
         for f in os.listdir(celery_pids_dir):
             existing_procs += CeleryManager.find_procs(os.path.join(celery_pids_dir, f))
 

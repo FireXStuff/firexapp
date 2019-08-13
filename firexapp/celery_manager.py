@@ -30,9 +30,10 @@ class CeleryManager(object):
     celery_bin_name = 'celery'
 
     def __init__(self, plugins=None, logs_dir=None, worker_log_level='debug', cap_concurrency=None,
-                 app='firexapp.engine', celery_bin_dir='', env=None):
+                 app='firexapp.engine', celery_bin_dir='', env=None, broker=None):
 
-        self.broker = BrokerFactory.get_broker_url(assert_if_not_set=True)
+        if not broker:
+            self.broker = BrokerFactory.get_broker_url(assert_if_not_set=True)
         self.hostname = gethostname()
         self.plugins = plugins
         self.logs_dir = logs_dir
@@ -239,7 +240,6 @@ class CeleryManager(object):
         procs = []
         for pid_file in os.listdir(self.celery_pids_dir):
             procs += self.find_procs(os.path.join(self.celery_pids_dir, pid_file))
-        logger.info("Found procs: %s" % procs)
         return procs
 
     def kill_all_forked(self, pid_file):

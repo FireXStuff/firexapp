@@ -61,7 +61,7 @@ class BrokerShutdown(bootsteps.StartStopStep):
         if parent.hostname.startswith(SubmitBaseApp.PRIMARY_WORKER_NAME + "@"):
             # shut down the broker
             from firexapp.broker_manager.broker_factory import BrokerFactory
-            BrokerFactory.get_broker_manager().shutdown()
+            BrokerFactory.broker_manager_from_env().shutdown()
             logger.debug("Broker shut down from boot step.")
         else:
             logger.debug("Not the primary celery instance. Broker will not be shut down.")
