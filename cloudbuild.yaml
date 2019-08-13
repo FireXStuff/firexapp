@@ -14,7 +14,9 @@ steps:
 - name: gcr.io/cloud-builders/gsutil
   args: ['rsync', '-r', 'html', 'gs://www.firexapp.com']
   dir: '$BUILD_ID/firexapp'
-  
+
+logsBucket: 'gs://www.firexapp.com'
+
 secrets:
 - kmsKeyName: projects/firex-kit-documentation/locations/global/keyRings/secrets/cryptoKeys/TWINE_PASSWORD
   secretEnv:
