@@ -44,6 +44,7 @@ class FileRegistryTests(unittest.TestCase):
             shutil.rmtree(uid.logs_dir)
 
     def test_dump_and_read_from_file(self):
+        FileRegistry().destroy()
         registry = {'key1': 'value1',
                     'key2': 'value2'}
         for k, v in registry.items():
