@@ -3,9 +3,14 @@ steps:
   args: ['clone', 'https://github.com/FireXStuff/firexapp.git']
   dir: '$BUILD_ID'
 - name: gcr.io/$PROJECT_ID/firex-alpine-build
-  args: ['sh', '-c', 'sudo pip3 install firexbuilder && firex-build all --sudo --output_dir /home/firex --upload_pip_if_tag --upload_codecov --skip_htmlcov']
+  args: ['sh', '-c', 'sudo pip3 install firexbuilder && firex-build all --sudo --output_dir /home/firex --upload_pip_if_tag --upload_codecov --skip_htmlcov || (sudo cp -r /tmp/ test_logs && sudo sed -i "s|/tmp/FireX|/runs/FireX|g" test_logs/*/flame_model/run-metadata.json)']
   dir: '$BUILD_ID/firexapp'
   secretEnv: ['TWINE_PASSWORD']
+- name: google/cloud-sdk
+  # Only copy if test_logs exists since that directory's existence indicates test failure.
+  # Always return non-zero after copy so that overall build status reflects test failure.
+  args: ['sh', '-c', '[ ! -d test_logs ] || (gsutil -m cp -r test_logs/* gs://www.firexflame.com/runs && false)']
+  dir: '$BUILD_ID/firexapp'
 - name: gcr.io/cloud-builders/gsutil
   args: ['rsync', '-r', 'html', 'gs://www.firexapp.com']
   dir: '$BUILD_ID/firexapp'
