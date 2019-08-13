@@ -10,7 +10,7 @@
         <!-- Unfortuntate that this comp needs to know search is in the slot.-->
         <!-- TODO: find a better fix for when no space for search bar (i.e. long chain value)-->
         <div v-if="chain && !isSearchOpen" class="flame-link" style="flex: 1;">
-          <b style="width: 100%;">{{chain}}</b>
+          <b style="width: 100%;">{{centralTitle}}</b>
         </div>
 
         <div style="margin-left: auto; display: flex; align-items: center; height: 100%;">
@@ -36,6 +36,7 @@ export default {
   props: {
     title: { default: '' },
     links: { default: () => [], type: Array },
+    mainTitle: { default: null, type: String },
   },
   computed: {
     ...mapState({
@@ -45,6 +46,9 @@ export default {
     ...mapGetters({
       runRouteFromName: 'header/runRouteFromName',
     }),
+    centralTitle() {
+      return this.mainTitle ? this.mainTitle : this.chain;
+    },
   },
 };
 </script>

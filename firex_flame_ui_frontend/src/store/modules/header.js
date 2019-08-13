@@ -87,7 +87,7 @@ const headerGetters = {
     return {
       name: 'logs',
       href: getters.logsUrl,
-      text: 'Logs',
+      title: 'All Logs',
       icon: 'file-alt',
     };
   },
@@ -113,7 +113,6 @@ const headerGetters = {
   documentationHeaderEntry(state) {
     return {
       name: 'documentation',
-
       href: _.get(state.uiConfig, 'central_documentation_url', 'http://firex.cisco.com'),
       text: 'Documentation',
       icon: 'book',

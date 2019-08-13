@@ -1,6 +1,7 @@
 <template>
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
     <x-header :title="headerParams.title"
+              :main-title="headerParams.mainTitle"
               :links="headerParams.links"></x-header>
 
     <div class="node-attributes">
@@ -92,6 +93,7 @@ export default {
     ...mapState({
       logsDir: state => state.firexRunMetadata.logs_dir,
       firexBin: state => _.get(state.header.uiConfig, 'firex_bin', 'firex'),
+      uid: state => state.firexRunMetadata.uid,
     }),
     simpleTask() {
       return this.$store.getters['tasks/runStateByUuid'][this.uuid];
@@ -190,7 +192,7 @@ export default {
         {
           name: 'logs',
           href: this.detailedTask.logs_url,
-          text: 'Logs',
+          text: 'Service Log',
           icon: 'file-alt',
         },
         {
@@ -213,7 +215,8 @@ export default {
       }
 
       return {
-        title: this.detailedTask.long_name,
+        title: this.uid,
+        mainTitle: this.detailedTask.long_name,
         links,
       };
     },
