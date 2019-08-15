@@ -3,7 +3,7 @@ steps:
   args: ['clone', 'https://github.com/FireXStuff/firexapp.git']
   dir: '$BUILD_ID'
 - name: gcr.io/$PROJECT_ID/firex-alpine-build
-  args: ['sh', '-c', 'sudo pip3 install firexbuilder && firex-build all --sudo --output_dir /home/firex --upload_pip_if_tag --upload_codecov --skip_htmlcov || (sudo cp -r /tmp/ test_logs && sudo sed -i "s|/tmp/FireX|/runs/FireX|g" test_logs/*/flame_model/run-metadata.json)']
+  args: ['sh', '-c', 'sudo pip3 install firexbuilder && firex-build all --sudo --output_dir /home/firex --upload_pip_if_tag --upload_codecov --skip_htmlcov || (sudo cp -r /tmp/ test_logs)']
   dir: '$BUILD_ID/firexapp'
   secretEnv: ['TWINE_PASSWORD']
 - name: google/cloud-sdk
