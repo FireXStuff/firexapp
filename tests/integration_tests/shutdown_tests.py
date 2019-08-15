@@ -45,7 +45,7 @@ def get_broker(cmd_output):
 
 
 def wait_until_broker_not_alive(broker):
-    return wait_until(lambda b: not b.is_alive(), 15, 0.5, broker)
+    return wait_until(lambda b: not b.is_alive(), 25, 0.5, broker)
 
 
 class NoBrokerLeakBase(FlowTestConfiguration):
