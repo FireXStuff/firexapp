@@ -24,7 +24,7 @@ from firexapp.submit.console import setup_console_logging
 from firexapp.application import import_microservices, get_app_tasks, get_app_task
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
-import firexapp.shutdown
+from firexapp.submit.shutdown import launch_background_shutdown
 
 logger = setup_console_logging(__name__)
 
@@ -300,7 +300,7 @@ class SubmitBaseApp:
                     disable_async_result(chain_result)
 
         logger.debug("Running FireX self destruct")
-        firexapp.shutdown.launch_background_shutdown(self.uid.logs_dir)
+        launch_background_shutdown(self.uid.logs_dir)
 
     @classmethod
     def validate_argument_applicability(cls, chain_args, args, all_tasks):
