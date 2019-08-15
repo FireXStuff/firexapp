@@ -17,6 +17,7 @@ setup(name='firexapp',
           "firexkit",
           "tqdm<=4.29.1",
           "xmlrunner",
+          "redis==2.10.5",
           "celery[redis]==4.2.1",
           "kombu==4.2.1",           # app.inspect.active seems to be returning None all the time for Kombu==4.6.4
           "psutil",
