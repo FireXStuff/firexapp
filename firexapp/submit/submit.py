@@ -257,7 +257,8 @@ class SubmitBaseApp:
     def wait_tracking_services_pred(service_predicate, description, timeout)->None:
         services_by_name = {get_service_name(s): s for s in get_tracking_services()}
         not_passed_pred_services = list(services_by_name.keys())
-        timeout_max = time.time() + timeout
+        start_wait_time = time.time()
+        timeout_max = start_wait_time + timeout
 
         while not_passed_pred_services and time.time() < timeout_max:
             for service_name in not_passed_pred_services:
@@ -270,6 +271,9 @@ class SubmitBaseApp:
         if not_passed_pred_services:
             logger.warning("The following services are still not %s after %s secs: %s"
                            % (description, timeout, not_passed_pred_services))
+        else:
+            wait_duration = time.time() - start_wait_time
+            logger.debug("Waited %.1f secs for tracking services to be %s." % (wait_duration, description))
 
     def wait_tracking_services_task_ready(self, timeout=5)->None:
         self.wait_tracking_services_pred(lambda s: s.ready_for_tasks(), 'ready for tasks', timeout)
