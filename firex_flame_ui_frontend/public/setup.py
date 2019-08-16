@@ -19,6 +19,7 @@ setup(
     # A built UI workspace is always dirty, since build artifacts are inside the git repo.
     # It's therefore necessary to treat the first dirty commit as a clean tag.
     version=drop_dirty_if_exact_tag(versioneer.get_version()),
+    cmdclass=versioneer.get_cmdclass(),
     description='UI for FireX.',
     url='https://github.com/FireXStuff/firex-flame-ui',
     author='Core FireX Team',
