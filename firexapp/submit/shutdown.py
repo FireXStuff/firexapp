@@ -3,6 +3,7 @@ import argparse
 import logging
 import subprocess
 import time
+from psutil import Process, TimeoutExpired
 
 from celery import Celery
 
@@ -17,7 +18,14 @@ logger = logging.getLogger(__name__)
 
 
 def launch_background_shutdown(logs_dir):
-    subprocess.Popen([qualify_firex_bin("firex_shutdown"), "--logs_dir",  logs_dir], close_fds=True)
+    pid = subprocess.Popen([qualify_firex_bin("firex_shutdown"), "--logs_dir",  logs_dir], close_fds=True).pid
+
+    try:
+        Process(pid).wait(0.1)
+    except TimeoutExpired:
+        logger.debug("Started background shutdown with pid %s" % pid)
+    else:
+        logger.error("SHUTDOWN PROCESS FAILED TO START -- REDIS WILL LEAK.")
 
 
 def wait_for_broker_shutdown(broker, timeout=15):
