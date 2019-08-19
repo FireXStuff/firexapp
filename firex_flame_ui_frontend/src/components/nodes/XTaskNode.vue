@@ -7,7 +7,7 @@
           <div style="align-self: start; font-size: 12px">{{taskNumber}}</div>
 
           <div style="text-align: center; padding: 3px; align-self: center; flex: 1;">
-            {{taskName}}
+            {{taskName}}{{taskCalledAsOrig ? ' (orig)' : ''}}
           </div>
 
           <div v-if="retries" style="align-self: end; position: relative;">
@@ -99,6 +99,9 @@ export default {
     },
     taskName() {
       return this.task.name;
+    },
+    taskCalledAsOrig() {
+      return this.task.called_as_orig;
     },
     taskNumber() {
       return this.task.task_num;
