@@ -104,7 +104,8 @@ export default {
       }
       taskGraphPromise.then((nodesByUuid) => {
         this.setNodesByUuid(nodesByUuid);
-      });
+      },
+      () => { this.$router.push(errorRoute(`Failed to fetch task for ${this.taskDataKey}`)); });
       taskGraphPromise.finally(() => { this.updating = false; });
     },
     fetchAllTasksAndStartLiveUpdate() {
