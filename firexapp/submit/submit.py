@@ -47,6 +47,7 @@ class SubmitBaseApp:
         self.broker = None
         self.celery_manager = None
         self.is_sync = None
+        self.enabled_tracking_services = None
 
     def init_file_logging(self):
         os.umask(0)
@@ -73,6 +74,8 @@ class SubmitBaseApp:
                                    default=self.DEFAULT_MICROSERVICE)
         submit_parser.add_argument('--sync', '-sync', help='Hold console until run completes', nargs='?', const=True,
                                    default=False)
+        submit_parser.add_argument('--disable_tracking_services',
+                                   help='A comma delimited list of tracking services to disable.', default='')
         submit_parser.set_defaults(func=self.run_submit)
         for service in get_tracking_services():
             service.extra_cli_arguments(submit_parser)
@@ -242,20 +245,28 @@ class SubmitBaseApp:
         self.broker.start()
 
     def start_tracking_services(self, args, **chain_args)->{}:
-        if get_tracking_services():
+        services = get_tracking_services()
+        if services:
             logger.debug("Tracking services:")
-            [logger.debug("\t%s" % get_service_name(e)) for e in get_tracking_services()]
+            self.enabled_tracking_services = []
+            disabled_service_names = args.disable_tracking_services.split(',')
+            for service in services:
+                service_name = get_service_name(service)
+                service_enabled = service_name not in disabled_service_names
+                disabled_str = '' if service_enabled else ' (disabled)'
+                logger.debug("\t%s%s" % (service_name, disabled_str))
+                if service_enabled:
+                    self.enabled_tracking_services.append(service)
 
         additional_chain_args = {}
-        for service in get_tracking_services():
+        for service in self.enabled_tracking_services:
             extra = service.start(args, **chain_args)
             if extra:
                 additional_chain_args.update(extra)
         return additional_chain_args
 
-    @staticmethod
-    def wait_tracking_services_pred(service_predicate, description, timeout)->None:
-        services_by_name = {get_service_name(s): s for s in get_tracking_services()}
+    def wait_tracking_services_pred(self, service_predicate, description, timeout)->None:
+        services_by_name = {get_service_name(s): s for s in self.enabled_tracking_services}
         not_passed_pred_services = list(services_by_name.keys())
         start_wait_time = time.time()
         timeout_max = start_wait_time + timeout
