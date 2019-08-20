@@ -245,10 +245,11 @@ class SubmitBaseApp:
         self.broker.start()
 
     def start_tracking_services(self, args, **chain_args)->{}:
+        assert self.enabled_tracking_services is None, "Cannot start tracking services twice."
+        self.enabled_tracking_services = []
         services = get_tracking_services()
         if services:
             logger.debug("Tracking services:")
-            self.enabled_tracking_services = []
             disabled_service_names = args.disable_tracking_services.split(',')
             for service in services:
                 service_name = get_service_name(service)
