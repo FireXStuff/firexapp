@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 def launch_background_shutdown(logs_dir):
-    pid = subprocess.Popen([qualify_firex_bin("firex_shutdown"), "--logs_dir",  logs_dir], close_fds=True).pid
+    pid = subprocess.Popen([qualify_firex_bin("firex_shutdown"), "--logs_dir",  logs_dir],
+                           close_fds=True, env={}).pid
 
     try:
         Process(pid).wait(0.1)
