@@ -12,7 +12,7 @@ from contextlib import contextmanager
 
 from celery.exceptions import NotRegistered
 
-from firexkit.result import wait_on_async_results, disable_async_result, find_unsuccessful, ChainRevokedException, \
+from firexkit.result import wait_on_async_results, disable_async_result, find_all_unsuccessful, ChainRevokedException, \
     ChainInterruptedException
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
@@ -141,8 +141,12 @@ class SubmitBaseApp:
 
         self.wait_tracking_services_release_console_ready()
 
+    @staticmethod
+    def get_all_failures(chain_result):
+        return find_all_unsuccessful(chain_result, ignore_non_ready=True)
+
     def check_for_failures(self, chain_result, chain_args):
-        failures = find_unsuccessful(chain_result, ignore_non_ready=True)
+        failures = self.get_all_failures(chain_result)
         if failures:
             logger.error("Failures occurred in the following tasks:")
             failures = sorted(failures.values())
