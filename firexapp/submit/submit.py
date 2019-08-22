@@ -159,7 +159,7 @@ class SubmitBaseApp:
         from firexapp.engine.celery import app
         broker_url = self.broker.get_url()
         BrokerFactory.set_broker_env(broker_url)
-        logger.info('export %s=%s' % (BrokerFactory.broker_env_variable, broker_url))
+        logger.debug('export %s=%s' % (BrokerFactory.broker_env_variable, broker_url))
 
         app.conf.result_backend = broker_url
         app.conf.broker_url = broker_url

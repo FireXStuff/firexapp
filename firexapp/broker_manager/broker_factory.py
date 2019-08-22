@@ -35,15 +35,19 @@ class BrokerFactory:
                             redis_bin_base=get_redis_bin_dir())
 
     @classmethod
+    def get_broker_url_from_logs_dir(cls, logs_dir) -> str:
+        return RedisManager.get_broker_url_from_metadata(logs_dir)
+
+    @classmethod
     def broker_manager_from_logs_dir(cls, logs_dir) -> BrokerManager:
-        existing_broker_url = RedisManager.get_broker_url_from_metadata(logs_dir)
+        existing_broker_url = cls.get_broker_url_from_logs_dir(logs_dir)
         hostname, port = RedisManager.get_hostname_port_from_url(existing_broker_url)
         return RedisManager(hostname=hostname,
                             port=port,
                             redis_bin_base=get_redis_bin_dir())
 
     @classmethod
-    def get_broker_url(cls, assert_if_not_set=False)->str:
+    def get_broker_url(cls, assert_if_not_set=False)-> str:
         url = os.environ.get(cls.broker_env_variable, "")
         if assert_if_not_set and not url:
             raise BrokerManagerException('%s env variable has not been set' % cls.broker_env_variable)

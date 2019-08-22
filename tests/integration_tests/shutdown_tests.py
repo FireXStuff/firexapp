@@ -23,24 +23,11 @@ from firexapp.common import wait_until
 logger = get_task_logger(__name__)
 
 
-def get_broker_url_from_output(cmd_output):
-    lines = cmd_output.split("\n")
-
-    # export BROKER=redis://ott-ads-033:47934/0
-    export_broker_tag = "export %s=" % BrokerFactory.broker_env_variable
-    export_line = [line for line in lines if export_broker_tag in line][0]
-    return export_line.split(export_broker_tag)[-1]
-
-
 def get_broker(cmd_output):
-    output_broker_url = get_broker_url_from_output(cmd_output)
-    assert output_broker_url, "No broker was exported"
-
     logs_dir = get_log_dir_from_output(cmd_output)
     file_exists = wait_until(lambda: os.path.exists(RedisManager.get_metdata_file(logs_dir)), timeout=10, sleep_for=0.5)
     assert file_exists, "No broker metadata file."
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
-    assert broker.get_url() == output_broker_url
     return broker
 
 
