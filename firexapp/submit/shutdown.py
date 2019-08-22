@@ -9,7 +9,7 @@ from celery import Celery
 
 from firexapp.celery_manager import CeleryManager
 from firexapp.submit.uid import Uid
-from firexapp.broker_manager.broker_factory import BrokerFactory
+from firexapp.broker_manager.broker_factory import BrokerFactory, REDIS_BIN_ENV
 from firexkit.inspect import get_active
 from firexapp.common import qualify_firex_bin
 
@@ -17,15 +17,25 @@ from firexapp.common import qualify_firex_bin
 logger = logging.getLogger(__name__)
 
 
-def launch_background_shutdown(logs_dir):
-    pid = subprocess.Popen([qualify_firex_bin("firex_shutdown"), "--logs_dir",  logs_dir], close_fds=True).pid
+def _select_env_vars(env_names):
+    return {k: v for k, v in os.environ.items() if k in env_names}
 
+
+def launch_background_shutdown(logs_dir):
     try:
-        Process(pid).wait(0.1)
-    except TimeoutExpired:
-        logger.debug("Started background shutdown with pid %s" % pid)
+        pid = subprocess.Popen([qualify_firex_bin("firex_shutdown"), "--logs_dir",  logs_dir],
+                               close_fds=True, env=_select_env_vars([REDIS_BIN_ENV, 'PATH'])).pid
+    except Exception as e:
+        logger.error("SHUTDOWN PROCESS FAILED TO LAUNCH -- REDIS WILL LEAK.")
+        logger.error(e)
+        raise
     else:
-        logger.error("SHUTDOWN PROCESS FAILED TO START -- REDIS WILL LEAK.")
+        try:
+            Process(pid).wait(0.1)
+        except TimeoutExpired:
+            logger.debug("Started background shutdown with pid %s" % pid)
+        else:
+            logger.error("SHUTDOWN PROCESS FAILED TO RUN -- REDIS WILL LEAK.")
 
 
 def wait_for_broker_shutdown(broker, timeout=15):
@@ -72,8 +82,8 @@ def init():
 
 
 def shutdown_run(logs_dir):
-    celery_manager = CeleryManager(logs_dir=logs_dir)
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
+    celery_manager = CeleryManager(logs_dir=logs_dir, broker=broker)
     celery_app = Celery(broker=broker.broker_url)
 
     if get_active(inspect_retry_timeout=2, celery_app=celery_app):
@@ -108,4 +118,7 @@ def shutdown_run(logs_dir):
 
 def main():
     logs_dir = init()
-    shutdown_run(logs_dir)
+    try:
+        shutdown_run(logs_dir)
+    except Exception as e:
+        logger.exception(e)
