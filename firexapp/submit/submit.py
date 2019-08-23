@@ -6,7 +6,6 @@ import argparse
 import time
 import traceback
 from celery.signals import celeryd_init
-from firexkit.inspect import get_active
 from shutil import copyfile
 from contextlib import contextmanager
 
