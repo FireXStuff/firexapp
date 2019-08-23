@@ -41,13 +41,14 @@ class SubmitBaseApp:
     DEFAULT_MICROSERVICE = None
     PRIMARY_WORKER_NAME = "mc"
 
-    def __init__(self, submission_tmp_file=None):
+    def __init__(self, submission_tmp_file=None, delete_submission_tmp_file=True):
         self.submission_tmp_file = submission_tmp_file
         self.uid = None
         self.broker = None
         self.celery_manager = None
         self.is_sync = None
         self.enabled_tracking_services = None
+        self.delete_submission_tmp_file = delete_submission_tmp_file
 
     def init_file_logging(self):
         os.umask(0)
@@ -59,6 +60,12 @@ class SubmitBaseApp:
     def copy_submission_log(self):
         if self.submission_tmp_file and os.path.isfile(self.submission_tmp_file) and self.uid:
             copyfile(self.submission_tmp_file, FileRegistry().get_file(SUBMISSION_FILE_REGISTRY_KEY, self.uid.logs_dir))
+            if self.delete_submission_tmp_file:
+                try:
+                    os.remove(self.submission_tmp_file)
+                except Exception as e:
+                    logger.exception(e)
+                    logger.warning('Could not delete the temporary submission file %s' % self.submission_tmp_file)
 
     def log_preamble(self):
         """Overridable method to allow a firex application to log on startup"""
