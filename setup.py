@@ -1,3 +1,5 @@
+# Need fastentrypoints to monkey patch setuptools for faster console_scripts
+# noinspection PyUnresolvedReferences
 import fastentrypoints
 from setuptools import setup, find_packages
 import versioneer
