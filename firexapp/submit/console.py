@@ -1,7 +1,12 @@
 import sys
 import logging
-
 CONSOLE_LOGGING_FORMATTER = '[%(asctime)s] %(message)s'
+
+
+class DistlibWarningsFilter(logging.Filter):
+    def filter(self, record):
+        pathname = record.pathname
+        return not pathname.endswith('distlib/metadata.py') and not pathname.endswith('distlib/database.py')
 
 
 def setup_console_logging(module=''):
@@ -26,6 +31,7 @@ def setup_console_logging(module=''):
     console_stdout.setFormatter(formatter)
     log_filter = LogLevelFilter(logging.ERROR)
     console_stdout.addFilter(log_filter)
+    console_stdout.addFilter(DistlibWarningsFilter())
 
     console_stderr = logging.StreamHandler()
     console_stderr.setLevel(logging.ERROR)
