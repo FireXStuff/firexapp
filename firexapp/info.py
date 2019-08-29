@@ -106,36 +106,43 @@ class InfoBaseApp:
     def print_task_details(task):
         dash_length = 40
         print('-' * dash_length)
-        print("Short Name:", task.name.split(".")[-1])
-        print('Full Name: %s' % task.name)
+        split_name = task.name.split(".")
+        name = split_name[-1]
+        path = '.'.join(split_name[0:-1])
+        if path:
+            path = " (%s)" % path
+        print("Name: " + name + path)
 
         if task.__doc__:
-            print('-' * dash_length)
-            print(inspect.getdoc(task))
+            print('\n' + inspect.getdoc(task))
 
+        print("\nMandatory arguments:")
         required_args = getattr(task, "required_args", [])
-        if len(required_args):
-            print('-' * dash_length)
-            print("Mandatory arguments:")
-            for chain_arg in required_args:
-                if "self" not in chain_arg and \
-                   "uid" not in chain_arg and \
-                   chain_arg is not 'kwargs':
-                    print("\t", chain_arg)
+        cnt = 0
+        for chain_arg in sorted(required_args):
+            if "self" not in chain_arg and \
+               "uid" not in chain_arg and \
+               chain_arg is not 'kwargs':
+                print("\t", chain_arg)
+                cnt += 1
+        if not cnt:
+            print("\t None")
 
+        print("\nOptional arguments:")
         optional_args = getattr(task, "optional_args", {})
         if len(optional_args):
-            print('-' * dash_length)
-            print("Optional arguments:")
-            for chain_arg in optional_args:
+            for chain_arg in sorted(optional_args):
                 print("\t", chain_arg + "=" + str(optional_args[chain_arg]))
+        else:
+            print("\t None")
 
+        print('\nReturns:')
         out = getattr(task, "return_keys", {})
         if out:
-            print('-' * dash_length)
-            print('Returns:')
-            for chain_arg in out:
+            for chain_arg in sorted(out):
                 print("\t", chain_arg)
+        else:
+            print("\t None")
         print('-' * dash_length)
 
 
