@@ -23,8 +23,7 @@ class InfoFindsMicroservice(FlowTestConfiguration):
         return ["info", "a_service_to_test"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        assert "Short Name: a_service_to_test" in cmd_output, "Test info not provided"
-        assert "Full Name: %s.a_service_to_test" % self.__module__ in cmd_output, "Test info not provided"
+        assert "Name: a_service_to_test (%s)" % self.__module__ in cmd_output, "Test info not provided"
         assert doc in cmd_output, "Documentation was not picked up"
         assert "use_this_arg" in cmd_output, "positional argument was not included in output"
         assert "and_maybe_this_one" in cmd_output, "optional argument was not included in output"
@@ -46,8 +45,7 @@ class InfoFindsFullNameMicroservice(FlowTestConfiguration):
         return ["info", self.__module__ + ".a_second_service_to_test"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        assert "Short Name: a_second_service_to_test" in cmd_output, "Test info not provided"
-        assert "Full Name: %s.a_second_service_to_test" % self.__module__ in cmd_output, "Test info not provided"
+        assert "Name: a_second_service_to_test (%s)" % self.__module__ in cmd_output, "Test info not provided"
         assert not cmd_err, "No errors expected"
 
     def assert_expected_return_code(self, ret_value):
