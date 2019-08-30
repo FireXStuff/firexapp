@@ -81,7 +81,7 @@ class SubmitBaseApp:
         return submit_parser
 
     def convert_chain_args(self, chain_args) -> dict:
-        with self.graceful_exit_on_failure("The arguments you provided firex had the following error:"):
+        with self.graceful_exit_on_failure("The arguments you provided have the following errors"):
             return InputConverter.convert(**chain_args)
 
     def run_submit(self, args, others):
@@ -91,6 +91,26 @@ class SubmitBaseApp:
             return self.submit(args, others)
         finally:
             self.copy_submission_log()
+
+    def error_banner(self, err_msg, banner_title = 'ERROR', logf=logger.error):
+        err_msg = str(err_msg)
+
+        banner_title = ' %s ' % banner_title
+
+        sep_len = len(banner_title) + 6
+        err_msg = err_msg.split('\n')
+        for l in err_msg:
+            if len(l) > sep_len:
+                sep_len = len(l)
+
+        top_sep_len = int((sep_len - len(banner_title) + 1) / 2)
+        top_banner= '*'*top_sep_len + banner_title + '*'*top_sep_len
+
+        logf('')
+        logf(top_banner)
+        for l in err_msg:
+            logf(l)
+        logf('*'*len(top_banner))
 
     def submit(self, args, others):
         chain_args = self.process_other_chain_args(args, others)
@@ -209,7 +229,7 @@ class SubmitBaseApp:
         try:
             verify_chain_arguments(c)
         except InvalidChainArgsException as e:
-            logger.error(e)
+            self.error_banner(e)
             self.main_error_exit_handler()
             sys.exit(-1)
 
@@ -349,8 +369,7 @@ class SubmitBaseApp:
             yield
         except Exception as e:
             logger.debug(traceback.format_exc())
-            logger.error(failure_caption)
-            logger.error(e)
+            self.error_banner(e, banner_title=failure_caption)
             self.main_error_exit_handler()
             sys.exit(-1)
 

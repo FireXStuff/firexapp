@@ -116,35 +116,36 @@ class InfoBaseApp:
         if task.__doc__:
             print('\n' + inspect.getdoc(task))
 
-        print("\nMandatory arguments:")
+        tab = ' ' * 1
+        print("\nArguments info")
+        print(  "--------------")
+        print(" Mandatory:")
         required_args = getattr(task, "required_args", [])
         cnt = 0
         for chain_arg in sorted(required_args):
             if "self" not in chain_arg and \
                "uid" not in chain_arg and \
                chain_arg is not 'kwargs':
-                print("\t", chain_arg)
+                print(tab, chain_arg)
                 cnt += 1
         if not cnt:
-            print("\t None")
+            print(tab, "None")
 
-        print("\nOptional arguments:")
+        print("\n Optional:")
         optional_args = getattr(task, "optional_args", {})
         if len(optional_args):
             for chain_arg in sorted(optional_args):
-                print("\t", chain_arg + "=" + str(optional_args[chain_arg]))
+                print(tab, chain_arg + "=" + str(optional_args[chain_arg]))
         else:
-            print("\t None")
+            print(tab, "None")
 
-        print('\nReturns:')
+        print('\n Returns:')
         out = getattr(task, "return_keys", {})
         if out:
             for chain_arg in sorted(out):
-                print("\t", chain_arg)
+                print(tab, chain_arg)
         else:
-            print("\t None")
-        print('-' * dash_length)
-
+            print(tab, "None")
 
 def get_argument_use(all_tasks) -> dict:
     argument_usage = {}
