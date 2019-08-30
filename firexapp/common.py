@@ -116,3 +116,7 @@ def qualify_firex_bin(bin_name):
     if FIREX_BIN_DIR_ENV in os.environ:
         return os.path.join(os.environ[FIREX_BIN_DIR_ENV], bin_name)
     return bin_name
+
+
+def select_env_vars(env_names):
+    return {k: v for k, v in os.environ.items() if k in env_names}
