@@ -16,6 +16,7 @@ setup(name='firexapp',
       packages=find_packages(),
       zip_safe=True,
       install_requires=[
+          "coloredlogs==10.0",
           "distlib",
           "firexkit",
           "tqdm<=4.29.1",
