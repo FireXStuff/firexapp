@@ -59,6 +59,10 @@ export default {
       }
       return this.flameServerUrl;
     },
+    backfillFlameModelCommand() {
+      const firexBin = _.get(this.uiConfig, 'firex_bin', 'firex');
+      return `${firexBin} --chain BackfillFlameModel --firex_id_to_backfill ${this.taskDataKey}`;
+    },
   },
   created() {
     eventHub.$on('revoke-root', () => { this.revokeTask(this.rootUuid); });
@@ -105,7 +109,12 @@ export default {
       taskGraphPromise.then((nodesByUuid) => {
         this.setNodesByUuid(nodesByUuid);
       },
-      () => { this.$router.push(errorRoute(`Failed to fetch task for ${this.taskDataKey}`)); });
+      () => {
+        this.$router.push(errorRoute(`Failed to fetch task for ${this.taskDataKey}.
+        To reconstruct:
+          ${this.backfillFlameModelCommand}
+          `));
+      });
       taskGraphPromise.finally(() => { this.updating = false; });
     },
     fetchAllTasksAndStartLiveUpdate() {
@@ -150,7 +159,7 @@ export default {
           }
           this.$store.commit('firexRunMetadata/setFlameRunMetadata', data);
         },
-        () => { this.$router.push(errorRoute(`Failed to fetch task for ${this.taskDataKey}`)); },
+        () => { this.$router.push(errorRoute(`Flame not started for ${this.taskDataKey}`)); },
       );
     },
     updateApiAccessor() {

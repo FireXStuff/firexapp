@@ -1,6 +1,6 @@
 {
   "access_mode": "webserver-file",
-  "model_path_template": "/auto/firex-logs/<%- year %>/<%- month %>/<%- day %>/<%- firex_id %>/flame_model/run-metadata.json",
+  "model_path_template": "/auto/firex-logs/<%- year %>/<%- month %>/<%- day %>/<%- firex_id %>/debug/flame/model/run-metadata.json",
   "redirect_to_alive_flame": false,
   "is_central": false,
   "central_server": null,
