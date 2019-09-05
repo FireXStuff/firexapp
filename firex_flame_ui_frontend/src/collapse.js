@@ -204,30 +204,43 @@ function resolveCollapseStatusByUuid(rootUuid, graphDataByUuid, collapseOpsByUui
 }
 
 function recursiveGetCollapseNodes(curUuid, childrenUuidsByUuid, parentId, isCollapsedByUuid) {
-  const childResults = _.map(childrenUuidsByUuid[curUuid],
+  const descendantResults = _.map(childrenUuidsByUuid[curUuid],
     childUuid => recursiveGetCollapseNodes(
       childUuid, childrenUuidsByUuid, curUuid, isCollapsedByUuid,
     ));
-  const resultDescendantsByUuid = _.reduce(childResults, _.merge, {});
+  const resultDescendantsByUuid = _.reduce(descendantResults, _.merge, {});
 
   const collapsedChildrenUuids = _.filter(childrenUuidsByUuid[curUuid],
     childUuid => isCollapsedByUuid[childUuid]);
   const collapsedDescendantUuids = _.flatMap(collapsedChildrenUuids,
     cUuid => [cUuid].concat(resultDescendantsByUuid[cUuid].collapsedUuids));
 
-  // Every uncollapsed child of a collapsed child (i.e. uncollapsed grandchildren whose parents
-  // are collapsed) need to have this node set as their parent.
-  _.each(collapsedChildrenUuids, (ccUuid) => {
-    const uncollapsedGrandchildrenParentCollapsed = _.filter(childrenUuidsByUuid[ccUuid],
-      grandchildUuid => !isCollapsedByUuid[grandchildUuid]);
-    _.each(uncollapsedGrandchildrenParentCollapsed,
-      (grandchildUuid) => { resultDescendantsByUuid[grandchildUuid].parentId = curUuid; });
-  });
+  const childrenUncollapsedDescendantUuidsWithCollapsedParents = _.flatMap(
+    resultDescendantsByUuid, 'uncollapsedDescendantUuidsWithCollapsedParents',
+  );
+
+  let uncollapsedDescendantUuidsWithCollapsedParents;
+  if (isCollapsedByUuid[curUuid]) {
+    // The current node is collapse, find the uncollapsed children and include them in the
+    // result's uncollapsedDescendantUuidsWithCollapsedParents.
+    const uncollapsedChildrenUuids = _.filter(childrenUuidsByUuid[curUuid],
+      childUuid => !isCollapsedByUuid[childUuid]);
+    uncollapsedDescendantUuidsWithCollapsedParents = _.concat(uncollapsedChildrenUuids,
+      childrenUncollapsedDescendantUuidsWithCollapsedParents);
+  } else {
+    // The current node is not collapsed, so every uncollapsed descendant whose parent is collapsed
+    // should have its parent set to the current node.
+    _.each(childrenUncollapsedDescendantUuidsWithCollapsedParents,
+      (u) => { resultDescendantsByUuid[u].parentId = curUuid; });
+    // No uncollapsed descendants have a collapsed parent, since we just modified them.
+    uncollapsedDescendantUuidsWithCollapsedParents = [];
+  }
 
   return _.assign({
     [[curUuid]]: {
       collapsedUuids: collapsedDescendantUuids,
       parentId,
+      uncollapsedDescendantUuidsWithCollapsedParents,
     },
   }, resultDescendantsByUuid);
 }

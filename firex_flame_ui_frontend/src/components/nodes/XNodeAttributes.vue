@@ -148,7 +148,8 @@ export default {
       } else {
         attributeBlacklist = ['long_name', 'name', 'flame_additional_data',
           'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data',
-          'parent_id', 'children_uuids', 'isLeaf', 'states',
+          'parent_id', 'children_uuids', 'isLeaf', 'states', 'called_as_orig',
+          'code_filepath',
         ];
       }
       if (task.actual_runtime) {

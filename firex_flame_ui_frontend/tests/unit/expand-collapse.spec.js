@@ -198,7 +198,7 @@ describe('utils.js', () => {
     expect(result['3'].parentId).toEqual('1');
   });
 
-  it('Collapses multi-level heirarchy', () => {
+  it('Collapses multi-level hierarchy', () => {
     //          1                       1
     //      2       4               x       4
     //      3     5   6     =>      3     5   x
@@ -267,5 +267,31 @@ describe('utils.js', () => {
     expect(result['1'].collapsedUuids.sort()).toEqual(['2', '3']);
     expect(result['2'].collapsedUuids).toEqual([]);
     expect(result['3'].collapsedUuids).toEqual([]);
+  });
+
+  it('Collapses split hierarchy to uncollapsed ancestor', () => {
+    //          1                       1
+    //          2                       x
+    //          3                       x
+    //      4       5               4       x
+    const childrenUuidsByUuid = {
+      1: ['2'],
+      2: ['3'],
+      3: ['4', '5'],
+      4: [],
+      5: [],
+    };
+    const isCollapsedByUuid = {
+      1: false,
+      2: true,
+      3: true,
+      4: false,
+      5: true,
+    };
+
+    const result = getCollapsedGraphByNodeUuid('1', childrenUuidsByUuid, isCollapsedByUuid);
+    expect(_.size(result)).toEqual(5);
+    expect(result['1'].collapsedUuids).toEqual(['2', '3', '5']);
+    expect(result['4'].parentId).toEqual('1');
   });
 });
