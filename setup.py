@@ -24,7 +24,8 @@ setup(name='firexapp',
           "celery[redis]==4.2.1",
           "kombu==4.2.1",           # app.inspect.active seems to be returning None all the time for Kombu==4.6.4
           "psutil",
-          "python-Levenshtein"
+          "python-Levenshtein",
+          "entrypoints"
       ],
       classifiers=[
           "Programming Language :: Python :: 3",
