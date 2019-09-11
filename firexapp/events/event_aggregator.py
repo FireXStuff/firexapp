@@ -1,6 +1,7 @@
 """
 Aggregates events in to the task data model.
 """
+from collections import namedtuple
 from datetime import datetime
 import logging
 
@@ -9,16 +10,16 @@ from firexapp.events.model import ALL_RUNSTATES, INCOMPLETE_RUNSTATES, COMPLETE_
 logger = logging.getLogger(__name__)
 
 
+EventAggregatorConfig = namedtuple('EventAggregatorConfig',
+                                   ['copy_fields', 'merge_fields', 'keep_initial_fields', 'field_to_celery_transforms'])
+
+
 #
 # config field options:
 #   copy_celery - True if this field should be copied from the celery event to the task data model. If the field already
 #                   has a value on the data model, more recent celery field values will overwrite existing values by
 #                   default. If overwriting should be avoided, see 'aggregate_merge' and 'aggregate_keep_initial'
 #                   options described below.
-#
-#   slim_field - True if this field should be included in the 'slim' (minimal) data model representation sent to the UI.
-#                   Be very careful adding fields, since this field will be sent for each node and can therefore greatly
-#                   increase the amount of data sent to the UI on main graph load.
 #
 #   transform_celery - A function to be executed on the entire event when the corresponding key is present in a celery
 #                       event. The function returns a dict that dict.update the existing data from the event, possibly
@@ -33,66 +34,39 @@ logger = logging.getLogger(__name__)
 #
 #
 FIELD_CONFIG = {
-    TaskColumn.UUID.value: {'copy_celery': True, 'slim_field': True},
-    TaskColumn.HOSTNAME.value: {'copy_celery': True, 'slim_field': True},
-    TaskColumn.PARENT_ID.value: {'copy_celery': True, 'slim_field': True},
+    TaskColumn.UUID.value: {'copy_celery': True},
+    TaskColumn.HOSTNAME.value: {'copy_celery': True},
+    TaskColumn.PARENT_ID.value: {'copy_celery': True},
     'type': {
         'copy_celery': True,
         'transform_celery': lambda e: {
             'state': e['type'],
-            'states': [{'state': e['type'], 'timestamp': e.get('timestamp', None)}],
+            'states': [{TaskColumn.STATE.value: e['type'],
+                        'timestamp': e.get('timestamp', None)}],
         } if e['type'] in ALL_RUNSTATES else {},
     },
-    TaskColumn.RETRIES.value: {'copy_celery': True, 'slim_field': True},
+    TaskColumn.RETRIES.value: {'copy_celery': True},
     TaskColumn.BOUND_ARGS.value: {'copy_celery': True},
-    TaskColumn.ACTUAL_RUNTIME.value: {'copy_celery': True, 'slim_field': True},
+    TaskColumn.ACTUAL_RUNTIME.value: {'copy_celery': True},
     TaskColumn.UTCOFFSET.value: {'copy_celery': True},
     TaskColumn.DEFAULT_BOUND_ARGS.value: {'copy_celery': True},
-    TaskColumn.FROM_PLUGIN.value: {'copy_celery': True, 'slim_field': True},
+    TaskColumn.FROM_PLUGIN.value: {'copy_celery': True},
     TaskColumn.RESULTS.value: {'copy_celery': True},
     TaskColumn.TRACEBACK.value: {'copy_celery': True},
-    TaskColumn.EXCEPTION.value: {'copy_celery': True, 'slim_field': True},
+    TaskColumn.EXCEPTION.value: {'copy_celery': True},
     TaskColumn.LONG_NAME.value: {
         'copy_celery': True,
         'transform_celery': lambda e: {'name': e['long_name'].split('.')[-1]},
     },
-    TaskColumn.STATE.value: {'slim_field': True},
-    TaskColumn.TASK_NUM.value: {'slim_field': True},
     TaskColumn.NAME.value: {
-        'slim_field': True,
         # TODO: firexapp should send long_name, since it will overwrite 'name' copied from celery. Then get rid of
         # the following config.
         'transform_celery': lambda e: {TaskColumn.NAME.value: e[TaskColumn.NAME.value].split('.')[-1],
                                        TaskColumn.LONG_NAME.value: e[TaskColumn.NAME.value]},
     },
-    TaskColumn.CHAIN_DEPTH.value: {'copy_celery': True, 'slim_field': True},
-    TaskColumn.FIRST_STARTED.value: {'slim_field': True, 'aggregate_keep_initial': True},
-    # TODO: start using code_filepath instead of code_url.
-    'code_url': {'copy_celery': True},
-    'support_location': {'copy_celery': True},
-    'code_filepath': {'copy_celery': True},
-    'flame_data': {
-        'copy_celery': True,
-        'slim_field': True,
-        'aggregate_merge': True,
-    },
-    'flame_additional_data': {'copy_celery': True, 'slim_field': True},
-    'url': {
-        # TODO: only for backwards compat. Can use log_filepath.
-        'transform_celery': lambda e: {TaskColumn.LOGS_URL.value: e['url']},
-    },
-    'log_filepath': {
-        'transform_celery': lambda e: {TaskColumn.LOGS_URL.value: e['log_filepath']},
-    },
-    'local_received': {
-        # Note first_started is never overwritten by aggregation.
-        'transform_celery': lambda e: {TaskColumn.FIRST_STARTED.value: e['local_received']},
-    },
+    TaskColumn.CHAIN_DEPTH.value: {'copy_celery': True},
+    TaskColumn.FIRST_STARTED.value: {'aggregate_keep_initial': True},
     'states': {'aggregate_merge': True},
-    'called_as_orig': {
-        'copy_celery': True,
-        'slim_field': True,
-    },
 }
 
 
@@ -100,15 +74,12 @@ def _get_keys_with_true(input_dict, key):
     return [k for k, v in input_dict.items() if v.get(key, False)]
 
 
-COPY_FIELDS = _get_keys_with_true(FIELD_CONFIG, 'copy_celery')
-# These are the minimum fields required to render the graph.
-SLIM_FIELDS = _get_keys_with_true(FIELD_CONFIG, 'slim_field')
-
-AGGREGATE_MERGE_FIELDS = _get_keys_with_true(FIELD_CONFIG, 'aggregate_merge')
-AGGREGATE_KEEP_INITIAL_FIELDS = _get_keys_with_true(FIELD_CONFIG, 'aggregate_keep_initial')
-AGGREGATE_NO_OVERWRITE_FIELDS = AGGREGATE_MERGE_FIELDS + AGGREGATE_KEEP_INITIAL_FIELDS
-
-FIELD_TO_CELERY_TRANSFORMS = {k: v['transform_celery'] for k, v in FIELD_CONFIG.items() if 'transform_celery' in v}
+DEFAULT_AGGREGATOR_CONFIG = EventAggregatorConfig(
+    copy_fields=_get_keys_with_true(FIELD_CONFIG, 'copy_celery'),
+    merge_fields=_get_keys_with_true(FIELD_CONFIG, 'aggregate_merge'),
+    keep_initial_fields=_get_keys_with_true(FIELD_CONFIG, 'aggregate_keep_initial'),
+    field_to_celery_transforms={k: v['transform_celery'] for k, v in FIELD_CONFIG.items() if 'transform_celery' in v},
+)
 
 
 def _deep_merge_keys(dict1, dict2, keys):
@@ -148,25 +119,26 @@ def _deep_merge(dict1, dict2):
 
 
 # Event data extraction/transformation without current state context.
-def get_new_event_data(event):
+def get_new_event_data(event, copy_fields, field_to_celery_transforms):
     new_task_data = {}
-    for field in COPY_FIELDS:
+    for field in copy_fields:
         if field in event:
             new_task_data[field] = event[field]
 
     # Note if a field is both a copy field and a transform, the transform overrides if the output writes to the same
     # key.
-    for field, transform in FIELD_TO_CELERY_TRANSFORMS.items():
+    for field, transform in field_to_celery_transforms.items():
         if field in event:
             new_task_data.update(transform(event))
 
     return {event['uuid']: new_task_data}
 
 
-def find_data_changes(task, new_task_data):
+def find_data_changes(task, new_task_data, keep_initial_fields, merge_fields):
     # Some fields overwrite whatever is present. Be permissive, since not all fields captured are from celery,
     # so not all have entries in the field config.
-    override_dict = {k: v for k, v in new_task_data.items() if k not in AGGREGATE_NO_OVERWRITE_FIELDS}
+    no_overwrite_fields = keep_initial_fields + merge_fields
+    override_dict = {k: v for k, v in new_task_data.items() if k not in no_overwrite_fields}
 
     changed_data = {}
     for new_data_key, new_data_val in override_dict.items():
@@ -174,12 +146,12 @@ def find_data_changes(task, new_task_data):
             changed_data[new_data_key] = new_data_val
 
     # Some field updates are dropped if there is already a value for that field name (keep initial).
-    for no_overwrite_key in AGGREGATE_KEEP_INITIAL_FIELDS:
+    for no_overwrite_key in keep_initial_fields:
         if no_overwrite_key in new_task_data and no_overwrite_key not in task:
             changed_data[no_overwrite_key] = new_task_data[no_overwrite_key]
 
     # Some fields need to be accumulated across events, not overwritten from latest event.
-    merged_values = _deep_merge_keys(task, new_task_data, AGGREGATE_MERGE_FIELDS)
+    merged_values = _deep_merge_keys(task, new_task_data, merge_fields)
     for merged_data_key, merged_data_val in merged_values.items():
         if merged_data_key not in task or task[merged_data_key] != merged_data_val:
             changed_data[merged_data_key] = merged_data_val
@@ -187,19 +159,14 @@ def find_data_changes(task, new_task_data):
     return changed_data
 
 
-def slim_tasks_by_uuid(tasks_by_uuid):
-    return {uuid: {k: v for k, v in task_data.items()
-                   if k in SLIM_FIELDS}
-            for uuid, task_data in tasks_by_uuid.items()}
-
-
 class FireXEventAggregator:
     """ Aggregates many events in to the task data model. """
 
-    def __init__(self):
+    def __init__(self, aggregator_config: EventAggregatorConfig = DEFAULT_AGGREGATOR_CONFIG):
         self.tasks_by_uuid = {}
         self.new_task_num = 1
         self.root_uuid = None
+        self.aggregator_config = aggregator_config
 
     def aggregate_events(self, events):
         new_data_by_task_uuid = {}
@@ -251,15 +218,20 @@ class FireXEventAggregator:
                 or (event['uuid'] not in self.tasks_by_uuid and event.get('type', '') == 'task-revoked')):
             return {}
 
-        if event.get('parent_id', '__no_match') is None and self.root_uuid is None:
+        if event.get(TaskColumn.PARENT_ID.value, '__no_match') is None and self.root_uuid is None:
             self.root_uuid = event['uuid']
 
-        new_data_by_task_uuid = get_new_event_data(event)
+        new_data_by_task_uuid = get_new_event_data(event,
+                                                   self.aggregator_config.copy_fields,
+                                                   self.aggregator_config.field_to_celery_transforms)
         changes_by_task_uuid = {}
         for task_uuid, new_task_data in new_data_by_task_uuid.items():
             task, is_new_task = self._get_or_create_task(task_uuid)
 
-            changed_data = find_data_changes(task, new_task_data)
+            changed_data = find_data_changes(task,
+                                             new_task_data,
+                                             self.aggregator_config.keep_initial_fields,
+                                             self.aggregator_config.merge_fields)
             task.update(changed_data)
 
             # If we just created the task, we need to send the auto-initialized fields, as well as data from the event.
