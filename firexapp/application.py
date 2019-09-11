@@ -10,6 +10,8 @@ logger = setup_console_logging(__name__)
 
 
 def main():
+    # Need to call setup_console_logging like this as this module is always called from another.
+    setup_console_logging("__main__")
     with tempfile.NamedTemporaryFile(delete=True) as submission_tmp_file:
         from firexapp.submit.submit import SubmitBaseApp
         submit_app = SubmitBaseApp(submission_tmp_file=submission_tmp_file.name)
