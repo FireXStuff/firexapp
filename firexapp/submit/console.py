@@ -1,5 +1,4 @@
 import sys
-import re
 import logging
 CONSOLE_LOGGING_FORMATTER = '[%(asctime)s] %(message)s'
 
@@ -59,32 +58,7 @@ def set_console_log_level(log_level):
     console_stdout.setLevel(log_level)
 
 
-def add_task_filter_to_console():
-    # For task-"level" logging, set to DEBUG and filter out everything below the previous log level except the lines
-    # matching filter_re
-    class TaskFilter(logging.Filter):
-        """Filters out non-task-related log entries"""
-        filter_re = r'=+(STARTED: [^=]+)=+|\*+(COMPLETED: [^*]+)\*+'
-
-        def __init__(self):
-            self.filter_cre = re.compile(self.filter_re)
-            self.filter_log_level = console_stdout.level
-            super(TaskFilter, self).__init__()
-
-        def filter(self, record):
-            # Include messages of level equal or higher to the saved log level of the handler
-            if record.levelno >= self.filter_log_level:
-                return True
-            # Skip non-text messages
-            if not isinstance(record.msg, str):
-                return False
-            # For messages matching the RE, extract the grouping and subst the msg for that text.
-            match = self.filter_cre.search(record.msg)
-            if match:
-                record.msg = match.group(1) if match.group(1) else match.group(2)
-                return True
-            return False
-
-    log_filter = TaskFilter()
+def add_filter_to_console(log_filter):
+    assert isinstance(log_filter, logging.Filter)
     console_stdout.addFilter(log_filter)
     set_console_log_level(logging.DEBUG)
