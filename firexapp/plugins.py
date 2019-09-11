@@ -202,7 +202,7 @@ def import_plugin_module(module_name, external_files):
     if module_name in sys.modules:
         module_source = sys.modules[module_name].__file__
         if module_source in external_files:
-            print("External module %s imported" % module_name)
+            logger.print("External module %s imported" % module_name)
         else:
             logger.error("External module %s was NOT imported. "
                          "A module with the same name was already imported from %s" % (module_name, module_source))

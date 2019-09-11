@@ -51,8 +51,12 @@ class SubmitBaseApp:
     def init_file_logging(self):
         os.umask(0)
         if self.submission_tmp_file:
-            logging.basicConfig(filename=self.submission_tmp_file, level=logging.DEBUG, filemode='w',
-                                format=self.SUBMISSION_LOGGING_FORMATTER, datefmt="%Y-%m-%d %H:%M:%S")
+            submission_log_handler = logging.FileHandler(filename=self.submission_tmp_file, mode='w')
+            submission_log_handler.setFormatter(logging.Formatter(fmt=self.SUBMISSION_LOGGING_FORMATTER,
+                                                                  datefmt="%Y-%m-%d %H:%M:%S"))
+            submission_log_handler.setLevel(logging.NOTSET)
+            root_logger = logging.getLogger()
+            root_logger.addHandler(submission_log_handler)
         self.log_preamble()
 
     def copy_submission_log(self):
@@ -92,7 +96,8 @@ class SubmitBaseApp:
         finally:
             self.copy_submission_log()
 
-    def error_banner(self, err_msg, banner_title = 'ERROR', logf=logger.error):
+    @staticmethod
+    def error_banner(err_msg, banner_title='ERROR', logf=logger.error):
         err_msg = str(err_msg)
 
         banner_title = ' %s ' % banner_title
@@ -104,7 +109,7 @@ class SubmitBaseApp:
                 sep_len = len(l)
 
         top_sep_len = int((sep_len - len(banner_title) + 1) / 2)
-        top_banner= '*'*top_sep_len + banner_title + '*'*top_sep_len
+        top_banner = '*' * top_sep_len + banner_title + '*' * top_sep_len
 
         logf('')
         logf(top_banner)
@@ -388,6 +393,7 @@ def get_log_dir_from_output(cmd_output: str)->str:
         return ""
 
 
+# noinspection PyUnusedLocal
 @celeryd_init.connect()
 def add_uid_to_conf(conf=None, **kwargs):
     conf.uid = app.backend.get('uid').decode()
