@@ -1,7 +1,9 @@
 from collections import namedtuple
 from enum import Enum
 import logging
+import re
 
+from firexkit.result import ChainInterruptedException
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +40,10 @@ class RunMetadataColumn(Enum):
     ROOT_UUID = "root_uuid"
 
 
-RunMetadata = namedtuple('RunMetadata', [RunMetadataColumn.FIREX_ID.value,
-                                         RunMetadataColumn.LOGS_DIR.value,
-                                         RunMetadataColumn.CHAIN.value])
+FireXRunMetadata = namedtuple('RunMetadata', [rmc.value for rmc in RunMetadataColumn])
 
 
+# Note field order matters. TaskColumn is the authority on field order.
 class TaskColumn(Enum):
     UUID = "uuid"
     FIREX_ID = "firex_id"
@@ -74,3 +75,26 @@ def get_task_data(input_dict):
 
 
 FireXTask = namedtuple('FireXTask', [tc.value for tc in TaskColumn])
+
+
+def is_chain_exception(task):
+    return task.exception and task.exception.strip().startswith(ChainInterruptedException.__name__)
+
+
+def get_chain_exception_child_uuid(task):
+    assert is_chain_exception(task)
+    exception_str = task.exception.strip()
+    m = re.search(ChainInterruptedException.__name__ + "\('\[(.*?)\]'", exception_str)
+    assert m, "No UUID found in %s." % exception_str
+    return m.group(1)
+
+
+def is_failed(task: FireXTask, ignore_chain_exception=False):
+    is_failure = task.state == RunStates.FAILED.value
+    if not is_failure:
+        return False
+
+    if ignore_chain_exception:
+        return not is_chain_exception(task)
+
+    return True

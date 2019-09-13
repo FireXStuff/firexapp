@@ -67,6 +67,13 @@ FIELD_CONFIG = {
     TaskColumn.CHAIN_DEPTH.value: {'copy_celery': True},
     TaskColumn.FIRST_STARTED.value: {'aggregate_keep_initial': True},
     'states': {'aggregate_merge': True},
+    'url': {
+        # TODO: only for backwards compat. Can use log_filepath.
+        'transform_celery': lambda e: {TaskColumn.LOGS_URL.value: e['url']},
+    },
+    'log_filepath': {
+        'transform_celery': lambda e: {TaskColumn.LOGS_URL.value: e['log_filepath']},
+    },
 }
 
 
