@@ -17,33 +17,13 @@ class Uid(object):
             self.identifier = identifier
         else:
             self.identifier = 'FireX-%s-%s-%s' % (self.user, self.timestamp.strftime("%y%m%d-%H%M%S"), os.getpid())
-        self._logs_dir = None
-        self._debug_dir = None
+        self.base_logging_dir = tempfile.gettempdir()
+        self.logs_dir = self.create_subdir(self.base_logging_dir, self.identifier)
+        self.debug_dir = self.create_subdir(self.logs_dir, self.debug_dirname)
 
-    @property
-    def base_logging_dir(self):
-        return tempfile.gettempdir()
-
-    @property
-    def logs_dir(self):
-        if not self._logs_dir:
-            self._logs_dir = self.create_logs_dir()
-            self._debug_dir = self.create_debug_dir()
-        return self._logs_dir
-
-    @property
-    def debug_dir(self):
-        if not self._debug_dir:
-            self._debug_dir = self.create_debug_dir()
-        return self._debug_dir
-
-    def create_logs_dir(self):
-        path = os.path.join(self.base_logging_dir, self.identifier)
-        os.makedirs(path, 0o777)
-        return path
-
-    def create_debug_dir(self):
-        path = os.path.join(self.logs_dir, self.debug_dirname)
+    @staticmethod
+    def create_subdir(base_dir, subdirname):
+        path = os.path.join(base_dir, subdirname)
         os.makedirs(path, 0o777)
         return path
 
