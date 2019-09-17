@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import site
 
 TRACKING_SERVICE_ENTRY_POINT = 'firex_tracking_service'
 
@@ -9,7 +10,8 @@ def get_tracking_services() -> ():
     global _services
     if _services is None:
         import entrypoints
-        entry_pts = [entry_point for entry_point in entrypoints.get_group_all(TRACKING_SERVICE_ENTRY_POINT)]
+        entry_pts = [entry_point for entry_point in entrypoints.get_group_all(TRACKING_SERVICE_ENTRY_POINT,
+                                                                              path=site.getsitepackages())]
         entry_objects = [e.load() for e in entry_pts]
         _services = tuple([point() for point in entry_objects])
     return _services
