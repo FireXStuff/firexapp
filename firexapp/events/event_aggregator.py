@@ -74,6 +74,10 @@ FIELD_CONFIG = {
     'log_filepath': {
         'transform_celery': lambda e: {TaskColumn.LOGS_URL.value: e['log_filepath']},
     },
+    'local_received': {
+        # Note first_started is never overwritten by aggregation.
+        'transform_celery': lambda e: {TaskColumn.FIRST_STARTED.value: e['local_received']},
+    },
 }
 
 
