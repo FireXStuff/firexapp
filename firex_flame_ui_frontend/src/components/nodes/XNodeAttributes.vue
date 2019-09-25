@@ -5,6 +5,13 @@
               :links="headerParams.links"></x-header>
 
     <div class="node-attributes">
+
+      <div class="node-container">
+        <x-task-node :taskUuid="uuid" :allowCollapse="false" :allowClickToAttributes="false"
+          :isLeaf="false">
+        </x-task-node>
+      </div>
+
       <div v-for="(key, i) in sortedDisplayNodeKeys" :key="key"
            :style="{'background-color': i % 2 === 0 ? '#EEE': '#CCC', 'padding': '4px' }">
         <label style="font-weight: 700;">{{key}}:</label>
@@ -72,10 +79,11 @@ import { mapGetters, mapState } from 'vuex';
 import * as api from '../../api';
 import { eventHub, isTaskStateIncomplete, durationString } from '../../utils';
 import XHeader from '../XHeader.vue';
+import XTaskNode from './XTaskNode.vue';
 
 export default {
   name: 'XNodeAttributes',
-  components: { XHeader },
+  components: { XHeader, XTaskNode },
   props: {
     uuid: { required: true, type: String },
   },
@@ -289,6 +297,14 @@ export default {
   overflow: auto;
   display: flex;
   flex-direction: column;
+}
+
+.node-container {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  padding: 20px;
+  background-color: #CCC;
 }
 
 </style>
