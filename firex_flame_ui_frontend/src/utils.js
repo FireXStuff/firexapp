@@ -342,6 +342,26 @@ const DEFAULT_UI_CONFIG = {
   central_server_ui_path: null,
   central_documentation_url: null,
   firex_bin: null,
+  logs_serving: {
+    /*
+   * Allowed values:
+   *  central-webserver: prepends the 'central_webserver' to log paths. Assumes the central
+   *    webserver supports listing directories.
+   *
+   *  local-webserver: path-only links to the same webserver serving the UI. Assumes
+   *    the webserver serving the UI supports listing directories.
+   *
+   *  google-cloud-storage: fetches logs and directory (object) listings from the URL
+   *    format specified by 'url_format'. Directories are expected to be in google storage
+   *    format: https://cloud.google.com/storage/docs/listing-objects.
+   */
+    serve_mode: 'central-webserver',
+    /*
+     * supports firex_id in lodash templating format, for example:
+     *  https://www.googleapis.com/storage/v1/b/some_bucket/o?prefix=runs/<%- firex_id %>
+     */
+    url_format: null, // only needed for 'google-cloud-storage' mode.
+  }
 };
 
 function isRequiredAccessModeDataPresent(accessMode, route) {

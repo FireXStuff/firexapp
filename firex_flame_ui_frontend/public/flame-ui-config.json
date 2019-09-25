@@ -6,5 +6,9 @@
   "central_server": null,
   "central_server_ui_path": null,
   "central_documentation_url": "http://www.firex.cisco.com/",
-  "firex_bin": "/auto/firex/bin/firex"
+  "firex_bin": "/auto/firex/bin/firex",
+  "logs_serving": {
+    "serve_mode": "central-webserver",
+    "url_format": null
+  }
 }

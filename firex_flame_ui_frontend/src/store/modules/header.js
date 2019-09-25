@@ -160,15 +160,34 @@ const headerGetters = {
   },
 
   logsUrl(state, getters, rootState) {
-    // TODO: Is it even safe/reasonable to expect the central server to always serve the logs?
-    //    Is it better to always serve relatively?
-    const origin = _.get(state.uiConfig, 'central_server', null);
-    let logsUrl = '';
-    if (!_.isNil(origin)) {
-      logsUrl += origin;
+    const logsPath = rootState.firexRunMetadata.logs_dir;
+
+    const logsServeMode = _.get(state.uiConfig, ['logs_serving', 'serve_mode'], null);
+
+    if (logsServeMode === 'central-webserver') {
+      let logsServer;
+      if (rootState.firexRunMetadata.logs_server) {
+        logsServer = rootState.firexRunMetadata.logs_server;
+      } else {
+        logsServer = _.get(state.uiConfig, 'central_server', null);
+      }
+      if (!_.isNil(logsServer)) {
+        return logsServer + logsPath;
+      }
     }
-    logsUrl += rootState.firexRunMetadata.logs_dir;
-    return logsUrl;
+
+    if (logsServeMode === 'google-cloud-storage') {
+      const serverFormat = _.get(state.uiConfig, ['logs_serving', 'url_format'], null);
+      if (!_.isNil(serverFormat)) {
+        const templateOptions = { evaluate: null, interpolate: null };
+        const templateArgs = { firex_id: rootState.firexRunMetadata.uid };
+        return _.template(serverFormat, templateOptions)(templateArgs);
+      }
+    }
+
+    // Default to relative serving. This includes logsServeMode === 'local-webserver' or
+    // misconfigurations (e.g. central-webserver log serving without a central server configured)
+    return logsPath;
   },
 
 };
