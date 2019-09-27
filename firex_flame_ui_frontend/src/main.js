@@ -5,6 +5,7 @@ import { sync } from 'vuex-router-sync';
 import AsyncComputed from 'vue-async-computed';
 import './icons';
 import VueClipboard from 'vue-clipboard2';
+import './assets/bootstrap-firex-custom.min.css';
 
 import router from './router';
 import App from './App.vue';

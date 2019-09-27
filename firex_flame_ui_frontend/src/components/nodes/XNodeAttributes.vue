@@ -10,6 +10,11 @@
         <x-task-node :taskUuid="uuid" :allowCollapse="false" :allowClickToAttributes="false"
           :isLeaf="false">
         </x-task-node>
+        <a class="btn btn-primary" :href="detailedTask.logs_url" role="button"
+           style="margin-top: 1.5em">
+          <font-awesome-icon icon="file-alt"></font-awesome-icon>
+          View Service Log
+        </a>
       </div>
 
       <div v-for="(key, i) in sortedDisplayNodeKeys" :key="key"
@@ -45,7 +50,7 @@
               {{replayCommandLine}}
             </div>
             <div style="margin-top:6px">
-              <button type="button" @click="doCopy">
+              <button type="button" class="btn btn-primary" @click="doCopy">
                 <font-awesome-icon icon="clipboard"></font-awesome-icon> Copy
               </button>
             </div>
@@ -303,7 +308,7 @@ export default {
   display: flex;
   align-items: center;
   flex-direction: column;
-  padding: 20px;
+  padding: 1.5em;
   background-color: #CCC;
 }
 
