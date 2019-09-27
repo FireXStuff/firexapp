@@ -81,32 +81,37 @@ def shutdown_run(logs_dir):
     celery_manager = CeleryManager(logs_dir=logs_dir, broker=broker)
     celery_app = Celery(broker=broker.broker_url)
 
-    if get_active(inspect_retry_timeout=2, celery_app=celery_app):
-        revoke_active_tasks(celery_app)
+    try:
+        #
+        # Note: get_active can hang in celery/kombu library if broker is down.
+        # Checking for broker.is_alive() is an attempt to prevent that, but note
+        # the broker can theoretically die between that call and the get_active() call.
+        if broker.is_alive() and get_active(inspect_retry_timeout=2, celery_app=celery_app):
+            revoke_active_tasks(celery_app)
 
-        logger.info("Found active Celery; sending Celery shutdown.")
-        celery_app.control.shutdown()
+            logger.info("Found active Celery; sending Celery shutdown.")
+            celery_app.control.shutdown()
 
-        celery_shutdown_wait = 15
-        celery_shutdown_success = celery_manager.wait_for_shutdown(celery_shutdown_wait)
-        if not celery_shutdown_success:
-            logger.warning("Celery not shutdown after %d secs, force killing instead." % celery_shutdown_wait)
+            celery_shutdown_wait = 15
+            celery_shutdown_success = celery_manager.wait_for_shutdown(celery_shutdown_wait)
+            if not celery_shutdown_success:
+                logger.warning("Celery not shutdown after %d secs, force killing instead." % celery_shutdown_wait)
+                celery_manager.shutdown()
+            else:
+                logger.debug("Confirmed Celery shutdown successfully.")
+        elif celery_manager.find_all_procs():
+            logger.info("Celery not active, but found celery processes to force shutdown.")
             celery_manager.shutdown()
         else:
-            logger.debug("Confirmed Celery shutdown successfully.")
-    elif celery_manager.find_all_procs():
-        logger.info("Celery not active, but found celery processes to force shutdown.")
-        celery_manager.shutdown()
-    else:
-        logger.info("No active Celery processes.")
-
-    if broker.is_alive():
-        logger.info("Broker is alive; sending redis shutdown.")
-        # broker will be shut down by celery if active
-        broker.shutdown()
-        wait_for_broker_shutdown(broker)
-    else:
-        logger.info("No active Broker.")
+            logger.info("No active Celery processes.")
+    finally:
+        if broker.is_alive():
+            logger.info("Broker is alive; sending redis shutdown.")
+            # broker will be shut down by celery if active
+            broker.shutdown()
+            wait_for_broker_shutdown(broker)
+        else:
+            logger.info("No active Broker.")
 
     logger.info("Shutdown of %s complete." % logs_dir)
 
