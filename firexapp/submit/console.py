@@ -11,6 +11,11 @@ class DistlibWarningsFilter(logging.Filter):
         return not pathname.endswith('distlib/metadata.py') and not pathname.endswith('distlib/database.py')
 
 
+class RetryFilter(logging.Filter):
+    def filter(self, record):
+        return not record.getMessage().startswith('Retry in')
+
+
 def setup_console_logging(module=None):
     global console_stdout
 
@@ -41,13 +46,14 @@ def setup_console_logging(module=None):
     console_stdout = logging.StreamHandler(sys.stdout)
     console_stdout.setLevel(logging.INFO)
     console_stdout.setFormatter(formatter)
-    log_filter = LogLevelFilter(logging.ERROR)
-    console_stdout.addFilter(log_filter)
+    console_stdout.addFilter(LogLevelFilter(logging.ERROR))
     console_stdout.addFilter(DistlibWarningsFilter())
 
     console_stderr = logging.StreamHandler()
     console_stderr.setLevel(logging.ERROR)
     console_stderr.setFormatter(formatter)
+    console_stderr.addFilter(RetryFilter())
+
     module_logger.addHandler(console_stdout)
     module_logger.addHandler(console_stderr)
     return module_logger
