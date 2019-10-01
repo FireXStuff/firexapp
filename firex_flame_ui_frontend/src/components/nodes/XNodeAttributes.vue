@@ -142,7 +142,8 @@ export default {
     },
     displayNode() {
       // If we haven't fetched the details for some reason, just show the base properties.
-      const task = _.merge({}, this.simpleTask, this.detailedTask);
+      const task = _.pickBy(_.merge({}, this.simpleTask, this.detailedTask),
+        _.negate(_.isEmpty));
 
       let attributeBlacklist;
       if (this.showAllAttributes) {
@@ -177,11 +178,17 @@ export default {
         firex_bound_args: 'arguments',
         firex_default_bound_args: 'argument_defaults',
         firex_result: 'task_result',
+        actual_runtime: 'runtime',
       };
       return _.mapKeys(this.displayNode, (v, k) => _.get(origKeysToDisplayKeys, k, k));
     },
     sortedDisplayNodeKeys() {
-      const displayKeys = _.sortBy(_.keys(this.displayKeyNode));
+      const keysOrder = ['traceback', 'exception', 'argument_defaults', 'arguments', 'task_result'];
+      const keys = _.keys(this.displayKeyNode);
+      const displayKeys = _.sortBy(keys, (v) => {
+        const index = _.indexOf(keysOrder, v);
+        return index === -1 ? _.padStart(keys.length, 4, '0') + v : _.padStart(index, 4, '0');
+      });
       displayKeys.push('replay command line');
       return displayKeys;
     },
