@@ -398,7 +398,7 @@ function fetchRunModelMetadata(firexId, modelPathTemplate) {
   if (!isFireXIdValid(firexId)) {
     return new Promise((resolve) => resolve(false));
   }
-  return fetch(templateFireXId(modelPathTemplate, firexId))
+  return fetchWithRetry(templateFireXId(modelPathTemplate, firexId), 3)
     .then(r => r.json(), () => false)
     .catch(() => false);
 }
@@ -494,6 +494,36 @@ function fetchWithTimeout(fetchUrl, fetchOptions, timeout = 5000, onTimeout) {
             setTimeout(() => reject(onTimeout()), timeout)
         )
     ]);
+}
+
+
+function fetchWithRetry(url, maxRetries) {
+  const delay = 1000;
+  return new Promise((resolve, reject) => {
+    let attemptCount = 1;
+    const fetchRetry = (url, n) => {
+      const delayedRetry = () => setTimeout(() => {
+            attemptCount++
+            fetchRetry(url, n - 1);
+          }, attemptCount * delay);
+
+      return fetch(url).then(r => {
+        if (!r.ok && n !== 1) {
+          delayedRetry();
+        } else {
+          resolve(r);
+        }
+      }).catch(function (error) {
+        if (n === 1) {
+          reject(error);
+        }
+        else {
+          delayedRetry();
+        }
+      });
+    }
+    return fetchRetry(url, maxRetries);
+  });
 }
 
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
