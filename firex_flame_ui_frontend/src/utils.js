@@ -261,7 +261,7 @@ const statusToProps = {
     display: 'Success',
   },
   'task-failed': {
-    background: '#900',
+    background: '#B00',
     priority: 3,
     display: 'Failed',
   },

@@ -10,16 +10,20 @@
         <x-task-node :taskUuid="uuid" :allowCollapse="false" :allowClickToAttributes="false"
           :isLeaf="false">
         </x-task-node>
-        <a class="btn btn-primary" :href="detailedTask.logs_url" role="button"
-           style="margin-top: 1.5em">
+      </div>
+      <div style="display: inline-flex; align-items: center; background-color: #fafafa">
+        <label class="node-attributes-label">task_log:</label>
+        <div style="padding: 1em;">
+          <a class="btn btn-primary" :href="detailedTask.logs_url" role="button">
           <font-awesome-icon icon="file-alt"></font-awesome-icon>
-          View Service Log
+          {{detailedTask.name}} Log
         </a>
+        </div>
       </div>
 
       <div v-for="(key, i) in sortedDisplayNodeKeys" :key="key"
-           :style="{'background-color': i % 2 === 0 ? '#EEE': '#CCC', 'padding': '4px' }">
-        <label style="font-weight: 700;">{{key}}:</label>
+           :style="{'background-color': i % 2 === 0 ? '#EEE': '#fafafa', 'padding': '4px' }">
+        <label class="node-attributes-label" style="">{{key}}:</label>
 
         <!-- Add parent {name, uuid} to store-->
         <div v-if="key === 'parent' && displayKeyNode[key]" style="display: inline">
@@ -27,6 +31,7 @@
           <router-link :to="getTaskRoute(displayKeyNode[key].uuid)"
           >{{displayKeyNode[key].uuid}}</router-link>
         </div>
+
         <div v-else-if="key === 'children'">
           <div v-for="child in displayKeyNode[key]" :key="'child-' + child.uuid"
                style="margin-left: 25px; padding: 3px;">
@@ -163,7 +168,7 @@ export default {
         attributeBlacklist = ['long_name', 'name', 'flame_additional_data',
           'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data',
           'parent_id', 'children_uuids', 'isLeaf', 'states', 'called_as_orig',
-          'code_filepath',
+          'code_filepath', 'type',
         ];
       }
       if (task.actual_runtime) {
@@ -213,7 +218,7 @@ export default {
         {
           name: 'logs',
           href: this.detailedTask.logs_url,
-          text: 'Service Log',
+          text: 'Task Log',
           icon: 'file-alt',
         },
         {
@@ -301,6 +306,11 @@ export default {
 
 <style scoped>
 
+.node-attributes-label {
+  font-weight: 700;
+  font-size: 16px;
+}
+
 .node-attributes {
   font-family: 'Source Code Pro', monospace;
   font-size: 14px;
@@ -316,7 +326,7 @@ export default {
   align-items: center;
   flex-direction: column;
   padding: 1.5em;
-  background-color: #CCC;
+  background-color: #EEE;
 }
 
 </style>
