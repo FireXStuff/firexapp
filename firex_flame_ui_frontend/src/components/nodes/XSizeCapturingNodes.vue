@@ -15,7 +15,6 @@
       <x-task-node
         :taskUuid="uuid"
         :emitDimensions="true"
-        v-on:task-node-size="receiveSize"
         :isLeaf="true"></x-task-node>
     </div>
   </div>
@@ -24,7 +23,7 @@
 <script>
 import _ from 'lodash';
 
-import { containsAll } from '../../utils';
+import { containsAll, eventHub } from '../../utils';
 import XTaskNode from './XTaskNode.vue';
 
 export default {
@@ -42,6 +41,9 @@ export default {
     allUuids() {
       return this.$store.getters['tasks/allTaskUuids'];
     },
+  },
+  created() {
+    eventHub.$on('task-node-size', this.receiveSize);
   },
   methods: {
     receiveSize(taskSize) {

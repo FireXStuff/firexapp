@@ -64,6 +64,12 @@ export default {
     taskUuid: { required: true },
     toCollapse: { default: false },
     isLeaf: { required: true, type: Boolean },
+    emitDimensions: { default: false, type: Boolean },
+  },
+  data() {
+    return {
+      latestEmittedDimensions: { width: -1, height: -1 },
+    };
   },
   computed: {
     ...mapGetters({
@@ -137,12 +143,43 @@ export default {
       );
     },
   },
+  mounted() {
+    this.emit_dimensions();
+    // TODO: might still be worth considering in conjunction with other solutions.
+    // Confirmed not affected by zoom, but still doesn't solve all flame-data node-sizing issues.
+    // if (this.emitDimensions && typeof ResizeObserver !== 'undefined') {
+    //   const resizeObserver = new ResizeObserver(() => {
+    //     this.emit_dimensions();
+    //   });
+    //   resizeObserver.observe(this.$el);
+    // }
+  },
+  updated() {
+    this.emit_dimensions();
+  },
   methods: {
     emitCollapseToggle() {
       eventHub.$emit('toggle-task-collapse', this.taskUuid);
     },
     flameDataClick(event) {
       event.stopPropagation();
+    },
+    // TODO: debounce?
+    emit_dimensions() {
+      if (this.emitDimensions) {
+        this.$nextTick(() => {
+          const r = this.$el.getBoundingClientRect();
+          const renderedWidth = r.width; // this.$el.clientWidth
+          const renderedHeight = r.height; // this.$el.clientHeight
+          if (renderedWidth && renderedHeight) {
+            const renderedDimensions = { width: renderedWidth, height: renderedHeight };
+            if (!_.isEqual(this.latestEmittedDimensions, renderedDimensions)) {
+              this.latestEmittedDimensions = renderedDimensions;
+              eventHub.$emit('task-node-size', { [[this.taskUuid]]: renderedDimensions });
+            }
+          }
+        });
+      }
     },
   },
 };
