@@ -51,7 +51,7 @@ class SubmitBaseApp:
     def init_file_logging(self):
         os.umask(0)
         if self.submission_tmp_file:
-            submission_log_handler = logging.FileHandler(filename=self.submission_tmp_file, mode='w')
+            submission_log_handler = logging.FileHandler(filename=self.submission_tmp_file)
             submission_log_handler.setFormatter(logging.Formatter(fmt=self.SUBMISSION_LOGGING_FORMATTER,
                                                                   datefmt="%Y-%m-%d %H:%M:%S"))
             submission_log_handler.setLevel(logging.NOTSET)
