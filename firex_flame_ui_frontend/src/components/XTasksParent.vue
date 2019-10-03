@@ -110,7 +110,7 @@ export default {
         this.setNodesByUuid(nodesByUuid);
       },
       () => {
-        this.$router.push(errorRoute(`Failed to fetch task for ${this.taskDataKey}.
+        this.$router.push(errorRoute(`Failed to fetch tasks for ${this.taskDataKey}.
         To reconstruct:
           ${this.backfillFlameModelCommand}
           `));

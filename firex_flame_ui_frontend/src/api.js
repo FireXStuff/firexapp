@@ -96,6 +96,17 @@ function createSocketApiAccessor(url, options) {
       'revoke-failed', 10000,
     ),
 
+    isLiveFileListenSupported: () => true,
+
+    startLiveFileListen(host, filepath, callback) {
+      socket.on('file-line', callback);
+      socket.emit('start-listen-file', { host, filepath });
+    },
+
+    stopLiveFileListen() {
+      socket.off('stop-listen-file');
+    },
+
     cleanup: () => { socket.off(); socket.removeAllListeners(); },
 
   };
@@ -141,11 +152,15 @@ function createWebFileAccessor(firexId, modelPathTemplate) {
         return fieldsByUuid;
       }),
 
+    isLiveFileListenSupported: () => false,
+
     /*
      * Noop operations, since this accessor is only used on completed runs.
      */
     startLiveUpdate: () => {},
     stopLiveUpdate: () => {},
+    startLiveFileListen: () => {},
+    stopLiveFileListen: () => {},
     revoke: () => {},
     cleanup: () => {},
   };
@@ -196,6 +211,18 @@ function revokeTask(uuid) {
   return apiAccessor.revoke(uuid);
 }
 
+function isLiveFileListenSupported() {
+  return apiAccessor.isLiveFileListenSupported();
+}
+
+function startLiveFileListen(host, filepath, callback) {
+  return apiAccessor.startLiveFileListen(host, filepath, callback);
+}
+
+function stopLiveFileListen() {
+  return apiAccessor.stopLiveFileListen();
+}
+
 export {
   setAccessor,
   getFireXRunMetadata,
@@ -206,4 +233,7 @@ export {
   stopLiveUpdate,
   revokeTask,
   templateFireXId,
+  isLiveFileListenSupported,
+  startLiveFileListen,
+  stopLiveFileListen,
 };

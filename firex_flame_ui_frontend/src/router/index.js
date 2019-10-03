@@ -11,6 +11,7 @@ import XSettings from '@/components/XSettings.vue';
 import XShortcuts from '@/components/XShortcuts.vue';
 import XFindFirexId from '@/components/XFindFirexId.vue';
 import XError from '@/components/XError.vue';
+import XLiveFileViewer from '@/components/XLiveFileViewer.vue';
 
 Vue.use(Router);
 
@@ -85,6 +86,12 @@ const router = new Router({
           name: 'custom-root',
           component: XHeaderedGraph,
           props: true,
+        },
+        {
+          path: 'live-file',
+          name: 'live-file',
+          component: XLiveFileViewer,
+          props: route => ({ filepath: route.query.file, host: route.query.host }),
         },
         // default path must be last.
         {
