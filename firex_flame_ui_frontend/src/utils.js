@@ -398,7 +398,7 @@ function fetchRunModelMetadata(firexId, modelPathTemplate) {
   if (!isFireXIdValid(firexId)) {
     return new Promise((resolve) => resolve(false));
   }
-  return fetchWithRetry(templateFireXId(modelPathTemplate, firexId), 3)
+  return fetchWithRetry(templateFireXId(modelPathTemplate, firexId), 4)
     .then(r => r.json(), () => false)
     .catch(() => false);
 }
@@ -500,7 +500,7 @@ function fetchWithTimeout(fetchUrl, fetchOptions, timeout = 5000, onTimeout) {
 function fetchWithRetry(url, maxRetries) {
   const delay = 1000;
   return new Promise((resolve, reject) => {
-    let attemptCount = 1;
+    let attemptCount = 0;
     const fetchRetry = (url, n) => {
       const delayedRetry = () => setTimeout(() => {
             attemptCount++
