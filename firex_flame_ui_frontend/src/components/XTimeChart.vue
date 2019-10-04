@@ -57,7 +57,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="task in displayTasks" :key="task.uuid">
+          <tr v-for="task in displayTasks" :key="task.uuid" style="height: 2em;">
             <td class="min">{{task.task_num}}</td>
             <td class="min">{{task.name}}</td>
             <td class="min">{{task.hostname}}</td>
