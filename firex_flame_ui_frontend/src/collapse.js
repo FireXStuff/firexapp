@@ -216,7 +216,8 @@ function recursiveGetCollapseNodes(curUuid, childrenUuidsByUuid, parentId, isCol
     cUuid => [cUuid].concat(resultDescendantsByUuid[cUuid].collapsedUuids));
 
   const childrenUncollapsedDescendantUuidsWithCollapsedParents = _.flatMap(
-    resultDescendantsByUuid, 'uncollapsedDescendantUuidsWithCollapsedParents',
+    collapsedChildrenUuids,
+    u => resultDescendantsByUuid[u].uncollapsedDescendantUuidsWithCollapsedParents,
   );
 
   let uncollapsedDescendantUuidsWithCollapsedParents;
@@ -232,7 +233,9 @@ function recursiveGetCollapseNodes(curUuid, childrenUuidsByUuid, parentId, isCol
     // should have its parent set to the current node.
     _.each(childrenUncollapsedDescendantUuidsWithCollapsedParents,
       (u) => { resultDescendantsByUuid[u].parentId = curUuid; });
-    // No uncollapsed descendants have a collapsed parent, since we just modified them.
+
+    // No uncollapsed descendants have a collapsed parent, since the current node just claimed
+    // them as a parent.
     uncollapsedDescendantUuidsWithCollapsedParents = [];
   }
 
