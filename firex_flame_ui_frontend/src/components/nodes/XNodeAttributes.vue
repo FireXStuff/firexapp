@@ -148,7 +148,7 @@ export default {
     displayNode() {
       // If we haven't fetched the details for some reason, just show the base properties.
       const task = _.pickBy(_.merge({}, this.simpleTask, this.detailedTask),
-        _.negate(_.isEmpty));
+        v => !_.isObject(v) || !_.isEmpty(v));
 
       let attributeBlacklist;
       if (this.showAllAttributes) {
