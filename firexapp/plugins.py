@@ -70,7 +70,7 @@ def _mark_plugin_module_tasks():
     for ext_mod in ext_mods:
         ext_mod_tasks = [t for t in current_app.tasks if t.startswith(ext_mod)]
         for ext_mod_task in ext_mod_tasks:
-            current_app.tasks[ext_mod_task].from_plugin = True
+            current_app.tasks[ext_mod_task]._from_plugin = True
 
 
 # there is no way of copying the signals without coupling with the internals of celery signals
