@@ -8,6 +8,8 @@ from firexkit.result import get_task_name_from_result
 logger = get_task_logger(__name__)
 
 
+REL_COMPLETION_REPORT_PATH = 'completion_email.html'
+
 class ReportGenerator(ABC):
     formatters = tuple()
 
