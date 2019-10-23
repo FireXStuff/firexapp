@@ -10,5 +10,6 @@
   "logs_serving": {
     "serve_mode": "central-webserver",
     "url_format": null
-  }
+  },
+  "rel_completion_report_path": "completion_email.html"
 }

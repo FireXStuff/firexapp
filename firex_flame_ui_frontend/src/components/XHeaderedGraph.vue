@@ -9,6 +9,7 @@
        @keyup.r.exact="refreshGraph"
        tabindex="0">
     <x-header :title="headerParams.title"
+              :showCompletionReportLink="true"
               :links="headerParams.links">
       <template v-slot:prebuttons>
         <x-task-node-search :findUncollapsedAncestor="true">

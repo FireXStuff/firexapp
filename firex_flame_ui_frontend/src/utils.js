@@ -342,6 +342,7 @@ const DEFAULT_UI_CONFIG = {
   central_server_ui_path: null,
   central_documentation_url: null,
   firex_bin: null,
+  rel_completion_report_path: null,
   logs_serving: {
     /*
    * Allowed values:
