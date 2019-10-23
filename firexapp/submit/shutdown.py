@@ -48,45 +48,18 @@ def wait_for_broker_shutdown(broker, timeout=15):
         logger.debug("Confirmed successful graceful broker shutdown.")
 
 
-def get_active_broker_safe(broker, celery_app):
-    #
-    # Note: get_active can hang in celery/kombu library if broker is down.
-    # Checking for broker.is_alive() is an attempt to prevent that, but note
-    # the broker can theoretically die between that call and the get_active() call.
-    if not broker.is_alive():
-        return None
-    return get_active(inspect_retry_timeout=2, celery_app=celery_app)
-
-
-def _tasks_from_active(active):
-    if not active:
-        return []
-    tasks = []
-    for host in active.values():
-        tasks.extend([t for t in host])
-    return tasks
-
-
-def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5):
-    active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app))
-    revoke_retries = 0
-    while active_tasks and revoke_retries < max_revoke_retries:
-        if revoke_retries:
-            logger.warning("Found %s active tasks after revoke. Revoking all active tasks again." % len(active_tasks))
-
-        for task in active_tasks:
-            logger.info("Revoking " + task['name'])
-            celery_app.control.revoke(task_id=task["id"], terminate=True)
-
-        time.sleep(2)
-        active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app))
-        revoke_retries += 1
-
-    if len(active_tasks) == 0:
-        logger.info("Confirmed no active tasks after revoke.")
-    elif revoke_retries >= max_revoke_retries:
-        logger.warning("Exceeded max revoke retry attempts, %s active tasks may not be revoked."
-                       % len(active_tasks))
+def revoke_active_tasks(celery_app):
+    revoked = []
+    active = get_active(celery_app=celery_app)
+    if active:
+        for host in active.values():
+            if host:
+                logger.info('Revoking lingering tasks...')
+            for task in host:
+                revoked.append(task["id"])
+                logger.warning("Revoking " + task['name'])
+                celery_app.control.revoke(task_id=task["id"], terminate=True)
+    return revoked
 
 
 def init():
@@ -109,8 +82,12 @@ def shutdown_run(logs_dir):
     celery_app = Celery(broker=broker.broker_url)
 
     try:
-        if get_active_broker_safe(broker, celery_app):
-            revoke_active_tasks(broker, celery_app)
+        #
+        # Note: get_active can hang in celery/kombu library if broker is down.
+        # Checking for broker.is_alive() is an attempt to prevent that, but note
+        # the broker can theoretically die between that call and the get_active() call.
+        if broker.is_alive() and get_active(inspect_retry_timeout=2, celery_app=celery_app):
+            revoke_active_tasks(celery_app)
 
             logger.info("Found active Celery; sending Celery shutdown.")
             celery_app.control.shutdown()
