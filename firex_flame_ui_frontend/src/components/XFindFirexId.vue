@@ -69,7 +69,7 @@ export default {
     runMetadata(runMetadata) {
       if (runMetadata) {
         if (this.uiConfig.redirect_to_alive_flame) {
-          redirectToFlameIfAlive(runMetadata.flame_url, this.$route.path)
+          redirectToFlameIfAlive(runMetadata.flame_url, this.$route.path, this.$route.query)
           // If the flame is not still alive, take the user to the graph for the selected run.
             .catch(this.routeToInputFirexId);
         } else {

@@ -420,7 +420,7 @@ function tasksViewKeyRouteChange(to, from, next, setUiConfigFn) {
                 // If can't fetch metadata, route to error
                 next(errorRoute(`Can't find data for ${to.params.inputFireXId}`));
               } else {
-                return redirectToFlameIfAlive(runMetadata.flame_url, to.path);
+                return redirectToFlameIfAlive(runMetadata.flame_url, to.path, to.query);
               }
             })
           // If flame server is not alive, just route to local task view.
@@ -452,7 +452,7 @@ function findRunPathSuffix(path) {
   return '/';
 }
 
-function redirectToFlameIfAlive(flameServerUrl, path) {
+function redirectToFlameIfAlive(flameServerUrl, path, query) {
   return fetchWithTimeout(
     (new URL('/alive', flameServerUrl)).toString(),
     {mode: 'no-cors'},
@@ -460,7 +460,10 @@ function redirectToFlameIfAlive(flameServerUrl, path) {
     () => new Error('fetch timeout'))
     // If the flame for the selected run is still alive, redirect the user there.
     .then(() => {
-      const redirectPath = findRunPathSuffix(path);
+      let redirectPath = findRunPathSuffix(path);
+      if (query && !_.isEmpty(query)) {
+        redirectPath += `?${new URLSearchParams(query).toString()}`;
+      }
       window.location.href = (new URL(`#${redirectPath}`, flameServerUrl)).toString();
     });
 }
