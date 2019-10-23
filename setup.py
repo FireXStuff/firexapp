@@ -27,6 +27,9 @@ setup(name='firexapp',
           "python-Levenshtein",
           "entrypoints"
       ],
+      tests_require=[
+          'firex-keeper',
+      ],
       classifiers=[
           "Programming Language :: Python :: 3",
           "Operating System :: OS Independent",
