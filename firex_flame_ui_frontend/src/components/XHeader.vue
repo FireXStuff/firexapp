@@ -1,6 +1,6 @@
 <template>
-    <div>
-      <div class="header header-row">
+    <div style="display: flex; flex-direction: column;">
+      <div class="header header-row" style="height: 100%;">
         <div>
           <router-link :to="runRouteFromName('XGraph')">
             <img style='height: 36px;' src="../assets/firex_logo.png" alt="firex logo">
