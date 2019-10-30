@@ -80,7 +80,7 @@ const tasksGetters = {
 
   searchForUuids: state => (searchTerm) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
-    const searchFields = ['name', 'hostname', 'flame_additional_data', 'uuid'];
+    const searchFields = ['name', 'hostname', 'flame_data', 'uuid'];
     // TODO add support for flame_data (html entries only).
     return _.keys(_.pickBy(state.allTasksByUuid,
       t => _.some(_.pick(t, searchFields),
