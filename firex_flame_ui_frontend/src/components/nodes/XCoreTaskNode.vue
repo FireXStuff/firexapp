@@ -84,9 +84,6 @@ export default {
     hostname() {
       return this.task.hostname;
     },
-    flameAdditionalData() {
-      return this.task.flame_additional_data;
-    },
     retries() {
       return this.task.retries;
     },

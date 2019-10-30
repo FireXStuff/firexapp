@@ -165,7 +165,7 @@ export default {
           }
         });
       } else {
-        attributeBlacklist = ['long_name', 'name', 'flame_additional_data',
+        attributeBlacklist = ['long_name', 'name',
           'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data',
           'parent_id', 'children_uuids', 'isLeaf', 'states', 'called_as_orig',
           'code_filepath', 'type',
