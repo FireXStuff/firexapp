@@ -50,6 +50,15 @@ const tasksGetters = {
 
   chainDepthByUuid: state => _.mapValues(state.allTasksByUuid, 'chain_depth'),
 
+  flameHtmlsByUuid: state => _.mapValues(state.allTasksByUuid,
+    task => _.map(
+      _.reverse(_.sortBy(_.filter(
+        _.get(task, 'flame_data', []),
+        d => d.type === 'html',
+      ), ['order'])),
+      'value',
+    )),
+
   // TODO: further prune to flame_data._default_display
   flameDataAndNameByUuid: state => _.mapValues(state.allTasksByUuid,
     n => _.pick(n, ['flame_data', 'name', 'parent_id', 'uuid'])),
@@ -78,13 +87,19 @@ const tasksGetters = {
 
   canRevoke: (state, getters) => getters.hasIncompleteTasks && state.apiConnected,
 
-  searchForUuids: state => (searchTerm) => {
+  searchForUuids: (state, getters) => (searchTerm) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
-    const searchFields = ['name', 'hostname', 'flame_data', 'uuid'];
-    // TODO add support for flame_data (html entries only).
-    return _.keys(_.pickBy(state.allTasksByUuid,
+
+    const searchFields = ['name', 'hostname', 'uuid'];
+    const taskFieldMatchingUuids = _.keys(_.pickBy(state.allTasksByUuid,
       t => _.some(_.pick(t, searchFields),
         attr => _.includes(attr.toLowerCase(), lowerSearchTerm))));
+
+    const flameHtmlMatchingUuids = _.keys(_.pickBy(getters.flameHtmlsByUuid,
+      flameDataHtmls => _.some(flameDataHtmls,
+        flameDataHtml => _.includes(flameDataHtml.toLowerCase(), lowerSearchTerm))));
+
+    return _.concat(taskFieldMatchingUuids, flameHtmlMatchingUuids);
   },
 
   runStartTime(state) {

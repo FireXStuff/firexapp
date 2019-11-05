@@ -125,16 +125,7 @@ export default {
       return s;
     },
     flameDataHtmlContent() {
-      if (!_.has(this.task, 'flame_data')) {
-        return {};
-      }
-      return _.map(
-        _.reverse(_.sortBy(_.filter(
-          this.task.flame_data,
-          d => d.type === 'html',
-        ), ['order'])),
-        'value',
-      );
+      return this.$store.getters['tasks/flameHtmlsByUuid'][this.taskUuid];
     },
   },
   mounted() {

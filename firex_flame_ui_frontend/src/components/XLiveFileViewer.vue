@@ -5,9 +5,7 @@
     </div>
     <div v-on:scroll="onScroll" class="content" ref="viewer_div">
       <template v-if="isLiveFileListenSupported">
-        <p v-for="(line, i) in lines" :key="i" class="thin">
-          {{line}}
-        </p>
+        <p v-for="(line, i) in lines" :key="i" class="thin">{{line}}</p>
       </template>
       <div v-else>
         Live file viewing is no longer available for this FireX run.
