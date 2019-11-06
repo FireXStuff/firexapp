@@ -5,7 +5,6 @@ import inspect
 import subprocess
 
 from firexapp.testing.config_base import InterceptFlowTestConfiguration, FlowTestConfiguration
-from firexapp.submit.submit import get_log_dir_from_output
 
 
 class ConfigInterpreter:
@@ -79,9 +78,12 @@ def {0}(**kwargs):
     def run_integration_test(self, flow_test_config, results_folder):
         # provide sub-folder for testsuite data
         flow_test_config.results_folder = os.path.join(results_folder, flow_test_config.name)
+        os.makedirs(flow_test_config.results_folder)
+        flow_test_config.std_out = os.path.join(flow_test_config.results_folder, flow_test_config.name + ".stdout")
+        flow_test_config.std_err = os.path.join(flow_test_config.results_folder, flow_test_config.name + ".stderr")
 
         cmd = self.create_cmd(flow_test_config)
-        self.run_executable(cmd, flow_test_config, results_folder)
+        self.run_executable(cmd, flow_test_config)
 
     def create_cmd(self, flow_test_config)->[]:
         # assemble options, adding/consolidating --external and --sync
@@ -93,8 +95,11 @@ def {0}(**kwargs):
             cmd += ["--plugins", ",".join(plugins)]
 
         submit_test = self.is_submit_command(flow_test_config)
-        if submit_test and getattr(flow_test_config, "sync", True):
-            cmd += ["--sync"]
+        if submit_test:
+            flow_test_config.logs_link = os.path.join(flow_test_config.results_folder, flow_test_config.name + ".logs")
+            cmd += ["--logs_link", flow_test_config.logs_link]
+            if getattr(flow_test_config, "sync", True):
+                cmd += ["--sync"]
         return cmd
 
     def get_exe(self, flow_test_config)->[]:
@@ -139,22 +144,23 @@ def {0}(**kwargs):
             plugins = []
         return plugins
 
-    def run_executable(self, cmd, flow_test_config, results_folder):
+    def run_executable(self, cmd, flow_test_config):
 
         # print useful links
         test_src_file = inspect.getfile(flow_test_config.__class__)
+        if hasattr(flow_test_config, 'logs_link'):
+            print("\tLogs:", self.document_viewer(flow_test_config.logs_link), file=sys.stderr)
         print("\tTest source:", self.document_viewer(test_src_file), file=sys.stderr)
-        std_out = os.path.join(results_folder, flow_test_config.name + ".stdout")
-        std_err = os.path.join(results_folder, flow_test_config.name + ".stderr")
-        print("\tStd out:", self.document_viewer(std_out), file=sys.stderr)
-        print("\tStd err:", self.document_viewer(std_err), file=sys.stderr)
+        print("\tStd out:", self.document_viewer(flow_test_config.std_out), file=sys.stderr)
+        print("\tStd err:", self.document_viewer(flow_test_config.std_err), file=sys.stderr)
+
 
         elapsed_time = None
         verification_time = None
 
         # run firex
         try:
-            with open(std_out, 'w') as std_out_f, open(std_err, 'w') as std_err_f:
+            with open(flow_test_config.std_out, 'w') as std_out_f, open(flow_test_config.std_err, 'w') as std_err_f:
                 start_time = time.monotonic()
                 process = subprocess.Popen(cmd, stdout=std_out_f, stderr=std_err_f,
                                            universal_newlines=True, shell=False, cwd=self.execution_directory)
@@ -180,20 +186,20 @@ def {0}(**kwargs):
                     captured_options = pickle.load(results_file_f)
                 flow_test_config.assert_expected_options(captured_options)
 
-            with open(std_out, 'r') as std_out_f, open(std_err, 'r') as std_err_f:
+            with open(flow_test_config.std_out, 'r') as std_out_f, open(flow_test_config.std_err, 'r') as std_err_f:
                 errors = std_err_f.read().split("\n")
                 errors = [line for line in errors if line and not line.startswith("pydev debugger:")]
                 flow_test_config.assert_expected_firex_output(std_out_f.read(), "\n".join(errors))
             verification_time = time.monotonic() - start_time
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as e:
             print("\t%s!" % type(e).__name__, file=sys.stderr)
-            self.cleanup_after_timeout(std_out, std_err)
+            self.cleanup_after_timeout(flow_test_config.std_out, flow_test_config.std_err)
             raise
         except Exception as e:
             print('\tException: {}: {}'.format(type(e).__name__, e), file=sys.stderr)
             raise
         finally:
-            self.on_test_exit(std_out, std_err)
+            self.on_test_exit(flow_test_config.std_out, flow_test_config.std_err)
 
             # report on time
             if elapsed_time is not None:
@@ -209,12 +215,4 @@ def {0}(**kwargs):
 
     # noinspection PyMethodMayBeStatic,PyUnusedLocal
     def on_test_exit(self, std_out, std_err):
-        # Try to print to log directory to help with debugging
-        # noinspection PyBroadException
-        try:
-            with open(std_out, 'r') as std_out_f:
-                log_link = get_log_dir_from_output(std_out_f.read())
-            if log_link:
-                print("\tLogs: " + log_link, file=sys.stderr)
-        except Exception:
-            pass
+        pass

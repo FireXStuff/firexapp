@@ -79,6 +79,8 @@ class SubmitBaseApp:
                                    default=False)
         submit_parser.add_argument('--disable_tracking_services',
                                    help='A comma delimited list of tracking services to disable.', default='')
+        submit_parser.add_argument('--logs_link',
+                                   help="Create a symlink back the root of the run's logs directory")
         submit_parser.set_defaults(func=self.run_submit)
         for service in get_tracking_services():
             service.extra_cli_arguments(submit_parser)
@@ -117,6 +119,15 @@ class SubmitBaseApp:
             logf(l)
         logf('*'*len(top_banner))
 
+    def create_logs_link(self, logs_link):
+        try:
+            os.symlink(self.uid.logs_dir, logs_link)
+        except Exception as e:
+            logger.debug(e, exc_info=True)
+            logger.warning('Symbolic link failed: %s -> %s' % (self.uid.logs_dir, logs_link))
+        else:
+            logger.debug('Symbolic link created: %s -> %s' % (self.uid.logs_dir, logs_link))
+
     def submit(self, args, others):
         chain_args = self.process_other_chain_args(args, others)
 
@@ -125,6 +136,9 @@ class SubmitBaseApp:
         chain_args['uid'] = uid
         logger.info("FireX ID: %s", uid)
         logger.info('Logs: %s', uid.logs_dir)
+
+        if args.logs_link:
+            self.create_logs_link(args.logs_link)
 
         # Create an env file for debugging
         with open(FileRegistry().get_file(ENVIRON_FILE_REGISTRY_KEY, self.uid.logs_dir), 'w') as f:
