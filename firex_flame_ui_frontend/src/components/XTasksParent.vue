@@ -238,28 +238,6 @@ export default {
   border-bottom: 1px solid #000;
 }
 
-@keyframes spinner {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.spinner:before {
-  content: '';
-  box-sizing: border-box;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 20px;
-  height: 20px;
-  margin-top: -10px;
-  margin-left: -10px;
-  border-radius: 50%;
-  border-top: 2px solid #07d;
-  border-right: 2px solid transparent;
-  animation: spinner .6s linear infinite;
-}
-
 .notification {
   position: absolute;
   z-index: unset;

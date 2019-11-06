@@ -5,7 +5,7 @@
     </div>
     <div v-on:scroll="onScroll" class="content" ref="viewer_div">
       <template v-if="isLiveFileListenSupported">
-        <p v-for="(line, i) in lines" :key="i" class="thin">{{line}}</p>
+        <span v-for="(line, i) in lines" :key="i" class="thin">{{line}}</span>
       </template>
       <div v-else>
         Live file viewing is no longer available for this FireX run.
@@ -20,6 +20,12 @@
         </button>
       </div>
     </transition>
+    <div v-if="lines.length == 0" class="no_data_yet">
+      <div class="spinner"></div>
+      <div style="margin-top: 50px;">
+        Waiting for data
+      </div>
+    </div>
   </div>
 </template>
 
@@ -38,10 +44,11 @@ export default {
       lines: [],
       inSync: true,
       internalScroll: true,
+      oldScrollTop: 0,
     };
   },
   created() {
-    api.startLiveFileListen(this.host, this.filepath, this.addLine);
+    api.startLiveFileListen(this.host, this.filepath, this.addStartLines, this.addNewLine);
     window.addEventListener('beforeunload', api.stopLiveFileListen);
   },
   destroyed() {
@@ -50,6 +57,16 @@ export default {
   methods: {
     addLine(newLine) {
       this.lines.push(newLine);
+    },
+    addNewLine(newLine) {
+      this.addLine(newLine);
+      this.$nextTick(() => {
+        this.scrollSync();
+      });
+    },
+    addStartLines(input) {
+      const lines = input.data;
+      lines.forEach(this.addLine);
       this.$nextTick(() => {
         this.scrollSync();
       });
@@ -71,6 +88,13 @@ export default {
       this.inSync = false;
     },
     onScroll() {
+      if (this.$refs.viewer_div) {
+        const v = this.$refs.viewer_div;
+        if (v.scrollTop === this.oldScrollTop) {
+          return
+        }
+        this.oldScrollTop = v.scrollTop
+      }
       if (this.internalScroll) {
         this.internalScroll = false;
       } else {
@@ -105,6 +129,13 @@ export default {
   padding: 1em;
   min-height: 2em;
   overflow: auto;
+  white-space: pre;
+}
+.no_data_yet {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 .thin {
   margin: 0;
