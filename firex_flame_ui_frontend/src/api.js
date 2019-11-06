@@ -132,11 +132,22 @@ function createWebFileAccessor(firexId, modelPathTemplate) {
       .then(r => r.json(), () => {}),
 
     // TODO: add failure, timeout, or auto-handle elsewhere.
-    fetchTaskFields: fields => fetch((new URL('full-run-state.tar.gz', modelBaseUrl))
-      .toString())
+    fetchTaskFields: fields => fetch(
+      (new URL('full-run-state.tar.gz', modelBaseUrl)).toString(),
+    )
       .then(r => r.arrayBuffer())
-      .then(blob => ungzip(blob))
-      .then(ungzippedContent => untar(ungzippedContent.buffer))
+      .then((blob) => {
+        try {
+          return ungzip(blob).buffer;
+        } catch (error) {
+          if (error === 'incorrect header check') {
+            // Assume already ungzipped (e.g. by server).
+            return blob;
+          }
+          throw error;
+        }
+      })
+      .then(ungzippedContent => untar(ungzippedContent))
       .then((extractedFiles) => {
         const fieldsByUuid = {};
 
