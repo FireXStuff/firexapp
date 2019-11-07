@@ -122,11 +122,11 @@ class SubmitBaseApp:
     def create_logs_link(self, logs_link):
         try:
             os.symlink(self.uid.logs_dir, logs_link)
-        except Exception as e:
-            logger.debug(e, exc_info=True)
-            logger.warning('Symbolic link failed: %s -> %s' % (self.uid.logs_dir, logs_link))
-        else:
-            logger.debug('Symbolic link created: %s -> %s' % (self.uid.logs_dir, logs_link))
+        except FileExistsError:
+            logger.warning(f'Target {logs_link} exists, removing it first.')
+            os.remove(logs_link)
+            os.symlink(self.uid.logs_dir, logs_link)
+        logger.debug('Symbolic link created: %s -> %s' % (self.uid.logs_dir, logs_link))
 
     def submit(self, args, others):
         chain_args = self.process_other_chain_args(args, others)
