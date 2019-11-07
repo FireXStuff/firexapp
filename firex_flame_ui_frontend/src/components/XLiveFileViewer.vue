@@ -91,9 +91,9 @@ export default {
       if (this.$refs.viewer_div) {
         const v = this.$refs.viewer_div;
         if (v.scrollTop === this.oldScrollTop) {
-          return
+          return;
         }
-        this.oldScrollTop = v.scrollTop
+        this.oldScrollTop = v.scrollTop;
       }
       if (this.internalScroll) {
         this.internalScroll = false;
