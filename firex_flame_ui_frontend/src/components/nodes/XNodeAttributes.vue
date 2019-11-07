@@ -42,9 +42,13 @@
         <div v-else-if="key === 'support_location'" style="display: inline">
           <a :href="displayKeyNode[key]"> {{displayKeyNode[key]}}</a>
         </div>
-        <div v-else-if="key === 'traceback'" style="display: inline">
-          <pre style="overflow: auto; color: darkred; margin-top: 0"
+        <div v-else-if="key === 'traceback'"
+             style="display: inline; color: darkred;">
+          <x-expandable-content button-class="btn-outline-danger" name="traceback"
+            :expand="showAllAttributes">
+            <pre style="overflow: auto; margin-top: 0"
             >{{displayKeyNode[key].trim()}}</pre>
+          </x-expandable-content>
         </div>
         <div v-else-if="key === 'exception'" style="display: inline; color: darkred">
           {{displayKeyNode[key].trim()}}
@@ -64,12 +68,17 @@
         <div v-else-if="isTimeKey(key)" style="display: inline">
           {{formatTime(displayKeyNode[key])}}
         </div>
-        <div v-else-if="isObject(displayKeyNode[key])" style="overflow: auto">
+        <div v-else-if="isObject(displayKeyNode[key])"
+             style="overflow-y: hidden; overflow-x: auto;">
           <div v-for="(arg_value, arg_key) in displayKeyNode[key]" :key="arg_key"
                style="margin-left: 25px; padding: 3px;">
-            <strong>{{arg_key}}:
-            </strong><pre v-if="shouldPrettyPrint(arg_value)" style="margin: 0 0 0 40px"
-              >{{prettyPrint(arg_value)}}</pre>
+            <strong>{{arg_key}}: </strong>
+            <x-expandable-content v-if="shouldPrettyPrint(arg_value)"
+                                  button-class="btn-info-primary"
+                                  :name="arg_key"
+                                  :expand="showAllAttributes">
+              <pre  style="margin: 0 0 0 40px">{{prettyPrint(arg_value)}}</pre>
+            </x-expandable-content>
             <template v-else>{{arg_value === null ? 'None' : arg_value}}</template>
           </div>
         </div>
@@ -90,10 +99,11 @@ import * as api from '../../api';
 import { eventHub, isTaskStateIncomplete, durationString } from '../../utils';
 import XHeader from '../XHeader.vue';
 import XTaskNode from './XTaskNode.vue';
+import XExpandableContent from '../XExpandableContent.vue';
 
 export default {
   name: 'XNodeAttributes',
-  components: { XHeader, XTaskNode },
+  components: { XExpandableContent, XHeader, XTaskNode },
   props: {
     uuid: { required: true, type: String },
   },
@@ -269,7 +279,7 @@ export default {
       }
       const asJson = JSON.stringify(val, null, 2);
       // Don't bother pretty printing if the object is small.
-      return asJson.length > 100;
+      return asJson.length > 100 && asJson.split(/\n/).length > 4;
     },
     prettyPrint(val) {
       if (val === null) {
