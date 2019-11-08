@@ -98,9 +98,8 @@ function createSocketApiAccessor(url, options) {
 
     isLiveFileListenSupported: () => true,
 
-    startLiveFileListen(host, filepath, getStartLinesCallback, addNewLinesCallback) {
-      socket.on('file-head', getStartLinesCallback);
-      socket.on('file-line', addNewLinesCallback);
+    startLiveFileListen(host, filepath, addNewLinesCallback) {
+      socket.on('file-data', addNewLinesCallback);
       socket.emit('start-listen-file', { host, filepath });
     },
 
@@ -227,8 +226,8 @@ function isLiveFileListenSupported() {
   return apiAccessor.isLiveFileListenSupported();
 }
 
-function startLiveFileListen(host, filepath, getStartLinesCallback, addNewLinesCallback) {
-  return apiAccessor.startLiveFileListen(host, filepath, getStartLinesCallback, addNewLinesCallback);
+function startLiveFileListen(host, filepath, addNewLinesCallback) {
+  return apiAccessor.startLiveFileListen(host, filepath, addNewLinesCallback);
 }
 
 function stopLiveFileListen() {

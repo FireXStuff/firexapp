@@ -48,7 +48,7 @@ export default {
     };
   },
   created() {
-    api.startLiveFileListen(this.host, this.filepath, this.addStartLines, this.addNewLine);
+    api.startLiveFileListen(this.host, this.filepath, this.addNewLines);
     window.addEventListener('beforeunload', api.stopLiveFileListen);
   },
   destroyed() {
@@ -58,13 +58,7 @@ export default {
     addLine(newLine) {
       this.lines.push(newLine);
     },
-    addNewLine(newLine) {
-      this.addLine(newLine);
-      this.$nextTick(() => {
-        this.scrollSync();
-      });
-    },
-    addStartLines(input) {
+    addNewLines(input) {
       const lines = input.data;
       lines.forEach(this.addLine);
       this.$nextTick(() => {
