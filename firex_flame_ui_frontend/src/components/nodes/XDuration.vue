@@ -3,6 +3,7 @@
 </template>
 
 <script>
+import _ from 'lodash';
 import { mapState } from 'vuex';
 import {
   durationString, isTaskStateIncomplete,
@@ -19,9 +20,14 @@ export default {
     actualRuntime: { required: true },
   },
   data() {
+    const localLatestNow = Date.now() / 1000;
     return {
-      // Updated locally if the node is incomplete, otherwise the actual_runtime value is shown.
-      liveRunTime: 0,
+      // Updated liveRunTime locally if the node is incomplete, otherwise the actual_runtime value
+      // is shown.
+      // Note the server time might be ahead of local time (both in UTC), so we'll pin to zero
+      // in this case then update locally.
+      liveRunTime: _.max([localLatestNow - this.firstStarted, 0]),
+      localLatestNow,
     };
   },
   computed: {
@@ -45,7 +51,9 @@ export default {
       if (this.liveUpdate
         && (isTaskStateIncomplete(this.runState))
         && this.firstStarted) {
-        this.liveRunTime = (Date.now() / 1000) - this.firstStarted;
+        const newLatestNow = Date.now() / 1000;
+        this.liveRunTime += newLatestNow - this.localLatestNow;
+        this.localLatestNow = newLatestNow;
         // TODO: could reduce total number of re-renders due to duration update by having
         // a central timeout that updates all incomplete durations (instead of timeout
         // per-incomplete task).
