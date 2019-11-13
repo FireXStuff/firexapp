@@ -97,7 +97,7 @@ const tasksGetters = {
 
     const flameHtmlMatchingUuids = _.keys(_.pickBy(getters.flameHtmlsByUuid,
       flameDataHtmls => _.some(flameDataHtmls,
-        flameDataHtml => _.includes(flameDataHtml.toLowerCase(), lowerSearchTerm))));
+        flameDataHtml => _.includes(_.toLower(flameDataHtml), lowerSearchTerm))));
 
     return _.concat(taskFieldMatchingUuids, flameHtmlMatchingUuids);
   },
