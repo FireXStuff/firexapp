@@ -25,7 +25,8 @@ setup(name='firexapp',
           "kombu==4.2.1",           # app.inspect.active seems to be returning None all the time for Kombu==4.6.4
           "psutil",
           "python-Levenshtein",
-          "entrypoints"
+          "entrypoints",
+          "colorlog"
       ],
       classifiers=[
           "Programming Language :: Python :: 3",
