@@ -124,8 +124,9 @@ class MissingChainArgumentError(FlowTestConfiguration):
         return ["submit", "--chain", "need_an_argument"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        assert "Chain missing the following parameters" in cmd_err
-        assert "submit_tests.need_an_argument: i_need_me_some_of_this" in cmd_err
+        assert 'Missing mandatory arguments:' in cmd_err
+        assert 'i_need_me_some_of_this' in cmd_err
+        assert 'required by "need_an_argument"' in cmd_err
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
