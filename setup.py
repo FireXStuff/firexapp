@@ -26,7 +26,7 @@ setup(name='firexapp',
           "psutil",
           "python-Levenshtein",
           "entrypoints",
-          "colorlog"
+          "colorlog==2.10.0"
       ],
       classifiers=[
           "Programming Language :: Python :: 3",
