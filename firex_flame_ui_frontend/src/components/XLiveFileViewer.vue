@@ -20,7 +20,7 @@
         </button>
       </div>
     </transition>
-    <div v-if="lines.length == 0" class="no_data_yet">
+    <div v-if="showSpinner" class="no_data_yet">
       <div class="spinner"></div>
       <div style="margin-top: 50px;">
         Waiting for data
@@ -45,22 +45,20 @@ export default {
       inSync: true,
       internalScroll: true,
       oldScrollTop: 0,
+      showSpinner: true,
     };
   },
   created() {
-    api.startLiveFileListen(this.host, this.filepath, this.addNewLines);
+    api.startLiveFileListen(this.host, this.filepath, this.addNewChunk);
     window.addEventListener('beforeunload', api.stopLiveFileListen);
   },
   destroyed() {
     window.removeEventListener('beforeunload', api.stopLiveFileListen);
   },
   methods: {
-    addLine(newLine) {
-      this.lines.push(newLine);
-    },
-    addNewLines(input) {
-      const lines = input.data;
-      lines.forEach(this.addLine);
+    addNewChunk(input) {
+      this.lines.push(input);
+      this.showSpinner = false;
       this.$nextTick(() => {
         this.scrollSync();
       });
