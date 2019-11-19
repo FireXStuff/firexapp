@@ -1,8 +1,8 @@
 import os
 import signal
 import tempfile
-
 from argparse import ArgumentParser, RawTextHelpFormatter
+
 from firexapp.plugins import load_plugin_modules, cdl2list
 from firexapp.submit.console import setup_console_logging
 
@@ -19,13 +19,17 @@ def main():
         app.run()
 
 
-def import_microservices(plugins_files)->[]:
+def import_microservices(plugins_files=None, imports: tuple = None) -> []:
     for f in cdl2list(plugins_files):
         if not os.path.isfile(f):
             raise FileNotFoundError(f)
 
     from firexapp.engine.celery import app
-    for module_name in app.conf.imports:
+
+    if not imports:
+        imports = app.conf.imports
+
+    for module_name in imports:
         __import__(module_name)
 
     load_plugin_modules(plugins_files)
