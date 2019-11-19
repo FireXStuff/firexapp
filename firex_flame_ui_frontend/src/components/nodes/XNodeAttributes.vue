@@ -178,7 +178,7 @@ export default {
         attributeBlacklist = ['long_name', 'name',
           'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data',
           'parent_id', 'children_uuids', 'isLeaf', 'states', 'called_as_orig',
-          'code_filepath', 'type', 'chain_depth', 'state',
+          'code_filepath', 'type', 'chain_depth', 'state', 'external_commands',
         ];
       }
       if (task.actual_runtime) {
