@@ -48,7 +48,6 @@ const router = new Router({
       path: '/error',
       name: 'error',
       component: XError,
-      meta: { message: null },
       props: route => ({ message: route.query.message }),
     },
     {
@@ -76,7 +75,7 @@ const router = new Router({
           }),
         },
         {
-          path: 'tasks/:uuid',
+          path: 'tasks/:uuid/:selectedSection?',
           name: 'XNodeAttributes',
           component: XNodeAttributes,
           props: true,

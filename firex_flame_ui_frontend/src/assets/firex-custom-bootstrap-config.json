@@ -382,7 +382,13 @@
     "@hr-border": "@gray-lighter"
   },
   "css": [
-    "buttons.less"
+    "grid.less",
+    "forms.less",
+    "buttons.less",
+    "button-groups.less",
+    "input-groups.less",
+    "alerts.less",
+    "panels.less"
   ],
   "js": []
 }

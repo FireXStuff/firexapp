@@ -7,86 +7,131 @@
     <div class="node-attributes">
 
       <div class="node-container">
+        <x-task-node v-if="parentUuid"
+                     :taskUuid="parentUuid" :allowCollapse="false" :isLeaf="false"
+                     :showFlameData="false" class="other-task"></x-task-node>
+
         <x-task-node :taskUuid="uuid" :allowCollapse="false" :allowClickToAttributes="false"
-          :isLeaf="false">
+          :isLeaf="false" style="padding: 0.5em;">
         </x-task-node>
-      </div>
-      <div style="display: inline-flex; align-items: center; background-color: #fafafa">
-        <label class="node-attributes-label">task_log:</label>
-        <div style="padding: 1em;">
-          <a class="btn btn-primary" :href="detailedTask.logs_url" role="button">
-          <font-awesome-icon icon="file-alt"></font-awesome-icon>
-          {{detailedTask.name}} Log
-        </a>
-        </div>
-      </div>
 
-      <div v-for="(key, i) in sortedDisplayNodeKeys" :key="key"
-           :style="{'background-color': i % 2 === 0 ? '#EEE': '#fafafa', 'padding': '4px' }">
-        <label class="node-attributes-label" style="">{{key}}:</label>
-
-        <!-- Add parent {name, uuid} to store-->
-        <div v-if="key === 'parent' && displayKeyNode[key]" style="display: inline">
-          {{displayKeyNode[key].name}}
-          <router-link :to="getTaskRoute(displayKeyNode[key].uuid)"
-          >{{displayKeyNode[key].uuid}}</router-link>
-        </div>
-
-        <div v-else-if="key === 'children'">
-          <div v-for="child in displayKeyNode[key]" :key="'child-' + child.uuid"
-               style="margin-left: 25px; padding: 3px;">
-            <strong>{{child.name}}: </strong>
-            <router-link :to="getTaskRoute(child.uuid)">{{child.uuid}}</router-link>
+        <div v-if="childrenUuids" class="child-tasks-outer-container">
+          <div class="child-tasks-inner-container">
+            <x-task-node v-for="childUuid in childrenUuids" :key="childUuid"
+                         :taskUuid="childUuid" :allowCollapse="false" :isLeaf="false"
+                         :showFlameData="false" class="other-task"></x-task-node>
           </div>
         </div>
-        <div v-else-if="key === 'support_location'" style="display: inline">
-          <a :href="displayKeyNode[key]"> {{displayKeyNode[key]}}</a>
+      </div>
+
+      <div style="display: inline-flex; align-items: center; justify-content: center;">
+        <div style="padding: 1em;">
+
+
+          <router-link v-if="detailedTask.exception_cause_uuid"
+                       :to="getTaskRoute(detailedTask.exception_cause_uuid)"
+                       class="btn btn-danger btn-lg" style="margin-right: 1em;">
+            <font-awesome-icon icon="exclamation-circle"></font-awesome-icon>
+            Causing Failure Task
+          </router-link>
+          <a class="btn btn-primary btn-lg" :href="detailedTask.logs_url" role="button">
+            <font-awesome-icon icon="file-alt"></font-awesome-icon>
+            {{detailedTask.name}} Log
+          </a>
         </div>
-        <div v-else-if="key === 'traceback'"
-             style="display: inline; color: darkred;">
+        <div class="btn-group" role="group" style="">
+          <button class="btn btn-primary" :class="{'active': selectedSection === 'all'}"
+            @click="replaceSection('all')">
+            All
+          </button>
+          <button v-if="hasFailure" class="btn btn-danger"
+                  :class="{'active': selectedSection === 'failure'}"
+                  @click="replaceSection('failure')">
+            Failure
+          </button>
+          <button v-if="hasArguments" class="btn btn-primary"
+                  :class="{'active': selectedSection === 'arguments'}"
+                  @click="replaceSection('arguments')">
+            Arguments
+          </button>
+          <button v-if="hasResults" class="btn btn-primary"
+                  :class="{'active': selectedSection === 'results'}"
+                  @click="selectedSection = 'results'">
+            Results
+          </button>
+          <button v-if="hasExternalCommands"
+                  class="btn btn-primary"
+                  :class="{'active': selectedSection === 'external_commands'}"
+                  @click="replaceSection('external_commands')">
+            <font-awesome-icon v-if="someExternalCommandRunning"
+                               icon="circle-notch" class="fa-spin">
+            </font-awesome-icon>
+            External Commands
+          </button>
+          <button class="btn btn-primary"
+                  :class="{'active': selectedSection === 'attributes'}"
+                  @click="replaceSection('attributes')">
+            Attributes
+          </button>
+          <button class="btn btn-primary"
+                  :class="{'active': selectedSection === 'replay'}"
+                  @click="replaceSection('replay')">
+            Replay
+          </button>
+        </div>
+      </div>
+
+      <x-section v-if="shouldShowSection('failure')" heading="Failure">
+        <label class="node-attributes-label">traceback:</label>
+        <div v-if="displayNode.traceback" style="display: inline; color: darkred;">
           <x-expandable-content button-class="btn-outline-danger" name="traceback"
-            :expand="showAllAttributes">
-            <pre style="overflow: auto; margin-top: 0"
-            >{{displayKeyNode[key].trim()}}</pre>
+                                :expand="expandAll || selectedSection === 'failure'">
+              <pre style="overflow: auto; margin-top: 0"
+              >{{displayNode.traceback.trim()}}</pre>
           </x-expandable-content>
         </div>
-        <div v-else-if="key === 'exception'" style="display: inline; color: darkred">
-          {{displayKeyNode[key].trim()}}
+        <label class="node-attributes-label">Exception:</label>
+        <div v-if="displayNode.exception" style="display: inline; color: darkred">
+          {{displayNode.exception.trim()}}
         </div>
-        <div v-else-if="key === 'replay command line'">
-          <div style="margin-left: 30px;margin-top:10px">
-            <div>
-              {{replayCommandLine}}
-            </div>
-            <div style="margin-top:6px">
-              <button type="button" class="btn btn-primary" @click="doCopy">
-                <font-awesome-icon icon="clipboard"></font-awesome-icon> Copy
-              </button>
-            </div>
+      </x-section>
+
+      <x-section v-if="shouldShowSection('arguments')" heading="Arguments">
+        <x-key-value-viewer :key-values="displayArguments"
+                            :ordered-keys="displayArgumentKeys"
+                            :expandAll="expandAll">
+        </x-key-value-viewer>
+      </x-section>
+
+      <x-section v-if="shouldShowSection('results')" heading="Results">
+        <x-key-value-viewer :key-values="displayResults" :expandAll="expandAll">
+        </x-key-value-viewer>
+      </x-section>
+
+      <x-section v-if="shouldShowSection('external_commands')" heading="External Commands">
+        <x-external-commands :external-commands="externalCommands"
+          :taskLogsUrl="detailedTask.logs_url"></x-external-commands>
+      </x-section>
+
+      <x-section v-if="shouldShowSection('attributes')" heading="Attributes">
+        <x-key-value-viewer :key-values="displayAttributes" :link-keys="['support_location']">
+        </x-key-value-viewer>
+      </x-section>
+
+      <x-section v-if="shouldShowSection('replay')" heading="Replay">
+        <div>
+          <div>
+            {{replayCommandLine}}
+          </div>
+          <div style="margin-top:6px">
+            <button type="button" class="btn btn-primary" @click="$copyText(replayCommandLine)">
+              <font-awesome-icon icon="clipboard"></font-awesome-icon>
+              Copy
+            </button>
           </div>
         </div>
-        <div v-else-if="isTimeKey(key)" style="display: inline">
-          {{formatTime(displayKeyNode[key])}}
-        </div>
-        <div v-else-if="isObject(displayKeyNode[key])"
-             style="overflow-y: hidden; overflow-x: auto;">
-          <div v-for="(arg_value, arg_key) in displayKeyNode[key]" :key="arg_key"
-               style="margin-left: 25px; padding: 3px;">
-            <strong>{{arg_key}}: </strong>
-            <x-expandable-content v-if="shouldPrettyPrint(arg_value)"
-                                  button-class="btn-info-primary"
-                                  :name="arg_key"
-                                  :expand="showAllAttributes">
-              <pre  style="margin: 0 0 0 40px">{{prettyPrint(arg_value)}}</pre>
-            </x-expandable-content>
-            <template v-else>{{arg_value === null ? 'None' : arg_value}}</template>
-          </div>
-        </div>
-        <span v-else>
-          {{displayKeyNode[key]}}
-        </span>
+      </x-section>
       </div>
-    </div>
   </div>
 </template>
 
@@ -100,12 +145,23 @@ import { eventHub, isTaskStateIncomplete, durationString } from '../../utils';
 import XHeader from '../XHeader.vue';
 import XTaskNode from './XTaskNode.vue';
 import XExpandableContent from '../XExpandableContent.vue';
+import XExternalCommands from '../XExternalCommands.vue';
+import XSection from '../XSection.vue';
+import XKeyValueViewer from '../XKeyValueViewer.vue';
 
 export default {
   name: 'XNodeAttributes',
-  components: { XExpandableContent, XHeader, XTaskNode },
+  components: {
+    XKeyValueViewer,
+    XSection,
+    XExternalCommands,
+    XExpandableContent,
+    XHeader,
+    XTaskNode,
+  },
   props: {
     uuid: { required: true, type: String },
+    selectedSection: { default: 'all' },
   },
   data() {
     return {
@@ -117,6 +173,7 @@ export default {
     ...mapGetters({
       runDuration: 'tasks/runDuration',
       getTaskRoute: 'header/getTaskRoute',
+      taskNameByUuid: 'tasks/taskNameByUuid',
     }),
     ...mapState({
       logsDir: state => state.firexRunMetadata.logs_dir,
@@ -125,9 +182,6 @@ export default {
     }),
     simpleTask() {
       return this.$store.getters['tasks/runStateByUuid'][this.uuid];
-    },
-    taskNameByUuid() {
-      return this.$store.getters['tasks/taskNameByUuid'];
     },
     childrenUuids() {
       return this.$store.getters['graph/childrenUuidsByUuid'][this.uuid];
@@ -151,6 +205,9 @@ export default {
       }
       return parent;
     },
+    externalCommands() {
+      return _.get(this.detailedTask, 'external_commands', {});
+    },
     detailedTask() {
       const addedFields = { children: this.taskChildren, parent: this.taskParent };
       return _.assign(addedFields, this.taskAttributes);
@@ -160,11 +217,8 @@ export default {
       const task = _.pickBy(_.merge({}, this.simpleTask, this.detailedTask),
         v => !_.isObject(v) || !_.isEmpty(v));
 
-      let attributeBlacklist;
       if (this.showAllAttributes) {
-        attributeBlacklist = [];
         task.minPriorityCollapseOp = this.minPriorityOp;
-
         _.each(task.states, (state, i) => {
           if (_.has(task.states, i + 1)) {
             const nextState = task.states[i + 1];
@@ -174,38 +228,24 @@ export default {
             state['% of run'] = 100 * stateDuration / this.runDuration;
           }
         });
-      } else {
-        attributeBlacklist = ['long_name', 'name',
-          'from_plugin', 'depth', 'logs_url', 'task_num', 'code_url', 'flame_data',
-          'parent_id', 'children_uuids', 'isLeaf', 'states', 'called_as_orig',
-          'code_filepath', 'type', 'chain_depth', 'state', 'external_commands',
-        ];
-      }
-      if (task.actual_runtime) {
-        const humanDuration = durationString(task.actual_runtime);
-        task.actual_runtime = `${humanDuration} (orig: ${task.actual_runtime})`;
       }
 
-      return _.omit(task, attributeBlacklist);
+      if (task.actual_runtime) {
+        task.runtime = durationString(task.actual_runtime);
+      }
+
+      if (task.first_started) {
+        task.first_started = this.formatTime(task.first_started);
+      }
+
+      return task;
     },
-    displayKeyNode() {
-      const origKeysToDisplayKeys = {
-        firex_bound_args: 'arguments',
-        firex_default_bound_args: 'argument_defaults',
-        firex_result: 'task_result',
-        actual_runtime: 'runtime',
-      };
-      return _.mapKeys(this.displayNode, (v, k) => _.get(origKeysToDisplayKeys, k, k));
-    },
-    sortedDisplayNodeKeys() {
-      const keysOrder = ['traceback', 'exception', 'argument_defaults', 'arguments', 'task_result'];
-      const keys = _.keys(this.displayKeyNode);
-      const displayKeys = _.sortBy(keys, (v) => {
-        const index = _.indexOf(keysOrder, v);
-        return index === -1 ? _.padStart(keys.length, 4, '0') + v : _.padStart(index, 4, '0');
-      });
-      displayKeys.push('replay command line');
-      return displayKeys;
+    supportLocation() {
+      const subject = `[${this.uid}]: support request for ${this.detailedTask.name}`;
+      const nl = '%0D%0A';
+      const body = `${nl + nl + nl}task: ${window.location.toString() + nl}`
+        + `full name: ${this.detailedTask.long_name + nl}`;
+      return `${this.detailedTask.support_location}?subject=${subject}&body=${body}`;
     },
     headerParams() {
       let links = [
@@ -233,7 +273,7 @@ export default {
         },
         {
           name: 'support',
-          href: this.detailedTask.support_location,
+          href: this.supportLocation,
           text: 'Support',
           icon: 'question-circle',
         },
@@ -262,6 +302,59 @@ export default {
     replayCommandLine() {
       return `${this.firexBin} submit --chain Replay --uuid ${this.taskAttributes.uuid} --previous_logs_dir ${this.logsDir}`;
     },
+    hasFailure() {
+      return this.detailedTask.exception || this.detailedTask.traceback;
+    },
+    hasArguments() {
+      return !_.isEmpty(this.defaultArguments) || !_.isEmpty(this.nonDefaultArguments);
+    },
+    hasResults() {
+      return !_.isNil(this.detailedTask.firex_result);
+    },
+    hasExternalCommands() {
+      return Boolean(Object.keys(this.externalCommands).length);
+    },
+    expandAll() {
+      return this.showAllAttributes;
+    },
+    defaultArguments() {
+      return _.get(this.displayNode, 'firex_default_bound_args', {});
+    },
+    nonDefaultArguments() {
+      return _.get(this.displayNode, 'firex_bound_args', {});
+    },
+    displayArgumentKeys() {
+      return _.concat(_.map(_.sortBy(_.keys(this.defaultArguments)), k => `(default) ${k}`),
+        _.sortBy(_.keys(this.nonDefaultArguments)));
+    },
+    displayArguments() {
+      return Object.assign({}, _.mapKeys(this.defaultArguments, (v, k) => `(default) ${k}`),
+        this.nonDefaultArguments);
+    },
+    displayResults() {
+      const taskResult = _.get(this.displayNode, 'firex_result', {});
+      if (!_.isObject(taskResult)) {
+        if (_.isNull(taskResult)) {
+          // Deliberately show nothing when return value is None, since this is default return
+          // value.
+          return {};
+        }
+        return { task_result: taskResult };
+      }
+      return taskResult;
+    },
+    displayAttributes() {
+      if (this.showAllAttributes) {
+        return _.omit(this.displayNode,
+          ['firex_bound_args', 'firex_default_bound_args', 'exception', 'traceback',
+            'firex_result']);
+      }
+      return _.pick(this.displayNode,
+        ['first_started', 'hostname', 'runtime', 'support_location', 'utcoffset', 'uuid']);
+    },
+    someExternalCommandRunning() {
+      return _.some(this.externalCommands, c => !_.has(c, 'result'));
+    },
   },
   methods: {
     fetchTaskAttributes() {
@@ -269,44 +362,31 @@ export default {
         this.taskAttributes = taskAttributes;
       });
     },
-    isObject(val) {
-      return _.isObject(val);
-    },
-    // TODO: doesn't make sense to string twice, combine with prettyPrint.
-    shouldPrettyPrint(val) {
-      if (!_.isObject(val)) {
-        return false;
-      }
-      const asJson = JSON.stringify(val, null, 2);
-      // Don't bother pretty printing if the object is small.
-      return asJson.length > 100 && asJson.split(/\n/).length > 4;
-    },
-    prettyPrint(val) {
-      if (val === null) {
-        return 'None';
-      }
-      const prettyJson = JSON.stringify(val, null, 2);
-      if (prettyJson.length < 40) {
-        // If the string is short enough, don't show a pretty version.
-        return JSON.stringify(val);
-      }
-      return prettyJson;
-    },
-    isTimeKey(key) {
-      return _.includes(['first_started', 'started', 'failed', 'succeeded', 'revoked',
-        'timestamp'], key);
-    },
     formatTime(unixTime) {
       const humanTime = DateTime.fromSeconds(unixTime).toLocaleString(DateTime.DATETIME_FULL);
       return `${humanTime} (orig: ${unixTime})`;
     },
-    doCopy() {
-      this.$copyText(this.replayCommandLine);
+    shouldShowSection(sectionId) {
+      if (this.selectedSection === 'all' || this.selectedSection === sectionId) {
+        const idToCheckPresent = {
+          failure: this.hasFailure,
+          arguments: this.hasArguments,
+          results: this.hasResults,
+          external_commands: this.hasExternalCommands,
+          attributes: true,
+          replay: true,
+        };
+        return _.get(idToCheckPresent, sectionId, false);
+      }
+      return false;
+    },
+    replaceSection(section) {
+      this.$router.replace(this.getTaskRoute(this.uuid, section));
     },
   },
   watch: {
     // eslint-disable-next-line
-    '$route': {
+    '$route.params.uuid': {
       handler: 'fetchTaskAttributes',
       immediate: true,
     },
@@ -334,8 +414,30 @@ export default {
   display: flex;
   align-items: center;
   flex-direction: column;
-  padding: 1.5em;
-  background-color: #EEE;
+}
+
+.other-task {
+  transform: scale(0.66);
+  opacity: 0.4;
+  transition: all .2s ease-in-out;
+}
+
+.other-task:hover {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.child-tasks-outer-container {
+  display: flex;
+  width: 95%;
+  justify-content: center;
+}
+
+.child-tasks-inner-container {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: visible;
+  justify-content: space-between;
 }
 
 </style>

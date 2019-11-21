@@ -55,8 +55,21 @@ const headerGetters = {
 
   runRouteFromName: (state, getters) => name => _.merge({ name }, getters.runRouteParamsAndQuery),
 
-  getTaskRoute: (state, getters) => taskUuid => _.merge(
-    prependFirexIdPath(`/tasks/${taskUuid}`, getters.isDataKeyFireXId, getters.taskDataKey),
+  getTaskRoute: (state, getters) => (taskUuid, section) => {
+    let path = `/tasks/${taskUuid}`;
+    if (section) {
+      path += `/${section}`;
+    }
+
+    return _.merge(
+      prependFirexIdPath(path, getters.isDataKeyFireXId, getters.taskDataKey),
+      getters.runRouteParamsAndQuery,
+    );
+  },
+
+  getLiveFileRoute: (state, getters) => (file, host) => _.merge(
+    prependFirexIdPath('/live-file', getters.isDataKeyFireXId, getters.taskDataKey),
+    { query: { file, host } },
     getters.runRouteParamsAndQuery,
   ),
 

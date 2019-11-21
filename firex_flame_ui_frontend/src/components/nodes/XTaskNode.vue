@@ -7,6 +7,7 @@
         :toCollapse="toCollapse"
         :isLeaf="isLeaf"
         :emitDimensions="emitDimensions"
+        :showFlameData="showFlameData"
         class="node-container"
       ></x-core-task-node>
     </router-link>
@@ -35,6 +36,7 @@ export default {
     toCollapse: { default: false },
     emitDimensions: { default: false, type: Boolean },
     isLeaf: { required: true, type: Boolean },
+    showFlameData: { default: true, type: Boolean },
   },
   computed: {
     ...mapGetters({

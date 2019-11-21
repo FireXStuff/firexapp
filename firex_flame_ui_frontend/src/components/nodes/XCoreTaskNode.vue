@@ -32,8 +32,11 @@
       navigating to task node attribute page. Should likely find a better way.-->
       <div class="flame-data" v-on:click="flameDataClick" >
         <div v-if="showTaskDetails">{{taskUuid}}</div>
-        <!-- We're really trusting data from the server here (rendering raw HTML) -->
-        <div v-for="(html, i) in flameDataHtmlContent" :key="i" v-html="html"></div>
+
+        <template v-if="showFlameData" >
+          <!-- We're really trusting data from the server here (rendering raw HTML) -->
+          <div v-for="(html, i) in flameDataHtmlContent" :key="i" v-html="html"></div>
+        </template>
       </div>
 
       <div style="display: flex; flex-direction: row; font-size: 12px; margin-top: 4px;">
@@ -65,6 +68,7 @@ export default {
     toCollapse: { default: false },
     isLeaf: { required: true, type: Boolean },
     emitDimensions: { default: false, type: Boolean },
+    showFlameData: { default: true, type: Boolean },
   },
   data() {
     return {

@@ -4,9 +4,9 @@
       <slot></slot>
     </div>
     <div v-if="!isExpanded" class="fadeout-container">
-      <div class="fadeout"></div>
+      <div class="fadeout" @click="toggleExpand"></div>
       <button :class="'btn ' + buttonClass" style="margin: 0.5em 2em;"
-              @click="isExplicitlyExpanded = !isExplicitlyExpanded">
+              @click="toggleExpand">
         <font-awesome-icon icon="plus-circle"></font-awesome-icon>
         Show Full {{name}}
       </button>
@@ -37,6 +37,11 @@ export default {
         return {};
       }
       return { 'max-height': '8em', overflow: 'hidden' };
+    },
+  },
+  methods: {
+    toggleExpand() {
+      this.isExplicitlyExpanded = !this.isExplicitlyExpanded;
     },
   },
   watch: {
