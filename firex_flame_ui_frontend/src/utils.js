@@ -455,7 +455,7 @@ function findRunPathSuffix(path) {
 function redirectToFlameIfAlive(flameServerUrl, path, query) {
   return fetchWithTimeout(
     (new URL('/alive', flameServerUrl)).toString(),
-    {mode: 'no-cors'},
+    {mode: 'no-cors', cache: "no-store"},
     5000,
     () => new Error('fetch timeout'))
     // If the flame for the selected run is still alive, redirect the user there.
