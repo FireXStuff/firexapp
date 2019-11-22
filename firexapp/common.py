@@ -29,11 +29,11 @@ def delimit2list(str_to_split, delimiters=(',', ';', '|', ' ')) -> []:
 
 
 def get_available_port(so_reuseport=True):
-    sock = socket.socket()
-    if so_reuseport and hasattr(socket, 'SO_REUSEPORT'):
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(('', 0))
-    port = sock.getsockname()[1]
+    with socket.socket() as sock:
+        if so_reuseport and hasattr(socket, 'SO_REUSEPORT'):
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(('', 0))
+        port = sock.getsockname()[1]
     return port
 
 
