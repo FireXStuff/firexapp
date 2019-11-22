@@ -1,7 +1,9 @@
 <template>
   <div class="panel panel-default">
     <div class="panel-heading">
-      <h3 class="panel-title">{{ heading }}</h3>
+      <slot name="header">
+        <h3 class="panel-title">{{ heading }}</h3>
+      </slot>
     </div>
     <div class="panel-body">
       <slot></slot>

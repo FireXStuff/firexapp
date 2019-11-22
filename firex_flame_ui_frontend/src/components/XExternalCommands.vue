@@ -1,20 +1,21 @@
 <template>
   <div>
-    <div v-for="id in orderedIds" :key="id"
-      style="margin-bottom: 3em;">
-      <div style="display: inline; user-select: all; font-style: italic;">
-        {{ displayExternalCommands[id].cwd }}</div>
-      <strong style="font-size: medium;">$
-        <span style="user-select: all;">{{ displayExternalCommands[id].cmd }}</span>
-      </strong>
-      <div style="margin-left: 2em">
+    <x-section v-for="id in orderedIds" :key="id" style="margin-bottom: 3em;">
+      <template v-slot:header>
+        <div  style="display: inline; user-select: all; font-style: italic;">
+          {{ displayExternalCommands[id].cwd }}</div>
+        <strong style="font-size: medium;">$
+          <span style="user-select: all;">{{ displayExternalCommands[id].cmd }}</span>
+        </strong>
+      </template>
+      <div>
         <pre v-if="displayExternalCommands[id].result"
             style="background-color: #fafafa; max-height: 10em;"
             :style="displayExternalCommands[id].result.returncode ? 'color: darkred' : ''"
             ref="outputs"
         >{{ displayExternalCommands[id].output }}</pre>
         <router-link
-          v-else
+          v-else-if="!parentTaskComplete"
           :to="getLiveFileRoute(displayExternalCommands[id].file, displayExternalCommands[id].host)"
           class="btn btn-primary" style="margin: 1em 0;">
           <font-awesome-icon :icon="['far', 'eye']"></font-awesome-icon>
@@ -61,7 +62,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </x-section>
   </div>
 </template>
 
@@ -70,13 +71,15 @@ import { DateTime } from 'luxon';
 import _ from 'lodash';
 import { mapGetters } from 'vuex';
 import { durationString } from '../utils';
+import XSection from './XSection.vue';
 
 export default {
   name: 'XExternalCommands',
+  components: { XSection },
   props: {
     externalCommands: { required: true, type: Object },
     taskLogsUrl: { required: false, default: null },
-    parentTaskComplete: { required: true, type: Boolean} ,
+    parentTaskEndTime: { type: Number },
   },
   mounted() {
     // Scroll output elements to bottom.
@@ -102,6 +105,9 @@ export default {
     },
     orderedIds() {
       return _.sortBy(_.keys(this.externalCommands), k => this.externalCommands[k].start_time);
+    },
+    parentTaskComplete() {
+      return !_.isNull(this.parentTaskEndTime);
     },
   },
   methods: {
@@ -130,6 +136,9 @@ export default {
     commandDuration(cmd) {
       if (_.has(cmd, 'end_time')) {
         return durationString(cmd.end_time - cmd.start_time);
+      }
+      if (this.parentTaskComplete) {
+        return durationString(this.parentTaskEndTime - cmd.start_time);
       }
       return this.timeAgo(cmd.start_time);
     },
