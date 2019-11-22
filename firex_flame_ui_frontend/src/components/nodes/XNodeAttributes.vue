@@ -63,7 +63,7 @@
                   class="btn btn-primary"
                   :class="{'active': selectedSection === 'external_commands'}"
                   @click="replaceSection('external_commands')">
-            <font-awesome-icon v-if="someExternalCommandRunning"
+            <font-awesome-icon v-if="someExternalCommandRunning && isRunstateIncomplete"
                                icon="circle-notch" class="fa-spin">
             </font-awesome-icon>
             External Commands
@@ -109,8 +109,10 @@
       </x-section>
 
       <x-section v-if="shouldShowSection('external_commands')" heading="External Commands">
-        <x-external-commands :external-commands="externalCommands"
-          :taskLogsUrl="detailedTask.logs_url"></x-external-commands>
+        <x-external-commands
+          :external-commands="externalCommands"
+          :taskLogsUrl="detailedTask.logs_url"
+          :parentTaskComplete="!isRunstateIncomplete"></x-external-commands>
       </x-section>
 
       <x-section v-if="shouldShowSection('attributes')" heading="Attributes">
@@ -247,6 +249,9 @@ export default {
         + `full name: ${this.detailedTask.long_name + nl}`;
       return `${this.detailedTask.support_location}?subject=${subject}&body=${body}`;
     },
+    isRunstateIncomplete() {
+      return isTaskStateIncomplete(this.simpleTask.state);
+    },
     headerParams() {
       let links = [
         {
@@ -279,7 +284,7 @@ export default {
         },
       ];
 
-      if (isTaskStateIncomplete(this.simpleTask.state)) {
+      if (this.isRunstateIncomplete) {
         links = [
           {
             name: 'kill',

@@ -23,7 +23,12 @@
               <strong>time: </strong> {{ displayExternalCommands[id].duration }}
             </div>
 
-          <div v-if="!displayExternalCommands[id].result" class="col-md-2" style="color: #07d">
+          <!-- Compensate for when the end event is never received, even though the parent
+            task is complete.-->
+          <div v-if="!displayExternalCommands[id].result && parentTaskComplete" class="col-md-2">
+            <strong>incomplete</strong>
+          </div>
+          <div v-else-if="!displayExternalCommands[id].result" class="col-md-2" style="color: #07d">
             <font-awesome-icon icon="circle-notch" class="fa-spin">
             </font-awesome-icon> running
           </div>
@@ -69,6 +74,7 @@ export default {
   props: {
     externalCommands: { required: true, type: Object },
     taskLogsUrl: { required: false, default: null },
+    parentTaskComplete: { required: true, type: Boolean} ,
   },
   mounted() {
     // Scroll output elements to bottom.
