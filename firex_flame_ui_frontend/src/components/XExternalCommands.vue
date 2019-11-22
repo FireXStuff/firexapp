@@ -2,8 +2,10 @@
   <div>
     <div v-for="id in orderedIds" :key="id"
       style="margin-bottom: 3em;">
-      <strong style="font-size: medium;">
-        <span style="user-select: none;">&gt; </span>{{ displayExternalCommands[id].cmd }}
+      <div style="display: inline; user-select: all; font-style: italic;">
+        {{ displayExternalCommands[id].cwd }}</div>
+      <strong style="font-size: medium;">$
+        <span style="user-select: all;">{{ displayExternalCommands[id].cmd }}</span>
       </strong>
       <div style="margin-left: 2em">
         <pre v-if="displayExternalCommands[id].result"
@@ -95,6 +97,7 @@ export default {
         taskLogLink: this.taskLogsUrl ? `${this.taskLogsUrl}#${id}` : null,
         host: c.host,
         file: c.output_file,
+        cwd: c.cwd,
       }));
     },
     orderedIds() {
