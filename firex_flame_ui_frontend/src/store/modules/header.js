@@ -1,6 +1,6 @@
 import _ from 'lodash';
 
-import { eventHub } from '../../utils';
+import { eventHub, createLinkedHtml, createLinkifyRegex } from '../../utils';
 
 const headerState = {
   uiConfig: null,
@@ -202,6 +202,12 @@ const headerGetters = {
     // misconfigurations (e.g. central-webserver log serving without a central server configured)
     return logsPath;
   },
+
+  linkifyRegex: state => createLinkifyRegex(
+    _.get(state.uiConfig, 'linkify_prefixes', []),
+  ),
+
+  createLinkedHtml: (state, getters) => text => createLinkedHtml(text, getters.linkifyRegex),
 
 };
 

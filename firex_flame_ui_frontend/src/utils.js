@@ -530,6 +530,31 @@ function fetchWithRetry(url, maxRetries) {
   });
 }
 
+function createLinkifyRegex(additionalPrefixes) {
+  const escapedConfigPrefixes = _.map(additionalPrefixes, _.escapeRegExp);
+
+  const linkifyPrefixes = _.concat('https?:\\/\\/', escapedConfigPrefixes);
+  const linkifyPrefix = _.join(linkifyPrefixes, '|');
+  const LINKIFY_END_REGEX = '(?=[\\s,\']|&(quot|lt|gt|#39|amp);|$)';
+
+  return RegExp(`((${linkifyPrefix}).+?${LINKIFY_END_REGEX})`, 'g');
+}
+
+function createLinkedHtml(text, regex) {
+  const replacements = []
+
+  const intermediate = _.escape(text).replace(regex, function (match) {
+      const replacementId = replacements.length;
+      replacements.push(`<a href="${match}" class="subtle-link">${match}</a>`);
+      return `SPECIAL%%%REPLACE${replacementId}`;
+    });
+
+  return intermediate.replace(/SPECIAL%%%REPLACE(\d+)/g,
+    function (specialReplace, id) {
+    return replacements[parseInt(id)];
+  });
+}
+
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
 const eventHub = new Vue();
 
@@ -563,4 +588,6 @@ export {
   fetchRunModelMetadata,
   findRunPathSuffix,
   errorRoute,
+  createLinkifyRegex,
+  createLinkedHtml,
 };

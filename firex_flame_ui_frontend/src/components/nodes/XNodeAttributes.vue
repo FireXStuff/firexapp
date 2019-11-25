@@ -87,12 +87,12 @@
           <x-expandable-content button-class="btn-outline-danger" name="traceback"
                                 :expand="expandAll || selectedSection === 'failure'">
               <pre style="overflow: auto; margin-top: 0"
-              >{{displayNode.traceback.trim()}}</pre>
+                   v-html="createLinkedHtml(displayNode.traceback.trim())"></pre>
           </x-expandable-content>
         </div>
         <label class="node-attributes-label">Exception:</label>
-        <div v-if="displayNode.exception" style="display: inline; color: darkred">
-          {{displayNode.exception.trim()}}
+        <div v-if="displayNode.exception" style="display: inline; color: darkred; margin-left: 1em;"
+          v-html="createLinkedHtml(displayNode.exception.trim())">
         </div>
       </x-section>
 
@@ -143,7 +143,9 @@ import { DateTime } from 'luxon';
 import { mapGetters, mapState } from 'vuex';
 
 import * as api from '../../api';
-import { eventHub, isTaskStateIncomplete, durationString } from '../../utils';
+import {
+  eventHub, isTaskStateIncomplete, durationString,
+} from '../../utils';
 import XHeader from '../XHeader.vue';
 import XTaskNode from './XTaskNode.vue';
 import XExpandableContent from '../XExpandableContent.vue';
@@ -176,6 +178,7 @@ export default {
       runDuration: 'tasks/runDuration',
       getTaskRoute: 'header/getTaskRoute',
       taskNameByUuid: 'tasks/taskNameByUuid',
+      createLinkedHtml: 'header/createLinkedHtml',
     }),
     ...mapState({
       logsDir: state => state.firexRunMetadata.logs_dir,

@@ -43,4 +43,13 @@ export default {
     border-right: 2px solid transparent;
     animation: spinner .6s linear infinite;
   }
+
+  a.subtle-link {
+    color: inherit;
+  }
+
+  a.subtle-link:hover {
+    cursor: pointer;
+  }
+
 </style>

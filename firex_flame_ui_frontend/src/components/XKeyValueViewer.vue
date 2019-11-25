@@ -2,16 +2,18 @@
   <div>
     <div v-for="(key, i) in displayOrderedKeys" :key="key"
          :style="{'background-color': i % 2 === 0 ? '#f5f5f5': '#fafafa', 'padding': '4px' }">
-      <label class="node-attributes-label">{{key}}:</label>
+      <label style="margin-right: 1em;">{{key}}:</label>
       <a v-if="isLinkKey(key)" :href="keyValues[key]"> {{keyValues[key]}}</a>
       <div v-else style="overflow-y: hidden; overflow-x: auto; display: inline">
-        <x-expandable-content v-if="shouldPrettyPrint(keyValues[key])"
+        <x-expandable-content v-if="prettyPrintedKeyValues[key]"
                               button-class="btn-info-primary"
                               :name="key"
                               :expand="expandAll">
-          <pre style="margin: 0 0 0 40px"> {{prettyPrint(keyValues[key])}} </pre>
+          <pre style="margin: 0 0 0 40px"
+               v-html="createLinkedHtml(prettyPrintedKeyValues[key])">
+          </pre>
         </x-expandable-content>
-        <template v-else> {{keyValues[key] === null ? 'None' : keyValues[key]}}</template>
+        <span v-else v-html="createLinkedHtml(formatValue(keyValues[key]))"></span>
       </div>
     </div>
   </div>
@@ -19,6 +21,7 @@
 
 <script>
 import _ from 'lodash';
+import { mapGetters } from 'vuex';
 
 import XExpandableContent from './XExpandableContent.vue';
 
@@ -32,33 +35,37 @@ export default {
     linkKeys: { default: () => [], type: Array },
   },
   computed: {
+    ...mapGetters({
+      createLinkedHtml: 'header/createLinkedHtml',
+    }),
     displayOrderedKeys() {
       if (this.orderedKeys) {
         return this.orderedKeys;
       }
       return _.sortBy(_.keys(this.keyValues));
     },
+    prettyPrintedKeyValues() {
+      return _.mapValues(this.keyValues, (v) => {
+        if (_.isObject(v)) {
+          const prettyJson = JSON.stringify(v, null, 2);
+          if (prettyJson.length > 100 && prettyJson.split(/\n/).length > 4) {
+            return prettyJson;
+          }
+        }
+        // Don't show a pretty printed version of this value.
+        return false;
+      });
+    },
   },
   methods: {
-    // TODO: doesn't make sense to string twice, combine with prettyPrint.
-    shouldPrettyPrint(val) {
-      if (!_.isObject(val)) {
-        return false;
-      }
-      const asJson = JSON.stringify(val, null, 2);
-      // Don't bother pretty printing if the object is small.
-      return asJson.length > 100 && asJson.split(/\n/).length > 4;
-    },
-    prettyPrint(val) {
+    formatValue(val) {
       if (val === null) {
         return 'None';
       }
-      const prettyJson = JSON.stringify(val, null, 2);
-      if (prettyJson.length < 40) {
-        // If the string is short enough, don't show a pretty version.
+      if (_.isObject(val)) {
         return JSON.stringify(val);
       }
-      return prettyJson;
+      return val;
     },
     isLinkKey(key) {
       return _.includes(this.linkKeys, key);
