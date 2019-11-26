@@ -203,7 +203,8 @@ function durationString(duractionSecs) {
   const hoursInSecs = hours * 60 * 60;
   const mins = Math.floor((duractionSecs - hoursInSecs) / 60);
   const minsInSecs = mins * 60;
-  const secs = Math.floor(duractionSecs - hoursInSecs - minsInSecs);
+  const floatSecs = duractionSecs - hoursInSecs - minsInSecs;
+  const secs = Math.floor(floatSecs);
 
   let result = '';
   if (hours > 0) {
@@ -336,7 +337,6 @@ const DEFAULT_UI_CONFIG = {
    */
   access_mode: 'socketio-origin',
   model_path_template: null,
-  redirect_to_alive_flame: false,
   is_central: false,
   central_server: null,
   central_server_ui_path: null,
@@ -397,37 +397,21 @@ function fetchUiConfig() {
 
 function fetchRunModelMetadata(firexId, modelPathTemplate) {
   if (!isFireXIdValid(firexId)) {
-    return new Promise((resolve) => resolve(false));
+    return new Promise((u, reject) => reject());
   }
   return fetchWithRetry(templateFireXId(modelPathTemplate, firexId), 4)
-    .then(r => r.json(), () => false)
-    .catch(() => false);
+    .then(r => {
+      if (!r.ok) {
+        throw Error("Run metadata now found.");
+      }
+      return r.json()
+    });
 }
 
 function tasksViewKeyRouteChange(to, from, next, setUiConfigFn) {
   fetchUiConfig().then(uiConfig => {
     if (isRequiredAccessModeDataPresent(uiConfig.access_mode, to)) {
-      // If UI Config indicates redirect, check if the flame server is still alive & redirect
-      // if it is.
-      if (uiConfig.redirect_to_alive_flame && to.params.inputFireXId
-          // Avoid re-querying the flame server if the firexId hasn't changed, since timeouts
-          // aren't cached and introduce delays between view transitions.
-          && to.params.inputFireXId !== from.params.inputFireXId) {
-        fetchRunModelMetadata(to.params.inputFireXId, uiConfig.model_path_template)
-          .then(
-            (runMetadata) => {
-              if (runMetadata === false) {
-                // If can't fetch metadata, route to error
-                next(errorRoute(`Can't find data for ${to.params.inputFireXId}`));
-              } else {
-                return redirectToFlameIfAlive(runMetadata.flame_url, to.path, to.query);
-              }
-            })
-          // If flame server is not alive, just route to local task view.
-          .catch(() => next(vm => setUiConfigFn(vm, uiConfig)))
-      } else {
-        next(vm => setUiConfigFn(vm, uiConfig));
-      }
+      next(vm => setUiConfigFn(vm, uiConfig));
     } else {
       // Missing key required to show task data -- send to find view if supported.
       if (supportsFindView(uiConfig.access_mode)) {
@@ -450,22 +434,6 @@ function findRunPathSuffix(path) {
     return _.replace(path, pathFireXIdRegex, '')
   }
   return '/';
-}
-
-function redirectToFlameIfAlive(flameServerUrl, path, query) {
-  return fetchWithTimeout(
-    (new URL('/alive', flameServerUrl)).toString(),
-    {mode: 'no-cors', cache: "no-store"},
-    5000,
-    () => new Error('fetch timeout'))
-    // If the flame for the selected run is still alive, redirect the user there.
-    .then(() => {
-      let redirectPath = findRunPathSuffix(path);
-      if (query && !_.isEmpty(query)) {
-        redirectPath += `?${new URLSearchParams(query).toString()}`;
-      }
-      window.location.href = (new URL(`#${redirectPath}`, flameServerUrl)).toString();
-    });
 }
 
 function templateFireXId(template, firexId) {
@@ -584,7 +552,6 @@ export {
   tasksViewKeyRouteChange,
   fetchUiConfig,
   templateFireXId,
-  redirectToFlameIfAlive,
   fetchRunModelMetadata,
   findRunPathSuffix,
   errorRoute,

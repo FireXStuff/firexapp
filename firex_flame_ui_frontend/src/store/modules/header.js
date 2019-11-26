@@ -20,16 +20,30 @@ function prependFirexIdPath(path, isDataKeyFireXId, taskDataKey) {
 // getters
 const headerGetters = {
 
-  inputFlameServer: (state, getters, rootState) => {
-    if (_.get(state.uiConfig, 'access_mode', '') === 'socketio-origin') {
+  accessMode: state => _.get(state.uiConfig, 'access_mode', ''),
+
+  inputFlameServerUrl: (state, getters, rootState) => {
+    if (getters.accessMode === 'socketio-origin') {
       return window.location.origin;
     }
-    return rootState.route.query.flameServer;
+    if (getters.accessMode === 'socketio-param') {
+      return rootState.route.query.flameServer;
+    }
+    return null;
+  },
+
+  flameServerUrl: (state, getters, rootState) => {
+    if (getters.isDataKeyFlameUrl) {
+      return getters.inputFlameServerUrl;
+    }
+    return rootState.firexRunMetadata.flame_url;
   },
 
   inputFireXId: (state, getters, rootState) => rootState.route.params.inputFireXId,
 
-  isDataKeyFlameUrl: (state, getters) => !_.isNil(getters.inputFlameServer),
+  isDataKeyFlameUrl: (state, getters) => _.includes(
+    ['socketio-origin', 'socketio-param'], getters.accessMode,
+  ),
 
   isDataKeyFireXId(state, getters) {
     return !getters.isDataKeyFlameUrl && !_.isNil(getters.inputFireXId);
@@ -37,7 +51,7 @@ const headerGetters = {
 
   taskDataKey: (state, getters) => {
     if (getters.isDataKeyFlameUrl) {
-      return getters.inputFlameServer;
+      return getters.inputFlameServerUrl;
     }
     if (getters.isDataKeyFireXId) {
       return getters.inputFireXId;

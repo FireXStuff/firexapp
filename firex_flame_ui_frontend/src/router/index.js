@@ -42,7 +42,7 @@ const router = new Router({
     {
       path: '/settings',
       component: XSettings,
-      props: route => ({ inputFlameServer: route.query.flameServer }),
+      props: route => ({ inputFlameServerUrl: route.query.flameServer }),
     },
     {
       path: '/error',

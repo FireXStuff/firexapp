@@ -50,18 +50,18 @@ export default {
       // It'd be better if the store knew which type of key there was, and this component
       // reasoned in terms of a general key. This might mean moving some (or all) of the
       // API accessor config to the store (or wherever handles the different data key types).
-      flameServerUrl: 'header/inputFlameServer',
+      inputFlameServerUrl: 'header/inputFlameServerUrl',
       inputFireXId: 'header/inputFireXId',
     }),
     taskDataKey() {
       if (this.inputFireXId) {
         return this.inputFireXId;
       }
-      return this.flameServerUrl;
+      return this.inputFlameServerUrl;
     },
     backfillFlameModelCommand() {
       const firexBin = _.get(this.uiConfig, 'firex_bin', 'firex');
-      return `${firexBin} --chain BackfillFlameModel --firex_id_to_backfill ${this.taskDataKey}`;
+      return `${firexBin} --chain BackfillFlameModel --firex_id_to_backfill ${this.inputFireXId}`;
     },
   },
   created() {
@@ -151,18 +151,40 @@ export default {
       }
     },
     setFlameRunMetadata() {
-      api.getFireXRunMetadata().then(
-        (data) => {
-          // TODO: is adding the server URL still necessary? This should be fetched from server.
-          if (!_.has(data, 'flameServerUrl')) {
-            data.flameServerUrl = this.flameServerUrl;
-          }
-          this.$store.commit('firexRunMetadata/setFlameRunMetadata', data);
+      // TODO: consider adding retries in file accessor since this is the first query per run.
+      return api.getFireXRunMetadata().then(
+        (runMetadata) => {
+          this.$store.commit('firexRunMetadata/setFlameRunMetadata', runMetadata);
+          return runMetadata;
         },
-        () => { this.$router.push(errorRoute(`Flame not started for ${this.taskDataKey}`)); },
+        () => {
+          const msg = `Flame not started for ${this.taskDataKey}`;
+          this.$router.push(errorRoute(msg));
+          return Promise.reject(msg);
+        },
       );
     },
     updateApiAccessor() {
+      if (this.uiConfig.access_mode === 'webserver-file') {
+        this.setWebserverFileApiAccessor();
+        // Get the run_metadata via the webserver-file accessor we just set, but change to a
+        // socketio accessor to get live updates if the run is in-progress.
+        return this.setFlameRunMetadata().then((runMetadata) => {
+          if (!runMetadata.run_complete) {
+            this.setSocketIoApiAccessor(runMetadata.flame_url);
+          }
+        });
+      }
+      if (_.includes(['socketio-origin', 'socketio-param'], this.uiConfig.access_mode)) {
+        this.setSocketIoApiAccessor(this.inputFlameServerUrl);
+        return this.setFlameRunMetadata();
+      }
+
+      const error = `UI misconfiguration: unknown access_mode ${this.uiConfig.access_mode}`;
+      this.$router.push(errorRoute(error));
+      return Promise.reject(error);
+    },
+    resetDataAndUpdateApiAccessor() {
       if (_.isNull(this.uiConfig)) {
         // uiConfig is fetched from server and therefore lazy loaded. We can't initialize
         // an API accessor without the uiConfig, since the access_mode is needed.
@@ -172,22 +194,21 @@ export default {
       }
       // Clear data from previous api accessor.
       this.setNodesByUuid({});
-      if (this.uiConfig.access_mode === 'webserver-file') {
-        const options = { modelPathTemplate: this.uiConfig.model_path_template };
-        api.setAccessor('dump-files', this.inputFireXId, options);
-      } else if (_.includes(['socketio-origin', 'socketio-param'], this.uiConfig.access_mode)) {
-        // TODO: should probably timeout trying to reconnect after some time.
-        api.setAccessor('socketio', this.flameServerUrl, {
-          onConnect: () => this.$store.commit('tasks/setApiConnected', true),
-          onDisconnect: () => this.$store.commit('tasks/setApiConnected', false),
-        });
-      } else {
-        this.$router.push(
-          errorRoute(`UI misconfiguration: unknown access_mode ${this.uiConfig.access_mode}`),
-        );
-      }
-      this.fetchAllTasksAndStartLiveUpdate();
-      this.setFlameRunMetadata();
+      this.updateApiAccessor().then(
+        // Fetch data from the accessor we just set.
+        () => this.fetchAllTasksAndStartLiveUpdate(),
+      );
+    },
+    setSocketIoApiAccessor(flameServerUrl) {
+      // TODO: should probably timeout trying to reconnect after some time.
+      api.setAccessor('socketio', flameServerUrl, {
+        onConnect: () => this.$store.commit('tasks/setApiConnected', true),
+        onDisconnect: () => this.$store.commit('tasks/setApiConnected', false),
+      });
+    },
+    setWebserverFileApiAccessor() {
+      const modelPathTemplate = this.uiConfig.model_path_template;
+      api.setAccessor('dump-files', this.inputFireXId, { modelPathTemplate });
     },
     commitUiConfig(uiConfig) {
       this.$store.commit('header/setFlameUiConfig', uiConfig);
@@ -203,11 +224,11 @@ export default {
     },
     // TODO: does it make sense for the 'update api accessor on data source change' logic to be
     // here? Should it be in the store itself?
-    flameServerUrl: {
+    inputFlameServerUrl: {
       immediate: true,
       handler() {
-        if (this.flameServerUrl) {
-          this.updateApiAccessor();
+        if (this.inputFlameServerUrl) {
+          this.resetDataAndUpdateApiAccessor();
         }
       },
     },
@@ -215,12 +236,19 @@ export default {
       immediate: true,
       handler() {
         if (this.inputFireXId) {
-          this.updateApiAccessor();
+          this.resetDataAndUpdateApiAccessor();
         }
       },
     },
+    hasIncompleteTasks() {
+      if (!this.hasIncompleteTasks && this.uiConfig.access_mode === 'webserver-file') {
+        // All tasks are complete, change data source from socket (for live update)
+        // to files (static data).
+        this.setWebserverFileApiAccessor();
+      }
+    },
     // UI Config is lazy loaded and not valid initially, therefore don't set 'immediate'.
-    uiConfig() { this.updateApiAccessor(); },
+    uiConfig() { this.resetDataAndUpdateApiAccessor(); },
   },
   beforeRouteEnter(to, from, next) {
     tasksViewKeyRouteChange(to, from, next, (vm, uiConfig) => vm.commitUiConfig(uiConfig));

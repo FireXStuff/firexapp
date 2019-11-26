@@ -3,7 +3,7 @@ import io from 'socket.io-client';
 import untar from 'js-untar';
 import { ungzip } from 'pako';
 
-import { templateFireXId } from './utils';
+import { templateFireXId, fetchRunModelMetadata } from './utils';
 
 function socketRequestResponse(socket, requestEvent, successEventName, failedEventName, timeout) {
   const p = new Promise(
@@ -117,12 +117,11 @@ function createWebFileAccessor(firexId, modelPathTemplate) {
 
   const modelBaseUrl = new URL(modelBasePath, window.location.origin);
 
-  const metadataUrl = (new URL('run-metadata.json', modelBaseUrl)).toString();
   const graphUrl = (new URL('slim-tasks.json', modelBaseUrl)).toString();
 
   return {
     // TODO: add failure, timeout, or auto-handle elsewhere.
-    getFireXRunMetadata: () => fetch(metadataUrl).then(r => r.json()),
+    getFireXRunMetadata: () => fetchRunModelMetadata(firexId, modelPathTemplate),
 
     // TODO: add failure, timeout, or auto-handle elsewhere.
     getTaskGraph: () => fetch(graphUrl).then(r => r.json(), () => {}),

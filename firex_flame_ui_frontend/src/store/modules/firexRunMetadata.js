@@ -4,9 +4,10 @@ const metaDataState = {
   uid: null,
   logs_dir: null,
   root_uuid: null,
-  flameServerUrl: null,
   chain: null,
   logs_server: null,
+  flame_url: null,
+  run_complete: null,
 };
 
 // getters

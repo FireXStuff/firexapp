@@ -128,7 +128,7 @@ import {
 export default {
   name: 'XSettings',
   props: {
-    inputFlameServer: { required: false, type: String },
+    inputFlameServerUrl: { required: false, type: String },
   },
   data() {
     const autoUpgradeKey = 'autoFlameUpgrade';
