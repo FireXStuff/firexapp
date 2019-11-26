@@ -217,7 +217,7 @@ function durationString(duractionSecs) {
     result += `${secs}s`;
   }
   if (hours === 0 && mins === 0 && secs === 0) {
-    result += '<1s';
+    result += `${floatSecs.toFixed(3)}s`;
   }
   return result;
 }
