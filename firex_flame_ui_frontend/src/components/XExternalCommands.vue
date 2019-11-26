@@ -5,7 +5,8 @@
         <div  style="display: inline; user-select: all; font-style: italic;">
           {{ displayExternalCommands[id].cwd }}</div>
         <strong style="font-size: medium;">$
-          <span style="user-select: all;">{{ displayExternalCommands[id].cmd }}</span>
+          <span style="user-select: all;"
+                v-html="createLinkedHtml(displayExternalCommands[id].cmd)"></span>
         </strong>
       </template>
       <div>
@@ -88,6 +89,7 @@ export default {
   computed: {
     ...mapGetters({
       getLiveFileRoute: 'header/getLiveFileRoute',
+      createLinkedHtml: 'header/createLinkedHtml',
     }),
     displayExternalCommands() {
       return _.mapValues(this.externalCommands, (c, id) => ({
