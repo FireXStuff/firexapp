@@ -320,7 +320,7 @@ class SubmitBaseApp:
                     # Service has passed the predicate, remove it from the list of not passed services.
                     not_passed_pred_services = [n for n in not_passed_pred_services if service_name != n]
             if not_passed_pred_services:
-                time.sleep(0.5)
+                time.sleep(0.1)
 
         if not_passed_pred_services:
             logger.warning("The following services are still not %s after %s secs: %s"
