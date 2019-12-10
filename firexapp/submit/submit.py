@@ -319,6 +319,8 @@ class SubmitBaseApp:
                 if service_predicate(services_by_name[service_name]):
                     # Service has passed the predicate, remove it from the list of not passed services.
                     not_passed_pred_services = [n for n in not_passed_pred_services if service_name != n]
+                    if not not_passed_pred_services:
+                        logger.debug(f"Last tracking service up (long pole) is: {service_name}")
             if not_passed_pred_services:
                 time.sleep(0.1)
 
