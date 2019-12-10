@@ -325,8 +325,11 @@ class SubmitBaseApp:
                 time.sleep(0.1)
 
         if not_passed_pred_services:
-            logger.warning("The following services are still not %s after %s secs: %s"
-                           % (description, timeout, not_passed_pred_services))
+            logger.warning("The following services are still not %s after %s secs:" % (description, timeout))
+            for s in not_passed_pred_services:
+                launch_file = getattr(services_by_name[s], 'stdout_file', None)
+                msg = f'{s}: see {launch_file}' if launch_file else s
+                logger.warning('\t' + msg)
         else:
             wait_duration = time.time() - start_wait_time
             logger.debug("Waited %.1f secs for tracking services to be %s." % (wait_duration, description))
