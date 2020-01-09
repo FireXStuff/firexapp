@@ -50,10 +50,6 @@ def service_success(service_success_value=False):
     assert service_success_value is True
 
 
-def _assert_in(subset, superset):
-    assert subset in superset, "Expected %s in %s" % (subset, superset)
-
-
 class TrackingServiceTest(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
         return ["submit", "--chain", "service_success"]
@@ -63,13 +59,13 @@ class TrackingServiceTest(FlowTestConfiguration):
 
         # Tracking service is written to be not ready initially, then ready on second call.
         # Therefore we expect 1 to be present, but not 2 (firexapp should stop checking after all services are ready).
-        _assert_in(ready_task_msg(0), cmd_output)
-        _assert_in(ready_task_msg(1), cmd_output)
-        _assert_in(ready_task_msg(2), cmd_output)
+        assert ready_task_msg(0) in cmd_output
+        assert ready_task_msg(1) in cmd_output
+        assert ready_task_msg(2) not in cmd_output
 
-        _assert_in(ready_console_release_msg(0), cmd_output)
-        _assert_in(ready_console_release_msg(1), cmd_output)
-        _assert_in(ready_console_release_msg(2), cmd_output)
+        assert ready_console_release_msg(0) in cmd_output
+        assert ready_console_release_msg(1) in cmd_output
+        assert ready_console_release_msg(2) not in cmd_output
 
         assert not cmd_err, "Unexpected stderr %s" % cmd_err
 
