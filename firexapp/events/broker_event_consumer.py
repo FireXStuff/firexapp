@@ -59,12 +59,13 @@ class BrokerEventConsumerThread(threading.Thread):
                 with self.celery_app.connection() as conn:
                     conn.ensure_connection(max_retries=1, interval_start=0)
                     recv = EventReceiver(conn,
-                                         handlers={"*": self._on_celery_event},
+                                         handlers={"*": self._on_event},
                                          app=self.celery_app)
                     try_interval = 1
                     self._ready()
                     recv.capture(limit=None, timeout=None, wakeup=True)
-            except (KeyboardInterrupt, SystemExit) as e:
+            except (KeyboardInterrupt, SystemExit):
+                logger.exception("Received external shutdown.")
                 self._on_external_shutdown()
             # pylint: disable=C0321
             except Exception:
@@ -82,6 +83,13 @@ class BrokerEventConsumerThread(threading.Thread):
     def _on_ready(self):
         """Called a single time when the thread is ready to start receiving events."""
         pass
+
+    def _on_event(self, event):
+        try:
+            self._on_celery_event(event)
+        except Exception as e:
+            logger.exception(e)
+            raise
 
     @abc.abstractmethod
     def _is_root_complete(self):
