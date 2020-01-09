@@ -4,6 +4,7 @@ import os
 import inspect
 import subprocess
 
+from firexapp.submit.submit import get_firex_id_from_output
 from firexapp.testing.config_base import InterceptFlowTestConfiguration, FlowTestConfiguration
 
 
@@ -215,4 +216,12 @@ def {0}(**kwargs):
 
     # noinspection PyMethodMayBeStatic,PyUnusedLocal
     def on_test_exit(self, std_out, std_err):
-        pass
+        # Try to print to log directory to help with debugging
+        # noinspection PyBroadException
+        try:
+            with open(std_out, 'r') as std_out_f:
+                firex_id = get_firex_id_from_output(std_out_f.read())
+                if firex_id:
+                    print("\tFireX ID: " + firex_id, file=sys.stderr)
+        except Exception:
+            pass

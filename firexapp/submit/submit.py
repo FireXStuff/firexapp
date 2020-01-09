@@ -1,3 +1,4 @@
+import re
 import sys
 import json
 import logging
@@ -396,6 +397,13 @@ class SubmitBaseApp:
             self.error_banner(e, banner_title=failure_caption)
             self.main_error_exit_handler()
             sys.exit(-1)
+
+
+def get_firex_id_from_output(cmd_output: str)->str:
+    for line in cmd_output.splitlines():
+        match = re.match('.*FireX ID: (.*)', line)
+        if match:
+            return match.group(1)
 
 
 def get_log_dir_from_output(cmd_output: str)->str:
