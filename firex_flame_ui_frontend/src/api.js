@@ -107,7 +107,7 @@ function createSocketApiAccessor(url, options) {
       socket.off('stop-listen-file');
     },
 
-    cleanup: () => { socket.off(); socket.removeAllListeners(); },
+    cleanup: () => { socket.off(); socket.removeAllListeners(); socket.close() },
 
   };
 }
