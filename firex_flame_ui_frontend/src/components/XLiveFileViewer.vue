@@ -116,7 +116,7 @@ export default {
   flex-shrink: 0;
 }
 .content {
-  font-family: 'Source Sans Pro',sans-serif;
+  font-family: Consolas, monaco, monospace;
   flex-grow: 1;
   padding: 1em;
   min-height: 2em;
