@@ -12,7 +12,7 @@ from psutil import Process
 from pathlib import Path
 
 from firexapp.broker_manager import BrokerManager
-from firexapp.common import get_available_port
+from firexapp.common import get_available_port, wait_until
 
 REDIS_DIR_REGISTRY_KEY = 'REDIS_DIR_REGISTRY_KEY'
 FileRegistry().register_file(REDIS_DIR_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'redis'))
@@ -149,7 +149,7 @@ class RedisManager(BrokerManager):
             with open(self.metadata_file, 'w') as f:
                 json.dump(data, f, sort_keys=True, indent=2)
 
-    def _start(self):
+    def _start(self, timeout=60):
         try:
             port = self.port
         except RedisPortNotAssigned:
@@ -161,7 +161,9 @@ class RedisManager(BrokerManager):
         if self.log_file:
             cmd += ' --logfile %s' % self.log_file
         subprocess.check_call(shlex.split(cmd))
-        self.wait_until_active(port=port)
+        if not wait_until(os.path.exists, timeout, 1, self.pid_file):
+            raise RedisDidNotBecomeActive(f'The Redis pid file {self.pid_file} did not exist within {timeout}s')
+        self.wait_until_active(port=port, timeout=timeout)
         self.port = port
         self.create_metadata_file()
         self.log('redis started.')
