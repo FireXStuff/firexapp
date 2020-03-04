@@ -97,18 +97,6 @@ export default {
       eventHub.$emit('graph-refresh');
     },
   },
-  watch: {
-    rootUuid: {
-      handler() {
-        // Center new graph when root node changes on next render
-        // (after nodes for only the new root are shown).
-        if (!_.isNil(this.rootUuid)) {
-          this.$nextTick(() => { eventHub.$emit('center'); });
-        }
-      },
-      immediate: true,
-    },
-  },
 };
 </script>
 
