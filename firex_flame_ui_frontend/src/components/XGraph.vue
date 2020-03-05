@@ -98,6 +98,9 @@ export default {
     graphDataByUuid() {
       return this.$store.getters['graph/graphDataByUuid'];
     },
+    selectedRoot() {
+      return this.$store.getters['tasks/selectedRoot'];
+    },
     dimensionsByUuid() {
       return this.$store.state.tasks.taskNodeSizeByUuid;
     },
@@ -403,9 +406,13 @@ export default {
       return _.every(_.map(vals, v => !_.isNil(v) && _.isNumber(v)));
     },
     getLocalStorageTransform() {
-      const storedTransform = readPathsFromLocalStorage(this.firexUid, ['x', 'y', 'scale']);
-      if (this.isTransformValid(storedTransform)) {
-        return storedTransform;
+      // Only load stored transform when viewing the entire tree, since loading it when viewing
+      // subtrees might load transform that includes no tasks.
+      if (_.isNil(this.selectedRoot)) {
+        const storedTransform = readPathsFromLocalStorage(this.firexUid, ['x', 'y', 'scale']);
+        if (this.isTransformValid(storedTransform)) {
+          return storedTransform;
+        }
       }
       // Default to the centering transform.
       return this.getCenterTransform();
@@ -469,6 +476,11 @@ export default {
       if (!_.isNull(newValue)) {
         // TODO: handle focusing on nodes that are collapsed.
         this.updateTransformViaZoom(this.getCenterOnNodeTransform(newValue));
+      }
+    },
+    selectedRoot(newValue) {
+      if (!_.isNull(newValue)) {
+        this.center();
       }
     },
   },
