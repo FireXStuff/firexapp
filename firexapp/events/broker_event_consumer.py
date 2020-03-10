@@ -75,7 +75,7 @@ class BrokerEventConsumerThread(threading.Thread):
                 logger.error(traceback.format_exc())
                 if try_interval > self.max_try_interval:
                     logger.warning("Maximum broker retry attempts exceeded, stopping receiver thread)."
-                                   " Will no longerFirexTask retry despite incomplete root task.")
+                                   " Will no longer retry despite incomplete root task.")
                     return
                 logger.debug("Try interval %d secs, still worth retrying." % try_interval)
                 time.sleep(try_interval)
