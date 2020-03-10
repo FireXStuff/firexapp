@@ -208,13 +208,13 @@ class SubmitBaseApp:
         self.start_broker(args=args)
         self.set_broker_in_app()
 
-        try:
-            # start backend
-            app.backend.set('uid', str(uid))
-            app.backend.set('logs_dir', uid.logs_dir)
+        # start backend
+        app.backend.set('uid', str(uid))
+        app.backend.set('logs_dir', uid.logs_dir)
 
-            # IMPORT ALL THE MICROSERVICES
-            # ONLY AFTER BROKER HAD STARTED
+        # IMPORT ALL THE MICROSERVICES
+        # ONLY AFTER BROKER HAD STARTED
+        try:
             all_tasks = import_microservices(chain_args.get("plugins", args.plugins))
         except FileNotFoundError as e:
             logger.error("\nError: FireX run failed. File %s is not found." % e)

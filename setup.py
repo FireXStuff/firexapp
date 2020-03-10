@@ -28,9 +28,6 @@ setup(name='firexapp',
           "entrypoints",
           "colorlog==2.10.0"
       ],
-      tests_require=[
-          'firex-keeper',
-      ],
       classifiers=[
           "Programming Language :: Python :: 3",
           "Operating System :: OS Independent",
@@ -40,6 +37,6 @@ setup(name='firexapp',
           'console_scripts': ['firexapp = firexapp.application:main',
                               'flow_tests = firexapp.testing.test_infra:default_main',
                               'firex_shutdown = firexapp.submit.shutdown:main',
-                              ],
+                              ]
       },
       )
