@@ -41,11 +41,19 @@ def silent_mkdir(path, mode=0o777, exist_ok=True):
     os.makedirs(path, mode=mode, exist_ok=exist_ok)
 
 
-def poll_until_file_exist(file_path, timeout=10):
+def poll_until_path_exist(path, timeout=10):
     timeout_time = time.time() + timeout
-    while not os.path.exists(file_path) and time.time() < timeout_time:
+    path_exists = os.path.exists(path)
+    while not path_exists and time.time() < timeout_time:
         time.sleep(0.1)
-    assert os.path.isfile(file_path), 'File %s did not exist within %r seconds' % (file_path, timeout)
+        path_exists = os.path.exists(path)
+    if not path_exists:
+        raise AssertionError(f'{path} did not exist within {timeout}s')
+
+
+def poll_until_file_exist(file_path, timeout=10):
+    poll_until_path_exist(file_path, timeout=timeout)
+    assert os.path.isfile(file_path), f'{file_path} does not appear to be a file'
 
 
 def poll_until_existing_file_not_empty(file_path, timeout=10):
