@@ -22,6 +22,7 @@ def revoke_root_via_child(self):
 
 class RevokeOnShutdown(FlowTestConfiguration):
     sync = False
+    no_coverage = True
 
     def initial_firex_options(self) -> list:
         return ["submit", "--chain", "revoke_root_via_child"]
