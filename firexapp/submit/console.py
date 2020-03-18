@@ -14,12 +14,12 @@ class DistlibWarningsFilter(logging.Filter):
 
 class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
     def format(self, record):
-        if record.levelno != logging.RAW:
-            try:
-                record.msg = BeautifulSoup(record.msg, 'lxml').get_text()
-            except Exception:
-                pass
+        try:
+            record.msg = BeautifulSoup(record.msg, 'lxml').get_text()
+        except Exception:
+            pass
         return super(FireXColoredConsoleFormatter, self).format(record)
+
 
 class RetryFilter(logging.Filter):
     def filter(self, record):
