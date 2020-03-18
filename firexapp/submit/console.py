@@ -1,6 +1,7 @@
 import sys
 import logging
 import colorlog
+from bs4 import BeautifulSoup
 
 console_stdout = None
 
@@ -10,6 +11,15 @@ class DistlibWarningsFilter(logging.Filter):
         pathname = record.pathname
         return not pathname.endswith('distlib/metadata.py') and not pathname.endswith('distlib/database.py')
 
+
+class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
+    def format(self, record):
+        if record.levelno != logging.RAW:
+            try:
+                record.msg = BeautifulSoup(record.msg, 'lxml').get_text()
+            except Exception:
+                pass
+        return super(FireXColoredConsoleFormatter, self).format(record)
 
 class RetryFilter(logging.Filter):
     def filter(self, record):
@@ -24,7 +34,7 @@ def setup_console_logging(module=None,
                           module_logger_logging_level=None):
     global console_stdout
 
-    formatter = colorlog.TTYColoredFormatter(fmt=console_logging_formatter,
+    formatter = FireXColoredConsoleFormatter(fmt=console_logging_formatter,
                                              datefmt=console_datefmt,
                                              log_colors={'DEBUG': 'cyan',
                                                          'INFO': 'bold',
