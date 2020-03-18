@@ -97,14 +97,18 @@ def init():
     logs_dir = args.logs_dir
 
     log_file = os.path.join(logs_dir, Uid.debug_dirname, 'shutdown.log')
-    logging.basicConfig(filename=log_file, level=logging.DEBUG, filemode='w',
-                        format='[%(asctime)s %(levelname)s] %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
+    logging.basicConfig(filename=log_file, level=logging.DEBUG,
+                        format='[%(asctime)s %(levelname)s] %(message)s',
+                        datefmt="%Y-%m-%d %H:%M:%S")
 
     return logs_dir
 
 
 def shutdown_run(logs_dir):
+    logger.info(f"Shutting down with logs: {logs_dir}.")
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
+    logger.info(f"Shutting down with broker: {broker.broker_url}.")
+
     celery_manager = CeleryManager(logs_dir=logs_dir, broker=broker)
     celery_app = Celery(broker=broker.broker_url)
 
