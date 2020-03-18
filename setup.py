@@ -26,7 +26,8 @@ setup(name='firexapp',
           "psutil",
           "python-Levenshtein",
           "entrypoints",
-          "colorlog==2.10.0"
+          "colorlog==2.10.0",
+          "beautifulsoup4"
       ],
       extras_require={
           'test': [
