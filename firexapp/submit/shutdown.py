@@ -75,7 +75,7 @@ def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5):
             logger.warning("Found %s active tasks after revoke. Revoking all active tasks again." % len(active_tasks))
 
         for task in active_tasks:
-            logger.info("Revoking " + task['name'])
+            logger.info(f"Revoking {task['name']}[{task['id']}]")
             celery_app.control.revoke(task_id=task["id"], terminate=True)
 
         time.sleep(2)

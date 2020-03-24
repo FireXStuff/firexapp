@@ -128,3 +128,13 @@ def qualify_firex_bin(bin_name):
 
 def select_env_vars(env_names):
     return {k: v for k, v in os.environ.items() if k in env_names}
+
+
+def find(keys, input_dict):
+    result = input_dict
+    for key in keys:
+        try:
+            result = result[key]
+        except Exception:
+            return None
+    return result
