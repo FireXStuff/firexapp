@@ -179,11 +179,11 @@ export default {
   },
   computed: {
     ...mapState({
-      allTasksByUuid: state => state.tasks.allTasksByUuid,
       title: state => state.firexRunMetadata.uid,
       search: state => state.tasks.search,
     }),
     ...mapGetters({
+      tasksByUuid: 'tasks/tasksByUuid',
       runEndTime: 'tasks/runEndTime',
       graphViewHeaderEntry: 'header/graphViewHeaderEntry',
       listViewHeaderEntry: 'header/listViewHeaderEntry',
@@ -193,7 +193,7 @@ export default {
       getCustomRootRoute: 'header/getCustomRootRoute',
     }),
     tasksWithRuntimeByUuid() {
-      return _.mapValues(this.allTasksByUuid,
+      return _.mapValues(this.tasksByUuid,
         t => Object.assign({ runtime: this.getTaskRuntime(t) }, t));
     },
     displayTasks() {

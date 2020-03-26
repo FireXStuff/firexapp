@@ -155,8 +155,14 @@ function createWebFileAccessor(firexId, modelPathTemplate) {
 
           // Get requested fields from the full task dump files.
           if (fileName.startsWith('full-tasks/') && fileName.endsWith('.json')) {
-            const task = extractedFile.readAsJSON();
-            fieldsByUuid[task.uuid] = _.pick(task, fields);
+            try {
+              const task = extractedFile.readAsJSON();
+              fieldsByUuid[task.uuid] = _.pick(task, fields);
+            } catch (error) {
+              // Very large task files can fail to be extracted due to:
+              // 'Maximum call stack size exceeded'
+              console.error(`Failed extracting data from ${fileName}: ${error}.`);
+            }
           }
         });
         return fieldsByUuid;

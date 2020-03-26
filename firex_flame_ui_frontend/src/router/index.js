@@ -73,6 +73,12 @@ const router = new Router({
             sort: _.get(route.query, 'sort', 'runtime'),
             sortDirection: _.get(route.query, 'sortDirection', 'desc'),
           }),
+          children: [
+            {
+              path: 'root/:rootUuid',
+              props: true,
+            },
+          ],
         },
         {
           path: 'tasks/:uuid/:selectedSection?',
