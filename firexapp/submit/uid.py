@@ -3,6 +3,7 @@ import datetime
 import pytz
 import tempfile
 from getpass import getuser
+import random
 
 from firexapp.submit.arguments import whitelist_arguments
 
@@ -16,7 +17,8 @@ class Uid(object):
         if identifier:
             self.identifier = identifier
         else:
-            self.identifier = 'FireX-%s-%s-%s' % (self.user, self.timestamp.strftime("%y%m%d-%H%M%S"), os.getpid())
+            random.seed()
+            self.identifier = f'FireX-{self.user}-{self.timestamp.strftime("%y%m%d-%H%M%S")}-{random.randint(1, 65536)}'
         self._base_logging_dir = None
         self._logs_dir = None
         self._debug_dir = None
