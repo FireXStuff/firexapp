@@ -29,7 +29,9 @@
 
           <!-- Compensate for when the end event is never received, even though the parent
             task is complete.-->
-          <div v-if="!displayExternalCommands[id].result && parentTaskComplete" class="col-md-2">
+          <div v-if="!displayExternalCommands[id].result && parentTaskComplete"
+               title="Never received completion event, likely task was terminated."
+               class="col-md-2 result-warning">
             <strong>incomplete</strong>
           </div>
           <div v-else-if="!displayExternalCommands[id].result" class="col-md-2" style="color: #07d">

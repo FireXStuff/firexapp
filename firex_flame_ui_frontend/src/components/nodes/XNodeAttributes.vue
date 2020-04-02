@@ -56,7 +56,7 @@
           </button>
           <button v-if="hasResults" class="btn btn-primary"
                   :class="{'active': selectedSection === 'results'}"
-                  @click="selectedSection = 'results'">
+                  @click="replaceSection('results')">
             Results
           </button>
           <button v-if="hasExternalCommands"
@@ -72,11 +72,6 @@
                   :class="{'active': selectedSection === 'attributes'}"
                   @click="replaceSection('attributes')">
             Attributes
-          </button>
-          <button class="btn btn-primary"
-                  :class="{'active': selectedSection === 'replay'}"
-                  @click="replaceSection('replay')">
-            Replay
           </button>
         </div>
       </div>
@@ -118,20 +113,6 @@
       <x-section v-if="shouldShowSection('attributes')" heading="Attributes">
         <x-key-value-viewer :key-values="displayAttributes" :link-keys="['support_location']">
         </x-key-value-viewer>
-      </x-section>
-
-      <x-section v-if="shouldShowSection('replay')" heading="Replay">
-        <div>
-          <div>
-            {{replayCommandLine}}
-          </div>
-          <div style="margin-top:6px">
-            <button type="button" class="btn btn-primary" @click="$copyText(replayCommandLine)">
-              <font-awesome-icon icon="clipboard"></font-awesome-icon>
-              Copy
-            </button>
-          </div>
-        </div>
       </x-section>
       </div>
   </div>
@@ -306,9 +287,6 @@ export default {
     },
     minPriorityOp() {
       return this.$store.getters['graph/resolvedCollapseStateByUuid'][this.uuid].minPriorityOp;
-    },
-    replayCommandLine() {
-      return `${this.firexBin} submit --chain Replay --uuid ${this.taskAttributes.uuid} --previous_logs_dir ${this.logsDir}`;
     },
     hasFailure() {
       return this.detailedTask.exception || this.detailedTask.traceback;
