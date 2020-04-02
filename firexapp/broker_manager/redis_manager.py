@@ -123,17 +123,6 @@ class RedisManager(BrokerManager):
             self._pid_file = _pid_file
         return self._pid_file
 
-    def my_pid_file_exists(self):
-        return self._pid_file_exists(self.pid_file)
-
-    @classmethod
-    def pid_file_exists(cls, logs_dir):
-        return cls._pid_file_exists(cls.get_pid_file(logs_dir))
-
-    @staticmethod
-    def _pid_file_exists(pid_file):
-        return os.path.exists(pid_file)
-
     @property
     def metadata_file(self):
         if not self._metadata_file and self.logs_dir:
