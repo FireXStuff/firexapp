@@ -44,6 +44,9 @@ class BrokerFactory:
         hostname, port = RedisManager.get_hostname_port_from_url(existing_broker_url)
         return RedisManager(hostname=hostname,
                             port=port,
+                            # FIXME: The RedisManager class offers different capabilities depending on how it's
+                            #  initialized. Some functions don't work if it doesn't have a logs_dir.
+                            logs_dir=logs_dir,
                             redis_bin_base=get_redis_bin_dir())
 
     @classmethod

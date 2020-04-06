@@ -33,7 +33,7 @@ def launch_background_shutdown(logs_dir):
             logger.error("SHUTDOWN PROCESS FAILED TO RUN -- REDIS WILL LEAK.")
 
 
-def wait_for_broker_shutdown(broker, timeout=15):
+def wait_for_broker_shutdown(broker, timeout=15, force_kill=True):
     logger.debug("Waiting for broker to shut down")
     shutdown_wait_time = time.time() + timeout
     while time.time() < shutdown_wait_time:
@@ -41,11 +41,14 @@ def wait_for_broker_shutdown(broker, timeout=15):
             break
         time.sleep(0.1)
 
-    if broker.is_alive():
+    if not broker.is_alive():
+        logger.debug("Confirmed successful graceful broker shutdown.")
+    elif force_kill:
         logger.debug("Warning! Broker was not shut down after %s seconds. FORCE KILLING BROKER." % str(timeout))
         broker.force_kill()
-    else:
-        logger.debug("Confirmed successful graceful broker shutdown.")
+
+    return not broker.is_alive()
+
 
 
 def get_active_broker_safe(broker, celery_app):
@@ -67,19 +70,21 @@ def _tasks_from_active(active):
     return tasks
 
 
-def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5):
+def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicate=lambda task: True):
     active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app))
     revoke_retries = 0
     while active_tasks and revoke_retries < max_revoke_retries:
         if revoke_retries:
-            logger.warning("Found %s active tasks after revoke. Revoking all active tasks again." % len(active_tasks))
+            logger.warning("Found %s active tasks after revoke. Revoking active tasks again." % len(active_tasks))
 
         for task in active_tasks:
-            logger.info(f"Revoking {task['name']}[{task['id']}]")
-            celery_app.control.revoke(task_id=task["id"], terminate=True)
+            if task_predicate(task):
+                logger.info(f"Revoking {task['name']}[{task['id']}]")
+                celery_app.control.revoke(task_id=task["id"], terminate=True)
 
         time.sleep(2)
-        active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app))
+        active_tasks = [t for t in _tasks_from_active(get_active_broker_safe(broker, celery_app))
+                        if task_predicate(t)]
         revoke_retries += 1
 
     if len(active_tasks) == 0:
