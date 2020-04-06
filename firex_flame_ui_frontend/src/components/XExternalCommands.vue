@@ -53,6 +53,13 @@
           <div v-else-if="displayExternalCommands[id].result.returncode === 0" class="col-md-2">
             <strong style="color: darkgreen;">success</strong>
           </div>
+          <div v-else-if="!displayExternalCommands[id].result.completed"
+               class="col-md-2 result-warning">
+            <strong>interrupted</strong>
+          </div>
+          <div v-else class="col-md-2 result-warning">
+            <strong>status unknown</strong>
+          </div>
 
           <div class="col-md-4">
             <strong>started: </strong> {{ displayExternalCommands[id].startTime }}
