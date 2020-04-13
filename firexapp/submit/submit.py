@@ -11,6 +11,7 @@ from shutil import copyfile
 from contextlib import contextmanager
 
 from celery.exceptions import NotRegistered
+from firexapp.engine.logging import add_hostname_to_log_records
 
 from firexkit.result import wait_on_async_results, disable_async_result, find_all_unsuccessful, ChainRevokedException, \
     ChainInterruptedException
@@ -26,6 +27,7 @@ from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.submit.shutdown import launch_background_shutdown
 
+add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
 
 

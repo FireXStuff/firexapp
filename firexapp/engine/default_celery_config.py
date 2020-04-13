@@ -1,8 +1,11 @@
 from celery.utils.log import get_task_logger
 
 from firexapp.broker_manager.broker_factory import BrokerFactory
+from firexapp.engine.logging import add_hostname_to_log_records
 from firexapp.plugins import get_plugin_module_list
 from firexapp.discovery import find_firex_task_bundles
+
+add_hostname_to_log_records()
 logger = get_task_logger(__name__)
 
 
