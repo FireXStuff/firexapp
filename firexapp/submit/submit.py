@@ -84,7 +84,9 @@ class SubmitBaseApp:
                                    help='A comma delimited list of tracking services to disable.', default='')
         submit_parser.add_argument('--logs_link',
                                    help="Create a symlink back the root of the run's logs directory")
+        submit_parser.add_argument('--soft_time_limit', help="Task default soft_time_limit", type=int)
         submit_parser.set_defaults(func=self.run_submit)
+
         for service in get_tracking_services():
             service.extra_cli_arguments(submit_parser)
         return submit_parser
@@ -268,7 +270,8 @@ class SubmitBaseApp:
         from firexapp.celery_manager import CeleryManager
         import multiprocessing
         celery_manager = CeleryManager(logs_dir=self.uid.logs_dir, plugins=plugins)
-        celery_manager.start(workername=self.PRIMARY_WORKER_NAME, wait=True, concurrency=multiprocessing.cpu_count()*4)
+        celery_manager.start(workername=self.PRIMARY_WORKER_NAME, wait=True, concurrency=multiprocessing.cpu_count()*4,
+                             soft_time_limit=args.soft_time_limit)
         self.celery_manager = celery_manager
 
     def process_other_chain_args(self, args, other_args)-> {}:
@@ -282,6 +285,10 @@ class SubmitBaseApp:
         # 'plugins' is a necessary element of the chain args, so that they can be handled by converters
         if args.plugins:
             chain_args['plugins'] = args.plugins
+
+        if args.soft_time_limit:
+            chain_args['soft_time_limit'] = args.soft_time_limit
+
         return chain_args
 
     def start_broker(self, args):

@@ -190,7 +190,7 @@ class CeleryManager(object):
         self.log('pid %d became active' % pid, level=INFO)
 
     def start(self, workername, queues=None, wait=True, timeout=15*60, concurrency=None, worker_log_level=None,
-              app=None, cap_concurrency=None, cwd=None):
+              app=None, cap_concurrency=None, cwd=None, soft_time_limit=None):
 
         # Override defaults if applicable
         worker_log_level = worker_log_level if worker_log_level else self.worker_log_level
@@ -209,6 +209,8 @@ class CeleryManager(object):
             cmd += ' --queues=%s' % queues
         if concurrency:
             cmd += ' --concurrency=%d' % self.cap_cpu_count(concurrency, cap_concurrency)
+        if soft_time_limit:
+            cmd += f' --soft-time-limit={soft_time_limit}'
 
         # piping to ts is helpful for debugging if available
         try:
