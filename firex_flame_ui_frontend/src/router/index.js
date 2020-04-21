@@ -81,7 +81,7 @@ const router = new Router({
           ],
         },
         {
-          path: 'tasks/:uuid/:selectedSection?',
+          path: 'tasks/:uuid/:selectedSection?/:selectedSubsection?',
           name: 'XNodeAttributes',
           component: XNodeAttributes,
           props: true,

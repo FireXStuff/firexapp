@@ -1,18 +1,28 @@
 <template>
   <div>
-    <x-section v-for="id in orderedIds" :key="id" style="margin-bottom: 3em;">
+    <x-section v-for="id in orderedIds" :key="id" style="margin-bottom: 3em;"
+      :id="'subsection' + id">
       <template v-slot:header>
         <div  style="display: inline; user-select: all; font-style: italic;">
           {{ displayExternalCommands[id].cwd }}</div>
         <strong style="font-size: medium;">$
           <span style="user-select: all;"
                 v-html="createLinkedHtml(displayExternalCommands[id].cmd)"></span>
+
+          <button v-if="isExpandableOutput(id)"
+            class="btn btn-sm btn-primary pull-right" @click="expandedOutputIds.push(id)">
+            <font-awesome-icon icon="expand-arrows-alt"></font-awesome-icon>
+          </button>
+          <router-link class="btn btn-link pull-right" :to="{params: { selectedSubsection: id }}">
+            <font-awesome-icon icon="link"></font-awesome-icon>
+          </router-link>
         </strong>
       </template>
       <div>
         <pre v-if="displayExternalCommands[id].result"
-            style="background-color: #fafafa; max-height: 10em;"
-            :style="displayExternalCommands[id].result.returncode ? 'color: darkred' : ''"
+            style="background-color: #fafafa;"
+            :style="{color: displayExternalCommands[id].result.returncode ? 'darkred' : '',
+                     'max-height': isExpandedOutput(id) ? null : '10em'}"
             ref="outputs"
         >{{ displayExternalCommands[id].output }}</pre>
         <router-link
@@ -91,6 +101,11 @@ export default {
     taskLogsUrl: { required: false, default: null },
     parentTaskEndTime: { type: Number },
   },
+  data() {
+    return {
+      expandedOutputIds: [],
+    };
+  },
   mounted() {
     // Scroll output elements to bottom.
     _.each(_.get(this.$refs, 'outputs', []), (o) => { o.scrollTop = o.scrollHeight; });
@@ -167,6 +182,13 @@ export default {
         return `<truncated>\n...${cmd.result.output}`;
       }
       return cmd.result.output;
+    },
+    isExpandableOutput(cmdId) {
+      const newlinesCount = _.countBy(this.displayExternalCommands[cmdId].output)['\n'] || 0;
+      return newlinesCount > 10 && !this.isExpandedOutput(cmdId);
+    },
+    isExpandedOutput(cmdId) {
+      return _.includes(this.expandedOutputIds, cmdId);
     },
   },
 };

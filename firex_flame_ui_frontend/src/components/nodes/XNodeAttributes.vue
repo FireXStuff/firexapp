@@ -85,7 +85,7 @@
                    v-html="createLinkedHtml(displayNode.traceback.trim())"></pre>
           </x-expandable-content>
         </div>
-        <label class="node-attributes-label">Exception:</label>
+        <label class="node-attributes-label">exception:</label>
         <div v-if="displayNode.exception" style="display: inline; color: darkred; margin-left: 1em;"
           v-html="createLinkedHtml(displayNode.exception.trim())">
         </div>
@@ -147,6 +147,7 @@ export default {
   props: {
     uuid: { required: true, type: String },
     selectedSection: { default: 'all' },
+    selectedSubsection: { default: null },
   },
   data() {
     return {
@@ -352,6 +353,7 @@ export default {
     fetchTaskAttributes() {
       api.fetchTaskDetails(this.uuid).then((taskAttributes) => {
         this.taskAttributes = taskAttributes;
+        this.$nextTick(this.scrollToSelectedSubsection);
       });
     },
     formatTime(unixTime) {
@@ -375,12 +377,26 @@ export default {
     replaceSection(section) {
       this.$router.replace(this.getTaskRoute(this.uuid, section));
     },
+    scrollToSelectedSubsection() {
+      if (this.selectedSubsection) {
+        const e = this.$el.querySelector(`#subsection${this.selectedSubsection}`);
+        if (e) {
+          e.scrollIntoView(true);
+        }
+      }
+    },
   },
   watch: {
     // eslint-disable-next-line
     '$route.params.uuid': {
       handler: 'fetchTaskAttributes',
       immediate: true,
+    },
+    '$route.params.selectedSubsection': {
+      handler: 'scrollToSelectedSubsection',
+      // immediate case needs to be handled in fetchTaskAttributes so that $el and
+      // task details are defined.
+      immediate: false,
     },
   },
 };
