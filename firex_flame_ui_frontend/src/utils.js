@@ -503,7 +503,7 @@ function createLinkifyRegex(additionalPrefixes) {
 
   const linkifyPrefixes = _.concat('https?:\\/\\/', escapedConfigPrefixes);
   const linkifyPrefix = _.join(linkifyPrefixes, '|');
-  const LINKIFY_END_REGEX = '(?=[\\s,\']|&(quot|lt|gt|#39|amp);|$)';
+  const LINKIFY_END_REGEX = '(?=[\\s,\']|&(quot|lt|gt|#39);|$)';
 
   return RegExp(`((${linkifyPrefix}).+?${LINKIFY_END_REGEX})`, 'g');
 }
