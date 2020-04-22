@@ -11,7 +11,9 @@
           <g :transform="svgGraphTransform">
             <x-link
               :parentUuidByUuid="uncollapsedParentUuidByUuid"
-              :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-link>
+              :nodeLayoutsByUuid="nodeLayoutsByUuid"
+              :additionalChildrenByUuid="additionalChildrenByUuid"
+            ></x-link>
             <x-svg-task-nodes
               :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-svg-task-nodes>
           </g>
@@ -26,7 +28,7 @@
 import { zoom as d3zoom, zoomIdentity } from 'd3-zoom';
 import { select as d3select, event as d3event } from 'd3-selection';
 import _ from 'lodash';
-import { mapState } from 'vuex';
+import { mapState, mapGetters } from 'vuex';
 
 import XSvgTaskNodes from './nodes/XSvgTaskNodes.vue';
 import XTaskCapturingNodes from './nodes/XSizeCapturingNodes.vue';
@@ -73,10 +75,11 @@ export default {
   computed: {
     ...mapState({
       isFirstLayout: state => state.graph.isFirstLayout,
+      collapseConfig: state => state.graph.collapseConfig,
     }),
-    collapseConfig() {
-      return this.$store.state.graph.collapseConfig;
-    },
+    ...mapGetters({
+      additionalChildrenByUuid: 'tasks/additionalChildrenByUuid',
+    }),
     uiCollapseStateByUuid() {
       return this.$store.state.graph.collapseConfig.uiCollapseStateByUuid;
     },
