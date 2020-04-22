@@ -7,16 +7,20 @@
     <div class="node-attributes">
 
       <div class="node-container">
-        <x-task-node v-if="parentUuid"
-                     :taskUuid="parentUuid" :allowCollapse="false" :isLeaf="false"
-                     :showFlameData="false" class="other-task"></x-task-node>
+        <div v-if="parentWithAdditionals" class="tasks-outer-container">
+          <div class="tasks-inner-container">
+            <x-task-node v-for="parentUuid in parentWithAdditionals" :key="parentUuid"
+                         :taskUuid="parentUuid" :allowCollapse="false" :isLeaf="false"
+                         :showFlameData="false" class="other-task"></x-task-node>
+          </div>
+        </div>
 
         <x-task-node :taskUuid="uuid" :allowCollapse="false" :allowClickToAttributes="false"
           :isLeaf="false" style="padding: 0.5em;">
         </x-task-node>
 
-        <div v-if="childrenUuids" class="child-tasks-outer-container">
-          <div class="child-tasks-inner-container">
+        <div v-if="childrenUuids" class="tasks-outer-container">
+          <div class="tasks-inner-container">
             <x-task-node v-for="childUuid in childrenUuids" :key="childUuid"
                          :taskUuid="childUuid" :allowCollapse="false" :isLeaf="false"
                          :showFlameData="false" class="other-task"></x-task-node>
@@ -171,21 +175,24 @@ export default {
       return this.$store.getters['tasks/runStateByUuid'][this.uuid];
     },
     childrenUuids() {
-      return this.$store.getters['graph/childrenUuidsByUuid'][this.uuid];
+      return this.$store.getters['graph/childrenAndAdditionalUuidsByUuid'][this.uuid];
     },
     taskChildren() {
       return _.map(this.childrenUuids,
         uuid => ({ uuid, name: this.taskNameByUuid[uuid] }));
     },
-    parentUuid() {
+    parentWithAdditionals() {
+      return this.$store.getters['graph/parentAndAdditionalUuidsByUuid'][this.uuid];
+    },
+    realParentUuid() {
       return this.$store.getters['graph/parentUuidByUuid'][this.uuid];
     },
     taskParent() {
       let parent;
-      if (!_.isNil(this.parentUuid)) {
+      if (!_.isNil(this.realParentUuid)) {
         parent = {
-          uuid: this.parentUuid,
-          name: this.taskNameByUuid[this.parentUuid],
+          uuid: this.realParentUuid,
+          name: this.taskNameByUuid[this.realParentUuid],
         };
       } else {
         parent = {};
@@ -435,13 +442,13 @@ export default {
   opacity: 1;
 }
 
-.child-tasks-outer-container {
+.tasks-outer-container {
   display: flex;
   width: 95%;
   justify-content: center;
 }
 
-.child-tasks-inner-container {
+.tasks-inner-container {
   display: flex;
   overflow-x: auto;
   overflow-y: visible;

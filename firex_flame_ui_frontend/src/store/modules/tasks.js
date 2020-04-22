@@ -63,7 +63,10 @@ const tasksGetters = {
   flameDataAndNameByUuid: state => _.mapValues(state.allTasksByUuid,
     n => _.pick(n, ['flame_data', 'name', 'parent_id', 'uuid'])),
 
-  additionalChildrenByUuid: state => _.mapValues(state.allTasksByUuid, 'additional_children'),
+  additionalChildrenByUuid: state => _.mapValues(
+    _.pickBy(state.allTasksByUuid, t => _.has(t, 'additional_children')),
+    'additional_children',
+  ),
 
   descendantTasksByUuid: state => (rootUuid) => {
     const descUuids = getDescendantUuids(rootUuid, state.allTasksByUuid);

@@ -77,7 +77,7 @@ export default {
 
 .extra-link {
   stroke-dasharray: 10 4;
-  stroke-width: 2px;
+  stroke-width: 3px;
 }
 
 .extra-link:hover {

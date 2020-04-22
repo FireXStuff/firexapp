@@ -48,6 +48,33 @@ const graphGetters = {
 
   graphDataByUuid: (state, getters) => getters.graph.graphDataByUuid,
 
+  childrenAndAdditionalUuidsByUuid: (state, getters, rootState, rootGetters) => _.mergeWith({},
+    getters.graph.childrenUuidsByUuid,
+    rootGetters['tasks/additionalChildrenByUuid'],
+    concatArrayMergeCustomizer),
+
+  parentAndAdditionalUuidsByUuid: (state, getters, rootState, rootGetters) => {
+    // Initialize with an array containing 'real' (non-additional) parent.
+    const additionalParentsByUuid = _.mapValues(getters.graph.parentUuidByUuid,
+      (uuid) => {
+        if (uuid) {
+          return [uuid];
+        } else {
+          // Do not include null parent (e.g. root's parent) in list of uuids.
+          return [];
+        }
+      });
+
+    _.each(rootGetters['tasks/additionalChildrenByUuid'], (additionaChildren, pUuid) => {
+      _.each(additionaChildren, (childUuid) => {
+        if (_.has(additionalParentsByUuid, childUuid)) {
+          additionalParentsByUuid[childUuid].push(pUuid);
+        }
+      });
+    });
+    return _.mapValues(additionalParentsByUuid, _.uniq);
+  },
+
   flameDataDisplayOperationsByUuid: (state, getters, rootState, rootGetters) => {
     const displayPath = ['flame_data', '_default_display', 'value'];
     // TODO: Each task can send updates that should override previous op entries for that task.
