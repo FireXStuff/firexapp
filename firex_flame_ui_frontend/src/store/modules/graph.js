@@ -48,10 +48,14 @@ const graphGetters = {
 
   graphDataByUuid: (state, getters) => getters.graph.graphDataByUuid,
 
-  childrenAndAdditionalUuidsByUuid: (state, getters, rootState, rootGetters) => _.mergeWith({},
-    getters.graph.childrenUuidsByUuid,
-    rootGetters['tasks/additionalChildrenByUuid'],
-    concatArrayMergeCustomizer),
+  childrenAndAdditionalUuidsByUuid: (state, getters, rootState, rootGetters) => {
+    const unsortedChildrenAndAdditionalUuidsByUuid = _.mergeWith({},
+      getters.graph.childrenUuidsByUuid,
+      rootGetters['tasks/additionalChildrenByUuid'],
+      concatArrayMergeCustomizer);
+    return _.mapValues(unsortedChildrenAndAdditionalUuidsByUuid,
+      childrenUuids => _.sortBy(childrenUuids, u => rootState.tasks.allTasksByUuid[u].task_num));
+  },
 
   parentAndAdditionalUuidsByUuid: (state, getters, rootState, rootGetters) => {
     // Initialize with an array containing 'real' (non-additional) parent.
@@ -59,10 +63,9 @@ const graphGetters = {
       (uuid) => {
         if (uuid) {
           return [uuid];
-        } else {
-          // Do not include null parent (e.g. root's parent) in list of uuids.
-          return [];
         }
+        // Do not include null parent (e.g. root's parent) in list of uuids.
+        return [];
       });
 
     _.each(rootGetters['tasks/additionalChildrenByUuid'], (additionaChildren, pUuid) => {
@@ -72,7 +75,9 @@ const graphGetters = {
         }
       });
     });
-    return _.mapValues(additionalParentsByUuid, _.uniq);
+    return _.mapValues(additionalParentsByUuid,
+      parentUuids => _.sortBy(_.uniq(parentUuids),
+        u => rootState.tasks.allTasksByUuid[u].task_num));
   },
 
   flameDataDisplayOperationsByUuid: (state, getters, rootState, rootGetters) => {
