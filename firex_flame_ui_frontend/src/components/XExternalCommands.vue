@@ -1,5 +1,24 @@
 <template>
   <div>
+    <x-section v-if="orderedIds.length > 1">
+      <template v-slot:header><strong style="font-size: medium;">Summary</strong></template>
+      <div>
+        <router-link v-for="id in orderedIds" :key="'summary-' + id"
+                     :to="{params: { selectedSubsection: id }}">
+          <div style="display: flex; flex-direction: row;">
+            <div>
+              <x-external-command-status
+                :display-external-command="displayExternalCommands[id]"
+                :parent-task-complete="parentTaskComplete"
+                :show-text="false"></x-external-command-status>
+            </div>
+            <div style="flex: 1;">{{summarizeCommand(displayExternalCommands[id].cmd)}}</div>
+            <div style="align-self: flex-end;">{{displayExternalCommands[id].duration}}</div>
+          </div>
+        </router-link>
+      </div>
+    </x-section>
+
     <x-section v-for="id in orderedIds" :key="id" style="margin-bottom: 3em;"
       :id="'subsection' + id">
       <template v-slot:header>
@@ -37,39 +56,10 @@
               <strong>time: </strong> {{ displayExternalCommands[id].duration }}
             </div>
 
-          <!-- Compensate for when the end event is never received, even though the parent
-            task is complete.-->
-          <div v-if="!displayExternalCommands[id].result && parentTaskComplete"
-               title="Never received completion event, likely task was terminated."
-               class="col-md-2 result-warning">
-            <strong>incomplete</strong>
-          </div>
-          <div v-else-if="!displayExternalCommands[id].result" class="col-md-2" style="color: #07d">
-            <font-awesome-icon icon="circle-notch" class="fa-spin">
-            </font-awesome-icon> running
-          </div>
-          <div v-else-if="displayExternalCommands[id].result.timeout"
-               class="col-md-2 result-warning">
-            <strong>completion timeout exceeded</strong>
-          </div>
-          <div v-else-if="displayExternalCommands[id].result.inactive"
-               class="col-md-2 result-warning">
-            <strong>inactivity (no output) timeout</strong>
-          </div>
-          <div v-else-if="displayExternalCommands[id].result.returncode"
-               class="col-md-2" style="color: darkred">
-            <strong>returncode: </strong> {{displayExternalCommands[id].result.returncode}}
-          </div>
-          <div v-else-if="displayExternalCommands[id].result.returncode === 0" class="col-md-2">
-            <strong style="color: darkgreen;">success</strong>
-          </div>
-          <div v-else-if="!displayExternalCommands[id].result.completed"
-               class="col-md-2 result-warning">
-            <strong>interrupted</strong>
-          </div>
-          <div v-else class="col-md-2 result-warning">
-            <strong>status unknown</strong>
-          </div>
+          <x-external-command-status
+            :display-external-command="displayExternalCommands[id]"
+            :parent-task-complete="parentTaskComplete"
+          ></x-external-command-status>
 
           <div class="col-md-4">
             <strong>started: </strong> {{ displayExternalCommands[id].startTime }}
@@ -92,10 +82,11 @@ import _ from 'lodash';
 import { mapGetters } from 'vuex';
 import { durationString } from '../utils';
 import XSection from './XSection.vue';
+import XExternalCommandStatus from './XExternalCommandStatus.vue';
 
 export default {
   name: 'XExternalCommands',
-  components: { XSection },
+  components: { XExternalCommandStatus, XSection },
   props: {
     externalCommands: { required: true, type: Object },
     taskLogsUrl: { required: false, default: null },
@@ -185,19 +176,51 @@ export default {
     },
     isExpandableOutput(cmdId) {
       const newlinesCount = _.countBy(this.displayExternalCommands[cmdId].output)['\n'] || 0;
-      return newlinesCount > 10 && !this.isExpandedOutput(cmdId);
+      return newlinesCount > 6 && !this.isExpandedOutput(cmdId);
     },
     isExpandedOutput(cmdId) {
       return _.includes(this.expandedOutputIds, cmdId);
+    },
+    summarizeCommand(fullCommand) {
+      const maxLength = 100;
+      if (fullCommand.length < maxLength) {
+        const parts = fullCommand.match(/\S+/g) || [];
+        const first = _.last(_.split(parts[0], '/'));
+        const rest = _.tail(parts).join(' ');
+        return `${first} ${rest}`;
+      }
+
+      const lastCmd = _.last(_.split(fullCommand, ';'));
+
+      const condensedParts = _.map(lastCmd.match(/\S+/g) || [], (cmdPart) => {
+        // Only take the last part of absolute paths.
+        if (_.startsWith(cmdPart, '/')) {
+          return _.last(_.split(cmdPart, '/'));
+        }
+        // --work-dir=/some/long/absolute/path/lastbit -> --work-dir=lastbit
+        if (_.includes(cmdPart, '=/')) {
+          const argEqsParts = _.split(cmdPart, '=/', 2);
+          const lastEqPathStart = _.last(argEqsParts);
+          const truncPath = _.last(_.split(lastEqPathStart, '/'));
+          return `${argEqsParts[0]}=[..]${truncPath}`;
+        }
+
+        return cmdPart;
+      });
+
+      const shortCommand = _.join(condensedParts, ' ');
+      if (shortCommand.length > maxLength) {
+        const start = _.dropRight(shortCommand, shortCommand.length - maxLength / 2).join('');
+        const end = _.drop(shortCommand, shortCommand.length - maxLength / 2).join('');
+
+        return `${start}...${end}`;
+      }
+
+      return shortCommand;
     },
   },
 };
 </script>
 
 <style scoped>
-
-.result-warning {
-  color: darkorange;
-}
-
 </style>

@@ -1,41 +1,36 @@
 <template>
-  <div class="error-container">
-    <div style="font-size: 250px;"> &#x1F525; </div>
-    <div style="font-size: 5em;">ERROR</div>
-    <div v-if="storedMessage" style="font-size: 1.5em; white-space: pre;"
-    >{{storedMessage}}</div>
-  </div>
+  <font-awesome-icon
+    :icon="iconDetails.icon"
+    :style="{color: iconDetails.color}"
+    :class="[iconDetails.class]"
+  ></font-awesome-icon>
 </template>
 
 <script>
 
 export default {
-  name: 'XError',
+  name: 'XStatusIcon',
   props: {
-    message: { type: String, default: null },
+    status: { required: true, type: String },
   },
   data() {
     return {
-      storedMessage: this.message,
+      type_to_icon_details: {
+        success: { icon: ['far', 'check-circle'], color: 'green' },
+        warning: { icon: 'exclamation-triangle', color: 'darkorange' },
+        in_progress: { icon: 'circle-notch', color: 'cornflowerblue', class: 'fa-spin' },
+        failed: { icon: ['far', 'times-circle'], color: 'darkred' },
+        unknown: { icon: 'question-circle' },
+      },
     };
   },
-  created() {
-    // Remove message from query for aesthetic reasons,
-    // relying on the initial value having already been stored.
-    const query = Object.assign({}, this.$route.query);
-    delete query.message;
-    this.$router.replace({ query });
+  computed: {
+    iconDetails() {
+      return this.type_to_icon_details[this.status];
+    },
   },
 };
 </script>
 
 <style scoped>
-  .error-container {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    text-align: center;
-    font-family: 'Source Sans Pro',sans-serif;
-  }
 </style>
