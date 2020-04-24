@@ -25,7 +25,7 @@ export default {
         const parentId = this.parentUuidByUuid[cUuid];
         if (!_.isNull(parentId) && _.has(this.nodeLayoutsByUuid, parentId)) {
           const parentLayout = this.nodeLayoutsByUuid[parentId];
-          const d = this.createPath(parentLayout, childLayout);
+          const d = this.createRealPath(parentLayout, childLayout);
           links.push({ d, id: `${parentId}->${cUuid}` });
         }
       });
@@ -40,7 +40,7 @@ export default {
           _.each(extraChildren, (extraChildUuid) => {
             if (_.has(this.nodeLayoutsByUuid, extraChildUuid)) {
               const childLayout = this.nodeLayoutsByUuid[extraChildUuid];
-              const d = this.createPath(parentLayout, childLayout);
+              const d = this.createExtraPath(parentLayout, childLayout);
               links.push({ d, id: `${pUuid}-extra->${extraChildUuid}` });
             }
           });
@@ -50,15 +50,38 @@ export default {
     },
   },
   methods: {
-    createPath(startLayout, endLayout) {
-      const pXCenter = startLayout.x + startLayout.width / 2;
+    createRealPath(startLayout, endLayout) {
+      return this.createPath(startLayout, endLayout, 0, 0);
+    },
+    createExtraPath(startLayout, endLayout) {
+      const startXCenter = startLayout.x + startLayout.width / 2;
+      const endXCenter = endLayout.x + endLayout.width / 2;
+
+      // Extra paths shouldn't be dead center in order to avoid overlapping with real paths.
+      // Avoid crossing real paths by determining the offset by relative leftness/rightness
+      // of the start and end layouts.
+      const absOffset = 5;
+      let startXOffset;
+      let endXOffset;
+      if (endXCenter < startXCenter) {
+        startXOffset = -absOffset;
+        endXOffset = absOffset;
+      } else {
+        startXOffset = absOffset;
+        endXOffset = -absOffset;
+      }
+      return this.createPath(startLayout, endLayout, startXOffset, endXOffset);
+    },
+    createPath(startLayout, endLayout, startXOffset, endXOffset) {
+      const sXCenter = startLayout.x + startLayout.width / 2 + startXOffset;
+      const eXCenter = endLayout.x + endLayout.width / 2 + endXOffset;
       // Horizontal line between the horizontal-centers of the two nodes.
-      const horzDistance = (endLayout.x + endLayout.width / 2) - pXCenter;
-      const pBottom = startLayout.y + startLayout.height;
+      const horzDistance = eXCenter - sXCenter;
+      const sBottom = startLayout.y + startLayout.height;
       // Vertical line half the vertical distance between the two nodes.
       const halfVerticalDistance = (endLayout.y - startLayout.y - startLayout.height) / 2;
 
-      return `M${pXCenter} ${pBottom}`
+      return `M${sXCenter} ${sBottom}`
         + ` v ${halfVerticalDistance}`
         + `h ${horzDistance}`
         + `v ${halfVerticalDistance}`;
@@ -76,8 +99,8 @@ export default {
 }
 
 .extra-link {
-  stroke-dasharray: 10 4;
-  stroke-width: 3px;
+  stroke-dasharray: 3 3;
+  stroke-width: 0.5px;
 }
 
 .extra-link:hover {
