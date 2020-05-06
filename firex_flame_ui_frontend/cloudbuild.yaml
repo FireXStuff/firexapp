@@ -1,11 +1,8 @@
 
 steps:
-- name: gcr.io/cloud-builders/git
-  args: ['clone', 'https://github.com/FireXStuff/firex-flame-ui.git']
+- name: gcr.io/firex-kit-documentation/firex-alpine-build@sha256:68b256cd111a957b7f4832a9c9000eebc575e6b9084f3518fc5b7b82241ac620
+  args: ['sh', '-c', 'sudo git clone https://github.com/FireXStuff/firex-flame-ui.git && cd firex-flame-ui && sudo npm ci && sudo npm run build && cd dist/ && sudo python3 setup.py sdist && ! git describe --tags --exact-match  || twine upload --username firexdev dist/*']
   dir: '$BUILD_ID'
-- name: gcr.io/$PROJECT_ID/firex-alpine-build
-  args: ['sh', '-c', 'sudo npm ci && sudo npm run build && cd dist/ && sudo python3 setup.py sdist && ! git describe --tags --exact-match  || twine upload --username firexdev dist/*']
-  dir: '$BUILD_ID/firex-flame-ui'
   secretEnv: ['TWINE_PASSWORD']
 
 secrets:
