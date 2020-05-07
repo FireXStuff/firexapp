@@ -144,7 +144,12 @@ class RedisManager(BrokerManager):
         except RedisPortNotAssigned:
             port = get_available_port()
         self.log('Starting new process (port %d)...' % port)
-        cmd = self.get_redis_server_cmd(port) + ' --loglevel debug --protected-mode no --daemonize yes --timeout 0'
+        cmd = self.get_redis_server_cmd(port) + ' ' + '--loglevel debug ' \
+                                                      '--protected-mode no ' \
+                                                      '--daemonize yes ' \
+                                                      '--timeout 0 ' \
+                                                      '--client-output-buffer-limit slave 0 0 0 ' \
+                                                      '--client-output-buffer-limit pubsub 0 0 0'
         if self.pid_file:
             cmd += ' --pidfile %s' % self.pid_file
         if self.log_file:
