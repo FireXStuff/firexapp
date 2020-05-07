@@ -226,7 +226,7 @@ class SubmitBaseApp:
             sys.exit(-1)
         except Exception as e:
             logger.error("An error occurred while loading modules")
-            logger.error(e)
+            logger.exception(e)
             self.main_error_exit_handler()
             sys.exit(-1)
 

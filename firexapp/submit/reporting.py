@@ -60,42 +60,46 @@ class ReportersRegistry:
             from celery import current_app
             logger.debug("Processing results data for reports")
             for task_result in recurse_results_tree(results):
-                # only report on successful tasks
-                if task_result.state != SUCCESS:
-                    continue
+                try:
+                    # only report on successful tasks
+                    if task_result.state != SUCCESS:
+                        continue
 
-                task_name = get_task_name_from_result(task_result)
-                if task_name not in current_app.tasks:
-                    continue
+                    task_name = get_task_name_from_result(task_result)
+                    if task_name not in current_app.tasks:
+                        continue
 
-                task = current_app.tasks[task_name]
-                report_entries = getattr(task, 'report_meta', None)
-                if not report_entries:
-                    # this task does not have a report decorator
-                    continue
+                    task = current_app.tasks[task_name]
+                    report_entries = getattr(task, 'report_meta', None)
+                    if not report_entries:
+                        # this task does not have a report decorator
+                        continue
 
-                task_ret = task_result.result
-                for report_gen in cls.get_generators():
-                    for report_entry in report_entries:
-                        filtered_formatters = report_gen.filter_formatters(report_entry["formatters"])
-                        if filtered_formatters is None:
-                            continue
+                    task_ret = task_result.result
+                    for report_gen in cls.get_generators():
+                        for report_entry in report_entries:
+                            filtered_formatters = report_gen.filter_formatters(report_entry["formatters"])
+                            if filtered_formatters is None:
+                                continue
 
-                        key_name = report_entry["key_name"]
-                        try:
-                            report_gen.add_entry(
-                                key_name=key_name,
-                                value=task_ret[key_name] if key_name else task_ret,
-                                priority=report_entry["priority"],
-                                formatters=filtered_formatters,
-                                all_task_returns=task_ret,
-                                task_name=task_name,
-                                task_uuid=task_result.id)
-                        except Exception as e:
-                            logger.debug("Error during report generation for task " + task_name)
-                            logger.debug(e)
-                            logger.debug(traceback.format_exc())
-                            continue
+                            key_name = report_entry["key_name"]
+                            try:
+                                report_gen.add_entry(
+                                    key_name=key_name,
+                                    value=task_ret[key_name] if key_name else task_ret,
+                                    priority=report_entry["priority"],
+                                    formatters=filtered_formatters,
+                                    all_task_returns=task_ret,
+                                    task_name=task_name,
+                                    task_uuid=task_result.id)
+                            except Exception as e:
+                                logger.debug("Error during report generation for task " + task_name)
+                                logger.debug(e)
+                                logger.debug(traceback.format_exc())
+                                continue
+                except Exception as e:
+                    logger.error(f"Failed to add report entry for task result: {task_result}")
+                    logger.exception(e)
 
         for report_gen in cls.get_generators():
             try:
