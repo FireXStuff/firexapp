@@ -1,4 +1,5 @@
 import inspect
+import re
 from celery.exceptions import NotRegistered
 from firexapp.plugins import plugin_support_parser
 from firexapp.application import import_microservices, get_app_task
@@ -29,7 +30,7 @@ class InfoBaseApp:
             info_parser = sub_parser.add_parser("info", help="Lists detailed information about a microservice",
                                                 parents=[plugin_support_parser])
             info_parser.add_argument("entity", help="The short or long name of the microservice to be detailed, or a "
-                                                    "microservice argument")
+                                                    "microservice argument. It can be a Python compatible regexp to display information about all services matching that expression.")
 
             info_parser.set_defaults(func=self.run_info)
             self._info_sub_parser = info_parser
@@ -77,18 +78,26 @@ class InfoBaseApp:
         if not all_tasks:
             all_tasks = import_microservices(plugins)
 
+        entries_found = 0
         # Is this thing a microservice?
-        task = None
-        try:
-            task = get_app_task(entity, all_tasks)
-        except NotRegistered:
-            if "." in entity:
-                try:
-                    task = get_app_task(entity.split('.')[-1], all_tasks)
-                except NotRegistered:
-                    pass
-        if task:
-            self.print_task_details(task)
+        for task_name in sorted(all_tasks, key=lambda i: i.split('.')[-1]):
+
+            if not re.search(entity, task_name):
+                continue
+
+            task = None
+            try:
+                task = get_app_task(task_name, all_tasks)
+            except NotRegistered:
+                continue
+
+            if task:
+                if entries_found> 0:
+                    print('\n')
+                self.print_task_details(task)
+                entries_found += 1
+
+        if entries_found > 0:
             return
 
         # Is this thing an argument
