@@ -65,7 +65,9 @@ const tasksGetters = {
 
   additionalChildrenByUuid: state => _.mapValues(
     _.pickBy(state.allTasksByUuid, t => _.has(t, 'additional_children')),
-    'additional_children',
+    // Not all additional children exist, so exclude them since they can't be operated on.
+    t => _.filter(t.additional_children,
+        additionalChildUuid => _.has(state.allTasksByUuid, additionalChildUuid)),
   ),
 
   descendantTasksByUuid: state => (rootUuid) => {
