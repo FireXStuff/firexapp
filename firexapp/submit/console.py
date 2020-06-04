@@ -4,6 +4,7 @@ import colorlog
 from bs4 import BeautifulSoup
 
 console_stdout = None
+console_stderr = None
 
 
 class DistlibWarningsFilter(logging.Filter):
@@ -33,6 +34,7 @@ def setup_console_logging(module=None,
                           stderr_logging_level=logging.ERROR,
                           module_logger_logging_level=None):
     global console_stdout
+    global console_stderr
 
     formatter = FireXColoredConsoleFormatter(fmt=console_logging_formatter,
                                              datefmt=console_datefmt,
@@ -87,7 +89,10 @@ def setup_console_logging(module=None,
 
 def set_console_log_level(log_level):
     global console_stdout
+    global console_stderr
     console_stdout.setLevel(log_level)
+    if log_level == logging.CRITICAL:
+        console_stderr.setLevel(log_level)
 
 
 def add_filter_to_console(log_filter):
