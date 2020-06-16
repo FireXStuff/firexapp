@@ -25,7 +25,9 @@ logger = get_task_logger(__name__)
 
 def get_broker(cmd_output):
     logs_dir = get_log_dir_from_output(cmd_output)
-    file_exists = wait_until(lambda: os.path.exists(RedisManager.get_metdata_file(logs_dir)), timeout=10, sleep_for=0.5)
+    file_exists = wait_until(lambda: os.path.exists(RedisManager.get_metadata_file(logs_dir)),
+                             timeout=10,
+                             sleep_for=0.5)
     assert file_exists, "No broker metadata file."
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
     return broker
@@ -138,7 +140,7 @@ def fail_service_task():
 
 
 class FailingService(TrackingService):
-    def start(self, args, **chain_args)->{}:
+    def start(self, args, **chain_args) -> {}:
         if args.chain == "fail_service_task":
             raise Exception("Failed to start service")
 

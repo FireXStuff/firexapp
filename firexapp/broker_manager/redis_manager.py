@@ -1,8 +1,12 @@
 import json
 import os
+import re
+import secrets
 import time
 import shlex
 import subprocess
+from functools import total_ordering, partial
+
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
 from socket import gethostname
@@ -12,7 +16,7 @@ from psutil import Process
 from pathlib import Path
 
 from firexapp.broker_manager import BrokerManager
-from firexapp.common import get_available_port, wait_until
+from firexapp.common import get_available_port, wait_until, silent_mkdir
 
 REDIS_DIR_REGISTRY_KEY = 'REDIS_DIR_REGISTRY_KEY'
 FileRegistry().register_file(REDIS_DIR_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'redis'))
@@ -25,10 +29,15 @@ REDIS_PID_REGISTRY_KEY = 'REDIS_PID_REGISTRY_KEY'
 FileRegistry().register_file(REDIS_PID_REGISTRY_KEY,
                              os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), 'redis.pid'))
 
-REDIS_METADATA_REGISTRY_KEY = 'REDIS_METDATA_REGISTRY_KEY'
+REDIS_METADATA_REGISTRY_KEY = 'REDIS_METADATA_REGISTRY_KEY'
 FileRegistry().register_file(REDIS_METADATA_REGISTRY_KEY,
                              os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY),
                                           'run-metadata.json'))
+
+REDIS_CREDS_REGISTRY_KEY = 'REDIS_CREDS_REGISTRY_KEY'
+FileRegistry().register_file(REDIS_CREDS_REGISTRY_KEY,
+                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY),
+                                          'run-credentials.json'))
 
 
 class RedisDidNotBecomeActive(Exception):
@@ -39,26 +48,71 @@ class RedisPortNotAssigned(Exception):
     pass
 
 
+class RedisPasswordReadError(Exception):
+    pass
+
+
+class RedisCmdReadError(Exception):
+    pass
+
+
+@total_ordering
+class RedisPassword:
+    def __init__(self, password=None):
+        self._secret = str(password) if password else secrets.token_urlsafe(32)
+
+    def __str__(self):
+        return self._secret
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self._secret!r})'
+
+    def __eq__(self, other):
+        return self._secret == str(other)
+
+    def __lt__(self, other):
+        return self._secret < str(other)
+
+    def regenerate(self):
+        self._secret = secrets.token_urlsafe(32)
+
+
 class RedisManager(BrokerManager):
 
-    METADATA_BROKER_URL_KEY = 'broker_url'
+    METADATA_BROKER_HOST_KEY = 'broker_host'
+    METADATA_BROKER_PORT_KEY = 'broker_port'
+    BROKER_PASSWORD_KEY = 'broker_password'
 
-    def __init__(self, redis_bin_base, hostname=gethostname(), port=None, logs_dir=None):
+    def __init__(self, redis_bin_base, hostname=gethostname(), port=None, logs_dir=None, password=None):
         self.redis_bin_base = redis_bin_base
         self.host = hostname
         self.port = port
         self.logs_dir = logs_dir
-
+        self._password = RedisPassword(password)
         self._log_file = None
         self._pid_file = None
         self._metadata_file = None
+        self._password_file = None
+        self._redis_server_bin = os.path.join(redis_bin_base, 'redis-server')
+
+        if logs_dir:
+            # Run Redis server from logs directory, so that the command line has the logs path
+            redis_bin_dir = os.path.join(logs_dir, 'bin')
+            redis_server_bin = os.path.join(redis_bin_dir, os.path.basename(self._redis_server_bin))
+            try:
+                silent_mkdir(redis_bin_dir)
+                os.symlink(self._redis_server_bin, redis_server_bin)
+            except FileExistsError:
+                # Link was created previously
+                pass
+            self._redis_server_bin = redis_server_bin
 
     @property
     def redis_cli_cmd(self):
         return self.get_redis_cli_cmd(self.port)
 
     def get_redis_cli_cmd(self, port):
-        cmd = os.path.join(self.redis_bin_base, 'redis-cli') + ' -p %d' % port
+        cmd = os.path.join(self.redis_bin_base, 'redis-cli') + ' -p %d -a %s' % (port, self._password)
         if self.host != gethostname():
             cmd += ' -h %s' % self.host
         return cmd
@@ -68,11 +122,16 @@ class RedisManager(BrokerManager):
         return self.get_redis_server_cmd(self.port)
 
     def get_redis_server_cmd(self, port):
-        return os.path.join(self.redis_bin_base, 'redis-server') + ' --port %d' % port
+        return self._redis_server_bin + ' --port %d --requirepass %s' \
+               % (port, self._password)
 
     @property
     def broker_url(self):
-        return self.get_broker_url(self.port, self.host)
+        return self.get_broker_url(self.port, self.host, self._password)
+
+    @property
+    def broker_url_safe_print(self):
+        return self.get_broker_url(self.port, self.host, '**')
 
     @property
     def port(self):
@@ -93,19 +152,54 @@ class RedisManager(BrokerManager):
         return FileRegistry().get_file(REDIS_PID_REGISTRY_KEY, logs_dir)
 
     @staticmethod
-    def get_metdata_file(logs_dir):
+    def get_metadata_file(logs_dir):
         return FileRegistry().get_file(REDIS_METADATA_REGISTRY_KEY, logs_dir)
+
+    @staticmethod
+    def get_password_file(logs_dir):
+        return FileRegistry().get_file(REDIS_CREDS_REGISTRY_KEY, logs_dir)
 
     @classmethod
     def read_metadata(cls, logs_dir):
-        with open(cls.get_metdata_file(logs_dir)) as fp:
+        with open(cls.get_metadata_file(logs_dir)) as fp:
             metadata = json.load(fp)
         return metadata
 
     @classmethod
-    def get_broker_url_from_metadata(cls, logs_dir):
+    def read_password_data(cls, logs_dir):
+        try:
+            with open(cls.get_password_file(logs_dir)) as fp:
+                password_data = json.load(fp)
+        except (PermissionError, FileNotFoundError) as e:
+            raise RedisPasswordReadError('Cannot get broker password') from e
+
+        return password_data
+
+    @classmethod
+    def get_hostname_port_from_logs_dir(cls, logs_dir):
         metadata = cls.read_metadata(logs_dir)
-        return metadata[cls.METADATA_BROKER_URL_KEY]
+        return metadata[cls.METADATA_BROKER_HOST_KEY], metadata[cls.METADATA_BROKER_PORT_KEY]
+
+    @classmethod
+    def get_password_from_logs_dir(cls, logs_dir):
+        password_data = cls.read_password_data(logs_dir)
+        return password_data[cls.BROKER_PASSWORD_KEY]
+
+    @classmethod
+    def get_firex_id_from_cmdline(cls, cmdline) -> str:
+        # We now run redis via a soft link in the logs directory so that the logs path will be in the command line
+        match = re.search('FireX-\\w+-\\d+-\\d+-\\d+', cmdline)
+        if not match:
+            raise RedisCmdReadError(f'Cannot find Firex ID in {cmdline}')
+
+        return match.group()
+
+    @classmethod
+    def get_broker_url_from_logs_dir(cls, logs_dir):
+        hostname, port = cls.get_hostname_port_from_logs_dir(logs_dir)
+        password = cls.get_password_from_logs_dir(logs_dir)
+
+        return cls.get_broker_url(port, hostname, password)
 
     @property
     def log_file(self):
@@ -126,16 +220,32 @@ class RedisManager(BrokerManager):
     @property
     def metadata_file(self):
         if not self._metadata_file and self.logs_dir:
-            _metadata_file = self.get_metdata_file(self.logs_dir)
+            _metadata_file = self.get_metadata_file(self.logs_dir)
             os.makedirs(os.path.dirname(_metadata_file), exist_ok=True)
             self._metadata_file = _metadata_file
         return self._metadata_file
 
+    @property
+    def password_file(self):
+        if not self._password_file and self.logs_dir:
+            _password_file = self.get_password_file(self.logs_dir)
+            os.makedirs(os.path.dirname(_password_file), exist_ok=True)
+            self._password_file = _password_file
+        return self._password_file
+
     def create_metadata_file(self):
         if self.metadata_file:
             self.log('Creating %s' % self.metadata_file)
-            data = {self.METADATA_BROKER_URL_KEY: self.broker_url}
+            data = {self.METADATA_BROKER_HOST_KEY: self.host, self.METADATA_BROKER_PORT_KEY: self.port}
             with open(self.metadata_file, 'w') as f:
+                json.dump(data, f, sort_keys=True, indent=2)
+
+    def create_password_file(self):
+        if self.password_file:
+            self.log('Creating %s' % self.password_file)
+            data = {self.BROKER_PASSWORD_KEY: str(self._password)}
+            # noinspection PyTypeChecker
+            with open(self.password_file, 'w',  opener=partial(os.open, mode=0o600)) as f:
                 json.dump(data, f, sort_keys=True, indent=2)
 
     def _start(self, timeout=60):
@@ -159,6 +269,7 @@ class RedisManager(BrokerManager):
             raise RedisDidNotBecomeActive(f'The Redis pid file {self.pid_file} did not exist within {timeout}s')
         self.wait_until_active(port=port, timeout=timeout)
         self.port = port
+        self.create_password_file()
         self.create_metadata_file()
         self.log('redis started.')
 
@@ -187,6 +298,7 @@ class RedisManager(BrokerManager):
             RedisManager.log('could not shutdown.')
 
     def force_kill(self):
+        # noinspection PyBroadException
         try:
             RedisManager.log('force killing...')
             Process(int(Path(self.pid_file).read_text())).kill()
@@ -203,7 +315,7 @@ class RedisManager(BrokerManager):
         except subprocess.CalledProcessError:
             return False
         else:
-            return output == 'PONG'
+            return output == 'PONG' or 'NOAUTH Authentication required' in output
 
     def wait_until_active(self, timeout=60, port=None):
         port = self.port if port is None else port
@@ -215,13 +327,18 @@ class RedisManager(BrokerManager):
         raise RedisDidNotBecomeActive('Redis Server did not respond after %r seconds' % timeout)
 
     @staticmethod
-    def get_broker_url(port=6379, hostname=gethostname()):
-        return 'redis://%s:%d/0' % (hostname, int(port))
+    def get_broker_url(port=6379, hostname=gethostname(), password=None):
+        preamble = f':{password}@' if password else ''
+        return 'redis://%s%s:%d/0' % (preamble, hostname, int(port))
 
     @staticmethod
     def get_hostname_port_from_url(broker_url):
-        hostname, port = urlsplit(broker_url).netloc.split(':')
-        return hostname, port
+        url = urlsplit(broker_url)
+        return url.hostname, str(url.port)
+
+    @staticmethod
+    def get_password_from_url(broker_url):
+        return urlsplit(broker_url).password
 
     def get(self, key):
         return self.cli('GET %s' % key)
@@ -231,7 +348,7 @@ class RedisManager(BrokerManager):
         assert rc == 'OK', 'The return value was %s' % rc
 
     def monitor(self, monitor_file):
-        cmd = os.path.join(self.redis_bin_base, 'redis-cli') + ' -p %d MONITOR &' % self.port
+        cmd = os.path.join(self.redis_bin_base, 'redis-cli') + ' -p %d -a %s MONITOR &' % (self.port, self._password)
         with open(monitor_file, 'w') as out:
             subprocess.check_call(cmd, shell=True, stdout=out, stderr=subprocess.STDOUT)
 

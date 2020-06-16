@@ -112,7 +112,7 @@ def init():
 def shutdown_run(logs_dir):
     logger.info(f"Shutting down with logs: {logs_dir}.")
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
-    logger.info(f"Shutting down with broker: {broker.broker_url}.")
+    logger.info(f"Shutting down with broker: {broker.broker_url_safe_print}.")
 
     celery_manager = CeleryManager(logs_dir=logs_dir, broker=broker)
     celery_app = Celery(broker=broker.broker_url)
