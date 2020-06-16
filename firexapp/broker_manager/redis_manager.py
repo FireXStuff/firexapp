@@ -334,7 +334,7 @@ class RedisManager(BrokerManager):
     @staticmethod
     def get_hostname_port_from_url(broker_url):
         url = urlsplit(broker_url)
-        return url.hostname, str(url.port)
+        return url.hostname, str(url.port) if url.port else url.port
 
     @staticmethod
     def get_password_from_url(broker_url):
