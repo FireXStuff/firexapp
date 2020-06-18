@@ -15,17 +15,17 @@ class BrokerManager(ABC):
         pass
 
     @abstractmethod
-    def get_url(self)->str:
+    def get_url(self) -> str:
         pass
 
     @abstractmethod
-    def is_alive(self)->bool:
+    def is_alive(self) -> bool:
         pass
 
     @classmethod
-    def log(cls, msg, header=None, level=logging.DEBUG):
+    def log(cls, msg, header=None, level=logging.DEBUG, exc_info=None):
         if header is None:
             header = cls.__name__
         if header:
             msg = '[%s] %s' % (header, msg)
-        logger.log(level, msg)
+        logger.log(level, msg, exc_info=exc_info)

@@ -47,8 +47,8 @@ class BrokerFactory:
             if not allow_new_password:
                 raise
 
-            RedisManager.log(f'Cannot read previous broker password. Trying a new password.\n{e}',
-                             level=logging.INFO)
+            RedisManager.log(f'Cannot read previous broker password. Trying a new password.',
+                             level=logging.INFO, exc_info=e)
             # Setting this to None will cause the broker manager to create a new password
             password = None
 
@@ -74,6 +74,10 @@ class BrokerFactory:
     @classmethod
     def get_firex_id_from_cmdline(cls, cmdline) -> str:
         return RedisManager.get_firex_id_from_cmdline(cmdline)
+
+    @classmethod
+    def get_broker_failed_auth_str(cls) -> str:
+        return RedisManager.get_broker_failed_auth_str()
 
 
 class BrokerManagerException(Exception):

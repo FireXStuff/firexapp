@@ -59,7 +59,7 @@ class RedisCmdReadError(Exception):
 @total_ordering
 class RedisPassword:
     def __init__(self, password=None):
-        self._secret = str(password) if password else secrets.token_urlsafe(32)
+        self._secret = str(password) if password else 'foobared' # secrets.token_urlsafe(32)
 
     def __str__(self):
         return self._secret
@@ -79,9 +79,10 @@ class RedisPassword:
 
 class RedisManager(BrokerManager):
 
-    METADATA_BROKER_HOST_KEY = 'broker_host'
-    METADATA_BROKER_PORT_KEY = 'broker_port'
-    BROKER_PASSWORD_KEY = 'broker_password'
+    _METADATA_BROKER_HOST_KEY = 'broker_host'
+    _METADATA_BROKER_PORT_KEY = 'broker_port'
+    _BROKER_PASSWORD_KEY = 'broker_password'
+    _BROKER_FAILED_AUTH_STR = 'NOAUTH Authentication required'  # Actual output from Redis
 
     def __init__(self, redis_bin_base, hostname=gethostname(), port=None, logs_dir=None, password=None):
         self.redis_bin_base = redis_bin_base
@@ -178,12 +179,12 @@ class RedisManager(BrokerManager):
     @classmethod
     def get_hostname_port_from_logs_dir(cls, logs_dir):
         metadata = cls.read_metadata(logs_dir)
-        return metadata[cls.METADATA_BROKER_HOST_KEY], metadata[cls.METADATA_BROKER_PORT_KEY]
+        return metadata[cls._METADATA_BROKER_HOST_KEY], metadata[cls._METADATA_BROKER_PORT_KEY]
 
     @classmethod
     def get_password_from_logs_dir(cls, logs_dir):
         password_data = cls.read_password_data(logs_dir)
-        return password_data[cls.BROKER_PASSWORD_KEY]
+        return password_data[cls._BROKER_PASSWORD_KEY]
 
     @classmethod
     def get_firex_id_from_cmdline(cls, cmdline) -> str:
@@ -193,6 +194,10 @@ class RedisManager(BrokerManager):
             raise RedisCmdReadError(f'Cannot find Firex ID in {cmdline}')
 
         return match.group()
+
+    @classmethod
+    def get_broker_failed_auth_str(cls) -> str:
+        return cls._BROKER_FAILED_AUTH_STR
 
     @classmethod
     def get_broker_url_from_logs_dir(cls, logs_dir):
@@ -236,14 +241,14 @@ class RedisManager(BrokerManager):
     def create_metadata_file(self):
         if self.metadata_file:
             self.log('Creating %s' % self.metadata_file)
-            data = {self.METADATA_BROKER_HOST_KEY: self.host, self.METADATA_BROKER_PORT_KEY: self.port}
+            data = {self._METADATA_BROKER_HOST_KEY: self.host, self._METADATA_BROKER_PORT_KEY: self.port}
             with open(self.metadata_file, 'w') as f:
                 json.dump(data, f, sort_keys=True, indent=2)
 
     def create_password_file(self):
         if self.password_file:
             self.log('Creating %s' % self.password_file)
-            data = {self.BROKER_PASSWORD_KEY: str(self._password)}
+            data = {self._BROKER_PASSWORD_KEY: str(self._password)}
             # noinspection PyTypeChecker
             with open(self.password_file, 'w',  opener=partial(os.open, mode=0o600)) as f:
                 json.dump(data, f, sort_keys=True, indent=2)
@@ -315,7 +320,7 @@ class RedisManager(BrokerManager):
         except subprocess.CalledProcessError:
             return False
         else:
-            return output == 'PONG' or 'NOAUTH Authentication required' in output
+            return output == 'PONG' or self.get_broker_failed_auth_str() in output
 
     def wait_until_active(self, timeout=60, port=None):
         port = self.port if port is None else port
