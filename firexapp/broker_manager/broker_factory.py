@@ -39,15 +39,15 @@ class BrokerFactory:
                             password=password)
 
     @classmethod
-    def broker_manager_from_logs_dir(cls, logs_dir, allow_new_password=False) -> RedisManager:
+    def broker_manager_from_logs_dir(cls, logs_dir, passwordless_fallback=False) -> RedisManager:
         hostname, port = RedisManager.get_hostname_port_from_logs_dir(logs_dir)
         try:
             password = RedisManager.get_password_from_logs_dir(logs_dir)
         except RedisPasswordReadError as e:
-            if not allow_new_password:
+            if not passwordless_fallback:
                 raise
 
-            RedisManager.log(f'Cannot read previous broker password. Trying a new password.',
+            RedisManager.log(f'Cannot read previous broker password. Trying a new (random) password.',
                              level=logging.INFO, exc_info=e)
             # Setting this to None will cause the broker manager to create a new password
             password = None

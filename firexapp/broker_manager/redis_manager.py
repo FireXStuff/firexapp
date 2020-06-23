@@ -5,7 +5,7 @@ import secrets
 import time
 import shlex
 import subprocess
-from functools import total_ordering, partial
+from functools import partial
 
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
@@ -56,27 +56,6 @@ class RedisCmdReadError(Exception):
     pass
 
 
-@total_ordering
-class RedisPassword:
-    def __init__(self, password=None):
-        self._secret = str(password) if password else secrets.token_urlsafe(32)
-
-    def __str__(self):
-        return self._secret
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}({self._secret!r})'
-
-    def __eq__(self, other):
-        return self._secret == str(other)
-
-    def __lt__(self, other):
-        return self._secret < str(other)
-
-    def regenerate(self):
-        self._secret = secrets.token_urlsafe(32)
-
-
 class RedisManager(BrokerManager):
 
     _METADATA_BROKER_HOST_KEY = 'broker_host'
@@ -89,7 +68,7 @@ class RedisManager(BrokerManager):
         self.host = hostname
         self.port = port
         self.logs_dir = logs_dir
-        self._password = RedisPassword(password)
+        self._password = str(password) if password else secrets.token_urlsafe(32)
         self._log_file = None
         self._pid_file = None
         self._metadata_file = None
