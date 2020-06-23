@@ -59,7 +59,7 @@ class RedisCmdReadError(Exception):
 @total_ordering
 class RedisPassword:
     def __init__(self, password=None):
-        self._secret = str(password) if password else 'foobared' # secrets.token_urlsafe(32)
+        self._secret = str(password) if password else secrets.token_urlsafe(32)
 
     def __str__(self):
         return self._secret
