@@ -1,4 +1,3 @@
-import logging
 import os
 
 from firexapp.broker_manager.redis_manager import RedisManager, RedisPasswordReadError
@@ -47,8 +46,7 @@ class BrokerFactory:
             if not passwordless_fallback:
                 raise
 
-            RedisManager.log(f'Cannot read previous broker password. Trying a new (random) password.',
-                             level=logging.INFO, exc_info=e)
+            RedisManager.log(f'Cannot read previous broker password. Trying a new (random) password.', exc_info=e)
             # Setting this to None will cause the broker manager to create a new password
             password = None
 
@@ -70,10 +68,6 @@ class BrokerFactory:
         if assert_if_not_set and not url:
             raise BrokerManagerException('%s env variable has not been set' % cls.broker_env_variable)
         return url
-
-    @classmethod
-    def get_firex_id_from_cmdline(cls, cmdline) -> str:
-        return RedisManager.get_firex_id_from_cmdline(cmdline)
 
     @classmethod
     def get_broker_failed_auth_str(cls) -> str:

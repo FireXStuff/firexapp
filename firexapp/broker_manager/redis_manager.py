@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import secrets
 import time
 import shlex
@@ -52,12 +51,9 @@ class RedisPasswordReadError(Exception):
     pass
 
 
-class RedisCmdReadError(Exception):
-    pass
-
-
 class RedisManager(BrokerManager):
 
+    _METADATA_BROKER_URL_KEY = 'broker_url'  # For reading old-style configurations, before the usage of passwords
     _METADATA_BROKER_HOST_KEY = 'broker_host'
     _METADATA_BROKER_PORT_KEY = 'broker_port'
     _BROKER_PASSWORD_KEY = 'broker_password'
@@ -68,6 +64,7 @@ class RedisManager(BrokerManager):
         self.host = hostname
         self.port = port
         self.logs_dir = logs_dir
+
         self._password = str(password) if password else secrets.token_urlsafe(32)
         self._log_file = None
         self._pid_file = None
@@ -158,21 +155,18 @@ class RedisManager(BrokerManager):
     @classmethod
     def get_hostname_port_from_logs_dir(cls, logs_dir):
         metadata = cls.read_metadata(logs_dir)
-        return metadata[cls._METADATA_BROKER_HOST_KEY], metadata[cls._METADATA_BROKER_PORT_KEY]
+        try:
+            return metadata[cls._METADATA_BROKER_HOST_KEY], metadata[cls._METADATA_BROKER_PORT_KEY]
+
+        except KeyError as e:
+            # Possibly old-style metadata, before broker password usage
+            cls.log('Could not get hostname and port directly. Trying old method.', exc_info=e)
+            return cls.get_hostname_port_from_url(broker_url=metadata[cls._METADATA_BROKER_URL_KEY])
 
     @classmethod
     def get_password_from_logs_dir(cls, logs_dir):
         password_data = cls.read_password_data(logs_dir)
         return password_data[cls._BROKER_PASSWORD_KEY]
-
-    @classmethod
-    def get_firex_id_from_cmdline(cls, cmdline) -> str:
-        # We now run redis via a soft link in the logs directory so that the logs path will be in the command line
-        match = re.search('FireX-\\w+-\\d+-\\d+-\\d+', cmdline)
-        if not match:
-            raise RedisCmdReadError(f'Cannot find Firex ID in {cmdline}')
-
-        return match.group()
 
     @classmethod
     def get_broker_failed_auth_str(cls) -> str:
