@@ -65,7 +65,7 @@ class RedisManager(BrokerManager):
         self.port = port
         self.logs_dir = logs_dir
 
-        self._password = str(password) if password else secrets.token_urlsafe(32)
+        self._password = str(password) if password else secrets.token_urlsafe(32).lstrip('-')
         self._log_file = None
         self._pid_file = None
         self._metadata_file = None
