@@ -156,7 +156,7 @@ class RedisManager(BrokerManager):
     def get_hostname_port_from_logs_dir(cls, logs_dir):
         metadata = cls.read_metadata(logs_dir)
         try:
-            return metadata[cls._METADATA_BROKER_HOST_KEY], metadata[cls._METADATA_BROKER_PORT_KEY]
+            return metadata[cls._METADATA_BROKER_HOST_KEY], str(metadata[cls._METADATA_BROKER_PORT_KEY])
 
         except KeyError as e:
             # Possibly old-style metadata, before broker password usage
