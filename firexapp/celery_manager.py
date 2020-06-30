@@ -2,6 +2,7 @@ from firexapp.submit.console import setup_console_logging
 from firexapp.submit.uid import Uid
 from logging import INFO, DEBUG, WARNING
 import os
+import re
 import subprocess
 import psutil
 from firexapp.broker_manager.broker_factory import BrokerFactory
@@ -177,15 +178,33 @@ class CeleryManager(object):
     def cap_cpu_count(count, cap_concurrency):
         return min(count, cap_concurrency) if cap_concurrency else count
 
+    def extract_errors_from_celery_logs(self, celery_log_file):
+        err_list = None
+        try:
+            with open(celery_log_file, encoding='ascii', errors='ignore') as f:
+                logs = f.read()
+                err_list = re.findall('^\S*Error: .*$', logs, re.MULTILINE)
+        except FileNotFoundError:
+            pass
+
+        return err_list
+
     def wait_until_active(self, pid_file, stdout_file, workername, timeout=15*60):
+        extra_err_info = ''
         try:
             poll_until_file_not_empty(pid_file, timeout=timeout)
         except AssertionError:
+            err_list = self.extract_errors_from_celery_logs(stdout_file)
+            if err_list:
+                extra_err_info += '\nFound the following errors:\n' + '\n'.join(err_list)
+
             raise CeleryWorkerStartFailed('The worker %s@%s did not come up after %d seconds.'
-                                          'Please look into %s for details.' % (workername,
-                                                                                self.hostname,
-                                                                                timeout,
-                                                                                stdout_file))
+                                          '\nPlease look into %s for details.'
+                                          '%s' % (workername,
+                                                  self.hostname,
+                                                  timeout,
+                                                  stdout_file,
+                                                  extra_err_info))
         pid = self.get_pid_from_file(pid_file)
         self.log('pid %d became active' % pid, level=INFO)
 
