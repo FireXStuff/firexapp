@@ -178,12 +178,14 @@ class CeleryManager(object):
     def cap_cpu_count(count, cap_concurrency):
         return min(count, cap_concurrency) if cap_concurrency else count
 
-    def extract_errors_from_celery_logs(self, celery_log_file):
+    def extract_errors_from_celery_logs(self, celery_log_file, max_errors=20):
         err_list = None
         try:
             with open(celery_log_file, encoding='ascii', errors='ignore') as f:
                 logs = f.read()
                 err_list = re.findall('^\S*Error: .*$', logs, re.MULTILINE)
+                if err_list:
+                    err_list = err_list[0:max_errors]
         except FileNotFoundError:
             pass
 
