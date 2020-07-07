@@ -1,5 +1,6 @@
 import inspect
 import re
+from textwrap import wrap
 from celery.exceptions import NotRegistered
 from firexapp.plugins import plugin_support_parser
 from firexapp.application import import_microservices, get_app_task
@@ -122,37 +123,83 @@ class InfoBaseApp:
             path = " (%s)" % path
         print("Name: " + name + path)
 
+        arg_desc_str = None
         if task.__doc__:
-            print('\n' + inspect.getdoc(task))
+            docstring = inspect.getdoc(task)
+
+            # Print docstring header up to - but excluding - Arguments
+            match = re.search(r"(.*)\n\s*Arguments?[^\n]*\n(.*)", docstring, re.MULTILINE | re.DOTALL)
+            if match:
+                if len(match.group(1).strip()):
+                    print('\n' + match.group(1))
+                if len(match.group(2).strip()):
+                    arg_desc_str = match.group(2)
+
+        def get_arg_desc_from_docstring(arg, docstring):
+            regex = r"%s(\(.*\))?:\s*([^\n]+)\n?" % arg
+            match = re.search(regex, docstring, re.MULTILINE | re.IGNORECASE)
+            if match:
+                return match.group(2)
+            else:
+                return None
+
+        def print_arg(arg, default, description):
+            max_arg_len = 25
+            max_desc_len = 80 - max_arg_len - len(tab)
+            arg_str = f"{tab}{arg}"
+
+            # Add default value, if present
+            if default is not None:
+                arg_str += f"(default={default})"
+
+            if description:
+                # Add filler or newline, depending on arg_str length
+                if len(arg_str) >= max_arg_len:
+                    arg_str += "\n" + (' ' * max_arg_len)
+                else:
+                    arg_str += " " * (max_arg_len - len(arg_str))
+
+                # Remove excess spacing in description
+                description = re.sub(r" {2,}", " ", description)
+
+                # Add description
+                if len(description) < max_desc_len:
+                    arg_str += description
+                else:
+                    arg_str += f"\n{' ' * max_arg_len}".join(wrap(description, max_desc_len))
+            print(arg_str)
 
         tab = ' ' * 1
         print("\nArguments info")
         print(  "--------------")
-        print(" Mandatory:")
         required_args = getattr(task, "required_args", [])
         cnt = 0
         for chain_arg in sorted(required_args):
             if "self" not in chain_arg and \
                "uid" not in chain_arg and \
                chain_arg is not 'kwargs':
-                print(tab, chain_arg)
+                desc = get_arg_desc_from_docstring(chain_arg, arg_desc_str)
+                print_arg(chain_arg, None, desc)
                 cnt += 1
-        if not cnt:
-            print(tab, "None")
 
-        print("\n Optional:")
         optional_args = getattr(task, "optional_args", {})
         if len(optional_args):
             for chain_arg in sorted(optional_args):
-                print(tab, chain_arg + "=" + str(optional_args[chain_arg]))
+                desc = get_arg_desc_from_docstring(chain_arg, arg_desc_str)
+                default = optional_args[chain_arg]
+                if default is None:
+                    default = "None"
+                print_arg(chain_arg, default, desc)
         else:
-            print(tab, "None")
+            if not cnt:
+                print(tab, "None")
 
-        print('\n Returns:')
+        print('\nReturns\n-------')
         out = getattr(task, "return_keys", {})
         if out:
             for chain_arg in sorted(out):
-                print(tab, chain_arg)
+                desc = get_arg_desc_from_docstring(chain_arg, arg_desc_str)
+                print_arg(chain_arg, None, desc)
         else:
             print(tab, "None")
 
