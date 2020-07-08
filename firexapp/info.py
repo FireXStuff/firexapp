@@ -136,6 +136,8 @@ class InfoBaseApp:
                     arg_desc_str = match.group(2)
 
         def get_arg_desc_from_docstring(arg, docstring):
+            if not docstring:
+                return None
             regex = r"%s(\(.*\))?:\s*([^\n]+)\n?" % arg
             match = re.search(regex, docstring, re.MULTILINE | re.IGNORECASE)
             if match:
