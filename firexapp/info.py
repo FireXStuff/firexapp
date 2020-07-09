@@ -134,6 +134,8 @@ class InfoBaseApp:
                     print('\n' + match.group(1))
                 if len(match.group(2).strip()):
                     arg_desc_str = match.group(2)
+            else:
+                print('\n' + docstring)
 
         def get_arg_desc_from_docstring(arg, docstring):
             if not docstring:
