@@ -9,7 +9,8 @@ steps:
 - name: google/cloud-sdk
   # Only copy if test_logs exists since that directory's existence indicates test failure.
   # Always return non-zero after copy so that overall build status reflects test failure.
-  args: ['sh', '-c', '[ ! -d test_logs ] || (gsutil -m rsync -e -r -x "redis-server" test_logs gs://www.firexflame.com/runs && false)']
+  # We need the -e to exclude sym-links since copying bin/redis-server fails for some reason
+  args: ['sh', '-c', '[ ! -d test_logs ] || (gsutil -m rsync -e -r test_logs gs://www.firexflame.com/runs && false)']
   dir: '$BUILD_ID/firexapp'
 - name: gcr.io/cloud-builders/gsutil
   args: ['rsync', '-r', 'html', 'gs://www.firexapp.com']
