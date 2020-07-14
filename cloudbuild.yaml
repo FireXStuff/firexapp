@@ -9,7 +9,7 @@ steps:
 - name: google/cloud-sdk
   # Only copy if test_logs exists since that directory's existence indicates test failure.
   # Always return non-zero after copy so that overall build status reflects test failure.
-  args: ['sh', '-c', '[ ! -d test_logs ] || (gsutil -m rsync -r --ignore-errors test_logs/* gs://www.firexflame.com/runs && false)']
+  args: ['sh', '-c', '[ ! -d test_logs ] || (gsutil -m rsync -r test_logs/* gs://www.firexflame.com/runs && false)']
   dir: '$BUILD_ID/firexapp'
 - name: gcr.io/cloud-builders/gsutil
   args: ['rsync', '-r', 'html', 'gs://www.firexapp.com']
