@@ -183,7 +183,7 @@ class CeleryManager(object):
         try:
             with open(celery_log_file, encoding='ascii', errors='ignore') as f:
                 logs = f.read()
-                err_list = re.findall('^\S*Error: .*$', logs, re.MULTILINE)
+                err_list = re.findall(r'^\S*Error: .*$', logs, re.MULTILINE)
                 if err_list:
                     err_list = err_list[0:max_errors]
         except FileNotFoundError:
