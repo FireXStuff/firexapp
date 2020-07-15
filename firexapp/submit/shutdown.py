@@ -77,7 +77,9 @@ def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicat
         if revoke_retries:
             logger.warning("Found %s active tasks after revoke. Revoking active tasks again." % len(active_tasks))
 
-        for task in active_tasks:
+        # Revoke tasks in order they were started. This avoids ChainRevokedException errors when children are revoked
+        # before their parents.
+        for task in sorted(active_tasks, key=lambda t: t.get('time_start', float('inf'))):
             if task_predicate(task):
                 logger.info(f"Revoking {task['name']}[{task['id']}]")
                 celery_app.control.revoke(task_id=task["id"], terminate=True)
