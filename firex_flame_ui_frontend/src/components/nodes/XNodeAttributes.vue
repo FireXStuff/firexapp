@@ -364,7 +364,8 @@ export default {
       });
     },
     formatTime(unixTime) {
-      const humanTime = DateTime.fromSeconds(unixTime).toLocaleString(DateTime.DATETIME_FULL);
+      const humanTime = DateTime.fromSeconds(unixTime)
+        .toLocaleString(DateTime.DATETIME_FULL_WITH_SECONDS);
       return `${humanTime} (orig: ${unixTime})`;
     },
     shouldShowSection(sectionId) {

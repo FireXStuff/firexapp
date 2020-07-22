@@ -1,8 +1,8 @@
 import _ from 'lodash';
 
-import { getChildrenUuidsByUuid, getGraphDataByUuid } from '../../graph-utils';
+import {getChildrenUuidsByUuid, getDescendantsByUuid, getGraphDataByUuid} from '../../graph-utils';
 import {
-  getPrioritizedTaskStateBackground, concatArrayMergeCustomizer, createRunStateExpandOperations,
+  getPrioritizedTaskStateBackground, concatArrayMergeCustomizer, createRunStateExpandOperations, orderByTaskNum,
 } from '../../utils';
 import {
   prioritizeCollapseOps, resolveDisplayConfigsToOpsByUuid, stackOffset, stackCount,
@@ -57,6 +57,17 @@ const graphGetters = {
       childrenUuids => _.sortBy(childrenUuids, u => rootState.tasks.allTasksByUuid[u].task_num));
   },
 
+  tasksIncludingAdditionalDescendantsByUuid: (state, getters, rootState, rootGetters) => {
+    const rootUuid = rootGetters['tasks/rootUuid'];
+    const childrenUuidsByUuid = getters.childrenAndAdditionalUuidsByUuid;
+    if (_.has(childrenUuidsByUuid, rootUuid)) {
+      const descUuidsByUuid = getDescendantsByUuid(rootUuid, childrenUuidsByUuid);
+      const uuids = _.concat(_.flatten(_.values(descUuidsByUuid)), rootUuid);
+      return orderByTaskNum(_.pick(rootState.tasks.allTasksByUuid, uuids));
+    }
+    return {};
+  },
+
   parentAndAdditionalUuidsByUuid: (state, getters, rootState, rootGetters) => {
     // Initialize with an array containing 'real' (non-additional) parent.
     const additionalParentsByUuid = _.mapValues(getters.graph.parentUuidByUuid,
@@ -68,8 +79,8 @@ const graphGetters = {
         return [];
       });
 
-    _.each(rootGetters['tasks/additionalChildrenByUuid'], (additionaChildren, pUuid) => {
-      _.each(additionaChildren, (childUuid) => {
+    _.each(rootGetters['tasks/additionalChildrenByUuid'], (additionalChildren, pUuid) => {
+      _.each(additionalChildren, (childUuid) => {
         if (_.has(additionalParentsByUuid, childUuid)) {
           additionalParentsByUuid[childUuid].push(pUuid);
         }

@@ -145,7 +145,7 @@ export default {
       return cmd;
     },
     formatTime(unixTime) {
-      return DateTime.fromSeconds(unixTime).toLocaleString(DateTime.DATETIME_FULL);
+      return DateTime.fromSeconds(unixTime).toLocaleString(DateTime.DATETIME_FULL_WITH_SECONDS);
     },
     timeAgo(time) {
       return durationString(_.max([(Date.now() / 1000) - time, 0]));

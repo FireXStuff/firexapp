@@ -67,7 +67,7 @@ const tasksGetters = {
     _.pickBy(state.allTasksByUuid, t => _.has(t, 'additional_children')),
     // Not all additional children exist, so exclude them since they can't be operated on.
     t => _.filter(t.additional_children,
-        additionalChildUuid => _.has(state.allTasksByUuid, additionalChildUuid)),
+      additionalChildUuid => _.has(state.allTasksByUuid, additionalChildUuid)),
   ),
 
   descendantTasksByUuid: state => (rootUuid) => {
@@ -81,14 +81,16 @@ const tasksGetters = {
   hasTasks: state => !_.isEmpty(state.allTasksByUuid),
 
   rootUuid: (state, getters, rootState) => {
-    if (!_.isNil(getters.selectedRoot)) {
+    if (!_.isNil(getters.selectedRoot) && _.has(state.allTasksByUuid, getters.selectedRoot)) {
       return getters.selectedRoot;
     }
-    if (!_.isNil(rootState.firexRunMetadata.root_uuid)) {
-      return rootState.firexRunMetadata.root_uuid;
+    const metadataRootUuid = rootState.firexRunMetadata.root_uuid;
+    if (!_.isNil(metadataRootUuid) && _.has(state.allTasksByUuid, metadataRootUuid)) {
+      return metadataRootUuid;
     }
     // Fallback to searching graph.
     const nullParents = _.filter(state.allTasksByUuid, { parent_id: null });
+    // TODO: consider finding by earliest task num if multiple null parent_id.
     return _.isEmpty(nullParents) ? null : _.head(nullParents).uuid;
   },
 

@@ -12,6 +12,7 @@ import XShortcuts from '@/components/XShortcuts.vue';
 import XFindFirexId from '@/components/XFindFirexId.vue';
 import XError from '@/components/XError.vue';
 import XLiveFileViewer from '@/components/XLiveFileViewer.vue';
+import XErrorsTable from '@/components/XErrorsTable.vue';
 
 Vue.use(Router);
 
@@ -97,6 +98,16 @@ const router = new Router({
           name: 'live-file',
           component: XLiveFileViewer,
           props: route => ({ filepath: route.query.file, host: route.query.host }),
+        },
+        {
+          path: 'errors-table',
+          name: 'XErrorsTable',
+          component: XErrorsTable,
+          children: [
+            {
+              path: 'root/:rootUuid',
+            },
+          ],
         },
         // default path must be last.
         {

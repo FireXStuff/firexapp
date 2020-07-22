@@ -53,8 +53,15 @@ function socketRequestResponse(socket, requestEvent, successEventName, failedEve
   return p;
 }
 
-function createSocketApiAccessor(url, options) {
-  const socket = io(url);
+function createFlameSocket(url, options) {
+  const socket = io(url, {
+    transports: ['websocket'],
+  });
+
+  // In case websocket fails, retry with both polling and websocket.
+  socket.on('reconnect_attempt', () => {
+    socket.io.opts.transports = ['polling', 'websocket'];
+  });
 
   if (_.has(options, 'onConnect')) {
     socket.on('connect', options.onConnect);
@@ -63,6 +70,11 @@ function createSocketApiAccessor(url, options) {
     socket.on('disconnect', options.onDisconnect);
   }
 
+  return socket;
+}
+
+function createSocketApiAccessor(url, options) {
+  const socket = createFlameSocket(url, options);
   return {
     // TODO: add failure, timeout, or auto-handle elsewhere.
     getFireXRunMetadata: () => socketRequestResponse(
