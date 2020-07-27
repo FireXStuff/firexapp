@@ -126,7 +126,7 @@ def shutdown_run(logs_dir):
             logger.info("Found active Celery; sending Celery shutdown.")
             celery_app.control.shutdown()
 
-            celery_shutdown_wait = 15
+            celery_shutdown_wait = 60
             celery_shutdown_success = celery_manager.wait_for_shutdown(celery_shutdown_wait)
             if not celery_shutdown_success:
                 logger.warning("Celery not shutdown after %d secs, force killing instead." % celery_shutdown_wait)
