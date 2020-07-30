@@ -31,7 +31,8 @@ class InfoBaseApp:
             info_parser = sub_parser.add_parser("info", help="Lists detailed information about a microservice",
                                                 parents=[plugin_support_parser])
             info_parser.add_argument("entity", help="The short or long name of the microservice to be detailed, or a "
-                                                    "microservice argument. It can be a Python compatible regexp to display information about all services matching that expression.")
+                                                    "microservice argument. It can be a Python compatible regexp to "
+                                                    "display information about all services matching that expression.")
 
             info_parser.set_defaults(func=self.run_info)
             self._info_sub_parser = info_parser
@@ -86,6 +87,7 @@ class InfoBaseApp:
             if not re.search(entity, task_name):
                 continue
 
+            # noinspection PyUnusedLocal
             task = None
             try:
                 task = get_app_task(task_name, all_tasks)
@@ -93,7 +95,7 @@ class InfoBaseApp:
                 continue
 
             if task:
-                if entries_found> 0:
+                if entries_found > 0:
                     print('\n')
                 self.print_task_details(task)
                 entries_found += 1
@@ -112,8 +114,67 @@ class InfoBaseApp:
 
         self._info_sub_parser.exit(status=-1, message="Microservice %s was not found!" % entity)
 
-    @staticmethod
-    def print_task_details(task):
+    @classmethod
+    def parse_task_docstring(cls, task):
+        if not task.__doc__:
+            return None, None
+
+        header = None
+        arg_dict = None
+        docstring = inspect.getdoc(task)
+
+        match = re.search(r"^(.*)\n\s*Arguments?[^\n]*\n\s*-*(.*)", docstring, re.MULTILINE | re.DOTALL)
+        if match:
+            if len(match.group(1).strip()):
+                header = match.group(1).strip()
+            if len(match.group(2).strip()):
+                arg_desc_str = match.group(2).strip()
+                arg_dict = {}
+
+                # Need to determine if args are indicated with prefixed '--'
+                if re.search("^\s*--", arg_desc_str):
+                    # assume our args all start with --
+                    arg_prefix = "(?:--)"
+                else:
+                    # no prefix
+                    arg_prefix = ""
+                # Go over arguments section and create dict of args/description
+                desc = ''
+                arg = None
+                for line in arg_desc_str.split("\n"):
+                    line = line.strip()
+                    # blank line ends entry
+                    if not len(line):
+                        if arg:
+                            arg_dict[arg] = desc
+                        arg = None
+                        desc = ''
+                    # Look for start of new entry
+                    match = re.search(r"^" + arg_prefix + r"(\S[^:\(\r\n]+)(?:\([^)\r\n]*\))?:(?:(?:\([^)\r\n]*\))?[^\S\r\n]*([^\r\n]*))?$", line)
+                    if match:
+                        if arg:
+                            arg_dict[arg] = desc
+                        arg = match.group(1)
+                        desc = match.group(2).strip()
+                        # Remove ':' and any leading () that usually indicate type. These can appear in either order
+                        match = re.search(r"^(?:\([^)]*\)\s*)?:(?:\([^)]*\))?\s*(.+)$", desc)
+                        if match:
+                            desc = match.group(1)
+                    else:
+                        # continue prev entry
+                        if len(desc):
+                            desc += " " + line
+                        else:
+                            desc = line
+                # store last outstanding entry
+                if arg:
+                    arg_dict[arg] = desc
+            else:
+                header = docstring,
+        return header, arg_dict
+
+    @classmethod
+    def print_task_details(cls, task):
         dash_length = 40
         print('-' * dash_length)
         split_name = task.name.split(".")
@@ -123,38 +184,21 @@ class InfoBaseApp:
             path = " (%s)" % path
         print("Name: " + name + path)
 
-        arg_desc_str = None
+        arguments = {}
         if task.__doc__:
-            docstring = inspect.getdoc(task)
+            header, arguments = cls.parse_task_docstring(task)
 
-            # Print docstring header up to - but excluding - Arguments
-            match = re.search(r"(.*)\n\s*Arguments?[^\n]*\n(.*)", docstring, re.MULTILINE | re.DOTALL)
-            if match:
-                if len(match.group(1).strip()):
-                    print('\n' + match.group(1))
-                if len(match.group(2).strip()):
-                    arg_desc_str = match.group(2)
-            else:
-                print('\n' + docstring)
+            if header:
+                print('\n' + header)
 
-        def get_arg_desc_from_docstring(arg, docstring):
-            if not docstring:
-                return None
-            regex = r"%s(\(.*\))?:\s*([^\n]+)\n?" % arg
-            match = re.search(regex, docstring, re.MULTILINE | re.IGNORECASE)
-            if match:
-                return match.group(2)
-            else:
-                return None
-
-        def print_arg(arg, default, description):
+        def print_arg(arg, deflt, description):
             max_arg_len = 25
             max_desc_len = 80 - max_arg_len - len(tab)
             arg_str = f"{tab}{arg}"
 
             # Add default value, if present
-            if default is not None:
-                arg_str += f"(default={default})"
+            if deflt is not None:
+                arg_str += f"(default={deflt})"
 
             if description:
                 # Add filler or newline, depending on arg_str length
@@ -175,21 +219,21 @@ class InfoBaseApp:
 
         tab = ' ' * 1
         print("\nArguments info")
-        print(  "--------------")
+        print("--------------")
         required_args = getattr(task, "required_args", [])
         cnt = 0
         for chain_arg in sorted(required_args):
             if "self" not in chain_arg and \
                "uid" not in chain_arg and \
                chain_arg is not 'kwargs':
-                desc = get_arg_desc_from_docstring(chain_arg, arg_desc_str)
+                desc = arguments.get(chain_arg, None)
                 print_arg(chain_arg, None, desc)
                 cnt += 1
 
         optional_args = getattr(task, "optional_args", {})
         if len(optional_args):
             for chain_arg in sorted(optional_args):
-                desc = get_arg_desc_from_docstring(chain_arg, arg_desc_str)
+                desc = arguments.get(chain_arg, None)
                 default = optional_args[chain_arg]
                 if default is None:
                     default = "None"
@@ -202,10 +246,11 @@ class InfoBaseApp:
         out = getattr(task, "return_keys", {})
         if out:
             for chain_arg in sorted(out):
-                desc = get_arg_desc_from_docstring(chain_arg, arg_desc_str)
+                desc = arguments.get(chain_arg, None)
                 print_arg(chain_arg, None, desc)
         else:
             print(tab, "None")
+
 
 def get_argument_use(all_tasks) -> dict:
     argument_usage = {}
