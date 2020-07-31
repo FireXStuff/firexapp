@@ -185,11 +185,10 @@ class InfoBaseApp:
         print("Name: " + name + path)
 
         arguments = {}
-        if task.__doc__:
-            header, arguments = cls.parse_task_docstring(task)
+        header, arguments = cls.parse_task_docstring(task)
 
-            if header:
-                print('\n' + header)
+        if header:
+            print('\n' + header)
 
         def print_arg(arg, deflt, description):
             max_arg_len = 25
