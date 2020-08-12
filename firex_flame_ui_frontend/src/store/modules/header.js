@@ -221,7 +221,9 @@ const headerGetters = {
     _.get(state.uiConfig, 'linkify_prefixes', []),
   ),
 
-  createLinkedHtml: (state, getters) => text => createLinkedHtml(text, getters.linkifyRegex),
+  createLinkedHtml: (state, getters) => (text, linkClass) => createLinkedHtml(
+    text, getters.linkifyRegex, linkClass,
+  ),
 
 };
 

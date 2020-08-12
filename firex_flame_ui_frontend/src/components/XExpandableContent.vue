@@ -5,7 +5,7 @@
     </div>
     <div v-if="!isExpanded" class="fadeout-container">
       <div class="fadeout" @click="toggleExpand"></div>
-      <button :class="'btn ' + buttonClass" style="margin: 0.5em 2em;"
+      <button :class="'btn btn-sm ' + buttonClass" style="margin: 0.5em 2em;"
               @click="toggleExpand">
         <font-awesome-icon icon="plus-circle"></font-awesome-icon>
         Show Full {{name}}
@@ -22,6 +22,7 @@ export default {
     buttonClass: { default: '', type: String },
     name: { default: '' },
     expand: { default: false, type: Boolean },
+    unexpandedMaxHeight: { default: 8, type: Number },
   },
   data() {
     return {
@@ -36,15 +37,13 @@ export default {
       if (this.isExpanded) {
         return {};
       }
-      return { 'max-height': '8em', overflow: 'hidden' };
+      return { 'max-height': `${this.unexpandedMaxHeight}em`, overflow: 'hidden' };
     },
   },
   methods: {
     toggleExpand() {
       this.isExplicitlyExpanded = !this.isExplicitlyExpanded;
     },
-  },
-  watch: {
   },
 };
 </script>
@@ -62,6 +61,7 @@ export default {
         rgba(255, 255, 255, 0) 0%,
         rgba(255, 255, 255, 1) 100%
     );
+    cursor: pointer;
   }
 
   .btn-outline-danger {

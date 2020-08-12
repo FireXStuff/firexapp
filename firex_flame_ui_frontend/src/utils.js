@@ -508,12 +508,15 @@ function createLinkifyRegex(additionalPrefixes) {
   return RegExp(`((${linkifyPrefix}).+?${LINKIFY_END_REGEX})`, 'g');
 }
 
-function createLinkedHtml(text, regex) {
+function createLinkedHtml(text, regex, linkClass) {
   const replacements = []
+  if (!linkClass) {
+    linkClass = 'subtle-link'
+  }
 
   const intermediate = _.escape(text).replace(regex, function (match) {
       const replacementId = replacements.length;
-      replacements.push(`<a href="${match}" class="subtle-link">${match}</a>`);
+      replacements.push(`<a href="${match}" class="${linkClass}">${match}</a>`);
       return `SPECIAL%%%REPLACE${replacementId}`;
     });
 

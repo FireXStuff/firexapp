@@ -19,9 +19,16 @@
               <div>{{t.name}}{{ t.from_plugin ? ' (plugin)' : ''}}</div>
               <div>{{longNameToModulePath(t.long_name)}}</div>
             </td>
-            <td style="white-space: pre-line;"
-                v-html="createLinkedHtml(getRootCauseMessageFromTraceback(t.traceback))"
-            ></td>
+            <td>
+              <x-expandable-content
+                                    button-class="btn-outline-danger" name=""
+                                    :expand="shouldShowFull(displayTracebacksByUuid[t.uuid])"
+                                    :unexpandedMaxHeight="collapseTracebackLinesThreshold">
+          <pre style="white-space: pre-line;"
+               v-html="createLinkedHtml(displayTracebacksByUuid[t.uuid], 'fake')">
+          </pre>
+              </x-expandable-content>
+            </td>
             <td style="text-align: center;">
               {{errorContextByUuid[u]}}
             </td>
@@ -52,17 +59,17 @@ import { mapState, mapGetters } from 'vuex';
 import * as api from '../api';
 
 import XHeader from './XHeader.vue';
+import XExpandableContent from './XExpandableContent.vue';
 import { isChainInterrupted } from '../utils';
+
 
 export default {
   name: 'XErrorsTable',
-  components: { XHeader },
-  props: {
-
-  },
+  components: { XHeader, XExpandableContent },
   data() {
     return {
       failedTaskDetails: {},
+      collapseTracebackLinesThreshold: 15,
     };
   },
   created() {
@@ -121,6 +128,11 @@ export default {
         return '';
       });
     },
+    displayTracebacksByUuid() {
+      return _.mapValues(this.failedTaskDetails, t => this.getRootCauseMessageFromTraceback(
+        t.traceback,
+      ));
+    },
   },
   methods: {
     fetchFailedTaskDetails(uuids) {
@@ -160,13 +172,16 @@ export default {
         rootCauseMsg = traceback;
       }
 
-      return _.trim(_.truncate(rootCauseMsg, { length: 1000, omission: ' [...]' }));
+      return _.trim(rootCauseMsg);
     },
     taskRoute(uuid) {
       return this.getTaskRoute(uuid);
     },
     longNameToModulePath(longName) {
       return _.join(_.dropRight(_.split(longName, '.')), '.');
+    },
+    shouldShowFull(traceback) {
+      return traceback.split(/\n/).length < this.collapseTracebackLinesThreshold;
     },
   },
 };
