@@ -169,8 +169,8 @@ class InfoBaseApp:
                 # store last outstanding entry
                 if arg:
                     arg_dict[arg] = desc
-            else:
-                header = docstring,
+        else:
+            header = docstring
         return header, arg_dict
 
     @classmethod
@@ -184,11 +184,12 @@ class InfoBaseApp:
             path = " (%s)" % path
         print("Name: " + name + path)
 
-        arguments = {}
         header, arguments = cls.parse_task_docstring(task)
 
         if header:
             print('\n' + header)
+        if not arguments:
+            arguments = {}
 
         def print_arg(arg, deflt, description):
             max_arg_len = 25
