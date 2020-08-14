@@ -161,7 +161,7 @@ class SubmitBaseApp:
             root_task = get_app_task(root_task_name)
         except NotRegistered as e:
             logger.error(e)
-            self.main_error_exit_handler()
+            self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
         self.wait_tracking_services_task_ready()
         chain_result = root_task.s(chain=args.chain, submit_app=self, sync=args.sync, **chain_args).delay()
@@ -173,14 +173,16 @@ class SubmitBaseApp:
             try:
                 wait_on_async_results(chain_result)
                 self.check_for_failures(chain_result, chain_args)
-            except (ChainRevokedException, ChainInterruptedException):
+            except (ChainRevokedException, ChainInterruptedException) as e:
                 self.check_for_failures(chain_result, chain_args)
-                self.main_error_exit_handler(chain_details=(chain_result, chain_args))
+                self.main_error_exit_handler(chain_details=(chain_result, chain_args),
+                                             reason=f"Sync run: completed unsuccessfully ({e})")
                 sys.exit(-1)
             else:
                 logger.info("All tasks succeeded")
                 self.copy_submission_log()
-                self.self_destruct(chain_details=(chain_result, chain_args))
+                self.self_destruct(chain_details=(chain_result, chain_args),
+                                   reason="Sync run: completed successfully")
 
         self.wait_tracking_services_release_console_ready()
 
@@ -195,7 +197,8 @@ class SubmitBaseApp:
             failures = sorted(failures.values())
             for failure in failures:
                 logger.error(failure)
-            self.main_error_exit_handler(chain_details=(chain_result, chain_args))
+            self.main_error_exit_handler(chain_details=(chain_result, chain_args),
+                                         reason=f'Tasks failed: {failures}.'')
             sys.exit(-1)
 
     def set_broker_in_app(self):
@@ -221,12 +224,12 @@ class SubmitBaseApp:
             all_tasks = import_microservices(chain_args.get("plugins", args.plugins))
         except FileNotFoundError as e:
             logger.error("\nError: FireX run failed. File %s is not found." % e)
-            self.main_error_exit_handler()
+            self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
         except Exception as e:
             logger.error("An error occurred while loading modules")
             logger.exception(e)
-            self.main_error_exit_handler()
+            self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
 
         # Post import converters
@@ -234,15 +237,16 @@ class SubmitBaseApp:
 
         # check argument applicability to detect useless input arguments
         if not self.validate_argument_applicability(chain_args, args, all_tasks):
-            self.main_error_exit_handler()
+            self.main_error_exit_handler(reason="Inapplicable arguments.")
             sys.exit(-1)
 
         # locate task objects
         try:
             app_tasks = get_app_tasks(args.chain)
         except NotRegistered as e:
-            logger.error("Could not find task %s" % str(e))
-            self.main_error_exit_handler()
+            reason = "Could not find task %s" % str(e)
+            logger.error(reason)
+            self.main_error_exit_handler(reason=reason)
             sys.exit(-1)
 
         # validate that all necessary chain args were provided
@@ -253,7 +257,7 @@ class SubmitBaseApp:
             verify_chain_arguments(c)
         except InvalidChainArgsException as e:
             self.error_banner(e)
-            self.main_error_exit_handler()
+            self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
 
         with self.graceful_exit_on_failure("Failed to start tracking service"):
@@ -349,14 +353,14 @@ class SubmitBaseApp:
     def wait_tracking_services_release_console_ready(self, timeout=5)->None:
         self.wait_tracking_services_pred(lambda s: s.ready_release_console(), 'ready to release console', timeout)
 
-    def main_error_exit_handler(self, chain_details=None):
+    def main_error_exit_handler(self, chain_details=None, reason=None):
         logger.error('Aborting FireX submission...')
         if self.broker:
-            self.self_destruct(chain_details=chain_details)
+            self.self_destruct(chain_details=chain_details, reason=reason)
         if self.uid:
             self.copy_submission_log()
 
-    def self_destruct(self, chain_details=None):
+    def self_destruct(self, chain_details=None, reason=None):
         if chain_details:
             chain_result, chain_args = chain_details
             try:
@@ -372,7 +376,7 @@ class SubmitBaseApp:
                     disable_async_result(chain_result)
 
         logger.debug("Running FireX self destruct")
-        launch_background_shutdown(self.uid.logs_dir)
+        launch_background_shutdown(self.uid.logs_dir, reason)
 
     @classmethod
     def validate_argument_applicability(cls, chain_args, args, all_tasks):
@@ -403,7 +407,7 @@ class SubmitBaseApp:
         except Exception as e:
             logger.debug(traceback.format_exc())
             self.error_banner(e, banner_title=failure_caption)
-            self.main_error_exit_handler()
+            self.main_error_exit_handler(reason=failure_caption)
             sys.exit(-1)
 
 

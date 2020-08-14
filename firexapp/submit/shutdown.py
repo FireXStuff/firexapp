@@ -4,6 +4,7 @@ import logging
 import subprocess
 import time
 from psutil import Process, TimeoutExpired
+from collections import namedtuple
 
 from celery import Celery
 
@@ -16,10 +17,14 @@ from firexapp.common import qualify_firex_bin, select_env_vars
 logger = logging.getLogger(__name__)
 
 
-def launch_background_shutdown(logs_dir):
+MaybeCeleryActiveTasks = namedtuple('MaybeCeleryActiveTasks', ['celery_read_success', 'active_tasks'])
+
+def launch_background_shutdown(logs_dir, reason):
     try:
-        pid = subprocess.Popen([qualify_firex_bin("firex_shutdown"), "--logs_dir",  logs_dir],
-                               close_fds=True, env=select_env_vars([REDIS_BIN_ENV, 'PATH'])).pid
+        shutdown_cmd = [qualify_firex_bin("firex_shutdown"), "--logs_dir",  logs_dir]
+        if reason:
+            shutdown_cmd += ['--reason', reason]
+        pid = subprocess.Popen(shutdown_cmd, close_fds=True, env=select_env_vars([REDIS_BIN_ENV, 'PATH'])).pid
     except Exception as e:
         logger.error("SHUTDOWN PROCESS FAILED TO LAUNCH -- REDIS WILL LEAK.")
         logger.error(e)
@@ -58,48 +63,53 @@ def get_active_broker_safe(broker, celery_app):
     # the broker can theoretically die between that call and the get_active() call.
     if not broker.is_alive():
         return None
-    return get_active(inspect_retry_timeout=2, celery_app=celery_app)
+    return get_active(inspect_retry_timeout=4, celery_app=celery_app)
 
 
-def _tasks_from_active(active):
-    if not active:
-        return []
+def _tasks_from_active(active, task_predicate) -> MaybeCeleryActiveTasks:
+    if active is None:
+        return MaybeCeleryActiveTasks(False, None)
     tasks = []
     for host in active.values():
-        tasks.extend([t for t in host])
-    return tasks
+        tasks.extend([t for t in host if task_predicate(t)])
+    return MaybeCeleryActiveTasks(True, tasks)
 
 
 def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicate=lambda task: True):
-    active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app))
+    maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
     revoke_retries = 0
-    while active_tasks and revoke_retries < max_revoke_retries:
+    while (maybe_active_tasks.celery_read_success
+           and maybe_active_tasks.active_tasks
+           and revoke_retries < max_revoke_retries):
         if revoke_retries:
-            logger.warning("Found %s active tasks after revoke. Revoking active tasks again." % len(active_tasks))
+            logger.warning("Found %s active tasks after revoke. Revoking active tasks again."
+                           % len(maybe_active_tasks.active_tasks))
 
         # Revoke tasks in order they were started. This avoids ChainRevokedException errors when children are revoked
         # before their parents.
-        for task in sorted(active_tasks, key=lambda t: t.get('time_start', float('inf'))):
-            if task_predicate(task):
-                logger.info(f"Revoking {task['name']}[{task['id']}]")
-                celery_app.control.revoke(task_id=task["id"], terminate=True)
+        for task in sorted(maybe_active_tasks.active_tasks, key=lambda t: t.get('time_start', float('inf'))):
+            logger.info(f"Revoking {task['name']}[{task['id']}]")
+            celery_app.control.revoke(task_id=task["id"], terminate=True)
 
-        time.sleep(2)
-        active_tasks = [t for t in _tasks_from_active(get_active_broker_safe(broker, celery_app))
-                        if task_predicate(t)]
+        time.sleep(3)
+        maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
         revoke_retries += 1
 
-    if len(active_tasks) == 0:
+    if not maybe_active_tasks.celery_read_success:
+        logger.info("Failed to read active tasks from celery. May shutdown with unrevoked tasks.")
+    elif len(maybe_active_tasks.active_tasks) == 0:
         logger.info("Confirmed no active tasks after revoke.")
     elif revoke_retries >= max_revoke_retries:
         logger.warning("Exceeded max revoke retry attempts, %s active tasks may not be revoked."
-                       % len(active_tasks))
+                       % len(maybe_active_tasks.active_tasks))
 
 
 def init():
     parser = argparse.ArgumentParser()
     parser.add_argument("--logs_dir", help="Logs directory for the firexapp run to shutdown.",
                         required=True)
+    parser.add_argument("--reason", help="A reason that will be logged for clarity.",
+                        required=False, default='No reason provided.')
     args = parser.parse_args()
     logs_dir = args.logs_dir
 
@@ -108,10 +118,11 @@ def init():
                         format='[%(asctime)s %(levelname)s] %(message)s',
                         datefmt="%Y-%m-%d %H:%M:%S")
 
-    return logs_dir
+    return logs_dir, args.reason
 
 
-def shutdown_run(logs_dir):
+def shutdown_run(logs_dir, reason='No reason provided'):
+    logger.info(f"Shutting down due to reason: {reason}")
     logger.info(f"Shutting down with logs: {logs_dir}.")
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
     logger.info(f"Shutting down with broker: {broker.broker_url_safe_print}.")
@@ -151,7 +162,7 @@ def shutdown_run(logs_dir):
 
 
 def main():
-    logs_dir = init()
+    logs_dir, reason = init()
     try:
         shutdown_run(logs_dir)
     except Exception as e:

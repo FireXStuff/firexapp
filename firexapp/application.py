@@ -111,9 +111,9 @@ class FireXBaseApp:
             self.running_app = self.submit_app
             arguments.func(arguments, others)
 
-    def main_error_exit_handler(self):
+    def main_error_exit_handler(self, reason=None):
         if self.running_app and hasattr(self.running_app, self.main_error_exit_handler.__name__):
-            self.running_app.main_error_exit_handler()
+            self.running_app.main_error_exit_handler(reason=reason)
         exit(-1)
 
     def create_arg_parser(self, description=None)->ArgumentParser:
@@ -155,7 +155,8 @@ class ExitSignalHandler:
                 self._register_signal_handlers(last_exit_handler)
 
             self._register_signal_handlers(second_exit_handler)
-            logger.error(self.first_warning % signal.Signals(signal_num).name)
-            app.main_error_exit_handler()
+            signal_name = signal.Signals(signal_num).name
+            logger.error(self.first_warning % signal_name)
+            app.main_error_exit_handler(reason=f"Received signal {signal_name}.")
 
         self._register_signal_handlers(first_exit_handler)
