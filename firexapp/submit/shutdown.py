@@ -164,6 +164,6 @@ def shutdown_run(logs_dir, reason='No reason provided'):
 def main():
     logs_dir, reason = init()
     try:
-        shutdown_run(logs_dir)
+        shutdown_run(logs_dir, reason)
     except Exception as e:
         logger.exception(e)
