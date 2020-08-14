@@ -198,7 +198,7 @@ class SubmitBaseApp:
             for failure in failures:
                 logger.error(failure)
             self.main_error_exit_handler(chain_details=(chain_result, chain_args),
-                                         reason=f'Tasks failed: {failures}.'')
+                                         reason=f'Tasks failed: {failures}.')
             sys.exit(-1)
 
     def set_broker_in_app(self):
