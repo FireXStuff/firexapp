@@ -3,6 +3,7 @@ import os
 from importlib import import_module
 from celery import bootsteps
 from celery.signals import task_postrun
+from celery.states import REVOKED
 from celery.utils.log import get_task_logger
 
 from firexkit.chain import InjectArgs
@@ -39,16 +40,26 @@ def get_configured_root_task():
 @task_postrun.connect(sender=get_configured_root_task())
 def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_care):
     logger.info("Root task completed.")
-    if kwargs.get("sync", False):
+
+    submit_app = kwargs.get("submit_app")
+    if not submit_app:
+        logger.warning("Cannot find submit_app. Root task post-run handling aborted.")
         return
 
-    # Let this signal cause self-destruct if --sync was not specified
-    submit_app = kwargs.get("submit_app")
-    if submit_app:
-        submit_app.self_destruct(chain_details=(task.AsyncResult(task_id), kwargs),
-                                 reason='Root task completion detected via postrun signal.')
-    else:
-        logger.warning("self_destruct was not run.")
+    result = task.AsyncResult(task_id)
+    sync = kwargs.get("sync", False)
+
+    if sync and result.state != REVOKED:
+        # Only if --sync run was revoked do we want to do the shutdown here; else it's done in firex.py
+        return
+
+    # Let this signal cause self-destruct
+    submit_app.self_destruct(chain_details=(result, kwargs),
+                             reason='Root task completion detected via postrun signal.')
+
+    if sync:
+        submit_app.copy_submission_log()
+
     logger.info("Root task post run signal completed")
 
 
