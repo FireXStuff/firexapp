@@ -22,4 +22,8 @@ export default {
 </script>
 
 <style scoped>
+
+  .panel-title {
+    font-weight: 700;
+  }
 </style>

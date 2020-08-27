@@ -52,4 +52,18 @@ export default {
     cursor: pointer;
   }
 
+  .flame-top {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .flame-container {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
 </style>

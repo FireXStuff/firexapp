@@ -41,7 +41,7 @@
         <pre v-if="displayExternalCommands[id].result"
             style="background-color: #fafafa;"
             :style="{color: displayExternalCommands[id].result.returncode ? 'darkred' : '',
-                     'max-height': isExpandedOutput(id) ? null : '10em'}"
+                     'max-height': isExpandedOutput(id) ? null : '15em'}"
             ref="outputs"
         >{{ displayExternalCommands[id].output }}</pre>
         <router-link

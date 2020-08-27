@@ -446,6 +446,14 @@ function isFireXIdValid(firexId) {
   return FIREX_ID_REGEX.test(firexId)
 }
 
+function findFireXId(text) {
+  const match = text.match(FIREX_ID_REGEX);
+  if (!_.isEmpty(match)) {
+    return match[0];
+  }
+  return match;
+}
+
 function getFireXIdParts(firexId) {
   if (!isFireXIdValid(firexId)) {
     throw Error(`Invalid firex_id can't have parts extracted: ${firexId}`);
@@ -560,4 +568,5 @@ export {
   errorRoute,
   createLinkifyRegex,
   createLinkedHtml,
+  findFireXId,
 };

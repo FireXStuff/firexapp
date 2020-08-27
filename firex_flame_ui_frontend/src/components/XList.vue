@@ -1,5 +1,5 @@
 <template>
-  <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
+  <div class="flame-top"
        @keydown.ctrl.f.prevent="focusOnFind"
        @keyup.191.prevent="focusOnFind"
        tabindex="0"
@@ -256,7 +256,6 @@ export default {
 
 <style scoped>
   .list-container {
-    /*padding: 10px;*/
     flex: 1;
     overflow: auto;
     align-items: center;

@@ -4,7 +4,7 @@
       <img style='height: 150px;' src="../assets/firex_logo.png" alt="firex logo">
     </div>
     <div style="width: 40%">
-      <input type="text" v-model.trim="firexId"
+      <input type="text" v-model.trim="firexIdTextInput"
              style="width: 100%; text-align: center;"
              placeholder="Enter FireX ID like FireX-user-xxxxxx-xxxxxx-xxxx">
       <div v-if="errorMessage" class="error-message">
@@ -16,14 +16,14 @@
 
 <script>
 import {
-  isFireXIdValid, fetchUiConfig, fetchRunModelMetadata, findRunPathSuffix,
+  fetchUiConfig, fetchRunModelMetadata, findRunPathSuffix, findFireXId,
 } from '../utils';
 
 export default {
   name: 'XFindFirexId',
   data() {
     return {
-      firexId: '',
+      firexIdTextInput: '',
       // Lazy loaded on route enter.
       uiConfig: null,
     };
@@ -32,22 +32,22 @@ export default {
     runMetadata:
       {
         get() {
-          if (!this.isFirexIdValid || !this.uiConfig) {
+          if (!this.foundFirexId || !this.uiConfig) {
             return false;
           }
-          return fetchRunModelMetadata(this.firexId, this.uiConfig.model_path_template)
+          return fetchRunModelMetadata(this.foundFirexId, this.uiConfig.model_path_template)
             .catch(() => false);
         },
         default: false,
       },
   },
   computed: {
-    isFirexIdValid() {
-      return isFireXIdValid(this.firexId);
+    foundFirexId() {
+      return this.firexIdTextInput ? findFireXId(this.firexIdTextInput) : null;
     },
     errorMessage() {
-      if (this.firexId) {
-        if (!this.isFirexIdValid) {
+      if (this.firexIdTextInput) {
+        if (!this.foundFirexId) {
           return 'The entered FireX ID is not valid.';
         }
         if (!this.runMetadata && !this.$asyncComputed.runMetadata.updating) {
@@ -61,7 +61,7 @@ export default {
     routeToInputFirexId() {
       const pathSuffix = findRunPathSuffix(this.$route.path);
       this.$router.push({
-        path: `/${this.firexId}${pathSuffix}`,
+        path: `/${this.foundFirexId}${pathSuffix}`,
       });
     },
   },
@@ -74,7 +74,7 @@ export default {
   },
   beforeRouteEnter(to, from, next) {
     fetchUiConfig().then(uiConfig => next((vm) => {
-      vm.firexId = to.params.inputFireXId;
+      vm.firexIdTextInput = to.params.inputFireXId;
       vm.uiConfig = uiConfig;
     }));
   },

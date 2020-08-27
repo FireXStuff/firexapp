@@ -115,7 +115,7 @@ const headerGetters = {
       name: 'logs',
       href: getters.logsUrl,
       title: 'All Logs',
-      icon: 'file-alt',
+      icon: 'folder-open',
     };
   },
 

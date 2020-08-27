@@ -9,7 +9,7 @@
                               button-class="btn-info-primary"
                               :name="key"
                               :expand="expandAll">
-          <pre style="margin: 0 0 0 40px"
+          <pre style="margin: 0 0 0 40px; font-size: 14px;"
                v-html="createLinkedHtml(prettyPrintedKeyValues[key])">
           </pre>
         </x-expandable-content>
@@ -75,5 +75,4 @@ export default {
 </script>
 
 <style scoped>
-
 </style>

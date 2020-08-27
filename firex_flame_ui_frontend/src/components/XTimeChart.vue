@@ -377,6 +377,10 @@ export default {
     padding: 0 3px;
   }
 
+  th {
+    text-align: center;
+  }
+
   th.min {
     width: 1%;
     white-space: nowrap;

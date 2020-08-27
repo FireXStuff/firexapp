@@ -82,10 +82,10 @@
 
       <x-section v-if="shouldShowSection('failure')" heading="Failure">
         <label class="node-attributes-label">traceback:</label>
-        <div v-if="displayNode.traceback" style="display: inline; color: darkred;">
+        <div v-if="displayNode.traceback" style="display: inline;">
           <x-expandable-content button-class="btn-outline-danger" name="traceback"
                                 :expand="expandAll || selectedSection === 'failure'">
-              <pre style="overflow: auto; margin-top: 0"
+              <pre style="overflow: auto; margin-top: 0" class="text-danger"
                    v-html="createLinkedHtml(displayNode.traceback.trim())"></pre>
           </x-expandable-content>
         </div>

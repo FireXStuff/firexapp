@@ -1,9 +1,8 @@
 <template>
-  <div class="container">
-    <div class="header">
-      <h3>Monitored file: {{host}}:{{filepath}}</h3>
-    </div>
-    <div v-on:scroll="onScroll" class="content" ref="viewer_div">
+  <div class="flame-top">
+    <x-header :title="firexId" :mainTitle="title" :links="headerLinks">
+    </x-header>
+    <div v-on:scroll="onScroll" class="content flame-container" ref="viewer_div">
       <template v-if="isLiveFileListenSupported">
         <span v-for="(line, i) in lines" :key="i" class="thin">{{line}}</span>
       </template>
@@ -31,9 +30,12 @@
 
 <script>
 import * as api from '../api';
+import { mapGetters } from 'vuex';
+import XHeader from './XHeader.vue';
 
 export default {
   name: 'XLiveFileViewer',
+  components: { XHeader },
   props: {
     host: { type: String },
     filepath: { type: String },
@@ -54,6 +56,21 @@ export default {
   },
   destroyed() {
     window.removeEventListener('beforeunload', api.stopLiveFileListen);
+  },
+  computed: {
+    ...mapGetters({
+      graphViewHeaderEntry: 'header/graphViewHeaderEntry',
+      helpViewHeaderEntry: 'header/helpViewHeaderEntry',
+    }),
+    title() {
+      return `Monitoring ${this.host}:${this.filepath}`;
+    },
+    firexId() {
+      return this.$store.state.firexRunMetadata.uid;
+    },
+    headerLinks() {
+      return [this.graphViewHeaderEntry, this.helpViewHeaderEntry];
+    },
   },
   methods: {
     addNewChunk(input) {
@@ -102,25 +119,11 @@ export default {
 </script>
 
 <style scoped>
-.container {
-  position: absolute;
-  height: 100%;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  flex-wrap: nowrap;
-}
-.header {
-  text-align: middle;
-  padding-left: 1em;
-  flex-shrink: 0;
-}
+
 .content {
   font-family: Consolas, monaco, monospace;
-  flex-grow: 1;
   padding: 1em;
   min-height: 2em;
-  overflow: auto;
   white-space: pre;
 }
 .no_data_yet {
