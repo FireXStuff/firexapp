@@ -367,10 +367,10 @@ class SubmitBaseApp:
                 logger.debug("Generating reports")
                 from firexapp.submit.reporting import ReportersRegistry
                 ReportersRegistry.post_run_report(results=chain_result, kwargs=chain_args)
-            except Exception as e:
+                logger.debug('Reports successfully generated')
+            except Exception:
                 # Under no circumstances should report generation prevent celery and broker cleanup
-                logger.debug(traceback.format_exc())
-                logger.error(e)
+                logger.error('Error in generating reports', exc_info=True)
             finally:
                 if chain_result:
                     disable_async_result(chain_result)

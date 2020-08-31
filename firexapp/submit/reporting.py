@@ -92,23 +92,23 @@ class ReportersRegistry:
                                     all_task_returns=task_ret,
                                     task_name=task_name,
                                     task_uuid=task_result.id)
-                            except Exception as e:
-                                logger.debug("Error during report generation for task " + task_name)
-                                logger.debug(e)
-                                logger.debug(traceback.format_exc())
+                            except Exception:
+                                logger.error(f'Error during report generation for task {task_name}...skipping', exc_info=True)
                                 continue
-                except Exception as e:
-                    logger.error(f"Failed to add report entry for task result: {task_result}")
-                    logger.exception(e)
+                except Exception:
+                    logger.error(f"Failed to add report entry for task result {task_result}", exc_info=True)
+
+            logger.debug("Completed processing results data for reports")
 
         for report_gen in cls.get_generators():
             try:
+                logger.debug(f'Running post_run_report for {report_gen}')
                 report_gen.post_run_report(root_id=results, **kwargs)
-            except Exception as e:
+                logger.debug(f'Completed post_run_report for {report_gen}')
+            except Exception:
                 # Failure in one report generator should not impact another
-                logger.debug("Error during report generation for generator " + str(report_gen))
-                logger.debug(traceback.format_exc())
-                logger.debug(e)
+                logger.error(f'Error in the post_run_report for {report_gen}', exc_info=True)
+
 
 
 def recurse_results_tree(results):
