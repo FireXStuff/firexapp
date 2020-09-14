@@ -15,7 +15,7 @@
         </thead>
         <tbody style="color: darkred;">
           <tr v-for="(t, u) in failedTaskDetails" :key="u">
-            <td style="text-align: center;">
+            <td style="text-align: center;" class="align-middle">
               <div>{{t.name}}{{ t.from_plugin ? ' (plugin)' : ''}}</div>
               <div>{{longNameToModulePath(t.long_name)}}</div>
             </td>
@@ -24,7 +24,7 @@
                                     button-class="btn-outline-danger" name=""
                                     :expand="shouldShowFull(displayTracebacksByUuid[t.uuid])"
                                     :unexpandedMaxHeight="collapseTracebackLinesThreshold">
-          <pre style="white-space: pre-line;"
+          <pre style="white-space: pre-line; color: darkred;"
                v-html="createLinkedHtml(displayTracebacksByUuid[t.uuid], 'fake')">
           </pre>
               </x-expandable-content>
@@ -197,6 +197,10 @@ export default {
 
   td {
     padding: 5px;
+  }
+
+  th {
+    text-align: center;
   }
 
 </style>

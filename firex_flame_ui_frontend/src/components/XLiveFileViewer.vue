@@ -29,8 +29,8 @@
 </template>
 
 <script>
-import * as api from '../api';
 import { mapGetters } from 'vuex';
+import * as api from '../api';
 import XHeader from './XHeader.vue';
 
 export default {
