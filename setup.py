@@ -27,7 +27,8 @@ setup(name='firexapp',
           "python-Levenshtein",
           "entrypoints",
           "colorlog==2.10.0",
-          "beautifulsoup4"
+          "beautifulsoup4",
+          "vine==1.3.0",  # 5.0.0 breaks /celery/__init__.py module load.
       ],
       extras_require={
           'test': [
