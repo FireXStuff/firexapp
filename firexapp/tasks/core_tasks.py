@@ -50,15 +50,13 @@ def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_c
     sync = kwargs.get("sync", False)
 
     if sync and result.state != REVOKED:
+        logger.debug("Sync run has not been revoked. Cleanup skipped.")
         # Only if --sync run was revoked do we want to do the shutdown here; else it's done in firex.py
         return
 
     # Let this signal cause self-destruct
     submit_app.self_destruct(chain_details=(result, kwargs),
                              reason='Root task completion detected via postrun signal.')
-
-    if sync:
-        submit_app.copy_submission_log()
 
     logger.info("Root task post run signal completed")
 
