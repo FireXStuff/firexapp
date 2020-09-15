@@ -17,6 +17,7 @@ from firexapp.common import qualify_firex_bin, select_env_vars
 logger = logging.getLogger(__name__)
 
 
+CELERY_SHUTDOWN_WAIT = 5 * 60
 MaybeCeleryActiveTasks = namedtuple('MaybeCeleryActiveTasks', ['celery_read_success', 'active_tasks'])
 
 def launch_background_shutdown(logs_dir, reason):
@@ -137,10 +138,9 @@ def shutdown_run(logs_dir, reason='No reason provided'):
             logger.info("Found active Celery; sending Celery shutdown.")
             celery_app.control.shutdown()
 
-            celery_shutdown_wait = 60
-            celery_shutdown_success = celery_manager.wait_for_shutdown(celery_shutdown_wait)
+            celery_shutdown_success = celery_manager.wait_for_shutdown(CELERY_SHUTDOWN_WAIT)
             if not celery_shutdown_success:
-                logger.warning("Celery not shutdown after %d secs, force killing instead." % celery_shutdown_wait)
+                logger.warning(f"Celery not shutdown after {CELERY_SHUTDOWN_WAIT} secs, force killing instead.")
                 celery_manager.shutdown()
             else:
                 logger.debug("Confirmed Celery shutdown successfully.")
