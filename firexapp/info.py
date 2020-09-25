@@ -233,6 +233,8 @@ class InfoBaseApp:
         optional_args = getattr(task, "optional_args", {})
         if len(optional_args):
             for chain_arg in sorted(optional_args):
+                if chain_arg.startswith('_'):
+                    continue
                 desc = arguments.get(chain_arg, None)
                 default = optional_args[chain_arg]
                 if default is None:
