@@ -399,7 +399,7 @@ function fetchRunModelMetadata(firexId, modelPathTemplate) {
   if (!isFireXIdValid(firexId)) {
     return new Promise((u, reject) => reject());
   }
-  return fetchWithRetry(templateFireXId(modelPathTemplate, firexId), 4)
+  return fetchWithRetry(templateFireXId(modelPathTemplate, firexId), 4, { cache: "no-cache" })
     .then(r => {
       if (!r.ok) {
         throw Error("Run metadata now found.");
@@ -477,7 +477,7 @@ function fetchWithTimeout(fetchUrl, fetchOptions, timeout = 5000, onTimeout) {
 }
 
 
-function fetchWithRetry(url, maxRetries) {
+function fetchWithRetry(url, maxRetries, fetchOptions) {
   const delay = 1000;
   return new Promise((resolve, reject) => {
     let attemptCount = 0;
@@ -487,7 +487,7 @@ function fetchWithRetry(url, maxRetries) {
             fetchRetry(url, n - 1);
           }, attemptCount * delay);
 
-      return fetch(url).then(r => {
+      return fetch(url, fetchOptions).then(r => {
         if (!r.ok && n !== 1) {
           delayedRetry();
         } else {
