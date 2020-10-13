@@ -376,7 +376,7 @@ class SubmitBaseApp:
                     disable_async_result(chain_result)
 
         logger.debug("Running FireX self destruct")
-        launch_background_shutdown(self.uid.logs_dir, reason)
+        launch_background_shutdown(self.uid.logs_dir, reason, app.conf.get("root_task"))
 
     @classmethod
     def validate_argument_applicability(cls, chain_args, args, all_tasks):
