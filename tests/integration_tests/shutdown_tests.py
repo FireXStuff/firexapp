@@ -19,8 +19,6 @@ from firexapp.submit.submit import get_log_dir_from_output
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexapp.celery_manager import CeleryManager
 from firexapp.common import wait_until
-from firex_keeper import task_query
-from firexapp.events.model import RunStates
 
 logger = get_task_logger(__name__)
 
@@ -276,52 +274,6 @@ class AsyncNoBrokerLeakOnCeleryTerminated(NoBrokerLeakOnCeleryTerminated):
 
     def assert_expected_return_code(self, ret_value):
         pass  # it's better if the test fails on the redis leak
-
-    def expected_error(self):
-        return ""
-
-SHUTDOWN_TASK_TIMEOUT = 15
-
-@app.task
-def shutdown_self(uid):
-    from firexapp.submit.shutdown import launch_background_shutdown
-
-    # this is nuts, but shut down this run and rely on waiting for root to prevent revocation of this task.
-    launch_background_shutdown(uid.logs_dir, 'ShutdownWithActiveRoot test', app.conf.get("root_task"))
-
-    # Give enough time for a normal shutdown to revoke this task, but expect it not to.
-    sleep(SHUTDOWN_TASK_TIMEOUT)
-
-
-class ShutdownWithActiveRoot(NoBrokerLeakOnCeleryTerminated):
-    # TODO: note this test is slow because it deliberately waits to confirm normal shutdown doesn't revoke active tasks
-    #   because the root is not yet complete.
-
-    # It isn't completely clear why, but coverage causes the CI to hang after this test has completed.
-    no_coverage = True
-    sync = False
-
-    def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "shutdown_self"]
-
-    def assert_expected_return_code(self, ret_value):
-        pass  # it's better if the test fails on the redis leak
-
-    def assert_expected_firex_output(self, cmd_output, cmd_err):
-        logs_dir = get_log_dir_from_output(cmd_output)
-
-        keeper_complete = task_query.wait_on_keeper_complete(logs_dir, timeout=SHUTDOWN_TASK_TIMEOUT + 10)
-        assert keeper_complete, "Keeper database is not complete."
-
-        revoked_task_count = len(task_query.revoked_tasks(logs_dir))
-        assert revoked_task_count == 0, f"Expected 0 revoked tasks, was: {revoked_task_count}"
-
-        assert task_query.single_task_by_name(logs_dir, app.conf.get("root_task").split('.')[-1]).state == RunStates.SUCCEEDED.value
-        assert task_query.single_task_by_name(logs_dir, 'shutdown_self').state == RunStates.SUCCEEDED.value
-
-        super().assert_expected_firex_output(cmd_output, cmd_err)
-
-
 
     def expected_error(self):
         return ""

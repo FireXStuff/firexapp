@@ -3,7 +3,7 @@ import argparse
 import logging
 import subprocess
 import time
-from psutil import Process, TimeoutExpired, NoSuchProcess
+from psutil import Process, TimeoutExpired
 from collections import namedtuple
 
 from celery import Celery
@@ -20,13 +20,11 @@ logger = logging.getLogger(__name__)
 CELERY_SHUTDOWN_WAIT = 5 * 60
 MaybeCeleryActiveTasks = namedtuple('MaybeCeleryActiveTasks', ['celery_read_success', 'active_tasks'])
 
-def launch_background_shutdown(logs_dir, reason, root_task_name):
+def launch_background_shutdown(logs_dir, reason):
     try:
         shutdown_cmd = [qualify_firex_bin("firex_shutdown"), "--logs_dir",  logs_dir]
         if reason:
             shutdown_cmd += ['--reason', reason]
-        if root_task_name:
-            shutdown_cmd += ['--root_task_name', root_task_name]
         pid = subprocess.Popen(shutdown_cmd, close_fds=True, env=select_env_vars([REDIS_BIN_ENV, 'PATH'])).pid
     except Exception as e:
         logger.error("SHUTDOWN PROCESS FAILED TO LAUNCH -- REDIS WILL LEAK.")
@@ -78,44 +76,8 @@ def _tasks_from_active(active, task_predicate) -> MaybeCeleryActiveTasks:
     return MaybeCeleryActiveTasks(True, tasks)
 
 
-def _wait_on_task_worker_pids(tasks, max_wait):
-    # FIXME: track total time spent waiting instead of sending max_wait to each process.
-    for task in tasks:
-        # FIXME: check task['hostname'] to avoid waiting on remote pids, or support waiting on remote pids.
-        worker_pid = task['worker_pid']
-        task_label = f'{task["name"]}[{task["id"]}] (pid {worker_pid})'
-        logger.info(f"Waiting on {task_label}")
-        try:
-            Process(worker_pid).wait(max_wait)
-        except NoSuchProcess:
-            logger.debug(f"Confirmed worker process {task_label} terminated before wait.")
-        except TimeoutExpired:
-            logger.warning(f'Max timeout exceeded waiting for {task_label}.')
-        else:
-            logger.debug(f"Confirmed worker process {task_label} has terminated.")
-
-
-def _wait_on_root(maybe_active_tasks, root_task_name, max_wait):
-    # Under normal circumstances, the root completing (becoming failed, succeeded or revoked) causes shutdown.
-    # The root task being complete is important to avoid shutdown terminating cleanup tasks.
-    # However, somewhat inexplicably, sometimes the root is still active here during shutdown, causing us to revoke
-    # it again, along with any cleanup tasks. We therefore try to wait for the root task pid to complete.
-    if root_task_name and maybe_active_tasks.celery_read_success:
-        root_tasks = [t for t in maybe_active_tasks.active_tasks if t['name'].endswith(root_task_name)]
-        if root_tasks:
-            _wait_on_task_worker_pids(root_tasks, max_wait)
-            return True
-    return False
-
-
-def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicate=lambda task: True,
-                        root_task_name=None):
+def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicate=lambda task: True):
     maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
-    found_root_tasks = _wait_on_root(maybe_active_tasks, root_task_name, max_wait=60)
-    if found_root_tasks:
-        # If we've found root tasks, we've waited, so the initial maybe_active_tasks are stale, so re-fetch.
-        maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
-
     revoke_retries = 0
     while (maybe_active_tasks.celery_read_success
            and maybe_active_tasks.active_tasks
@@ -149,8 +111,6 @@ def init():
                         required=True)
     parser.add_argument("--reason", help="A reason that will be logged for clarity.",
                         required=False, default='No reason provided.')
-    parser.add_argument("--root_task_name", help="The name of the root task to avoid revoking.",
-                        required=False, default=None)
     args = parser.parse_args()
     logs_dir = args.logs_dir
 
@@ -159,10 +119,10 @@ def init():
                         format='[%(asctime)s %(levelname)s] %(message)s',
                         datefmt="%Y-%m-%d %H:%M:%S")
 
-    return logs_dir, args.reason, args.root_task_name
+    return logs_dir, args.reason
 
 
-def shutdown_run(logs_dir, reason, root_task_name):
+def shutdown_run(logs_dir, reason='No reason provided'):
     logger.info(f"Shutting down due to reason: {reason}")
     logger.info(f"Shutting down with logs: {logs_dir}.")
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
@@ -173,7 +133,7 @@ def shutdown_run(logs_dir, reason, root_task_name):
 
     try:
         if get_active_broker_safe(broker, celery_app):
-            revoke_active_tasks(broker, celery_app, root_task_name=root_task_name)
+            revoke_active_tasks(broker, celery_app)
 
             logger.info("Found active Celery; sending Celery shutdown.")
             celery_app.control.shutdown()
@@ -202,8 +162,8 @@ def shutdown_run(logs_dir, reason, root_task_name):
 
 
 def main():
-    logs_dir, reason, root_task_name = init()
+    logs_dir, reason = init()
     try:
-        shutdown_run(logs_dir, reason, root_task_name)
+        shutdown_run(logs_dir, reason)
     except Exception as e:
         logger.exception(e)
