@@ -3,8 +3,9 @@ import argparse
 import logging
 import subprocess
 import time
-from psutil import Process, TimeoutExpired
+from psutil import Process, TimeoutExpired, NoSuchProcess, pid_exists
 from collections import namedtuple
+import socket
 
 from celery import Celery
 
@@ -57,7 +58,10 @@ def wait_for_broker_shutdown(broker, timeout=15, force_kill=True):
 
 
 
-def get_active_broker_safe(broker, celery_app):
+def get_active_broker_safe(broker, celery_app=None):
+    if celery_app is None:
+        celery_app = Celery(broker=broker.broker_url)
+
     #
     # Note: get_active can hang in celery/kombu library if broker is down.
     # Checking for broker.is_alive() is an attempt to prevent that, but note
@@ -76,8 +80,15 @@ def _tasks_from_active(active, task_predicate) -> MaybeCeleryActiveTasks:
     return MaybeCeleryActiveTasks(True, tasks)
 
 
-def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicate=lambda task: True):
-    maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
+def _split_hostname(hostname):
+    if '@' in hostname:
+        return hostname.split('@')[-1]
+    return hostname
+
+
+def revoke_active_tasks(broker, celery_app,  max_revoke_retries=1, task_predicate=lambda task: True):
+    maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker), task_predicate)
+    revoked_worker_hosts_and_pids = set()
     revoke_retries = 0
     while (maybe_active_tasks.celery_read_success
            and maybe_active_tasks.active_tasks
@@ -89,11 +100,12 @@ def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicat
         # Revoke tasks in order they were started. This avoids ChainRevokedException errors when children are revoked
         # before their parents.
         for task in sorted(maybe_active_tasks.active_tasks, key=lambda t: t.get('time_start', float('inf'))):
-            logger.info(f"Revoking {task['name']}[{task['id']}]")
+            logger.info(f"Revoking {task['name']}[{task['id']}] (pid {task['worker_pid']} on {task['hostname']})")
             celery_app.control.revoke(task_id=task["id"], terminate=True)
+            revoked_worker_hosts_and_pids.add((_split_hostname(task['hostname']), task['worker_pid']))
 
         time.sleep(3)
-        maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
+        maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker), task_predicate)
         revoke_retries += 1
 
     if not maybe_active_tasks.celery_read_success:
@@ -103,6 +115,7 @@ def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicat
     elif revoke_retries >= max_revoke_retries:
         logger.warning("Exceeded max revoke retry attempts, %s active tasks may not be revoked."
                        % len(maybe_active_tasks.active_tasks))
+    return revoked_worker_hosts_and_pids
 
 
 def init():
@@ -122,6 +135,39 @@ def init():
     return logs_dir, args.reason
 
 
+def _is_current_host(other_host, cur_host):
+    try:
+        return socket.gethostbyname(other_host) == cur_host
+    except socket.error:
+        return False
+
+
+def _wait_on_worker_pids(worker_hosts_and_pids, max_wait):
+    current_host = socket.gethostbyname(socket.gethostname())
+
+    cur_host_worker_pids = []
+
+    for worker_pid_and_host in worker_hosts_and_pids:
+        worker_host = worker_pid_and_host[0]
+        worker_pid = worker_pid_and_host[1]
+        if _is_current_host(worker_host, current_host):
+            cur_host_worker_pids.append(worker_pid)
+            try:
+                Process(worker_pid).wait(max_wait)
+            except NoSuchProcess:
+                pass
+            except TimeoutExpired:
+                # TODO capture task UUID and name for logging purpose.
+                logger.warning(f'Max timeout exceeded waiting for {worker_pid}.')
+            else:
+                logger.debug(f"Confirmed worker process {worker_pid} has terminated.")
+        else:
+            logger.warning(f"Waiting on remote worker pids is currently not supported, will not wait for: "
+                           f"{worker_pid_and_host}")
+
+    return all(not pid_exists(p) for p in cur_host_worker_pids)
+
+
 def shutdown_run(logs_dir, reason='No reason provided'):
     logger.info(f"Shutting down due to reason: {reason}")
     logger.info(f"Shutting down with logs: {logs_dir}.")
@@ -133,7 +179,10 @@ def shutdown_run(logs_dir, reason='No reason provided'):
 
     try:
         if get_active_broker_safe(broker, celery_app):
-            revoke_active_tasks(broker, celery_app)
+            revoked_worker_hosts_and_pids = revoke_active_tasks(broker, celery_app)
+            # all_local_pids_complete = _wait_on_worker_pids(revoked_worker_hosts_and_pids, max_wait=60)
+            # logger.info(f"{'Confirmed' if all_local_pids_complete else 'Not'} all host-local revoked "
+            #              f"task processes have terminated.")
 
             logger.info("Found active Celery; sending Celery shutdown.")
             celery_app.control.shutdown()
