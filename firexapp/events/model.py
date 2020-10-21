@@ -8,6 +8,13 @@ from firexkit.result import ChainInterruptedException
 logger = logging.getLogger(__name__)
 
 
+# event entry key name that allows a task to indicate a child-like relationship with another task.
+# For example, a delayed-dependency that initiates a non-child task to run can indicate it is an ancestor
+# of that triggered non-child task, since it effectively cause it to execute, much like an ordinary (i.e. celery)
+# parent task.
+ADDITIONAL_CHILDREN_KEY = 'additional_children'
+
+
 class RunStates(Enum):
     RECEIVED = "task-received"
     STARTED = "task-started"
