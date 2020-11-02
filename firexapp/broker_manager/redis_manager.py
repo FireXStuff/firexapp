@@ -88,9 +88,9 @@ class RedisManager(BrokerManager):
     def redis_cli_cmd(self):
         return self.get_redis_cli_cmd(self.port)
 
-    def get_redis_cli_cmd(self, port):
+    def get_redis_cli_cmd(self, port, include_host=False):
         cmd = os.path.join(self.redis_bin_base, 'redis-cli') + ' -p %d -a %s' % (port, self._password)
-        if self.host != gethostname():
+        if include_host or self.host != gethostname():
             cmd += ' -h %s' % self.host
         return cmd
 
@@ -289,7 +289,8 @@ class RedisManager(BrokerManager):
     def is_alive(self, port=None):
         port = self.port if port is None else port
         try:
-            output = self.cli('PING', port=port)
+            # including the host makes sure the current host can connect to itself via its hostname, like celery will.
+            output = self.cli('PING', port=port, include_host=True)
         except subprocess.CalledProcessError:
             return False
         else:
@@ -330,10 +331,10 @@ class RedisManager(BrokerManager):
         with open(monitor_file, 'w') as out:
             subprocess.check_call(cmd, shell=True, stdout=out, stderr=subprocess.STDOUT)
 
-    def cli(self, cmd, port=None):
+    def cli(self, cmd, port=None, include_host=False):
         port = self.port if port is None else port
         null = open(os.devnull, 'w')
-        cmd = self.get_redis_cli_cmd(port=port) + ' %s' % cmd
+        cmd = self.get_redis_cli_cmd(port=port, include_host=include_host) + ' %s' % cmd
         return subprocess.check_output(shlex.split(cmd), stderr=null).decode().strip()
 
     def __repr__(self):
