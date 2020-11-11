@@ -354,7 +354,10 @@ class SubmitBaseApp:
         self.wait_tracking_services_pred(lambda s: s.ready_release_console(), 'ready to release console', timeout)
 
     def main_error_exit_handler(self, chain_details=None, reason=None):
-        logger.error('Aborting FireX submission...')
+        mssg = 'Aborting FireX submission...'
+        if reason:
+            mssg += '\n' + str(reason)
+        logger.error(mssg)
         if self.broker:
             self.self_destruct(chain_details=chain_details, reason=reason)
         if self.uid:
