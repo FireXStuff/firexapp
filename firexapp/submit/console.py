@@ -15,16 +15,27 @@ class DistlibWarningsFilter(logging.Filter):
 
 class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
     def format(self, record):
+        override_exc_text = None
+        if record.exc_text and not record.exc_info and hasattr(record, 'task_id'):
+            # This is a serialized exception, and we are not interested in showing the traceback on the console,
+            # just the string.
+            override_exc_text = record.exc_text
+            record.exc_text = None
         try:
             record.msg = BeautifulSoup(record.msg, 'lxml').get_text()
         except Exception:
             pass
-        return super(FireXColoredConsoleFormatter, self).format(record)
+        msg = super(FireXColoredConsoleFormatter, self).format(record)
+        if override_exc_text:
+            # Restore exc_text
+            record.exc_text = override_exc_text
+        return msg
 
 
 class RetryFilter(logging.Filter):
     def filter(self, record):
         return 'Retry in' not in record.getMessage()
+
 
 def setup_console_logging(module=None,
                           stdout_logging_level=logging.INFO,
