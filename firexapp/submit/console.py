@@ -24,8 +24,7 @@ class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
 
 class RetryFilter(logging.Filter):
     def filter(self, record):
-        return not record.getMessage().startswith('Retry in')
-
+        return 'Retry in' not in record.getMessage()
 
 def setup_console_logging(module=None,
                           stdout_logging_level=logging.INFO,
