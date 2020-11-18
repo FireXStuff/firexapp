@@ -37,12 +37,12 @@ def is_firex_submit():
     return None
 
 
-def get_pydev_command(cmd, setup=None, pydev=None):
+def get_pydev_command(cmd, setup=None, pydev=None, debug_host=None):
     if not setup:
         setup, pydev = get_pydev_debug_setup()
     pydev_cmd = [sys.executable, pydev]
     client = str(setup['client'])
-    client = client if "127.0.0.1" not in client else gethostname()
+    client = client if "127.0.0.1" not in client else (debug_host or gethostname())
     pydev_cmd += ['--multiproc', '--client', client, '--port', str(setup['port']), '--file']
     if type(cmd) is str:
         cmd = [cmd]
@@ -63,7 +63,8 @@ def store_debug_info():
     setup, pydev = get_pydev_debug_setup()
     data = {
         "pydev": pydev,
-        "setup": setup
+        "setup": setup,
+        "debug_host": gethostname()
     }
 
     from firexapp.engine.celery import app
@@ -89,9 +90,10 @@ def restart_celery_in_debug():
 
     setup = data['setup']
     pydev = data['pydev']
+    debug_host = data['debug_host']
 
     celery_argsv = sys.argv
-    debug_celery = get_pydev_command(celery_argsv, setup=setup, pydev=pydev)
+    debug_celery = get_pydev_command(celery_argsv, setup=setup, pydev=pydev, debug_host=debug_host)
     print("restarting celery in debug mode", file=sys.stdout)
     os.execl(debug_celery[0], *debug_celery)
 
