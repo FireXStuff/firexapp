@@ -54,9 +54,21 @@ function socketRequestResponse(socket, requestEvent, successEventName, failedEve
 }
 
 function createFlameSocket(url, options) {
-  const socket = io(url, {
+  const socketOptions = {
     transports: ['websocket'],
-  });
+  };
+  let socket;
+  // The path portion of URLs given to socketio specify socketio namespaces to connect to,
+  // they don't specify a path to establish transport to.
+  if (options.socketPathTemplate) {
+    const parsedUrl = new URL(url);
+    socketOptions.path = _.template(options.socketPathTemplate,
+      { evaluate: null, interpolate: null })({host: parsedUrl.host});
+    socket = io(socketOptions);
+  } else {
+    // No path, connect directly to URL.
+    socket = io(url, socketOptions);
+  }
 
   // In case websocket fails, retry with both polling and websocket.
   socket.on('reconnect_attempt', () => {

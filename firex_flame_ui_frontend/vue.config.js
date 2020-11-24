@@ -19,6 +19,9 @@ module.exports = {
       '^/auto': {
         target: 'http://firex.cisco.com',
       },
+      '^/ws_proxy': {
+        target: 'http://firex-west.cisco.com',
+      },
     },
   },
 };

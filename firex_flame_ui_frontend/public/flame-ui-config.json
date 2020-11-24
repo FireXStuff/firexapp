@@ -11,5 +11,6 @@
     "url_format": null
   },
   "rel_completion_report_path": "completion_email.html",
-  "linkify_prefixes": ["/auto/", "/ws/"]
+  "linkify_prefixes": ["/auto/", "/ws/"],
+  "flame_live_path_template": "/ws_proxy/<%- host %>/socket.io"
 }

@@ -204,6 +204,7 @@ export default {
       api.setAccessor('socketio', flameServerUrl, {
         onConnect: () => this.$store.commit('tasks/setApiConnected', true),
         onDisconnect: () => this.$store.commit('tasks/setApiConnected', false),
+        socketPathTemplate: _.get(this.uiConfig, 'flame_live_path_template', null),
       });
     },
     setWebserverFileApiAccessor() {
