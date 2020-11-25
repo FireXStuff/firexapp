@@ -29,5 +29,7 @@ result_serializer = 'pickle'
 
 result_expires = None
 
+task_track_started = True
 task_acks_late = True
+
 worker_prefetch_multiplier = 1

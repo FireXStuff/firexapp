@@ -6,7 +6,7 @@ import os
 import argparse
 import time
 import traceback
-from celery.signals import celeryd_init
+from celery.signals import celeryd_init, worker_ready
 from shutil import copyfile
 from contextlib import contextmanager
 
@@ -14,7 +14,7 @@ from celery.exceptions import NotRegistered
 from firexapp.engine.logging import add_hostname_to_log_records
 
 from firexkit.result import wait_on_async_results, disable_async_result, find_all_unsuccessful, ChainRevokedException, \
-    ChainInterruptedException
+    ChainInterruptedException, mark_queues_ready
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
@@ -439,3 +439,10 @@ def get_log_dir_from_output(cmd_output: str)->str:
 @celeryd_init.connect()
 def add_uid_to_conf(conf=None, **kwargs):
     conf.uid = app.backend.get('uid').decode()
+
+
+@worker_ready.connect()
+def celery_worker_ready(sender, **_kwargs):
+    queue_names = [queue.name for queue in sender.task_consumer.queues]
+    if queue_names:
+        mark_queues_ready(*queue_names)
