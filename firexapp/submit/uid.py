@@ -7,6 +7,7 @@ import random
 
 from firexapp.submit.arguments import whitelist_arguments
 
+BASE_LOGGING_DIR_ENV_VAR_KEY = 'firex_base_logging_dir'
 
 class Uid(object):
     debug_dirname = 'debug'
@@ -26,7 +27,7 @@ class Uid(object):
     @property
     def base_logging_dir(self):
         if not self._base_logging_dir:
-            self._base_logging_dir = tempfile.gettempdir()
+            self._base_logging_dir = os.environ.get(BASE_LOGGING_DIR_ENV_VAR_KEY, tempfile.gettempdir())
         return self._base_logging_dir
 
 
