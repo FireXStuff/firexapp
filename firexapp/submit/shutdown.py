@@ -114,7 +114,7 @@ def init():
     args = parser.parse_args()
     logs_dir = args.logs_dir
 
-    log_file = os.path.join(logs_dir, Uid.debug_dirname, 'shutdown.log')
+    log_file = os.path.join(logs_dir, Uid.debug_dirname, 'shutdown.log.txt')
     logging.basicConfig(filename=log_file, level=logging.DEBUG,
                         format='[%(asctime)s %(levelname)s] %(message)s',
                         datefmt="%Y-%m-%d %H:%M:%S")

@@ -136,7 +136,7 @@ class CeleryManager(object):
         return os.path.join(pids_logs_dir, '%s.pid' % worker_and_host)
 
     def _get_stdout_file(self, workername):
-        return os.path.join(self.celery_logs_dir, '%s@%s.stdout' % (workername, self.hostname))
+        return os.path.join(self.celery_logs_dir, '%s@%s.stdout.txt' % (workername, self.hostname))
 
     @staticmethod
     def get_worker_and_host(workername, hostname):

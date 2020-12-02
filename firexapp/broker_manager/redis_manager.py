@@ -22,7 +22,7 @@ FileRegistry().register_file(REDIS_DIR_REGISTRY_KEY, os.path.join(Uid.debug_dirn
 
 REDIS_LOG_REGISTRY_KEY = 'REDIS_LOG_REGISTRY_KEY'
 FileRegistry().register_file(REDIS_LOG_REGISTRY_KEY,
-                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), 'redis.stdout'))
+                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), 'redis.stdout.txt'))
 
 REDIS_PID_REGISTRY_KEY = 'REDIS_PID_REGISTRY_KEY'
 FileRegistry().register_file(REDIS_PID_REGISTRY_KEY,
