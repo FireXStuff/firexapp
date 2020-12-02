@@ -1,5 +1,6 @@
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  firex_base_logging_dir: "$CI_PROJECT_DIR/flow_test_results"
 
 cache:
   paths:
