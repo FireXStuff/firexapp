@@ -1,0 +1,41 @@
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
+stages:
+  - build
+  - test
+  - upload_docs
+
+
+default:
+  image: firexstuff/firex-alpine-build
+  before_script:
+    - python -m venv venv
+    - source venv/bin/activate
+    - pip install --upgrade pip
+    - pip install --upgrade firexbuilder
+   
+build-job:
+  stage: build
+  script:
+    - pip install keyrings.alt
+    - firex-build all --skip_htmlcov --upload_codecov --upload_pip_if_tag --install_test_reqs
+  artifacts:
+    paths:
+      - html/
+      - flow_test_results/
+    when: always
+   
+upload_docs:
+  stage: upload_docs
+  image: google/cloud-sdk
+  script:
+    - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
+    - gsutil -m rsync -r html gs://www.firexapp.com
+  only:
+    - tags
