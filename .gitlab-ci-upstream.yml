@@ -1,0 +1,29 @@
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
+default:
+  image: firexstuff/firex-alpine-build
+  before_script:
+    - python -m venv venv
+    - source venv/bin/activate
+    - pip install --upgrade pip
+    - pip install --upgrade firexbuilder
+
+    
+build-with-firexkit-at-tip:
+  stage: build
+  script:
+    - firex-build build --install_test_reqs
+    - pip install git+https://gitlab.com/FireXStuff/firexkit.git
+  artifacts:
+    paths:
+      - dist/
+
+test-with-firexkit-at-tip:
+  script:
+    - firex-build tests
