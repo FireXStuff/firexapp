@@ -9,8 +9,9 @@ from firexapp.submit.arguments import whitelist_arguments
 
 BASE_LOGGING_DIR_ENV_VAR_KEY = 'firex_base_logging_dir'
 
+
 class Uid(object):
-    debug_dirname = 'debug'
+    debug_dirname = 'firex_internal'
 
     def __init__(self, identifier=None):
         self.timestamp = datetime.datetime.now(tz=pytz.utc)
