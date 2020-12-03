@@ -80,8 +80,8 @@ def {0}(**kwargs):
         # provide sub-folder for testsuite data
         flow_test_config.results_folder = os.path.join(results_folder, flow_test_config.name)
         os.makedirs(flow_test_config.results_folder)
-        flow_test_config.std_out = os.path.join(flow_test_config.results_folder, flow_test_config.name + ".stdout")
-        flow_test_config.std_err = os.path.join(flow_test_config.results_folder, flow_test_config.name + ".stderr")
+        flow_test_config.std_out = os.path.join(flow_test_config.results_folder, flow_test_config.name + ".stdout.txt")
+        flow_test_config.std_err = os.path.join(flow_test_config.results_folder, flow_test_config.name + ".stderr.txt")
 
         cmd = self.create_cmd(flow_test_config)
         self.run_executable(cmd, flow_test_config)
@@ -152,8 +152,8 @@ def {0}(**kwargs):
         if hasattr(flow_test_config, 'logs_link'):
             print("\tLogs:", self.document_viewer(flow_test_config.logs_link), file=sys.stderr)
         print("\tTest source:", self.document_viewer(test_src_file), file=sys.stderr)
-        print("\tStd out:", self.document_viewer(flow_test_config.std_out), file=sys.stderr)
-        print("\tStd err:", self.document_viewer(flow_test_config.std_err), file=sys.stderr)
+        print("\tStdout:", self.document_viewer(flow_test_config.std_out), file=sys.stderr)
+        print("\tStderr:", self.document_viewer(flow_test_config.std_err), file=sys.stderr)
 
 
         elapsed_time = None
