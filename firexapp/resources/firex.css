@@ -1,0 +1,147 @@
+pre {
+    white-space: pre-wrap;
+    margin: 60px 8px 8px 8px;
+}
+body {
+    margin: 0px;
+}
+.debug {
+    color: dimgrey;
+}
+.error {
+    color: red;
+    font-weight: bold;
+}
+.exception {
+    background-color: lightyellow;
+}
+.print {
+    color: darkblue;
+    font-weight: bold;
+}
+.warning {
+    color: darkorange;
+}
+.task_started {
+    color: blue;
+    background-color: whitesmoke;
+    display: inline-block;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    margin-top: 10px;
+    border-color: black;
+    border-style: double double dashed double;
+    border-width: 3px 3px 1px 3px;
+    padding-top: 2px;
+    padding-left: 5px;
+    padding-right: 5px;
+    padding-bottom: 2px;
+    margin-bottom: 2px;
+}
+.task_completed {
+    color: blue;
+    background-color: whitesmoke;
+    display: inline-block;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+    margin-top: 5px;
+    border-color: black;
+    border-style: dashed double double double;
+    border-width: 1px 3px 3px 3px;
+    padding-top: 2px;
+    padding-left: 5px;
+    padding-right: 5px;
+    padding-bottom: 2px;
+    margin-bottom: 10px;
+}
+.command_line_prefix {
+    font-size: small;
+    font-weight: normal;
+}
+.command_line {
+    background-color: #adffff;
+    font-weight: 600;
+    word-break: break-word;
+}
+.command_extra_info {
+    font-size: x-small;
+    font-style: italic;
+}
+.command {
+    background-color: azure;
+    display: inline-block;
+    margin-top: 10px;
+    border-top: 1px solid black;
+    padding-top: 2px;
+    border-bottom: 1px dashed grey;
+    margin-left: 2px;
+    border-left: 2px solid black;
+    padding-left: 5px;
+    padding-right: 5px;
+    padding-bottom: 2px;
+    margin-bottom: 2px;
+}
+.command_output {
+    background-color: ivory;
+    display: inline-block;
+    margin-top: 2px;
+    border-top: 1px dashed grey;
+    padding-top: 3px;
+    margin-left: 2px;
+    border-left: 2px solid grey;
+    padding-left: 5px;
+    padding-right: 5px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid grey;
+    margin-bottom: 3px;
+}
+.command_output_error {
+    background-color: mistyrose;
+}
+.hidden {
+    display: none;
+}
+
+.header {
+  background-color: #EEE;
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
+  position: fixed;
+  width: 100%;
+}
+.header-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+.uid {
+  font-family: 'Source Sans Pro',sans-serif;
+  margin: 0 8px;
+  padding: 0;
+  white-space: nowrap;
+  font-size: 20px;
+  font-weight: normal;
+}
+.header-link {
+  font-family: 'Source Sans Pro',sans-serif;
+  vertical-align: top;
+  text-align: center;
+  text-decoration: none;
+  padding: 0 8px;
+  color: #000;
+  border-radius: 0;
+  font-size: 20px;
+  justify-content: flex-end;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.header-link a {
+  text-decoration: none;
+  font-family: 'Source Sans Pro',sans-serif;
+  cursor: pointer;
+  color: #000;
+}
+.header-link a:hover {
+  color: #2980ff;
+}

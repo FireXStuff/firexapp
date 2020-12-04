@@ -4,6 +4,8 @@ import pytz
 import tempfile
 from getpass import getuser
 import random
+import pkg_resources
+import shutil
 
 from firexapp.submit.arguments import whitelist_arguments
 
@@ -12,6 +14,7 @@ BASE_LOGGING_DIR_ENV_VAR_KEY = 'firex_base_logging_dir'
 
 class Uid(object):
     debug_dirname = 'firex_internal'
+    _resources_dirname = os.path.join(debug_dirname, 'resources')
 
     def __init__(self, identifier=None):
         self.timestamp = datetime.datetime.now(tz=pytz.utc)
@@ -24,13 +27,13 @@ class Uid(object):
         self._base_logging_dir = None
         self._logs_dir = None
         self._debug_dir = None
+        self.copy_resources()
 
     @property
     def base_logging_dir(self):
         if not self._base_logging_dir:
             self._base_logging_dir = os.environ.get(BASE_LOGGING_DIR_ENV_VAR_KEY, tempfile.gettempdir())
         return self._base_logging_dir
-
 
     @property
     def logs_dir(self):
@@ -45,6 +48,14 @@ class Uid(object):
             self._debug_dir = self.create_debug_dir()
         return self._debug_dir
 
+    @classmethod
+    def get_resources_path(cls, logs_dir):
+        return os.path.join(logs_dir, cls._resources_dirname)
+
+    @property
+    def resources_dir(self):
+        return self.get_resources_path(self.logs_dir)
+
     def create_logs_dir(self):
         path = os.path.join(self.base_logging_dir, self.identifier)
         os.makedirs(path, 0o777)
@@ -52,7 +63,11 @@ class Uid(object):
 
     def create_debug_dir(self):
         path = os.path.join(self.logs_dir, self.debug_dirname)
-        os.makedirs(path, 0o777)
+        try:
+            os.makedirs(path, 0o777)
+        except FileExistsError:
+            # Could have been created by other dependencies (e.g. redis)
+            pass
         return path
 
     def __str__(self):
@@ -63,6 +78,25 @@ class Uid(object):
 
     def __eq__(self, other):
         return str(other) == self.identifier
+
+    def copy_resources(self):
+        pkg_resource_dir = pkg_resources.resource_filename('firexapp', 'resources')
+        resources_dir = self.resources_dir
+        shutil.copytree(pkg_resource_dir, resources_dir)
+        # Open permissions
+        os.chmod(self.resources_dir, 0o777)
+        for file in os.listdir(resources_dir):
+            os.chmod(os.path.join(resources_dir, file), 0o666)
+
+    @classmethod
+    def get_firex_css_filepath(cls, logs_dir):
+        return os.path.join(cls.get_resources_path(logs_dir), 'firex.css')
+
+    @classmethod
+    def get_firex_logo_filepath(cls, logs_dir):
+        return os.path.join(cls.get_resources_path(logs_dir), 'firex_logo.png')
+
+
 
 
 whitelist_arguments("uid")

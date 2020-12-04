@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ firex_id }}</title>
+    <link rel="stylesheet" href="{{ firex_stylesheet }}">
+    <link rel="stylesheet" href="/lib/fontawesome-free/css/all.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Code+Pro%7CSource+Code+Pro:700%7CSource+Sans+Pro%7CSource+Sans+Pro:700">
+</head>
+<body>
+<!-- Header Row -->
+<div style="display: flex; flex-direction: column">
+    <div class="header header-row">
+        <div>
+            <a href="{{ link_for_logo }}"><img src="{{ logo }}" style="height: 36px;">
+            </a>
+        </div>
+        <div class="uid">{{ firex_id }}</div>
+        <div class="header-link" style="flex: 1 1 0%;"><b style="width: 100%;">{{ header_main_title }}</b></div>
+        <div style="margin-left: auto; display: flex; align-items: center; height: 100%;">
+            {% if worker_log %}
+            <span style="border-left: 1px solid rgb(0, 0, 0); height: 100%;">
+               <div class="header-link">
+                  <a href="{{ logs_dir_url }}">
+                     <i class="fas fa-file-alt"></i>
+                     All Logs
+                  </a>
+               </div>
+            </span>
+            {% else %}
+            {# Task Log #}
+            {% if task_flame_url %}
+            <span style="border-left: 1px solid rgb(0, 0, 0); height: 100%;">
+               <div class="header-link">
+                  <a title="View Task in Flame" href="{{ task_flame_url }}">
+                     <i class="fas fa-sitemap"></i>
+                  </a>
+               </div>
+            </span>
+            {% endif %}
+            {% if code_url %}
+            <span style="border-left: 1px solid rgb(0, 0, 0); height: 100%;">
+               <div class="header-link">
+                  <a href="{{ code_url }}" title="See Code">
+                     <i class="fas fa-file-code"></i>
+                  </a>
+               </div>
+            </span>
+            {% endif %}
+            <span style="border-left: 1px solid rgb(0, 0, 0); height: 100%;">
+               <div class="header-link">
+                  <a href="{{ worker_log_url }}" title="{{ worker_name }}">
+                     <i class="fas fa-layer-group"></i>
+                     Worker Log
+                  </a>
+               </div>
+            </span>
+            {% if support_location_link %}
+            <span style="border-left: 1px solid rgb(0, 0, 0); height: 100%;">
+               <div class="header-link">
+                  <a href="{{ support_location_link }}">
+                     <i class="fas fa-question-circle"></i>
+                     Support
+                  </a>
+               </div>
+            </span>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+<!-- Actual Content -->
+<pre>

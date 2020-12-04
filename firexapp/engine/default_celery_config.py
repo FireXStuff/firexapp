@@ -1,11 +1,13 @@
 from celery.utils.log import get_task_logger
 
 from firexapp.broker_manager.broker_factory import BrokerFactory
-from firexapp.engine.logging import add_hostname_to_log_records
+from firexapp.engine.logging import add_hostname_to_log_records, add_custom_log_levels, PRINT_LEVEL_NAME
 from firexapp.plugins import get_plugin_module_list
 from firexapp.discovery import find_firex_task_bundles
 
+add_custom_log_levels()
 add_hostname_to_log_records()
+
 logger = get_task_logger(__name__)
 
 
@@ -33,3 +35,5 @@ task_track_started = True
 task_acks_late = True
 
 worker_prefetch_multiplier = 1
+
+worker_redirect_stdouts_level = PRINT_LEVEL_NAME

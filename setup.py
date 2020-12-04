@@ -14,6 +14,9 @@ setup(name='firexapp',
       author_email='firex-dev@gmail.com',
       license='BSD-3-Clause',
       packages=find_packages(),
+      package_data={
+          'firexapp': ['resources/*']
+      },
       zip_safe=True,
       install_requires=[
           "distlib",
@@ -29,6 +32,7 @@ setup(name='firexapp',
           "colorlog==2.10.0",
           "beautifulsoup4",
           "vine==1.3.0",  # 5.0.0 breaks /celery/__init__.py module load.
+          "jinja2",
       ],
       extras_require={
           'test': [
