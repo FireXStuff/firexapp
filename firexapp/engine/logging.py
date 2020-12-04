@@ -5,10 +5,8 @@ import html
 from celery.signals import after_setup_task_logger, after_setup_logger
 import os
 from firexapp.engine.celery import app
-from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
-from jinja2 import Environment, PackageLoader
+from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath, JINJA_ENV
 
-JINJA_ENV = Environment(loader=PackageLoader('firexkit'))
 RAW_LEVEL_NAME = 'RAW'
 PRINT_LEVEL_NAME = 'PRINT'
 
