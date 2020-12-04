@@ -1,4 +1,5 @@
 import os
+import shutil
 import unittest
 
 from celery import Celery
@@ -307,4 +308,4 @@ class UidTests(unittest.TestCase):
         uid = Uid()
         self.assertTrue(os.path.isdir(uid.logs_dir))
         self.assertTrue(os.path.isdir(uid.debug_dir))
-        os.removedirs(uid.debug_dir)
+        shutil.rmtree(uid.logs_dir)
