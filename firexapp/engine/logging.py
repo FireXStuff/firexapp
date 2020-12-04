@@ -5,10 +5,10 @@ import html
 from celery.signals import after_setup_task_logger, after_setup_logger
 import os
 from firexapp.engine.celery import app
-from firexapp.submit.uid import Uid
+from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
 from jinja2 import Environment, PackageLoader
 
-JINJA_ENV = Environment(loader=PackageLoader('firexapp'))
+JINJA_ENV = Environment(loader=PackageLoader('firexkit'))
 RAW_LEVEL_NAME = 'RAW'
 PRINT_LEVEL_NAME = 'PRINT'
 
@@ -132,8 +132,8 @@ def configure_main_logger(logger, loglevel, logfile, format, colorize, **_kwargs
     logs_dir = app.conf.logs_dir
     html_header = JINJA_ENV.get_template('log_template.html').render(
         worker_log=True,
-        firex_stylesheet=Uid.get_firex_css_filepath(logs_dir),
-        logo=Uid.get_firex_logo_filepath(logs_dir),
+        firex_stylesheet=get_firex_css_filepath(app.conf.resources_dir),
+        logo=get_firex_logo_filepath(app.conf.resources_dir),
         link_for_logo=app.conf.link_for_logo,
         header_main_title=worker_name,
         firex_id=app.conf.uid,

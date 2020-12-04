@@ -218,6 +218,7 @@ class SubmitBaseApp:
             # start backend
             app.backend.set('uid', str(uid))
             app.backend.set('logs_dir', uid.logs_dir)
+            app.backend.set('resources_dir', uid.resources_dir)
 
             # IMPORT ALL THE MICROSERVICES
             # ONLY AFTER BROKER HAD STARTED
@@ -433,12 +434,6 @@ def get_log_dir_from_output(cmd_output: str)->str:
         return log_dir_line.strip()
     except IndexError:
         return ""
-
-
-# noinspection PyUnusedLocal
-@celeryd_init.connect()
-def add_uid_to_conf(conf=None, **kwargs):
-    conf.uid = app.backend.get('uid').decode()
 
 
 @worker_ready.connect()

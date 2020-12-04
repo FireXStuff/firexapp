@@ -80,23 +80,13 @@ class Uid(object):
         return str(other) == self.identifier
 
     def copy_resources(self):
-        pkg_resource_dir = pkg_resources.resource_filename('firexapp', 'resources')
+        pkg_resource_dir = pkg_resources.resource_filename('firexkit', 'resources')
         resources_dir = self.resources_dir
         shutil.copytree(pkg_resource_dir, resources_dir)
         # Open permissions
         os.chmod(self.resources_dir, 0o777)
         for file in os.listdir(resources_dir):
             os.chmod(os.path.join(resources_dir, file), 0o666)
-
-    @classmethod
-    def get_firex_css_filepath(cls, logs_dir):
-        return os.path.join(cls.get_resources_path(logs_dir), 'firex.css')
-
-    @classmethod
-    def get_firex_logo_filepath(cls, logs_dir):
-        return os.path.join(cls.get_resources_path(logs_dir), 'firex_logo.png')
-
-
 
 
 whitelist_arguments("uid")
