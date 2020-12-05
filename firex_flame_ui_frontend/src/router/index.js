@@ -13,6 +13,7 @@ import XFindFirexId from '@/components/XFindFirexId.vue';
 import XError from '@/components/XError.vue';
 import XLiveFileViewer from '@/components/XLiveFileViewer.vue';
 import XErrorsTable from '@/components/XErrorsTable.vue';
+import XDirectoryListing from '@/components/XDirectoryListing.vue';
 
 Vue.use(Router);
 
@@ -108,6 +109,12 @@ const router = new Router({
               path: 'root/:rootUuid',
             },
           ],
+        },
+        {
+          path: 'logs/:logRelPath*',
+          name: 'XLogsDir',
+          component: XDirectoryListing,
+          props: true,
         },
         // default path must be last.
         {

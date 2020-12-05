@@ -22,6 +22,9 @@ module.exports = {
       '^/ws_proxy': {
         target: 'http://firex-west.cisco.com',
       },
+      '^/runs': {
+        target: 'http://www.firexflame.com',
+      },
     },
   },
 };

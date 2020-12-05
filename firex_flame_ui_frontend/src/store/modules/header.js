@@ -111,9 +111,21 @@ const headerGetters = {
   },
 
   runLogsViewHeaderEntry(state, getters) {
+    const useBuiltinLogsDir = _.get(state.uiConfig, ['logs_serving', 'serve_mode'],
+      null) !== 'google-bucket';
+    let href;
+    let to;
+    if (useBuiltinLogsDir) {
+      href = getters.logsUrl;
+      to = null;
+    } else {
+      href = null;
+      to = getters.runRouteFromName('XLogsDir');
+    }
     return {
       name: 'logs',
-      href: getters.logsUrl,
+      href,
+      to,
       title: 'All Logs',
       icon: 'folder-open',
     };
