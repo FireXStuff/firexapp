@@ -56,6 +56,7 @@ function socketRequestResponse(socket, requestEvent, successEventName, failedEve
 function createFlameSocket(url, options) {
   const socketOptions = {
     transports: ['websocket'],
+    reconnectionAttempts: 3,
   };
   let socket;
   // The path portion of URLs given to socketio specify socketio namespaces to connect to,
@@ -73,7 +74,7 @@ function createFlameSocket(url, options) {
   // TODO: consider making this configurable. Current main deployment no longer supports polling.
   // In case websocket fails, retry with both polling and websocket.
   // socket.on('reconnect_attempt', () => {
-  //   socket.io.opts.transports = ['polling', 'websocket'];
+  //   socket.io.opts.transports = ['websocket', 'polling'];
   // });
 
   if (_.has(options, 'onConnect')) {

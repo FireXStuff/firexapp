@@ -48,7 +48,7 @@ export default {
   methods: {
     receiveSize(taskSize) {
       if (_.isEmpty(this.dimensionsByUuid)) {
-        // Doing initial sizing collect -- save size & send once all retreived.
+        // Doing initial sizing collect -- save size & send once all retrieved.
         Object.assign(this.sizesToCommit, taskSize);
         // Check if this latest size completed the dimensions & should therefore cause commit.
         if (containsAll(_.keys(this.sizesToCommit), this.allUuids)) {

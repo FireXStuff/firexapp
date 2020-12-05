@@ -399,7 +399,7 @@ function fetchRunModelMetadata(firexId, modelPathTemplate) {
   if (!isFireXIdValid(firexId)) {
     return new Promise((u, reject) => reject());
   }
-  return fetchWithRetry(templateFireXId(modelPathTemplate, firexId), 4, { cache: "no-cache" })
+  return fetchWithRetry(templateFireXId(modelPathTemplate, firexId), 7, { cache: "no-cache" })
     .then(r => {
       if (!r.ok) {
         throw Error("Run metadata now found.");
