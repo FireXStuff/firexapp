@@ -124,16 +124,15 @@ def configure_task_logger(logger, loglevel, logfile, format, colorize, **_kwargs
 @after_setup_logger.connect
 def configure_main_logger(logger, loglevel, logfile, format, colorize, **_kwargs):
     set_formatter_for_logging_file_handlers(logger, format)
-
     # Deduce the worker name from the logfile, which is unfortunate
     worker_name = os.path.splitext(os.path.basename(logfile))[0]
-    logs_dir = app.conf.logs_dir
+    base_dir = os.path.dirname(logfile)
     html_header = JINJA_ENV.get_template('log_template.html').render(
         worker_log=True,
-        firex_stylesheet=get_firex_css_filepath(app.conf.resources_dir),
-        logo=get_firex_logo_filepath(app.conf.resources_dir),
+        firex_stylesheet=get_firex_css_filepath(app.conf.resources_dir, relative_from=base_dir),
+        logo=get_firex_logo_filepath(app.conf.resources_dir, relative_from=base_dir),
         link_for_logo=app.conf.link_for_logo,
         header_main_title=worker_name,
         firex_id=app.conf.uid,
-        logs_dir_url=logs_dir)
+        logs_dir_url=os.path.relpath(app.conf.logs_dir, base_dir))
     logger.raw(html_header)
