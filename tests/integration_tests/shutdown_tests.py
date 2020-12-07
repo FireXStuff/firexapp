@@ -15,7 +15,7 @@ from firexapp.submit.arguments import InputConverter
 from firexapp.submit.reporting import ReportGenerator, report
 from firexapp.submit.tracking_service import TrackingService, get_tracking_services
 import firexapp.submit.tracking_service
-from firexapp.submit.submit import get_log_dir_from_output
+from firexapp.submit.submit import get_log_dir_from_output, SubmitBaseApp
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexapp.celery_manager import CeleryManager
 from firexapp.common import wait_until
@@ -230,8 +230,10 @@ class AsyncNoBrokerLeakOnRootRevoke(NoBrokerLeakBase):
 
 @app.task
 def terminate_celery(uid):
-    pid_file = glob(os.path.join(uid.logs_dir, 'debug', 'celery', 'pids', '*.pid'))[0]
-    Process(int(Path(pid_file).read_text())).kill()
+    worker_name = SubmitBaseApp.PRIMARY_WORKER_NAME
+    pid = CeleryManager.get_pid(uid.logs_dir, worker_name)
+    logger.info(f'Killing pid {pid} for {worker_name}')
+    Process(pid).kill()
 
 
 class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
