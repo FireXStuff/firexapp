@@ -68,7 +68,20 @@ class SubmitBaseApp:
 
     def log_preamble(self):
         """Overridable method to allow a firex application to log on startup"""
-        pass
+        self.log_firex_pkgs_versions()
+
+    @staticmethod
+    def log_firex_pkgs_versions():
+        import pkg_resources
+        pkgs = []
+        for package in pkg_resources.WorkingSet():
+            if package.project_name == 'firexkit':
+                pkgs.append(str(package))
+            for r in package.requires():
+                if r.project_name in ['firexkit', 'firexapp']:
+                    pkgs.append(str(package))
+        pkgs = [f'\t - {p}' for p in pkgs]
+        logger.debug('FireX Packages:\n' + '\n'.join(pkgs))
 
     def create_submit_parser(self, sub_parser):
         submit_parser = sub_parser.add_parser("submit",
