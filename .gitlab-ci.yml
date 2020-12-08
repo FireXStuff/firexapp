@@ -34,13 +34,13 @@ upload-results:
   image: google/cloud-sdk
   script:
     - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
-    - gsutil -m rsync -r flow_test_results  gs://www.firexflame.com/runs/gitlab/
+    - gsutil -m rsync -e -r flow_test_results  gs://www.firexflame.com/runs/gitlab/
 
 upload-docs:
   stage: upload
   image: google/cloud-sdk
   script:
     - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
-    - gsutil -m rsync -e -r html gs://www.firexapp.com
+    - gsutil -m rsync -r html gs://www.firexapp.com
   only:
     - tags
