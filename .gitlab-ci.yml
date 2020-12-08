@@ -9,20 +9,17 @@ cache:
 
 stages:
   - build
-  - test
-  - upload_docs
+  - upload
 
-
-default:
+   
+build:
+  stage: build
   image: firexstuff/firex-alpine-build
   before_script:
     - python -m venv venv
     - source venv/bin/activate
     - pip install --upgrade pip
     - pip install --upgrade firexbuilder
-   
-build-job:
-  stage: build
   script:
     - pip install keyrings.alt
     - firex-build all --skip_htmlcov --upload_codecov --upload_pip_if_tag --install_test_reqs
@@ -32,18 +29,18 @@ build-job:
       - flow_test_results/
     when: always
    
-upload_docs:
-  stage: upload_docs
+upload-results:
+  stage: upload
+  image: google/cloud-sdk
+  script:
+    - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
+    - gsutil -m rsync -r flow_test_results  gs://www.firexflame.com/runs/gitlab/
+
+upload-docs:
+  stage: upload
   image: google/cloud-sdk
   script:
     - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
     - gsutil -m rsync -r html gs://www.firexapp.com
   only:
     - tags
-
-upload_flow_test_results:
-  stage: upload_docs
-  image: google/cloud-sdk
-  script:
-    - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
-    - gsutil -m rsync -r flow_test_results  gs://www.firexflame.com/runs/gitlab/
