@@ -34,7 +34,7 @@ upload-results:
   image: google/cloud-sdk
   script:
     - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
-    - gsutil -m rsync -e -r flow_test_results  gs://runs
+    - gsutil -m rsync -e -r flow_test_results  gs://runs.firexflame.com
 
 upload-docs:
   stage: upload
