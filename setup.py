@@ -35,7 +35,7 @@ setup(name='firexapp',
               'firex-keeper',
           ],
           'flame': [
-              'flame'
+              'firex-flame'
           ]
       },
       classifiers=[
