@@ -41,6 +41,6 @@ upload-docs:
   image: google/cloud-sdk
   script:
     - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
-    - gsutil -m rsync -r html gs://www.firexapp.com
+    - gsutil -m rsync -e -r html gs://www.firexapp.com
   only:
     - tags
