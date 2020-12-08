@@ -40,3 +40,10 @@ upload_docs:
     - gsutil -m rsync -r html gs://www.firexapp.com
   only:
     - tags
+
+upload_flow_test_results:
+  stage: upload_docs
+  image: google/cloud-sdk
+  script:
+    - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
+    - gsutil -m rsync -r flow_test_results  gs://www.firexflame.com/runs/gitlab/
