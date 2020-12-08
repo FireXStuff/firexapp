@@ -1,10 +1,15 @@
 import _ from 'lodash';
-import { createLinkedHtml, createLinkifyRegex } from '@/utils';
-
+import {
+  createLinkedHtml, createLinkifyRegex, flatGoogleBucketsListingToFilesByDir, expandDirs,
+} from '@/utils';
+import EXAMPLE_GOOGLE_BUCKET_ITEMS from './test_data/example-google-bucket-items.json';
+import EXPECTED_PARSED_GOOGLE_BUCKET from
+  './test_data/expectations/expect-parsed-google-bucket-items.json';
 
 function makeLink(content) {
   return `<a href="${content}" class="subtle-link">${content}</a>`;
 }
+
 
 const REGEX = createLinkifyRegex(['/auto/', '/ws/']);
 
@@ -52,5 +57,24 @@ describe('utils.js', () => {
     const expected = escapedReplace.replace(/REPLACE_ME/g,
       makeLink('https://some.com/link'));
     expect(result).toEqual(expected);
+  });
+  it('expand directories', () => {
+    const expandedDirs = expandDirs([['a', 'b', 'c'], ['a', 'b', 'd'], ['a', 'x', 'y', 'z', 'k']]);
+    const expected = [
+      [],
+      ['a'],
+      ['a', 'b'],
+      ['a', 'b', 'c'],
+      ['a', 'b', 'd'],
+      ['a', 'x'],
+      ['a', 'x', 'y'],
+      ['a', 'x', 'y', 'z'],
+      ['a', 'x', 'y', 'z', 'k']];
+    expect(expandedDirs).toEqual(expected);
+  });
+  it('extracts directory tree from google buckets file listing', () => {
+    const firexId = 'FireX-djungic-201205-002928-35988';
+    const result = flatGoogleBucketsListingToFilesByDir(EXAMPLE_GOOGLE_BUCKET_ITEMS, firexId);
+    expect(result).toEqual(EXPECTED_PARSED_GOOGLE_BUCKET);
   });
 });

@@ -32,26 +32,11 @@
 import _ from 'lodash';
 import { mapState } from 'vuex';
 import XHeader from './XHeader.vue';
-import { templateFireXId } from '../utils';
+import {
+  templateFireXId, flatGoogleBucketsListingToFilesByDir, arrayToPath, pathStringToArray,
+  getParentArray,
+} from '../utils';
 
-function isChildDirArray(parent, candidate) {
-  const e = _.isEqual(parent, _.take(candidate, parent.length));
-  const c = parent.length === (candidate.length - 1);
-  return e && c;
-}
-
-function pathStringToArray(path) {
-  return _.filter(_.split(path, '/'));
-}
-
-function getParentArray(path) {
-  const pathArray = _.isString(path) ? pathStringToArray(path) : path;
-  return _.initial(pathArray);
-}
-
-function arrayToPath(path) {
-  return _.join(path, '/');
-}
 
 export default {
   name: 'XDirectoryListing',
@@ -73,31 +58,8 @@ export default {
     googleBucketListRunLogsUrl() {
       return templateFireXId(this.uiConfig.logs_serving.list_url_template, this.inputFireXId);
     },
-    flatBucketItems() {
-      return _.map(this.bucketListing, (item) => {
-        // Assume logs path always has FireX ID marking root of logs dir.
-        const path = _.trimStart(_.last(_.split(item.name, this.inputFireXId, 2)), '/');
-
-        return {
-          id: item.id,
-          path,
-          name: _.last(pathStringToArray(path)),
-          link: `http://${item.bucket}/${item.name}`,
-          parentDir: getParentArray(path),
-        };
-      });
-    },
     directoryPathToFiles() {
-      // TODO: need to fill in dirs that contain no files.
-      const allDirs = _.uniqWith(_.map(this.flatBucketItems, 'parentDir'), _.isEqual);
-      return _.mapValues(
-        _.groupBy(this.flatBucketItems, f => arrayToPath(f.parentDir)),
-        (items, parentDir) => ({
-          files: items,
-          dirs: _.map(_.filter(allDirs, d => isChildDirArray(pathStringToArray(parentDir), d)),
-            _.last),
-        }),
-      );
+      return flatGoogleBucketsListingToFilesByDir(this.bucketListing, this.inputFireXId);
     },
     selectedPathItems() {
       // TODO: handle path doesn't exist.

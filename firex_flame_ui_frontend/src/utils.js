@@ -534,6 +534,72 @@ function createLinkedHtml(text, regex, linkClass) {
   });
 }
 
+function normalizeGoogleBucketItems(googleBucketItems, firexId) {
+  return _.map(googleBucketItems, (item) => {
+    // Assume logs path always has FireX ID marking root of logs dir.
+    const path = _.trimStart(_.last(_.split(item.name, firexId, 2)), '/');
+
+    return {
+      id: item.id,
+      path,
+      name: _.last(pathStringToArray(path)),
+      link: `http://${item.bucket}/${item.name}`,
+      parentDir: getParentArray(path),
+    };
+  });
+}
+
+function expandDirs(dirs) {
+  // Might have dirs /a/b/ and /a/b/c/d. In this case, need to create /a/b/c.
+  const uniqDirs = _.sortBy(_.uniqWith(dirs, _.isEqual));
+  const expandedDirs = [];
+  _.each(uniqDirs, (curDir) => {
+    _.each(_.range(curDir.length), (i) => {
+      expandedDirs.push(_.take(curDir, i + 1))
+    })
+  });
+  // Always consider the empty array (root) in the list of dirs.
+  return _.uniqWith(_.concat([[]], expandedDirs), _.isEqual);
+}
+
+function arrayStartsWith(arr1, arr2) {
+  return arr1.length <= arr2.length && _.isEqual(arr1, _.take(arr2, arr1.length));
+}
+
+function isChildDirArray(parent, candidate) {
+  const e = arrayStartsWith(parent, candidate);
+  const c = parent.length === (candidate.length - 1);
+  return e && c;
+}
+
+function pathStringToArray(path) {
+  return _.filter(_.split(path, '/'));
+}
+
+function getParentArray(path) {
+  const pathArray = _.isString(path) ? pathStringToArray(path) : path;
+  return _.initial(pathArray);
+}
+
+function arrayToPath(path) {
+  return _.join(path, '/');
+}
+
+
+function flatGoogleBucketsListingToFilesByDir(googleBucketItems, firexId) {
+  const normalizedBucketItems = normalizeGoogleBucketItems(googleBucketItems, firexId);
+  const allDirs = expandDirs(_.map(normalizedBucketItems, 'parentDir'));
+  const allDirsToEmpty = _.mapValues(_.keyBy(_.map(allDirs, arrayToPath)), () => []);
+  return _.mapValues(
+    _.assign(allDirsToEmpty, _.groupBy(normalizedBucketItems, f => arrayToPath(f.parentDir))),
+    (items, parentDir) => ({
+      files: items,
+      dirs: _.map(_.filter(allDirs, d => isChildDirArray(pathStringToArray(parentDir), d)),
+        _.last),
+    }),
+  );
+}
+
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
 const eventHub = new Vue();
 
@@ -569,4 +635,9 @@ export {
   createLinkifyRegex,
   createLinkedHtml,
   findFireXId,
+  flatGoogleBucketsListingToFilesByDir,
+  expandDirs,
+  arrayToPath,
+  pathStringToArray,
+  getParentArray
 };
