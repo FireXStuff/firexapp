@@ -33,6 +33,9 @@ setup(name='firexapp',
       extras_require={
           'test': [
               'firex-keeper',
+          ],
+          'flame': [
+              'flame'
           ]
       },
       classifiers=[
