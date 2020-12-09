@@ -66,12 +66,13 @@ def RunAllIntegrationTests(self, uid,
 
     test_configs_names = [c.name for c in discover_tests(test_directory)]
 
+    parallel_tasks = []
     for test_config_name in test_configs_names:
         test_config_output_dir = os.path.join(test_output_dir, test_config_name)
         xunit_file_name = os.path.join(test_config_output_dir, 'xunit_results.xml')
-        self.enqueue_child(RunIntegrationTests.s(uid=uid,
-                                                 flow_tests_configs=test_config_name,
-                                                 test_output_dir=test_config_output_dir,
-                                                 xunit_file_name=xunit_file_name))
-    self.wait_for_children()
+        parallel_tasks.append(RunIntegrationTests.s(uid=uid,
+                                                    flow_tests_configs=test_config_name,
+                                                    test_output_dir=test_config_output_dir,
+                                                    xunit_file_name=xunit_file_name))
+    self.enqueue_in_parallel(parallel_tasks)
 
