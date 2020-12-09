@@ -28,7 +28,7 @@ class RevokeOnShutdown(FlowTestConfiguration):
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_dir = get_log_dir_from_output(cmd_output)
-        keeper_complete = task_query.wait_on_keeper_complete(logs_dir)
+        keeper_complete = task_query.wait_on_keeper_complete(logs_dir, timeout=60)
         assert keeper_complete, "Keeper database is not complete."
 
         revoked_task_count = len(task_query.revoked_tasks(logs_dir))
