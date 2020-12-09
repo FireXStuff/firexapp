@@ -22,7 +22,7 @@ build:
     - pip install --upgrade firexbuilder
   script:
     - pip install keyrings.alt
-    - firex-build all --skip_htmlcov --upload_codecov --upload_pip_if_tag --install_test_reqs
+    - firex-build all --skip_htmlcov --upload_codecov --upload_pip_if_tag --install_test_reqs --install_flame
   artifacts:
     paths:
       - html/
