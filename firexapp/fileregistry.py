@@ -34,9 +34,10 @@ class FileRegistry(metaclass=Singleton):
     def destroy(cls):
         cls._instances = {}
 
-    def register_file(self, key, relative_path):
+    def register_file(self, key, relative_path, ignore_existing_registration=False):
         if key in self.file_registry:
-            raise KeyAlreadyRegistered('%r already registered; callable=%s' % (key, self.file_registry[key]))
+            if not ignore_existing_registration:
+                raise KeyAlreadyRegistered('%r already registered; callable=%s' % (key, self.file_registry[key]))
         else:
             self.file_registry[key] = relative_path
 
