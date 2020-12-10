@@ -37,6 +37,12 @@ def get_tracking_services() -> ():
     return _services
 
 
+def has_flame():
+    # Unfortunate coupling, but just too many things vary depending on presence of flame. Will eventually bring
+    # flame in to firexapp.
+    return 'FlameLauncher' in get_tracking_services()
+
+
 class TrackingService(ABC):
 
     def extra_cli_arguments(self, arg_parser):

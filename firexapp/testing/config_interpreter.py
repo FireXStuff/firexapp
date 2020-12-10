@@ -5,6 +5,7 @@ import inspect
 import subprocess
 
 from firexapp.submit.submit import get_firex_id_from_output
+from firexapp.submit.tracking_service import has_flame
 from firexapp.testing.config_base import InterceptFlowTestConfiguration, FlowTestConfiguration
 
 
@@ -101,6 +102,9 @@ def {0}(**kwargs):
             cmd += ["--logs_link", flow_test_config.logs_link]
             if getattr(flow_test_config, "sync", True):
                 cmd += ["--sync"]
+            if has_flame() and getattr(flow_test_config, "flame_terminate_on_complete", True):
+                cmd += ["--flame_terminate_on_complete"]
+
         return cmd
 
     def get_exe(self, flow_test_config)->[]:
