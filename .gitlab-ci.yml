@@ -36,7 +36,7 @@ run-flow-tests:
   before_script:
     - source venv/bin/activate
   script:
-    - firexapp --chain RunAllIntegrationTests --sync
+    - firexapp submit --chain RunAllIntegrationTests --sync
   artifacts:
     paths:
       - flow_test_results/
