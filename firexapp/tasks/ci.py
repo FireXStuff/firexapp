@@ -59,19 +59,21 @@ def RunIntegrationTests(test_output_dir=None, flow_tests_configs=None, flow_test
 
 @app.task(bind=True)
 def RunAllIntegrationTests(self, uid,
-                           test_directory='/ws/mabouels-ott/firex/firexapp-dev/tests/integration_tests',
-                           test_output_dir=None):
-    if not test_output_dir and uid:
-        test_output_dir = os.path.join(uid.logs_dir, 'flow_test_logs')
-
-    test_configs_names = [c.name for c in discover_tests(test_directory)]
+                           integration_tests_dir,
+                           integration_tests_logs=None):
+    if not integration_tests_logs and uid:
+        test_output_dir = os.path.join(uid.logs_dir, 'integration_tests_logs')
 
     parallel_tasks = []
-    for test_config_name in test_configs_names:
+
+    for config in discover_tests(integration_tests_dir):
+        test_config_name = config.name
+        test_config_filepath = config.filepath
         test_config_output_dir = os.path.join(test_output_dir, test_config_name)
         xunit_file_name = os.path.join(test_config_output_dir, 'xunit_results.xml')
         parallel_tasks.append(RunIntegrationTests.s(uid=uid,
                                                     flow_tests_configs=test_config_name,
+                                                    flow_tests_file=test_config_filepath,
                                                     test_output_dir=test_config_output_dir,
                                                     xunit_file_name=xunit_file_name))
     self.enqueue_in_parallel(parallel_tasks)
