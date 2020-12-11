@@ -108,7 +108,9 @@ def import_test_configs(path) -> []:
             if FlowTestConfiguration.__name__ in [cls.__name__ for cls in inspect.getmro(obj)[1:]] and \
                             not inspect.isabstract(obj) and '__metaclass__' not in obj.__dict__ and \
                             obj.__module__ == module.__name__:
-                config_objects.append(obj())
+                config_object = obj()
+                config_object.filepath = path
+                config_objects.append(config_object)
 
     elif os.path.isdir(path):
         results_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
