@@ -39,6 +39,15 @@ test-unit:
     paths:
       - .coverage
       
+test-integration-serial:
+  stage: test
+  script:
+    - firex-build integration_tests
+  artifacts:
+    paths:
+      - flow_test_results/
+    when: always
+    
 test-integration:
   stage: test
   script:
