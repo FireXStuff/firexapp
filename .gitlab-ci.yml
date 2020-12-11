@@ -12,10 +12,13 @@ stages:
   - test
   - upload
 
-   
+default:
+  image: firexstuff/firex-alpine-build
+  before_script:
+    - source venv/bin/activate
+    
 build:
   stage: build
-  image: firexstuff/firex-alpine-build
   before_script:
     - python -m venv venv
     - source venv/bin/activate
@@ -23,18 +26,21 @@ build:
     - pip install --upgrade firexbuilder
   script:
     - pip install keyrings.alt
-    - firex-build all --skip_htmlcov --upload_codecov --upload_pip_if_tag --install_test_reqs --install_flame
+    - firex-build build --install_test_reqs --install_flame
   artifacts:
     paths:
-      - html/
-      - flow_test_results/
-    when: always
+      - dist/
 
-run-flow-tests:
+test-unit:
   stage: test
-  image: firexstuff/firex-alpine-build
-  before_script:
-    - source venv/bin/activate
+  script:
+    - firex-build unit_tests
+  artifacts:
+    paths:
+      - .coverage
+      
+test-integration:
+  stage: test
   script:
     - firexapp submit --chain RunAllIntegrationTests --sync
   artifacts:
@@ -43,6 +49,8 @@ run-flow-tests:
     when: always
     
 upload-results:
+  inherit:
+    default: false
   stage: upload
   image: google/cloud-sdk
   script:
@@ -50,6 +58,8 @@ upload-results:
     - gsutil -m rsync -e -r flow_test_results/FireX-*  gs://runs.firexflame.com
 
 upload-docs:
+  inherit:
+    default: false
   stage: upload
   image: google/cloud-sdk
   script:
