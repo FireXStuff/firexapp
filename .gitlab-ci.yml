@@ -9,6 +9,7 @@ cache:
 
 stages:
   - build
+  - test
   - upload
 
    
@@ -28,7 +29,19 @@ build:
       - html/
       - flow_test_results/
     when: always
-   
+
+run-flow-tests:
+  stage: test
+  image: firexstuff/firex-alpine-build
+  before_script:
+    - source venv/bin/activate
+  script:
+    - firexapp --chain RunAllIntegrationTests --sync
+  artifacts:
+    paths:
+      - flow_test_results/
+    when: always
+    
 upload-results:
   stage: upload
   image: google/cloud-sdk
