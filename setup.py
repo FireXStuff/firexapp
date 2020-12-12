@@ -14,6 +14,9 @@ setup(name='firexapp',
       author_email='firex-dev@gmail.com',
       license='BSD-3-Clause',
       packages=find_packages(),
+      package_data={
+            'firexapp': ['testing/cloud-ci-install-configs.json']
+      },
       zip_safe=True,
       install_requires=[
           "distlib",
