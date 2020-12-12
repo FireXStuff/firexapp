@@ -211,7 +211,7 @@ class CeleryManager(object):
                                                   stdout_file,
                                                   extra_err_info))
         pid = self.get_pid_from_file(pid_file)
-        self.log('pid %d became active' % pid, level=INFO)
+        self.log('pid %d became active' % pid)
 
     def start(self, workername, queues=None, wait=True, timeout=15*60, concurrency=None, worker_log_level=None,
               app=None, cap_concurrency=None, cwd=None, soft_time_limit=None):

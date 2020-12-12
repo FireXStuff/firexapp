@@ -6,7 +6,13 @@ import subprocess
 
 from firexapp.submit.submit import get_firex_id_from_output
 from firexapp.submit.tracking_service import has_flame
+from firexapp.submit.uid import Uid
+from firexapp.submit.install_configs import load_install_configs
 from firexapp.testing.config_base import InterceptFlowTestConfiguration, FlowTestConfiguration
+
+
+def _get_cloud_ci_install_config_path():
+    return os.path.join(os.path.dirname(__file__), 'cloud-ci-install-configs.json')
 
 
 class ConfigInterpreter:
@@ -104,6 +110,10 @@ def {0}(**kwargs):
                 cmd += ["--sync"]
             if has_flame() and getattr(flow_test_config, "flame_terminate_on_complete", True):
                 cmd += ["--flame_terminate_on_complete"]
+            if '--install_config' not in cmd:
+                # TODO: should merge test-specific install_configs with ci-viewer configs,
+                #  since we usually want the ci URLs.
+                cmd += ['--install_config', _get_cloud_ci_install_config_path()]
 
         return cmd
 
@@ -227,5 +237,14 @@ def {0}(**kwargs):
                 firex_id = get_firex_id_from_output(std_out_f.read())
                 if firex_id:
                     print("\tFireX ID: " + firex_id, file=sys.stderr)
-        except Exception:
+                    # TODO: Showing the central-CI URL should likely be behind a parameter that indicates when runs are
+                    #  uploaded.
+                    # FIXME: passing the firex_id will break once the Uid is used for non-firex_id purposes
+                    #   (i.e. logs_dir). Need a way to re-create a Uid that's known to exist (constructure currently
+                    #   bombs with File exists).
+                    install_configs = load_install_configs(firex_id,
+                                                           _get_cloud_ci_install_config_path())
+                    print("\tFlame: " + install_configs.run_url, file=sys.stderr)
+        except Exception as e:
+            print(e)
             pass
