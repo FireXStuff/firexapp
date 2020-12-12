@@ -5,6 +5,8 @@ import psutil
 import re
 import socket
 
+from jinja2 import Template
+
 
 FIREX_BIN_DIR_ENV = 'firex_bin_dir'
 
@@ -138,3 +140,6 @@ def find(keys, input_dict):
         except Exception:
             return None
     return result
+
+def render_template(template_str, template_args):
+    return Template(template_str).render(**template_args)

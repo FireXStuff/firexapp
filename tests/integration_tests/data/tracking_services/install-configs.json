@@ -1,0 +1,4 @@
+{
+  "viewer_templates": null,
+  "required_tracking_services": ["ThisWillBeMissingLauncher"]
+}

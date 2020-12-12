@@ -26,6 +26,7 @@ from firexapp.application import import_microservices, get_app_tasks, get_app_ta
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.submit.shutdown import launch_background_shutdown
+from firexapp.submit.install_configs import load_install_configs, FireXInstallConfigs
 
 add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
@@ -43,13 +44,17 @@ class SubmitBaseApp:
     DEFAULT_MICROSERVICE = None
     PRIMARY_WORKER_NAME = "mc"
 
+    install_configs: FireXInstallConfigs
+
     def __init__(self, submission_tmp_file=None):
         self.submission_tmp_file = submission_tmp_file
         self.uid = None
         self.broker = None
         self.celery_manager = None
         self.is_sync = None
+        # TODO: migrate tracking services to inside install-config.
         self.enabled_tracking_services = None
+        self.install_configs = None
 
     def init_file_logging(self):
         os.umask(0)
@@ -98,6 +103,8 @@ class SubmitBaseApp:
         submit_parser.add_argument('--logs_link',
                                    help="Create a symlink back the root of the run's logs directory")
         submit_parser.add_argument('--soft_time_limit', help="Task default soft_time_limit", type=int)
+        submit_parser.add_argument('--install_configs', help="Path to JSON file specifying installation-wide configs",
+                                   type=str, default=None)
         submit_parser.set_defaults(func=self.run_submit)
 
         for service in get_tracking_services():
@@ -157,6 +164,10 @@ class SubmitBaseApp:
 
         if args.logs_link:
             self.create_logs_link(args.logs_link)
+
+        # TODO: consider allowing install_configs to specify CLI args for the run
+        #   (at lower precedence than explicit CLI args, or make precedence also configurable)
+        self.install_configs = load_install_configs(uid, args.install_configs)
 
         # Create an env file for debugging
         with open(FileRegistry().get_file(ENVIRON_FILE_REGISTRY_KEY, self.uid.logs_dir), 'w') as f:
@@ -319,18 +330,27 @@ class SubmitBaseApp:
         services = get_tracking_services()
         if services:
             logger.debug("Tracking services:")
-            disabled_service_names = args.disable_tracking_services.split(',')
+            cli_disabled_service_names = args.disable_tracking_services.split(',')
             for service in services:
                 service_name = get_service_name(service)
-                service_enabled = service_name not in disabled_service_names
+                service_enabled = service_name not in cli_disabled_service_names
                 disabled_str = '' if service_enabled else ' (disabled)'
                 logger.debug("\t%s%s" % (service_name, disabled_str))
                 if service_enabled:
                     self.enabled_tracking_services.append(service)
 
+            # disabled via CLI overrides required from install config.
+            required_service_names = set(self.install_configs.raw_configs.required_tracking_services)\
+                .difference(cli_disabled_service_names)
+            missing_require_services = required_service_names.difference(
+                {get_service_name(s) for s in self.enabled_tracking_services})
+            assert not missing_require_services, \
+                "Missing the following tracking services required by install config. Ensure the pip packages that " \
+                f"contribute these tracking services are installed: {missing_require_services}"
+
         additional_chain_args = {}
         for service in self.enabled_tracking_services:
-            extra = service.start(args, **chain_args)
+            extra = service.start(args, install_configs=self.install_configs, **chain_args)
             if extra:
                 additional_chain_args.update(extra)
         return additional_chain_args

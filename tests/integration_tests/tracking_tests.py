@@ -1,8 +1,9 @@
+import os
 
 from firexapp.engine.celery import app
 from firexapp.submit.tracking_service import TrackingService, get_tracking_services
 import firexapp.submit.tracking_service
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run
+from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run, assert_is_bad_run
 
 
 def ready_task_msg(count):
@@ -83,3 +84,19 @@ class TrackingServiceDisabledTest(FlowTestConfiguration):
 
     def assert_expected_return_code(self, ret_value):
         assert_is_good_run(ret_value)
+
+
+test_data_dir = os.path.join(os.path.dirname(__file__), "data", "tracking_services")
+
+
+class TrackingServiceMissingRequiredTest(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "service_success",
+                '--install_config', os.path.join(test_data_dir, 'install-configs.json')]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        assert 'Failed to start tracking service' in cmd_err
+        assert 'ThisWillBeMissingLauncher' in cmd_err
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_bad_run(ret_value)

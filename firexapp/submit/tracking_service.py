@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+from firexapp.submit.install_configs import FireXInstallConfigs
 
 TRACKING_SERVICE_ENTRY_POINT = 'firex_tracking_service'
 
@@ -45,12 +46,14 @@ def has_flame():
 
 class TrackingService(ABC):
 
+    install_configs: FireXInstallConfigs
+
     def extra_cli_arguments(self, arg_parser):
         pass
 
     @abstractmethod
-    def start(self, args, **kwargs) -> {}:
-        pass
+    def start(self, args, install_configs: FireXInstallConfigs, **kwargs) -> {}:
+        self.install_configs = install_configs
 
     def ready_for_tasks(self, **kwargs) -> bool:
         return True
