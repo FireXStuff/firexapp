@@ -2,3 +2,4 @@ include LICENSE BUILD
 include versioneer.py
 include firexapp/_version.py
 include fastentrypoints.py
+include firexapp/testing/cloud-ci-install-configs.json
