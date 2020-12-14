@@ -14,17 +14,14 @@ from firexapp.fileregistry import FileRegistry
 logger = setup_console_logging(__name__)
 
 CELERY_LOGS_REGISTRY_KEY = 'celery_logs'
-FileRegistry().register_file(CELERY_LOGS_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'celery'),
-                             ignore_existing_registration=True)
+FileRegistry().register_file(CELERY_LOGS_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'celery'))
 
 CELERY_PIDS_REGISTRY_KEY = 'celery_pids'
 FileRegistry().register_file(CELERY_PIDS_REGISTRY_KEY,
-                             os.path.join(FileRegistry().get_relative_path(CELERY_LOGS_REGISTRY_KEY), 'pids'),
-                             ignore_existing_registration=True)
+                             os.path.join(FileRegistry().get_relative_path(CELERY_LOGS_REGISTRY_KEY), 'pids'))
 
 MICROSERVICE_LOGS_REGISTRY_KEY = 'microservice_logs'
-FileRegistry().register_file(MICROSERVICE_LOGS_REGISTRY_KEY, 'microservice_logs',
-                             ignore_existing_registration=True)
+FileRegistry().register_file(MICROSERVICE_LOGS_REGISTRY_KEY, 'microservice_logs')
 
 
 class CeleryWorkerStartFailed(Exception):
