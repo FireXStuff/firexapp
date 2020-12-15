@@ -125,15 +125,16 @@ def main(default_results_dir, default_test_dir):
         print("combining coverage files...", file=sys.stderr)
         coverage_files = [f for f in os.listdir(results_directory) if f.startswith(".coverage")]
         import subprocess
-        subprocess.check_output(["coverage", "combine"] + coverage_files,
-                                cwd=results_directory)
-
-        if not args.no_html:
-            cov_report = os.path.join(results_directory, "coverage")
-            print("Generating Coverage Report...", file=sys.stderr)
-            subprocess.check_output(["coverage", "html", "-d", cov_report],
+        if coverage_files:
+            subprocess.check_output(["coverage", "combine"] + coverage_files,
                                     cwd=results_directory)
-            print(cov_report, file=sys.stderr)
+
+            if not args.no_html:
+                cov_report = os.path.join(results_directory, "coverage")
+                print("Generating Coverage Report...", file=sys.stderr)
+                subprocess.check_output(["coverage", "html", "-d", cov_report],
+                                        cwd=results_directory)
+                print(cov_report, file=sys.stderr)
 
     sys.exit(not success)
 
