@@ -14,7 +14,7 @@ logger = get_task_logger(__name__)
 #@flame("flow_tests_file", os.path.basename)
 def RunIntegrationTests(test_output_dir=None, flow_tests_configs=None, flow_tests_file=None, xunit_file_name=None,
                         uid=None, coverage=True):
-    import os
+    assert flow_tests_configs or flow_tests_file, 'Must provide at least flow_tests_configs or flow_tests_file'
     if not test_output_dir and uid:
         test_output_dir = os.path.join(uid.logs_dir, 'flow_test_logs')
 
