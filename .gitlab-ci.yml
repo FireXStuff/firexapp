@@ -13,7 +13,7 @@ stages:
   - upload
 
 default:
-  image: firexstuff/firex-alpine-build
+  image: firexstuff/firex-alpine-build:latest
   before_script:
     - source venv/bin/activate
     
