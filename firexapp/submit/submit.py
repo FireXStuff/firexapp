@@ -1,3 +1,4 @@
+import multiprocessing
 import re
 import sys
 import json
@@ -38,6 +39,11 @@ FileRegistry().register_file(SUBMISSION_FILE_REGISTRY_KEY, os.path.join(Uid.debu
 ENVIRON_FILE_REGISTRY_KEY = 'env'
 FileRegistry().register_file(ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'environ.json'))
 
+
+class AdjustCeleryConcurrency(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        concurrency = max([values, 4])
+        setattr(namespace, self.dest, concurrency)
 
 class SubmitBaseApp:
     SUBMISSION_LOGGING_FORMATTER = '[%(asctime)s %(levelname)s] %(message)s'
@@ -105,6 +111,11 @@ class SubmitBaseApp:
         submit_parser.add_argument('--soft_time_limit', help="Task default soft_time_limit", type=int)
         submit_parser.add_argument('--install_configs', help="Path to JSON file specifying installation-wide configs",
                                    type=str, default=None)
+        submit_parser.add_argument('--celery_concurrency', '--celery_work_slots',
+                                   type=int, action=AdjustCeleryConcurrency,
+                                   help='Number of worker slots in celery pool',
+                                   # Some machines have loads of CPUs, so cap at 100.
+                                   default=min([multiprocessing.cpu_count()*4, 100]))
         submit_parser.set_defaults(func=self.run_submit)
 
         for service in get_tracking_services():
@@ -296,9 +307,8 @@ class SubmitBaseApp:
 
     def start_celery(self, args, plugins):
         from firexapp.celery_manager import CeleryManager
-        import multiprocessing
         celery_manager = CeleryManager(logs_dir=self.uid.logs_dir, plugins=plugins)
-        celery_manager.start(workername=self.PRIMARY_WORKER_NAME, wait=True, concurrency=multiprocessing.cpu_count()*4,
+        celery_manager.start(workername=self.PRIMARY_WORKER_NAME, wait=True, concurrency=args.celery_concurrency,
                              soft_time_limit=args.soft_time_limit)
         self.celery_manager = celery_manager
 
