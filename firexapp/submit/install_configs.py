@@ -1,10 +1,13 @@
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 import json
 from urllib.parse import urljoin, urlparse
+import shutil
+import os
 
-from firexapp.common import render_template
 from firexapp.submit.uid import Uid
+from firexapp.common import render_template
 
+INSTALL_CONFIGS_RUN_BASENAME = 'install-configs.json'
 
 class FireXViewerTemplates(NamedTuple):
     viewer_base: str = ""
@@ -17,46 +20,55 @@ class FireXViewerTemplates(NamedTuple):
 # Data-only representation of the config. This is expected to EXACTLY reflect the contents of the config file.
 # Utilities on top of this data should go in the FireXInstallConfigs class.
 class FireXRawInstallConfigs(NamedTuple):
-    viewer_templates: FireXViewerTemplates = None
+    viewer_templates: Optional[FireXViewerTemplates] = None
     required_tracking_services: list = []
+
 
 class FireXInstallConfigError(Exception):
     pass
 
 
-def load_install_configs(uid: Uid, install_config_path: str):
-    if install_config_path is None:
-        # default configs
-        raw_configs = FireXRawInstallConfigs(None, [])
+def install_config_path_from_logs_dir(logs_dir):
+    return os.path.join(logs_dir, Uid.debug_dirname, INSTALL_CONFIGS_RUN_BASENAME)
+
+
+def load_existing_raw_install_config(logs_dir) -> FireXRawInstallConfigs:
+    install_config_path = install_config_path_from_logs_dir(logs_dir)
+    try:
+        with open(install_config_path) as fp:
+            install_configs_dict = json.load(fp)
+    except (OSError, json.JSONDecodeError) as e:
+        raise FireXInstallConfigError(f"Failed to load install config from {install_config_path}") from e
     else:
-        try:
-            with open(install_config_path) as fp:
-                # TODO: consider copying the install configs to debug dir within run dir, then loading the copied file.
-                install_configs_dict = json.load(fp)
-        except (OSError, json.JSONDecodeError) as e:
-            raise FireXInstallConfigError(f"Failed to load install config from {install_config_path}") from e
+        if install_configs_dict.get('viewer_templates'):
+            viewer_config = FireXViewerTemplates(**install_configs_dict['viewer_templates'])
         else:
-            if install_configs_dict.get('viewer_templates'):
-                viewer_config = FireXViewerTemplates(**install_configs_dict['viewer_templates'])
-            else:
-                viewer_config = None
-            raw_configs = FireXRawInstallConfigs(**{**install_configs_dict, 'viewer_templates': viewer_config})
-    return FireXInstallConfigs(uid, raw_configs)
+            viewer_config = None
+        return FireXRawInstallConfigs(**{**install_configs_dict, 'viewer_templates': viewer_config})
 
 
 class FireXInstallConfigs:
     """Utility functionality on top of data-only representation of configs."""
 
-    def __init__(self, uid: Uid, raw_configs: FireXRawInstallConfigs):
+    def __init__(self, firex_id: str, logs_dir: str, raw_configs: FireXRawInstallConfigs):
+        self.firex_id = firex_id
+        self.logs_dir = logs_dir
         self.raw_configs = raw_configs
-        self.run_url = self.get_run_url(str(uid)) if self.has_viewer() else None
+        self.run_url = self.get_run_url() if self.has_viewer() else None
 
     def has_viewer(self):
         return self.raw_configs.viewer_templates is not None
 
-    def get_run_url(self, firex_id: str) -> str:
+    def get_run_url(self) -> str:
         return self._template_viewer_url(self.raw_configs.viewer_templates.run_path_template,
-                                         {'firex_id': firex_id})
+                                         {'firex_id': self.firex_id})
+
+    def get_log_entry_url(self, log_entry_rel_run_root) -> str:
+        # run_logs_entry_path_template": "{{ run_logs_dir }}/{{ log_entry_rel_run_root }}"
+        return self._template_viewer_url(self.raw_configs.viewer_templates.run_logs_entry_path_template,
+                                         {'firex_id': self.firex_id,
+                                          'run_logs_dir': self.logs_dir,
+                                          'log_entry_rel_run_root': log_entry_rel_run_root})
 
     def _template_viewer_url(self, template_str: str, template_args: dict) -> str:
         assert self.has_viewer(), "Callers must verify install configs specify URLs."
@@ -72,3 +84,25 @@ class FireXInstallConfigs:
 
     def is_tracking_service_required(self, name) -> bool:
         return name in self.raw_configs.required_tracking_services
+
+
+def load_existing_install_configs(firex_id: str, logs_dir: str) -> FireXInstallConfigs:
+    return FireXInstallConfigs(firex_id, logs_dir, load_existing_raw_install_config(logs_dir))
+
+
+def load_new_install_configs(firex_id: str, logs_dir: str, install_config_path: str) -> FireXInstallConfigs:
+    install_config_copy_path = install_config_path_from_logs_dir(logs_dir)
+
+    # Either write default configs or copy input file.
+    if install_config_path is None:
+        # default configs
+        raw_configs = FireXRawInstallConfigs(None, [])._asdict()
+        with open(install_config_copy_path, 'w') as fp:
+            json.dump(raw_configs, fp)
+    else:
+        try:
+            shutil.copyfile(install_config_path, install_config_copy_path)
+        except OSError as e:
+            raise FireXInstallConfigError(f"Failed to load install config from {install_config_path}") from e
+
+    return load_existing_install_configs(firex_id, logs_dir)

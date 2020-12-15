@@ -4,10 +4,10 @@ import os
 import inspect
 import subprocess
 
-from firexapp.submit.submit import get_firex_id_from_output
+from firexapp.submit.submit import get_firex_id_from_output, get_log_dir_from_output
 from firexapp.submit.tracking_service import has_flame
 from firexapp.submit.uid import Uid
-from firexapp.submit.install_configs import load_install_configs
+from firexapp.submit.install_configs import load_new_install_configs
 from firexapp.testing.config_base import InterceptFlowTestConfiguration, FlowTestConfiguration
 
 
@@ -234,16 +234,15 @@ def {0}(**kwargs):
         # noinspection PyBroadException
         try:
             with open(std_out, 'r') as std_out_f:
-                firex_id = get_firex_id_from_output(std_out_f.read())
+                std_out_content = std_out_f.read()
+                firex_id = get_firex_id_from_output(std_out_content)
                 if firex_id:
                     print("\tFireX ID: " + firex_id, file=sys.stderr)
                     # TODO: Showing the central-CI URL should likely be behind a parameter that indicates when runs are
                     #  uploaded.
-                    # FIXME: passing the firex_id will break once the Uid is used for non-firex_id purposes
-                    #   (i.e. logs_dir). Need a way to re-create a Uid that's known to exist (constructure currently
-                    #   bombs with File exists).
-                    install_configs = load_install_configs(firex_id,
-                                                           _get_cloud_ci_install_config_path())
+                    install_configs = load_new_install_configs(firex_id,
+                                                               get_log_dir_from_output(std_out_content),
+                                                               _get_cloud_ci_install_config_path())
                     print("\tFlame: " + install_configs.run_url, file=sys.stderr)
         except Exception as e:
             print(e)

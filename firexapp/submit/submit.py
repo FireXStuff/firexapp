@@ -26,7 +26,7 @@ from firexapp.application import import_microservices, get_app_tasks, get_app_ta
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.submit.shutdown import launch_background_shutdown
-from firexapp.submit.install_configs import load_install_configs, FireXInstallConfigs
+from firexapp.submit.install_configs import load_new_install_configs, FireXInstallConfigs
 
 add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
@@ -167,7 +167,7 @@ class SubmitBaseApp:
 
         # TODO: consider allowing install_configs to specify CLI args for the run
         #   (at lower precedence than explicit CLI args, or make precedence also configurable)
-        self.install_configs = load_install_configs(uid, args.install_configs)
+        self.install_configs = load_new_install_configs(uid.identifier, uid.logs_dir, args.install_configs)
 
         # Create an env file for debugging
         with open(FileRegistry().get_file(ENVIRON_FILE_REGISTRY_KEY, self.uid.logs_dir), 'w') as f:
