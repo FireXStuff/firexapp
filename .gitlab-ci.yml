@@ -42,7 +42,7 @@ test-unit:
 test-integration:
   stage: test
   script:
-    - pip install --upgrade --force-reinstall git+https://github.com/FireXStuff/firex-bundle-ci.git
+    - pip install --upgrade --force-reinstall --no-deps git+https://github.com/FireXStuff/firex-bundle-ci.git
     - firexapp submit --chain RunAllIntegrationTests --public_runs True --sync
   artifacts:
     paths:
