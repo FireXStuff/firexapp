@@ -17,7 +17,9 @@ result_backend = broker_url
 # find default tasks
 logger.debug("Beginning bundle discovery")
 bundles = find_firex_task_bundles()
-logger.debug("Bundle discovery completed")
+logger.debug("Bundle discovery completed.")
+if bundles:
+    logger.debug(f'Bundles discovered: {bundles}')
 
 imports = tuple(bundles) + tuple(get_plugin_module_list()) + tuple(["firexapp.tasks.example",
                                                                     "firexapp.tasks.core_tasks",
