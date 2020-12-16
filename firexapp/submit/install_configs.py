@@ -64,7 +64,6 @@ class FireXInstallConfigs:
                                          {'firex_id': self.firex_id})
 
     def get_log_entry_url(self, log_entry_rel_run_root) -> str:
-        # run_logs_entry_path_template": "{{ run_logs_dir }}/{{ log_entry_rel_run_root }}"
         return self._template_viewer_url(self.raw_configs.viewer_templates.run_logs_entry_path_template,
                                          {'firex_id': self.firex_id,
                                           'run_logs_dir': self.logs_dir,

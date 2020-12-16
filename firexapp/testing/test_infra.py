@@ -73,6 +73,8 @@ def main(default_results_dir, default_test_dir):
                                                                 "generated in the logs directory")
     parser.add_argument("--no_html", action='store_true', help="Do not generate an html code coverage report. "
                                                                "Used in combination with --coverage")
+    parser.add_argument("--public_runs", action='store_true', default=False,
+                        help="Should links be generated to point to public flame deployment?")
     args = parser.parse_args()
 
     if args.coverage:
@@ -95,6 +97,7 @@ def main(default_results_dir, default_test_dir):
 
     FlowTestInfra.config_interpreter.profile = args.profile
     FlowTestInfra.config_interpreter.coverage = args.coverage
+    FlowTestInfra.config_interpreter.is_public = args.public_runs
     FlowTestInfra.results_dir = results_directory
     FlowTestInfra.test_configs = discover_tests(args.tests, args.config)
     FlowTestInfra.populate_tests()

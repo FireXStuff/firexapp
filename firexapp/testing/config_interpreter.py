@@ -21,6 +21,7 @@ class ConfigInterpreter:
     def __init__(self):
         self.profile = False
         self.coverage = False
+        self.is_public = False
 
     @staticmethod
     def is_submit_command(test_config: FlowTestConfiguration):
@@ -110,7 +111,7 @@ def {0}(**kwargs):
                 cmd += ["--sync"]
             if has_flame() and getattr(flow_test_config, "flame_terminate_on_complete", True):
                 cmd += ["--flame_terminate_on_complete"]
-            if '--install_config' not in cmd:
+            if self.is_public and '--install_config' not in cmd:
                 # TODO: should merge test-specific install_configs with ci-viewer configs,
                 #  since we usually want the ci URLs.
                 cmd += ['--install_config', _get_cloud_ci_install_config_path()]
@@ -238,12 +239,11 @@ def {0}(**kwargs):
                 firex_id = get_firex_id_from_output(std_out_content)
                 if firex_id:
                     print("\tFireX ID: " + firex_id, file=sys.stderr)
-                    # TODO: Showing the central-CI URL should likely be behind a parameter that indicates when runs are
-                    #  uploaded.
-                    install_configs = load_new_install_configs(firex_id,
-                                                               get_log_dir_from_output(std_out_content),
-                                                               _get_cloud_ci_install_config_path())
-                    print("\tFlame: " + install_configs.run_url, file=sys.stderr)
+                    if self.is_public:
+                        install_configs = load_new_install_configs(firex_id,
+                                                                   get_log_dir_from_output(std_out_content),
+                                                                   _get_cloud_ci_install_config_path())
+                        print("\tFlame: " + install_configs.run_url, file=sys.stderr)
         except Exception as e:
             print(e)
             pass
