@@ -43,7 +43,7 @@ test-integration:
   stage: test
   script:
     - pip install git+https://github.com/FireXStuff/firex-bundle-ci.git
-    - firexapp submit --chain RunAllIntegrationTests --sync
+    - firexapp submit --chain RunAllIntegrationTests --public True --sync
   artifacts:
     paths:
       - flow_test_results/
