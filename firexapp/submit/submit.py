@@ -271,11 +271,6 @@ class SubmitBaseApp:
         # Post import converters
         chain_args = self.convert_chain_args(chain_args)
 
-        # check argument applicability to detect useless input arguments
-        if not self.validate_argument_applicability(chain_args, args, all_tasks):
-            self.main_error_exit_handler(reason="Inapplicable arguments.")
-            sys.exit(-1)
-
         # locate task objects
         try:
             app_tasks = get_app_tasks(args.chain)
@@ -283,6 +278,11 @@ class SubmitBaseApp:
             reason = "Could not find task %s" % str(e)
             logger.error(reason)
             self.main_error_exit_handler(reason=reason)
+            sys.exit(-1)
+
+        # check argument applicability to detect useless input arguments
+        if not self.validate_argument_applicability(chain_args, args, all_tasks):
+            self.main_error_exit_handler(reason="Inapplicable arguments.")
             sys.exit(-1)
 
         # validate that all necessary chain args were provided
