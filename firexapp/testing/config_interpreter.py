@@ -4,15 +4,11 @@ import os
 import inspect
 import subprocess
 
+from firexkit.resources import get_cloud_ci_install_config_path
 from firexapp.submit.submit import get_firex_id_from_output, get_log_dir_from_output
 from firexapp.submit.tracking_service import has_flame
-from firexapp.submit.uid import Uid
 from firexapp.submit.install_configs import load_new_install_configs
 from firexapp.testing.config_base import InterceptFlowTestConfiguration, FlowTestConfiguration
-
-
-def _get_cloud_ci_install_config_path():
-    return os.path.join(os.path.dirname(__file__), 'cloud-ci-install-configs.json')
 
 
 class ConfigInterpreter:
@@ -113,8 +109,8 @@ def {0}(**kwargs):
                 cmd += ["--flame_terminate_on_complete"]
             if self.is_public and '--install_config' not in cmd:
                 # TODO: should merge test-specific install_configs with ci-viewer configs,
-                #  since we usually want the ci URLs.
-                cmd += ['--install_config', _get_cloud_ci_install_config_path()]
+                #  since we usually want the ci URLs, even with a test's install_config specifies other stuff.
+                cmd += ['--install_config', get_cloud_ci_install_config_path()]
 
         return cmd
 
@@ -242,7 +238,7 @@ def {0}(**kwargs):
                     if self.is_public:
                         install_configs = load_new_install_configs(firex_id,
                                                                    get_log_dir_from_output(std_out_content),
-                                                                   _get_cloud_ci_install_config_path())
+                                                                   get_cloud_ci_install_config_path())
                         print("\tFlame: " + install_configs.run_url, file=sys.stderr)
         except Exception as e:
             print(e)

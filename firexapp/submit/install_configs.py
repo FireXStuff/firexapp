@@ -4,6 +4,7 @@ from urllib.parse import urljoin, urlparse
 import shutil
 import os
 
+from firexkit.resources import get_packaged_install_config_path
 from firexapp.submit.uid import Uid
 from firexapp.common import render_template
 
@@ -100,6 +101,11 @@ def load_new_install_configs(firex_id: str, logs_dir: str, install_config_path: 
             json.dump(raw_configs, fp)
     else:
         try:
+            if not os.path.isabs(install_config_path) and not os.path.isfile(install_config_path):
+                # A non-absolute file that doesn't exist locally can be loaded from firexkit resources.
+                resource_install_config = get_packaged_install_config_path(install_config_path)
+                if os.path.isfile(resource_install_config):
+                    install_config_path = resource_install_config
             shutil.copyfile(install_config_path, install_config_copy_path)
         except OSError as e:
             raise FireXInstallConfigError(f"Failed to load install config from {install_config_path}") from e

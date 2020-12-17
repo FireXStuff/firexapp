@@ -43,7 +43,11 @@ test-integration:
   stage: test
   script:
     - pip install --upgrade --force-reinstall --no-deps git+https://github.com/FireXStuff/firex-bundle-ci.git
-    - firexapp submit --chain RunAllIntegrationTests --public_runs True --sync
+    - >-
+      firexapp submit --chain RunAllIntegrationTests
+        --public_runs True
+        --install_config cloud-ci-install-configs.json
+        --sync
   artifacts:
     paths:
       - flow_test_results/
