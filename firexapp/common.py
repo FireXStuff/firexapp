@@ -7,6 +7,7 @@ import socket
 
 from jinja2 import Template
 
+from helper import logger
 
 FIREX_BIN_DIR_ENV = 'firex_bin_dir'
 
@@ -141,5 +142,44 @@ def find(keys, input_dict):
             return None
     return result
 
+
 def render_template(template_str, template_args):
     return Template(template_str).render(**template_args)
+
+#
+# Create a symlink from src -> target.
+#
+# delete_link == True: Delete target link first if it exists.
+#             == False: Don't delete target link if it exists.
+#             == None (default): If symlink creation fails because the link
+#                                exists, delete it and try again.
+#                                (optimized for cases where we don't expect
+#                                the link to exist in most cases.)
+#
+def create_link(src, target, delete_link=None):
+    done = False
+    attempts = 0
+
+    while not done:
+        if delete_link is True:
+            try:
+                os.remove(target)
+            except:
+                pass
+        attempts += 1
+        try:
+            os.symlink(src, target)
+            done = True
+            logger.debug('Symbolic link created: %s -> %s' % (src, target))
+        except FileExistsError as e:
+            if delete_link is False:
+                raise
+            if attempts > 1:
+                # Maybe we're competing with someone else
+                # to create that link...
+                logger.debug('Symbolic link failed: %s -> %s' % (src, target))
+                logger.warning(e)
+                done = True
+            else:
+                # Remove target and try again
+                delete_link = True

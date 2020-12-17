@@ -3,14 +3,12 @@ import os
 from socket import gethostname
 
 from firexapp.application import get_app_tasks
-from firexapp.common import silent_mkdir
+from firexapp.common import silent_mkdir, create_link
 from firexapp.submit.reporting import ReportGenerator
 from firexkit.result import get_results
 from firexkit.task import convert_to_serializable
 from celery.utils.log import get_task_logger
 from firexapp.engine.celery import app
-
-from helper import create_link
 
 logger = get_task_logger(__name__)
 
