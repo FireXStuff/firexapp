@@ -128,7 +128,7 @@ def configure_main_logger(logger, loglevel, logfile, format, colorize, **_kwargs
     worker_name = os.path.splitext(os.path.basename(logfile))[0]
     base_dir = os.path.dirname(logfile)
     if app.conf.install_config and app.conf.install_config.has_viewer():
-        logs_dir_url = app.conf.install_configs.get_logs_root_url()
+        logs_dir_url = app.conf.install_config.get_logs_root_url()
     else:
         logs_dir_url = os.path.relpath(app.conf.logs_dir, base_dir)
     html_header = JINJA_ENV.get_template('log_template.html').render(
