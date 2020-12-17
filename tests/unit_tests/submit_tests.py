@@ -303,6 +303,7 @@ class UidTests(unittest.TestCase):
         self.assertEqual(str(uid), test_str)
         self.assertEqual(repr(uid), test_str)
         self.assertEqual(uid.identifier, test_str)
+        shutil.rmtree(uid.logs_dir)
 
     def test_logs_creation(self):
         uid = Uid()
