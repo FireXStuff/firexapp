@@ -127,10 +127,10 @@ def configure_main_logger(logger, loglevel, logfile, format, colorize, **_kwargs
     # Deduce the worker name from the logfile, which is unfortunate
     worker_name = os.path.splitext(os.path.basename(logfile))[0]
     base_dir = os.path.dirname(logfile)
-    if app.conf.install_config and app.conf.install_config.has_viewer():
-        logs_dir_url = app.conf.install_config.get_logs_root_url()
-    else:
-        logs_dir_url = os.path.relpath(app.conf.logs_dir, base_dir)
+    logs_url = app.conf.logs_url
+    if not logs_url:
+        logs_url = os.path.relpath(app.conf.logs_dir, base_dir)
+
     html_header = JINJA_ENV.get_template('log_template.html').render(
         worker_log=True,
         firex_stylesheet=get_firex_css_filepath(app.conf.resources_dir, relative_from=base_dir),
@@ -138,5 +138,5 @@ def configure_main_logger(logger, loglevel, logfile, format, colorize, **_kwargs
         link_for_logo=app.conf.link_for_logo,
         header_main_title=worker_name,
         firex_id=app.conf.uid,
-        logs_dir_url=logs_dir_url)
+        logs_dir_url=logs_url)
     logger.raw(html_header)

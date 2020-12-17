@@ -23,7 +23,8 @@ if bundles:
 
 imports = tuple(bundles) + tuple(get_plugin_module_list()) + tuple(["firexapp.tasks.example",
                                                                     "firexapp.tasks.core_tasks",
-                                                                    "firexapp.submit.report_trigger"
+                                                                    "firexapp.submit.report_trigger",
+                                                                    "firexapp.reporters.json_reporter"
                                                                     ])
 
 root_task = "firexapp.tasks.core_tasks.RootTask"
@@ -40,3 +41,5 @@ task_acks_late = True
 worker_prefetch_multiplier = 1
 
 worker_redirect_stdouts_level = PRINT_LEVEL_NAME
+
+mc = BrokerFactory.get_hostname_port_from_url(broker_url)[0]

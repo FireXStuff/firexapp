@@ -27,6 +27,7 @@ class Uid(object):
         self._base_logging_dir = None
         self._logs_dir = None
         self._debug_dir = None
+        self._viewers = {}
         self.copy_resources()
 
     @property
@@ -87,6 +88,20 @@ class Uid(object):
         os.chmod(self.resources_dir, 0o777)
         for file in os.listdir(resources_dir):
             os.chmod(os.path.join(resources_dir, file), 0o666)
+
+    def add_viewers(self, **attrs):
+        self._viewers.update(**attrs)
+
+    @property
+    def viewers(self):
+        return self._viewers
+
+    @property
+    def logs_url(self):
+        try:
+            return self.viewers['logs_url']
+        except KeyError:
+            return None
 
 
 whitelist_arguments("uid")

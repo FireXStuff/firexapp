@@ -7,6 +7,8 @@ import os
 import argparse
 import time
 import traceback
+from getpass import getuser
+
 from celery.signals import celeryd_init, worker_ready
 from shutil import copyfile
 from contextlib import contextmanager
@@ -28,6 +30,7 @@ from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.submit.shutdown import launch_background_shutdown
 from firexapp.submit.install_configs import load_new_install_configs, FireXInstallConfigs
+from firexapp.submit.arguments import whitelist_arguments
 
 add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
@@ -180,7 +183,8 @@ class SubmitBaseApp:
         #   (at lower precedence than explicit CLI args, or make precedence also configurable)
         self.install_configs = load_new_install_configs(uid.identifier, uid.logs_dir, args.install_configs)
         if self.install_configs.has_viewer():
-            logger.info(f'Logs URL: {self.install_configs.get_logs_root_url()}')
+            uid.add_viewers(logs_url=self.install_configs.get_logs_root_url())
+            logger.info(f'Logs URL: {uid.logs_url}')
 
         # Create an env file for debugging
         with open(FileRegistry().get_file(ENVIRON_FILE_REGISTRY_KEY, self.uid.logs_dir), 'w') as f:
@@ -201,7 +205,7 @@ class SubmitBaseApp:
             self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
         self.wait_tracking_services_task_ready()
-        chain_result = root_task.s(chain=args.chain, submit_app=self, sync=args.sync, **chain_args).delay()
+        chain_result = root_task.s(submit_app=self, **chain_args).delay()
 
         self.copy_submission_log()
 
@@ -322,12 +326,16 @@ class SubmitBaseApp:
             logger.error('Aborting...')
             sys.exit(-1)
 
-        # 'plugins' is a necessary element of the chain args, so that they can be handled by converters
-        if args.plugins:
-            chain_args['plugins'] = args.plugins
-
         if args.soft_time_limit:
             chain_args['soft_time_limit'] = args.soft_time_limit
+
+        chain_args['chain'] = args.chain
+        chain_args['plugins'] = args.plugins
+        chain_args['sync'] = args.sync
+        chain_args['submitter'] = getuser()
+        chain_args['submission_dir'] = os.getcwd()
+        chain_args['argv'] = sys.argv
+        whitelist_arguments(['submitter', 'submission_dir', 'argv'])
 
         return chain_args
 

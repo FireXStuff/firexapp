@@ -73,6 +73,10 @@ class BrokerFactory:
     def get_broker_failed_auth_str(cls) -> str:
         return RedisManager.get_broker_failed_auth_str()
 
+    @staticmethod
+    def get_hostname_port_from_url(broker_url):
+        return RedisManager.get_hostname_port_from_url(broker_url)
+
 
 class BrokerManagerException(Exception):
     pass
