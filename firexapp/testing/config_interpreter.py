@@ -239,7 +239,8 @@ def {0}(**kwargs):
                         install_configs = load_new_install_configs(firex_id,
                                                                    get_log_dir_from_output(std_out_content),
                                                                    get_cloud_ci_install_config_path())
-                        print("\tFlame: " + install_configs.run_url, file=sys.stderr)
+                        print(f'\tLogs URL: {install_configs.get_logs_root_url()}', file=sys.stderr)
+                        print(f"\tFlame: {install_configs.run_url}", file=sys.stderr)
         except Exception as e:
             print(e)
             pass

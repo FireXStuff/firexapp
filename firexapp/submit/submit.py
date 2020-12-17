@@ -179,6 +179,8 @@ class SubmitBaseApp:
         # TODO: consider allowing install_configs to specify CLI args for the run
         #   (at lower precedence than explicit CLI args, or make precedence also configurable)
         self.install_configs = load_new_install_configs(uid.identifier, uid.logs_dir, args.install_configs)
+        if self.install_configs.has_viewer():
+            logger.info(f'Logs URL: {self.install_configs.get_logs_root_url()}')
 
         # Create an env file for debugging
         with open(FileRegistry().get_file(ENVIRON_FILE_REGISTRY_KEY, self.uid.logs_dir), 'w') as f:

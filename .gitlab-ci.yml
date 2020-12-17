@@ -39,7 +39,6 @@ test-unit:
     paths:
       - .coverage
 
-
 test-integration:
   stage: test
   script:
