@@ -27,7 +27,7 @@ def get_submission_file(cmd_output: str):
 class SubmitConvertFailureStillHasLogs(FlowTestConfiguration):
 
     def initial_firex_options(self) -> list:
-        return ["submit", "--barf", "True"]
+        return ["submit", "--chain", "nop", "--barf", "True"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert "barf: Barf" in cmd_err, "Error in converter did not show up"
