@@ -332,6 +332,7 @@ class SubmitBaseApp:
         if args.soft_time_limit:
             chain_args['soft_time_limit'] = args.soft_time_limit
 
+        chain_args['chain'] = args.chain
         chain_args['plugins'] = args.plugins
         chain_args['sync'] = args.sync
         chain_args['submitter'] = getuser()
