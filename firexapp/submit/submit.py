@@ -274,9 +274,6 @@ class SubmitBaseApp:
             self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
 
-        # Post import converters
-        chain_args = self.convert_chain_args(chain_args)
-
         # locate task objects
         try:
             app_tasks = get_app_tasks(args.chain)
@@ -285,6 +282,12 @@ class SubmitBaseApp:
             logger.error(reason)
             self.main_error_exit_handler(reason=reason)
             sys.exit(-1)
+        else:
+            normalized_chain = ','.join([t.short_name for t in app_tasks])
+            chain_args['chain'] = normalized_chain
+
+        # Post import converters
+        chain_args = self.convert_chain_args(chain_args)
 
         # check argument applicability to detect useless input arguments
         if not self.validate_argument_applicability(chain_args, args, all_tasks):
@@ -329,7 +332,6 @@ class SubmitBaseApp:
         if args.soft_time_limit:
             chain_args['soft_time_limit'] = args.soft_time_limit
 
-        chain_args['chain'] = args.chain
         chain_args['plugins'] = args.plugins
         chain_args['sync'] = args.sync
         chain_args['submitter'] = getuser()
