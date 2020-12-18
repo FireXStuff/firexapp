@@ -6,8 +6,9 @@ import re
 import socket
 
 from jinja2 import Template
+from celery.utils.log import get_task_logger
 
-from helper import logger
+logger = get_task_logger(__name__)
 
 FIREX_BIN_DIR_ENV = 'firex_bin_dir'
 
