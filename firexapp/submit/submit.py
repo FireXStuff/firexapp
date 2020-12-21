@@ -47,7 +47,7 @@ FileRegistry().register_file(ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_d
 class OptionalBoolean(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         if isinstance(values, str):
-            values = True if values.lower() is True else False
+            values = True if values.lower() is 'true' else False
         setattr(namespace, self.dest, values)
 
 
