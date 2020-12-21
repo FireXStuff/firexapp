@@ -9,17 +9,21 @@ from celery.utils.log import get_task_logger
 from firexkit.chain import InjectArgs
 from firexapp.application import get_app_tasks
 from firexapp.engine.celery import app
+from firexkit.result import get_results_upto_parent, find_unsuccessful_in_chain
 
 logger = get_task_logger(__name__)
 
 
 # noinspection PyPep8Naming
-@app.task(bind=True)
+@app.task(bind=True, returns=('chain_results', 'unsuccessful_services'))
 def RootTask(self, chain, **chain_args):
     c = InjectArgs(chain=chain, **chain_args)
     for task in get_app_tasks(chain):
         c |= task.s()
-    self.enqueue_child(c, block=True)
+    promise = self.enqueue_child(c, block=True, raise_exception_on_failure=False)
+    chain_results = get_results_upto_parent(promise)
+    unsuccessful_services = find_unsuccessful_in_chain(promise)
+    return chain_results, unsuccessful_services
 
 
 def get_configured_root_task():

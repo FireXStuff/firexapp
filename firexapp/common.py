@@ -184,3 +184,24 @@ def create_link(src, target, delete_link=None):
             else:
                 # Remove target and try again
                 delete_link = True
+
+
+def dict2str(mydict, sort=False, sep='    ', usevrepr=True, line_prefix=''):
+    if not mydict:
+        return 'None'
+
+    txt = ''
+    items = mydict.items()
+    if sort:
+        items = sorted(items)
+    maxlen = len(max(mydict.keys(), key=len))
+    wrap_space = '\n' + ' ' * (maxlen + len(sep))
+    for k, v in items:
+        txt += line_prefix
+        if usevrepr:
+            txt += '%s%s%r\n' % (k.ljust(maxlen, " "), sep, v)
+        else:
+            v = str(v)
+            v = v.replace('\n', wrap_space)
+            txt += '%s%s%s\n' % (k.ljust(maxlen, " "), sep, v)
+    return txt

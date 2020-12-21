@@ -9,7 +9,7 @@ import time
 import traceback
 from getpass import getuser
 
-from celery.signals import celeryd_init, worker_ready
+from celery.signals import worker_ready
 from shutil import copyfile
 from contextlib import contextmanager
 
@@ -17,7 +17,7 @@ from celery.exceptions import NotRegistered
 from firexapp.engine.logging import add_hostname_to_log_records
 
 from firexkit.result import wait_on_async_results, disable_async_result, find_all_unsuccessful, ChainRevokedException, \
-    ChainInterruptedException, mark_queues_ready
+    mark_queues_ready, get_results, get_task_name_from_result
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
@@ -31,6 +31,7 @@ from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.submit.shutdown import launch_background_shutdown
 from firexapp.submit.install_configs import load_new_install_configs, FireXInstallConfigs
 from firexapp.submit.arguments import whitelist_arguments
+from firexapp.common import dict2str
 
 add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
@@ -42,6 +43,48 @@ FileRegistry().register_file(SUBMISSION_FILE_REGISTRY_KEY, os.path.join(Uid.debu
 ENVIRON_FILE_REGISTRY_KEY = 'env'
 FileRegistry().register_file(ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'environ.json'))
 
+
+def get_unsuccessful_items(list_of_tasks):
+    failures_by_name = {}
+    for task_async_result in list_of_tasks:
+        task_name = get_task_name_from_result(task_async_result)
+        try:
+            failures_by_name[task_name] += 1
+        except KeyError:
+            failures_by_name[task_name] = 1
+    formatted_list = []
+    for task_name, instances in failures_by_name.items():
+        item = f'\t- {task_name}'
+        if instances > 1:
+            item += f' ({instances} instances)'
+        formatted_list.append(item)
+    return formatted_list
+
+
+def format_unsuccessful_services(unsuccessful_services):
+    items = []
+    returncode = -1
+    failed = unsuccessful_services.get('failed')
+    if failed:
+        items.append('The following microservices failed:')
+        items += get_unsuccessful_items(failed)
+
+        first_failure = failed[0]
+        if isinstance(first_failure.result, FireXReturnCodeException):
+            returncode = first_failure.result.firex_returncode
+    else:
+        not_run = unsuccessful_services.get('not_run')
+        if not_run:
+            items.append('The following microservices did not get a chance to run:')
+            items += get_unsuccessful_items(not_run)
+    return '\n'.join(items), returncode
+
+
+class OptionalBoolean(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if isinstance(values, str):
+            values = True if values.lower() is True else False
+        setattr(namespace, self.dest, values)
 
 class AdjustCeleryConcurrency(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -105,8 +148,12 @@ class SubmitBaseApp:
                                               formatter_class=argparse.RawDescriptionHelpFormatter)
         submit_parser.add_argument('--chain', '-chain', help='A comma delimited list of microservices to run',
                                    default=self.DEFAULT_MICROSERVICE)
-        submit_parser.add_argument('--sync', '-sync', help='Hold console until run completes', nargs='?', const=True,
-                                   default=False)
+        submit_parser.add_argument('--sync', '-sync',
+                                   nargs='?', const=True, default=False, action=OptionalBoolean,
+                                   help='Hold console until run completes', )
+        submit_parser.add_argument('--fail_if_any_service_fails', '-fail_if_any_service_fails',
+                                   nargs='?', const=True, default=None, action=OptionalBoolean,
+                                   help='Return non-zero if any task in the run failed (only available with --sync)')
         submit_parser.add_argument('--disable_tracking_services',
                                    help='A comma delimited list of tracking services to disable.', default='')
         submit_parser.add_argument('--logs_link',
@@ -168,6 +215,12 @@ class SubmitBaseApp:
         logger.debug('Symbolic link created: %s -> %s' % (self.uid.logs_dir, logs_link))
 
     def submit(self, args, others):
+
+        if args.fail_if_any_service_fails and not args.sync:
+            print('--fail_if_any_service_fails can only be specified with --sync')
+            self.main_error_exit_handler()
+            sys.exit(-1)
+
         chain_args = self.process_other_chain_args(args, others)
 
         uid = Uid()
@@ -205,24 +258,37 @@ class SubmitBaseApp:
             self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
         self.wait_tracking_services_task_ready()
-        chain_result = root_task.s(submit_app=self, **chain_args).delay()
+        root_task_result_promise = root_task.s(submit_app=self, **chain_args).delay()
 
         self.copy_submission_log()
 
         if args.sync:
             logger.info("Waiting for chain to complete...")
             try:
-                wait_on_async_results(chain_result)
-                self.check_for_failures(chain_result, chain_args)
-            except (ChainRevokedException, ChainInterruptedException) as e:
-                self.check_for_failures(chain_result, chain_args)
-                self.main_error_exit_handler(chain_details=(chain_result, chain_args),
-                                             reason=f"Sync run: completed unsuccessfully ({e})")
+                wait_on_async_results(root_task_result_promise)
+                chain_results, unsuccessful_services = get_results(root_task_result_promise,
+                                                                   return_keys=('chain_results',
+                                                                                'unsuccessful_services'))
+                self.check_for_failures(args.fail_if_any_service_fails,
+                                        root_task_result_promise,
+                                        unsuccessful_services)
+            except ChainRevokedException as e:
+                logger.error(e)
+                logger.debug('Root task revoked; cleanup will be done on root task completion')
+                self.copy_submission_log()
                 sys.exit(-1)
+            except Exception as e:
+                self.main_error_exit_handler(chain_details=(root_task_result_promise, chain_args),
+                                             reason=str(e))
+                rc = e.firex_returncode if isinstance(e, FireXReturnCodeException) else -1
+                sys.exit(rc)
             else:
                 logger.info("All tasks succeeded")
-                self.copy_submission_log()
-                self.self_destruct(chain_details=(chain_result, chain_args),
+                if chain_results:
+                    results_str = dict2str(chain_results, usevrepr=False, sort=True, line_prefix=' '*2)
+                    if results_str:
+                        logger.print("\n\nReturned values:\n" + results_str)
+                self.self_destruct(chain_details=(root_task_result_promise, chain_args),
                                    reason="Sync run: completed successfully")
 
         self.wait_tracking_services_release_console_ready()
@@ -231,16 +297,16 @@ class SubmitBaseApp:
     def get_all_failures(chain_result):
         return find_all_unsuccessful(chain_result, ignore_non_ready=True)
 
-    def check_for_failures(self, chain_result, chain_args):
-        failures = self.get_all_failures(chain_result)
-        if failures:
-            logger.error("Failures occurred in the following tasks:")
-            failures = sorted(failures.values())
-            for failure in failures:
-                logger.error(failure)
-            self.main_error_exit_handler(chain_details=(chain_result, chain_args),
-                                         reason=f'Tasks failed: {failures}.')
-            sys.exit(-1)
+    def check_for_failures(self, fail_if_any_service_fails, root_task_result_promise, unsuccessful_services):
+        if fail_if_any_service_fails:
+            # Assert if any service (including sub-sub children) fails
+            failures = self.get_all_failures(root_task_result_promise)
+            if failures:
+                items = ['The following microservices failed:'] + get_unsuccessful_items(failures)
+                raise FireXReturnCodeException('\n'.join(items), -1)
+        elif unsuccessful_services:
+            msg, returncode = format_unsuccessful_services(unsuccessful_services)
+            raise FireXReturnCodeException(msg, returncode)
 
     def set_broker_in_app(self):
         from firexapp.engine.celery import app
@@ -497,3 +563,13 @@ def celery_worker_ready(sender, **_kwargs):
     queue_names = [queue.name for queue in sender.task_consumer.queues]
     if queue_names:
         mark_queues_ready(*queue_names)
+
+
+class FireXReturnCodeException(Exception):
+    def __init__(self, error_msg, firex_returncode):
+        self.error_msg = error_msg
+        self.firex_returncode = firex_returncode
+        super(Exception, self).__init__(error_msg, firex_returncode)
+
+    def __str__(self):
+        return self.error_msg + '\n' + f'[RC {self.firex_returncode}]'
