@@ -44,47 +44,12 @@ ENVIRON_FILE_REGISTRY_KEY = 'env'
 FileRegistry().register_file(ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'environ.json'))
 
 
-def get_unsuccessful_items(list_of_tasks):
-    failures_by_name = {}
-    for task_async_result in list_of_tasks:
-        task_name = get_task_name_from_result(task_async_result)
-        try:
-            failures_by_name[task_name] += 1
-        except KeyError:
-            failures_by_name[task_name] = 1
-    formatted_list = []
-    for task_name, instances in failures_by_name.items():
-        item = f'\t- {task_name}'
-        if instances > 1:
-            item += f' ({instances} instances)'
-        formatted_list.append(item)
-    return formatted_list
-
-
-def format_unsuccessful_services(unsuccessful_services):
-    items = []
-    returncode = -1
-    failed = unsuccessful_services.get('failed')
-    if failed:
-        items.append('The following microservices failed:')
-        items += get_unsuccessful_items(failed)
-
-        first_failure = failed[0]
-        if isinstance(first_failure.result, FireXReturnCodeException):
-            returncode = first_failure.result.firex_returncode
-    else:
-        not_run = unsuccessful_services.get('not_run')
-        if not_run:
-            items.append('The following microservices did not get a chance to run:')
-            items += get_unsuccessful_items(not_run)
-    return '\n'.join(items), returncode
-
-
 class OptionalBoolean(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         if isinstance(values, str):
             values = True if values.lower() is True else False
         setattr(namespace, self.dest, values)
+
 
 class AdjustCeleryConcurrency(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -558,13 +523,6 @@ def get_log_dir_from_output(cmd_output: str)->str:
         return ""
 
 
-@worker_ready.connect()
-def celery_worker_ready(sender, **_kwargs):
-    queue_names = [queue.name for queue in sender.task_consumer.queues]
-    if queue_names:
-        mark_queues_ready(*queue_names)
-
-
 class FireXReturnCodeException(Exception):
     def __init__(self, error_msg, firex_returncode):
         self.error_msg = error_msg
@@ -573,3 +531,46 @@ class FireXReturnCodeException(Exception):
 
     def __str__(self):
         return self.error_msg + '\n' + f'[RC {self.firex_returncode}]'
+
+
+def get_unsuccessful_items(list_of_tasks):
+    failures_by_name = {}
+    for task_async_result in list_of_tasks:
+        task_name = get_task_name_from_result(task_async_result)
+        try:
+            failures_by_name[task_name] += 1
+        except KeyError:
+            failures_by_name[task_name] = 1
+    formatted_list = []
+    for task_name, instances in failures_by_name.items():
+        item = f'\t- {task_name}'
+        if instances > 1:
+            item += f' ({instances} instances)'
+        formatted_list.append(item)
+    return formatted_list
+
+
+def format_unsuccessful_services(unsuccessful_services):
+    items = []
+    returncode = -1
+    failed = unsuccessful_services.get('failed')
+    if failed:
+        items.append('The following microservices failed:')
+        items += get_unsuccessful_items(failed)
+
+        first_failure = failed[0]
+        if isinstance(first_failure.result, FireXReturnCodeException):
+            returncode = first_failure.result.firex_returncode
+    else:
+        not_run = unsuccessful_services.get('not_run')
+        if not_run:
+            items.append('The following microservices did not get a chance to run:')
+            items += get_unsuccessful_items(not_run)
+    return '\n'.join(items), returncode
+
+
+@worker_ready.connect()
+def celery_worker_ready(sender, **_kwargs):
+    queue_names = [queue.name for queue in sender.task_consumer.queues]
+    if queue_names:
+        mark_queues_ready(*queue_names)
