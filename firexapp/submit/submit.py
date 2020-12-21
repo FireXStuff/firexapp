@@ -31,7 +31,7 @@ from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.submit.shutdown import launch_background_shutdown
 from firexapp.submit.install_configs import load_new_install_configs, FireXInstallConfigs
 from firexapp.submit.arguments import whitelist_arguments
-from firexapp.common import dict2str
+from firexapp.common import dict2str, silent_mkdir
 
 add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
@@ -42,6 +42,26 @@ FileRegistry().register_file(SUBMISSION_FILE_REGISTRY_KEY, os.path.join(Uid.debu
 
 ENVIRON_FILE_REGISTRY_KEY = 'env'
 FileRegistry().register_file(ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'environ.json'))
+
+
+class JsonFileAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+
+        if not os.path.isabs(values):
+            values = os.path.join(os.getcwd(), values)
+
+        assert not os.path.isdir(values), f'{values} is a directory, you must provide a filename or path'
+
+        if os.path.islink(values) or os.path.isfile(values):
+            logger.print(f'--json_file {values} exists; removing it')
+            os.remove(values)
+
+        dirpath = os.path.dirname(values)
+        if not os.path.exists(dirpath):
+            logger.print(f'The directory for --json_file {values} does not exist...creating {dirpath}')
+            silent_mkdir(dirpath)
+
+        setattr(namespace, self.dest, values)
 
 
 class OptionalBoolean(argparse.Action):
@@ -128,6 +148,7 @@ class SubmitBaseApp:
                                    help='Number of worker slots in celery pool',
                                    # Some machines have loads of CPUs, so cap at 100.
                                    default=min([multiprocessing.cpu_count()*4, 100]))
+        submit_parser.add_argument('--json_file', help='Link name for the report json file', action=JsonFileAction)
         submit_parser.set_defaults(func=self.run_submit)
 
         for service in get_tracking_services():
@@ -354,6 +375,7 @@ class SubmitBaseApp:
         chain_args['submitter'] = getuser()
         chain_args['submission_dir'] = os.getcwd()
         chain_args['argv'] = sys.argv
+        chain_args['json_file'] = args.json_file
         whitelist_arguments(['submitter', 'submission_dir', 'argv'])
 
         return chain_args
