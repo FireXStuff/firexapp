@@ -19,6 +19,7 @@ from firexapp.submit.submit import get_log_dir_from_output, SubmitBaseApp
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexapp.celery_manager import CeleryManager
 from firexapp.common import wait_until
+from firexapp.tasks.core_tasks import get_configured_root_task
 
 logger = get_task_logger(__name__)
 
@@ -47,7 +48,8 @@ class NoBrokerLeakBase(FlowTestConfiguration):
         broker = get_broker(cmd_output)
         broker_not_alive = wait_until_broker_not_alive(broker)
         assert broker_not_alive, "We are leaking a broker: " + str(broker)
-        assert self.expected_error() in cmd_err, "Different error expected"
+        expected_error = self.expected_error()
+        assert expected_error in cmd_err, f"Different error expected; expected {expected_error}, got {cmd_err}"
 
     @abc.abstractmethod
     def expected_error(self):
@@ -78,7 +80,7 @@ class NoBrokerLeakOnTaskFailure(NoBrokerLeakBase):
         return ["submit", "--chain", "failure"]
 
     def expected_error(self):
-        return "Failures occurred in the following tasks"
+        return "The following microservices failed"
 
 
 @InputConverter.register
@@ -208,7 +210,7 @@ class NoBrokerLeakOnRootRevoke(NoBrokerLeakBase):
         return ["submit", "--chain", "revoke_root_task"]
 
     def expected_error(self):
-        return "Aborting FireX submission..."
+        return f"The chain has been interrupted by the revocation of microservice {get_configured_root_task().name}"
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)

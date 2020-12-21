@@ -17,7 +17,7 @@ from celery.exceptions import NotRegistered
 from firexapp.engine.logging import add_hostname_to_log_records
 
 from firexkit.result import wait_on_async_results, disable_async_result, find_all_unsuccessful, ChainRevokedException, \
-    mark_queues_ready, get_results, get_task_name_from_result
+    mark_queues_ready, get_results, get_task_name_from_result, ChainRevokedPreRunException
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
@@ -239,6 +239,12 @@ class SubmitBaseApp:
                                         unsuccessful_services)
             except ChainRevokedException as e:
                 logger.error(e)
+                if isinstance(e, ChainRevokedPreRunException):
+                    # Only in this case do we do the shutdown here; in the regular sync revoke case we do
+                    # the shutdown in root_task post_run signal, so that we have time to cleanup (cleanup code
+                    # may still run in a finally: clause even when result is marked ready and state == REVOKED)
+                    self.main_error_exit_handler(chain_details=(root_task_result_promise, chain_args),
+                                                 reason='Sync run: ChainRevokedException from root_task_async_result')
                 logger.debug('Root task revoked; cleanup will be done on root task completion')
                 self.copy_submission_log()
                 sys.exit(-1)
