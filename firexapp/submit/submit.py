@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from celery.exceptions import NotRegistered
 from firexapp.engine.logging import add_hostname_to_log_records
 
-from firexkit.result import wait_on_async_results, disable_async_result, find_all_unsuccessful, ChainRevokedException, \
+from firexkit.result import wait_on_async_results, disable_async_result, ChainRevokedException, \
     mark_queues_ready, get_results, get_task_name_from_result, ChainRevokedPreRunException
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
@@ -116,9 +116,6 @@ class SubmitBaseApp:
         submit_parser.add_argument('--sync', '-sync',
                                    nargs='?', const=True, default=False, action=OptionalBoolean,
                                    help='Hold console until run completes', )
-        submit_parser.add_argument('--fail_if_any_service_fails', '-fail_if_any_service_fails',
-                                   nargs='?', const=True, default=None, action=OptionalBoolean,
-                                   help='Return non-zero if any task in the run failed (only available with --sync)')
         submit_parser.add_argument('--disable_tracking_services',
                                    help='A comma delimited list of tracking services to disable.', default='')
         submit_parser.add_argument('--logs_link',
@@ -180,12 +177,6 @@ class SubmitBaseApp:
         logger.debug('Symbolic link created: %s -> %s' % (self.uid.logs_dir, logs_link))
 
     def submit(self, args, others):
-
-        if args.fail_if_any_service_fails and not args.sync:
-            print('--fail_if_any_service_fails can only be specified with --sync')
-            self.main_error_exit_handler()
-            sys.exit(-1)
-
         chain_args = self.process_other_chain_args(args, others)
 
         uid = Uid()
@@ -234,9 +225,7 @@ class SubmitBaseApp:
                 chain_results, unsuccessful_services = get_results(root_task_result_promise,
                                                                    return_keys=('chain_results',
                                                                                 'unsuccessful_services'))
-                self.check_for_failures(args.fail_if_any_service_fails,
-                                        root_task_result_promise,
-                                        unsuccessful_services)
+                self.check_for_failures(unsuccessful_services)
             except ChainRevokedException as e:
                 logger.error(e)
                 if isinstance(e, ChainRevokedPreRunException):
@@ -264,18 +253,8 @@ class SubmitBaseApp:
 
         self.wait_tracking_services_release_console_ready()
 
-    @staticmethod
-    def get_all_failures(chain_result):
-        return find_all_unsuccessful(chain_result, ignore_non_ready=True)
-
-    def check_for_failures(self, fail_if_any_service_fails, root_task_result_promise, unsuccessful_services):
-        if fail_if_any_service_fails:
-            # Assert if any service (including sub-sub children) fails
-            failures = self.get_all_failures(root_task_result_promise)
-            if failures:
-                items = ['The following microservices failed:'] + get_unsuccessful_items(failures)
-                raise FireXReturnCodeException('\n'.join(items), -1)
-        elif unsuccessful_services:
+    def check_for_failures(self, unsuccessful_services):
+        if unsuccessful_services:
             msg, returncode = format_unsuccessful_services(unsuccessful_services)
             raise FireXReturnCodeException(msg, returncode)
 
