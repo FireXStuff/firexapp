@@ -31,7 +31,7 @@ from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.submit.shutdown import launch_background_shutdown
 from firexapp.submit.install_configs import load_new_install_configs, FireXInstallConfigs
 from firexapp.submit.arguments import whitelist_arguments
-from firexapp.common import dict2str, silent_mkdir
+from firexapp.common import dict2str, silent_mkdir, create_link
 
 add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
@@ -192,13 +192,7 @@ class SubmitBaseApp:
         logf('*'*len(top_banner))
 
     def create_logs_link(self, logs_link):
-        try:
-            os.symlink(self.uid.logs_dir, logs_link)
-        except FileExistsError:
-            logger.warning(f'Target {logs_link} exists, removing it first.')
-            os.remove(logs_link)
-            os.symlink(self.uid.logs_dir, logs_link)
-        logger.debug('Symbolic link created: %s -> %s' % (self.uid.logs_dir, logs_link))
+        create_link(self.uid.logs_dir, logs_link, relative=True)
 
     def process_sync(self, root_task_result_promise, chain_args):
         try:

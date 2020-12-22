@@ -147,6 +147,7 @@ def find(keys, input_dict):
 def render_template(template_str, template_args):
     return Template(template_str).render(**template_args)
 
+
 #
 # Create a symlink from src -> target.
 #
@@ -157,9 +158,12 @@ def render_template(template_str, template_args):
 #                                (optimized for cases where we don't expect
 #                                the link to exist in most cases.)
 #
-def create_link(src, target, delete_link=None):
+def create_link(src, target, delete_link=None, relative=False):
     done = False
     attempts = 0
+
+    if relative:
+        src = os.path.relpath(src, os.path.dirname(target))
 
     while not done:
         if delete_link is True:

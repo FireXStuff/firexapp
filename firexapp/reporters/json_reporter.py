@@ -65,7 +65,7 @@ class FireXJsonReportGenerator(ReportGenerator):
 
         if json_file:
             try:
-                create_link(report_link, json_file, delete_link=False)
+                create_link(report_link, json_file, delete_link=False, relative=True)
             except FileExistsError:
                 logger.debug(f'{json_file} link already exist; '
                              f'post_run must have already created the link to {report_link}')
@@ -80,12 +80,12 @@ class FireXJsonReportGenerator(ReportGenerator):
         self.write_report_file(data, report_file)
 
         report_link = os.path.join(uid.logs_dir, self.report_link_filename)
-        create_link(report_file, report_link)
+        create_link(report_file, report_link, relative=True)
 
         if json_file:
             try:
                 # This is typically not required, unless post_run ran before pre_run
-                create_link(report_link, json_file, delete_link=False)
+                create_link(report_link, json_file, delete_link=False, relative=True)
             except FileExistsError:
                 # This is expected for most cases
                 pass
