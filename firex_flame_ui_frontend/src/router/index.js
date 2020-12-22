@@ -111,7 +111,7 @@ const router = new Router({
           ],
         },
         {
-          path: 'logs/:logRelPath*',
+          path: 'logs/:logRelPath(.*)',
           name: 'XLogsDir',
           component: XDirectoryListing,
           props: true,

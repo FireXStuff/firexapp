@@ -399,7 +399,8 @@ function fetchRunModelMetadata(firexId, modelPathTemplate) {
   if (!isFireXIdValid(firexId)) {
     return new Promise((u, reject) => reject());
   }
-  return fetchWithRetry(templateFireXId(modelPathTemplate, firexId), 7, { cache: "no-cache" })
+  return fetchWithRetry(templateFireXId(modelPathTemplate, firexId), 7,
+    { cache: "no-cache", mode: 'cors' })
     .then(r => {
       if (!r.ok) {
         throw Error("Run metadata now found.");
@@ -436,10 +437,14 @@ function findRunPathSuffix(path) {
   return '/';
 }
 
-function templateFireXId(template, firexId) {
+function templateFireXId(template, firexId, extraTemplateArgs) {
+  if (!extraTemplateArgs) {
+    extraTemplateArgs = {};
+  }
   const firexIdParts = getFireXIdParts(firexId);
   const templateOptions = { evaluate: null, interpolate: null };
-  return _.template(template, templateOptions)(firexIdParts);
+  const templateArgs = _.assign({}, firexIdParts, extraTemplateArgs)
+  return _.template(template, templateOptions)(templateArgs);
 }
 
 function isFireXIdValid(firexId) {
@@ -549,29 +554,6 @@ function normalizeGoogleBucketItems(googleBucketItems, firexId) {
   });
 }
 
-function expandDirs(dirs) {
-  // Might have dirs /a/b/ and /a/b/c/d. In this case, need to create /a/b/c.
-  const uniqDirs = _.sortBy(_.uniqWith(dirs, _.isEqual));
-  const expandedDirs = [];
-  _.each(uniqDirs, (curDir) => {
-    _.each(_.range(curDir.length), (i) => {
-      expandedDirs.push(_.take(curDir, i + 1))
-    })
-  });
-  // Always consider the empty array (root) in the list of dirs.
-  return _.uniqWith(_.concat([[]], expandedDirs), _.isEqual);
-}
-
-function arrayStartsWith(arr1, arr2) {
-  return arr1.length <= arr2.length && _.isEqual(arr1, _.take(arr2, arr1.length));
-}
-
-function isChildDirArray(parent, candidate) {
-  const e = arrayStartsWith(parent, candidate);
-  const c = parent.length === (candidate.length - 1);
-  return e && c;
-}
-
 function pathStringToArray(path) {
   return _.filter(_.split(path, '/'));
 }
@@ -583,21 +565,6 @@ function getParentArray(path) {
 
 function arrayToPath(path) {
   return _.join(path, '/');
-}
-
-
-function flatGoogleBucketsListingToFilesByDir(googleBucketItems, firexId) {
-  const normalizedBucketItems = normalizeGoogleBucketItems(googleBucketItems, firexId);
-  const allDirs = expandDirs(_.map(normalizedBucketItems, 'parentDir'));
-  const allDirsToEmpty = _.mapValues(_.keyBy(_.map(allDirs, arrayToPath)), () => []);
-  return _.mapValues(
-    _.assign(allDirsToEmpty, _.groupBy(normalizedBucketItems, f => arrayToPath(f.parentDir))),
-    (items, parentDir) => ({
-      files: items,
-      dirs: _.map(_.filter(allDirs, d => isChildDirArray(pathStringToArray(parentDir), d)),
-        _.last),
-    }),
-  );
 }
 
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
@@ -635,8 +602,7 @@ export {
   createLinkifyRegex,
   createLinkedHtml,
   findFireXId,
-  flatGoogleBucketsListingToFilesByDir,
-  expandDirs,
+  normalizeGoogleBucketItems,
   arrayToPath,
   pathStringToArray,
   getParentArray

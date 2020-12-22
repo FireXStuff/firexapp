@@ -40,7 +40,7 @@
       </div>
 
       <div style="display: flex; flex-direction: row; font-size: 12px; margin-top: 4px;">
-        <div style="align-self: start; flex: 1;">{{hostname}}</div>
+        <div style="align-self: start; flex: 1;">{{displayHostname}}</div>
         <x-duration :runState="runState"
                     :firstStarted="firstStarted"
                     :actualRuntime="actualRuntime"
@@ -85,8 +85,8 @@ export default {
     showTaskDetails() {
       return this.$store.state.graph.showTaskDetails;
     },
-    hostname() {
-      return this.task.hostname;
+    displayHostname() {
+      return _.truncate(this.task.hostname, { length: 20 });
     },
     retries() {
       return this.task.retries;

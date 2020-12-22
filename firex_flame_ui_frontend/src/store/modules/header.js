@@ -87,6 +87,11 @@ const headerGetters = {
     getters.runRouteParamsAndQuery,
   ),
 
+  getRootLogsRoute: (state, getters) => _.merge(
+    prependFirexIdPath('/logs/', getters.isDataKeyFireXId, getters.taskDataKey),
+    getters.runRouteParamsAndQuery,
+  ),
+
   getCustomRootRoute: (state, getters) => newRootUuid => _.merge(
     prependFirexIdPath(`root/${newRootUuid}`, getters.isDataKeyFireXId, getters.taskDataKey),
     getters.runRouteParamsAndQuery,
@@ -120,7 +125,7 @@ const headerGetters = {
       to = null;
     } else {
       href = null;
-      to = getters.runRouteFromName('XLogsDir');
+      to = getters.getRootLogsRoute;
     }
     return {
       name: 'logs',

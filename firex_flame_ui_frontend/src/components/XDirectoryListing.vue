@@ -4,18 +4,18 @@
               :main-title="logRelPath + ' logs'"
               :links="[]"></x-header>
     <div style="margin: 2em;">
-      <div v-if="selectedPathItems" class="list-group">
+      <div v-if="hasBucketListing" class="list-group">
         <router-link v-if="logRelPath.length" class="list-group-item"
                      :to="createLogRoute(getParentPathString(logRelPath))">
           <font-awesome-icon icon="level-up-alt"></font-awesome-icon>
           Parent Directory
         </router-link>
-        <router-link v-for="d in selectedPathItems.dirs" class="list-group-item" :key="d"
+        <router-link v-for="d in bucketDirectories" class="list-group-item" :key="d"
                      :to="createLogRoute(appendPaths(logRelPath, d))">
           <font-awesome-icon icon="folder-open"></font-awesome-icon>
           {{d}}
         </router-link>
-        <a v-for="file in selectedPathItems.files" :href="file.link" :key="file.id"
+        <a v-for="file in bucketFiles" :href="file.link" :key="file.id"
            class="list-group-item">
           <font-awesome-icon icon="file-alt"></font-awesome-icon>
           {{file.name}}
@@ -33,7 +33,7 @@ import _ from 'lodash';
 import { mapState } from 'vuex';
 import XHeader from './XHeader.vue';
 import {
-  templateFireXId, flatGoogleBucketsListingToFilesByDir, arrayToPath, pathStringToArray,
+  templateFireXId, normalizeGoogleBucketItems, arrayToPath, pathStringToArray,
   getParentArray,
 } from '../utils';
 
@@ -48,30 +48,44 @@ export default {
   asyncComputed: {
     bucketListing() {
       return fetch(this.googleBucketListRunLogsUrl).then(r => r.json())
-        .then(bucketData => bucketData.items);
+        .then(bucketData => bucketData);
     },
   },
   computed: {
     ...mapState({
       uiConfig: state => state.header.uiConfig,
     }),
+    normalizedLogRelPath() {
+      if (this.logRelPath.endsWith('/')) {
+        return _.trimEnd(this.logRelPath, '/');
+      }
+      return this.logRelPath;
+    },
+    bucketDirectories() {
+      const dirPrefix = `${_.join(_.filter([this.inputFireXId, this.normalizedLogRelPath]), '/')}/`;
+      return _.map(this.bucketListing.prefixes, p => _.split(p, dirPrefix, 2)[1]);
+    },
+    hasBucketListing() {
+      return !_.isNil(this.bucketListing);
+    },
+    bucketFiles() {
+      return normalizeGoogleBucketItems(this.bucketListing.items, this.inputFireXId);
+    },
     googleBucketListRunLogsUrl() {
-      return templateFireXId(this.uiConfig.logs_serving.list_url_template, this.inputFireXId);
-    },
-    directoryPathToFiles() {
-      return flatGoogleBucketsListingToFilesByDir(this.bucketListing, this.inputFireXId);
-    },
-    selectedPathItems() {
-      // TODO: handle path doesn't exist.
-      return this.directoryPathToFiles[this.logRelPath];
+      return templateFireXId(this.uiConfig.logs_serving.list_url_template, this.inputFireXId,
+        { log_entry_rel_run_root: this.ensureEndsWithSlash(this.logRelPath) });
     },
   },
   methods: {
     getParentPathString(path) {
-      return arrayToPath(getParentArray(path));
+      return this.ensureEndsWithSlash(arrayToPath(getParentArray(path)));
+    },
+    ensureEndsWithSlash(path) {
+      return path && !path.endsWith('/') ? `${path}/` : path;
     },
     appendPaths(startPath, endPath) {
-      return arrayToPath(_.concat(pathStringToArray(startPath), pathStringToArray(endPath)));
+      return this.ensureEndsWithSlash(
+        arrayToPath(_.concat(pathStringToArray(startPath), pathStringToArray(endPath))));
     },
     createLogRoute(path) {
       return `/${_.join([this.inputFireXId, 'logs', path], '/')}`;
