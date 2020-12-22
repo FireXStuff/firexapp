@@ -76,6 +76,7 @@ class AdjustCeleryConcurrency(argparse.Action):
         concurrency = max([values, 4])
         setattr(namespace, self.dest, concurrency)
 
+
 class SubmitBaseApp:
     SUBMISSION_LOGGING_FORMATTER = '[%(asctime)s %(levelname)s] %(message)s'
     DEFAULT_MICROSERVICE = None
@@ -92,6 +93,7 @@ class SubmitBaseApp:
         # TODO: migrate tracking services to inside install-config.
         self.enabled_tracking_services = None
         self.install_configs = None
+        self.submit_args = None
 
     def init_file_logging(self):
         os.umask(0)
@@ -161,6 +163,7 @@ class SubmitBaseApp:
 
     def run_submit(self, args, others):
         self.is_sync = args.sync
+        self.submit_args = args
         try:
             self.init_file_logging()
             return self.submit(args, others)
@@ -196,6 +199,43 @@ class SubmitBaseApp:
             os.remove(logs_link)
             os.symlink(self.uid.logs_dir, logs_link)
         logger.debug('Symbolic link created: %s -> %s' % (self.uid.logs_dir, logs_link))
+
+    def process_sync(self, root_task_result_promise, chain_args):
+        try:
+            wait_on_async_results(root_task_result_promise)
+            chain_results, unsuccessful_services = get_results(root_task_result_promise,
+                                                               return_keys=('chain_results',
+                                                                            'unsuccessful_services'))
+            self.check_for_failures(root_task_result_promise, unsuccessful_services)
+        except ChainRevokedException as e:
+            logger.error(e)
+            if isinstance(e, ChainRevokedPreRunException):
+                # Only in this case do we do the shutdown here; in the regular sync revoke case we do
+                # the shutdown in root_task post_run signal, so that we have time to cleanup (cleanup code
+                # may still run in a finally: clause even when result is marked ready and state == REVOKED)
+                self.main_error_exit_handler(chain_details=(root_task_result_promise, chain_args),
+                                             reason='Sync run: ChainRevokedException from root task')
+            logger.debug('Root task revoked; cleanup will be done on root task completion')
+            self.copy_submission_log()
+            sys.exit(-1)
+        except Exception as e:
+            logger.debug(e, exc_info=True)
+            self.main_error_exit_handler(chain_details=(root_task_result_promise, chain_args),
+                                         reason=str(e))
+            rc = e.firex_returncode if isinstance(e, FireXReturnCodeException) else -1
+            sys.exit(rc)
+        else:
+            return chain_results
+
+    def format_results_str(self, chain_results):
+        if chain_results:
+            return dict2str(chain_results, usevrepr=False, sort=True, line_prefix=' '*2)
+
+    @staticmethod
+    def log_results(results_str):
+        logger.info("All tasks succeeded")
+        if results_str:
+            logger.print("\n\nReturned values:\n" + results_str)
 
     def submit(self, args, others):
         chain_args = self.process_other_chain_args(args, others)
@@ -241,43 +281,18 @@ class SubmitBaseApp:
 
         if args.sync:
             logger.info("Waiting for chain to complete...")
-            try:
-                wait_on_async_results(root_task_result_promise)
-                chain_results, unsuccessful_services = get_results(root_task_result_promise,
-                                                                   return_keys=('chain_results',
-                                                                                'unsuccessful_services'))
-                self.check_for_failures(unsuccessful_services)
-            except ChainRevokedException as e:
-                logger.error(e)
-                if isinstance(e, ChainRevokedPreRunException):
-                    # Only in this case do we do the shutdown here; in the regular sync revoke case we do
-                    # the shutdown in root_task post_run signal, so that we have time to cleanup (cleanup code
-                    # may still run in a finally: clause even when result is marked ready and state == REVOKED)
-                    self.main_error_exit_handler(chain_details=(root_task_result_promise, chain_args),
-                                                 reason='Sync run: ChainRevokedException from root_task_async_result')
-                logger.debug('Root task revoked; cleanup will be done on root task completion')
-                self.copy_submission_log()
-                sys.exit(-1)
-            except Exception as e:
-                self.main_error_exit_handler(chain_details=(root_task_result_promise, chain_args),
-                                             reason=str(e))
-                rc = e.firex_returncode if isinstance(e, FireXReturnCodeException) else -1
-                sys.exit(rc)
-            else:
-                logger.info("All tasks succeeded")
-                if chain_results:
-                    results_str = dict2str(chain_results, usevrepr=False, sort=True, line_prefix=' '*2)
-                    if results_str:
-                        logger.print("\n\nReturned values:\n" + results_str)
-                self.self_destruct(chain_details=(root_task_result_promise, chain_args),
-                                   reason="Sync run: completed successfully")
+            chain_results = self.process_sync(root_task_result_promise, chain_args)
+            results_str = self.format_results_str(chain_results)
+            self.log_results(results_str)
+            self.self_destruct(chain_details=(root_task_result_promise, chain_args),
+                               reason="Sync run: completed successfully")
 
         self.wait_tracking_services_release_console_ready()
 
-    def check_for_failures(self, unsuccessful_services):
+    def check_for_failures(self, root_task_result_promise, unsuccessful_services):
         if unsuccessful_services:
-            msg, returncode = format_unsuccessful_services(unsuccessful_services)
-            raise FireXReturnCodeException(msg, returncode)
+            msg, rc = format_unsuccessful_services(unsuccessful_services)
+            raise FireXReturnCodeException(msg, rc)
 
     def set_broker_in_app(self):
         from firexapp.engine.celery import app
@@ -287,7 +302,7 @@ class SubmitBaseApp:
         app.conf.result_backend = broker_url
         app.conf.broker_url = broker_url
 
-    def start_engine(self, args, chain_args, uid)->{}:
+    def start_engine(self, args, chain_args, uid) -> {}:
         # Start Broker
         self.start_broker(args=args)
         self.set_broker_in_app()
