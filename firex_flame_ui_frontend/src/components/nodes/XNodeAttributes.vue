@@ -248,35 +248,46 @@ export default {
       let links = [
         {
           name: 'showAllAttributes',
-          // eslint-disable-next-line
-          on: () => { this.showAllAttributes = !this.showAllAttributes; },
+          on: () => {
+            // eslint-disable-next-line
+            this.showAllAttributes = !this.showAllAttributes;
+          },
           toggleState: this.showAllAttributes,
           icon: 'plus-circle',
           title: 'Show All Attributes',
         },
-        // TODO: use new 'code_filepath' & central_server instead of 'code_url'
-        {
-          name: 'code',
-          href: this.detailedTask.code_url,
-          icon: 'file-code',
-          title: 'See Code',
-        },
-        // TODO: use new 'log_filepath' field & central_server instead of 'logs_url'.
-        {
-          name: 'logs',
-          href: this.detailedTask.logs_url,
-          text: 'Task Log',
-          icon: 'file-alt',
-        },
-        {
-          name: 'support',
-          href: this.supportLocation,
-          text: 'Support',
-          icon: 'question-circle',
-        },
       ];
+      if (this.detailedTask.code_url) {
+        // TODO: use new 'code_filepath' & central_server instead of 'code_url'
+        links.push(
+          {
+            name: 'code',
+            href: this.detailedTask.code_url,
+            icon: 'file-code',
+            title: 'See Code',
+          },
+        );
+      }
+      links = links.concat(
+        [
+          // TODO: use new 'log_filepath' field & central_server instead of 'logs_url'.
+          {
+            name: 'logs',
+            href: this.detailedTask.logs_url,
+            text: 'Task Log',
+            icon: 'file-alt',
+          },
+          {
+            name: 'support',
+            href: this.supportLocation,
+            text: 'Support',
+            icon: 'question-circle',
+          },
+        ],
+      );
 
       if (this.isRunstateIncomplete) {
+        // Prepend revoke button before all other links.
         links = [
           {
             name: 'kill',
