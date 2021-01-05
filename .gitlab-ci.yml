@@ -48,7 +48,15 @@ test-integration:
     paths:
       - flow_test_results/
     when: always
-    
+
+upload-pkg:
+  stage: upload
+  script: 
+    - pip install keyrings.alt
+    - firex-build upload_pip
+  only:
+    - tags
+
 upload-results:
   inherit:
     default: false
