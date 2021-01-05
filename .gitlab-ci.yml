@@ -31,6 +31,14 @@ build:
     paths:
       - dist/
 
+build-docs:
+  stage:  test
+  script:
+    - firex-build docs
+  artifacts:
+    paths:
+      - html/ 
+      
 test-unit:
   stage: test
   script:
@@ -67,13 +75,16 @@ upload-results:
     - gsutil -m rsync -e -r $firex_base_logging_dir  gs://runs.firexflame.com
   when: always
 
-upload-docs:
+update-docs:
   inherit:
     default: false
-  stage: upload
+  stage: update-docs
   image: google/cloud-sdk
   script:
     - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
-    - gsutil -m rsync -r html gs://www.firexapp.com
+    - gsutil -m rsync -r html gs://www.firexkit.com
+  needs:
+    - build-docs
+    - upload-pkg
   only:
     - tags
