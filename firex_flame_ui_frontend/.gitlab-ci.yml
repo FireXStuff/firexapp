@@ -60,13 +60,13 @@ deploy-public:
     - echo $CI_JOB_ID
     - echo $DEPLOY_PATH
     - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS
-    - gsutil -m rsync -r dist gs://www.firexflame.com/$DEPLOY_PATH
+    - gsutil -m rsync -r dist gs://www.firexflame.com$DEPLOY_PATH
     # enable the GCP UI config
-    - gsutil mv gs://www.firexflame.com/$DEPLOY_PATHgcp-flame-ui-config.json gs://www.firexflame.com/$DEPLOY_PATHflame-ui-config.json
+    - gsutil mv gs://www.firexflame.com$DEPLOY_PATH/gcp-flame-ui-config.json gs://www.firexflame.com$DEPLOY_PATH/flame-ui-config.json
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web"'
       variables:
-        DEPLOY_PATH: $CI_JOB_ID/
+        DEPLOY_PATH: /$CI_JOB_ID
     - if: $CI_COMMIT_TAG
       variables:
         DEPLOY_PATH: ''
