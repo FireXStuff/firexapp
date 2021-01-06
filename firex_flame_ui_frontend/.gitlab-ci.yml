@@ -52,3 +52,14 @@ upload-pkg:
     - firex-build upload_pip
   only:
     - tags
+
+deploy-public:
+  stage: upload
+  image: google/cloud-sdk
+  script:
+    - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS
+    - gsutil -m rsync -r dist gs://www.firexflame.com
+    # enable the GCP UI config
+    - gsutil mv gs://www.firexflame.com/gcp-flame-ui-config.json gs://www.firexflame.com/flame-ui-config.json
+  only:
+    - tags
