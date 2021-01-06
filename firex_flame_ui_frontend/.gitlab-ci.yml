@@ -41,6 +41,8 @@ test-unit:
 upload-pkg:
   stage: upload
   before_script:
+    - python -m venv venv
+    - source venv/bin/activate
     - pip install --upgrade pip
     - pip install --upgrade firexbuilder
     - cd dist
