@@ -1,0 +1,53 @@
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - node_modules/
+
+stages:
+  - install
+  - lint
+  - build
+  - test
+  - upload
+
+default:
+  image: firexstuff/firex-alpine-build:latest
+
+install:
+  stage: install
+  script:
+    - npm ci
+
+lint:
+  stage: lint
+  script:
+    - npm run lint
+
+build:
+  stage: build
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+
+test-unit:
+  stage: test
+  script:
+    - firex-build unit_tests
+
+upload-pkg:
+  stage: upload
+  before_script:
+    - pip install --upgrade pip
+    - pip install --upgrade firexbuilder
+    - cd dist
+  script:
+    - pip install keyrings.alt
+    - python3 setup.py sdist
+    - firex-build upload_pip
+  only:
+    - tags
