@@ -57,6 +57,7 @@
       "@vue/airbnb"
     ],
     "rules": {
+      "max-len": ["error", { "code": 120 }],
       "no-param-reassign": [
         2,
         {

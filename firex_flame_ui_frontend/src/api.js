@@ -187,6 +187,7 @@ function createWebFileAccessor(firexId, modelPathTemplate) {
             } catch (error) {
               // Very large task files can fail to be extracted due to:
               // 'Maximum call stack size exceeded'
+              // eslint-disable-next-line no-console
               console.error(`Failed extracting data from ${fileName}: ${error}.`);
             }
           }

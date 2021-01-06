@@ -85,7 +85,8 @@ export default {
     },
     appendPaths(startPath, endPath) {
       return this.ensureEndsWithSlash(
-        arrayToPath(_.concat(pathStringToArray(startPath), pathStringToArray(endPath))));
+        arrayToPath(_.concat(pathStringToArray(startPath), pathStringToArray(endPath))),
+      );
     },
     createLogRoute(path) {
       return `/${_.join([this.inputFireXId, 'logs', path], '/')}`;

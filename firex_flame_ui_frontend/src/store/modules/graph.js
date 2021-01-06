@@ -1,6 +1,6 @@
 import _ from 'lodash';
 
-import {getChildrenUuidsByUuid, getDescendantsByUuid, getGraphDataByUuid} from '../../graph-utils';
+import { getChildrenUuidsByUuid, getDescendantsByUuid, getGraphDataByUuid } from '../../graph-utils';
 import {
   getPrioritizedTaskStateBackground, concatArrayMergeCustomizer, createRunStateExpandOperations, orderByTaskNum,
 } from '../../utils';
