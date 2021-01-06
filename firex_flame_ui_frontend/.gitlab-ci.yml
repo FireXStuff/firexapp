@@ -57,9 +57,18 @@ deploy-public:
   stage: upload
   image: google/cloud-sdk
   script:
+    - echo $CI_JOB_ID
+    - echo $DEPLOY_PATH
     - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS
-    - gsutil -m rsync -r dist gs://www.firexflame.com
+    - gsutil -m rsync -r dist gs://www.firexflame.com/$DEPLOY_PATH
     # enable the GCP UI config
-    - gsutil mv gs://www.firexflame.com/gcp-flame-ui-config.json gs://www.firexflame.com/flame-ui-config.json
-  only:
-    - tags
+    - gsutil mv gs://www.firexflame.com/$DEPLOY_PATHgcp-flame-ui-config.json gs://www.firexflame.com/$DEPLOY_PATHflame-ui-config.json
+  rules:
+    - if: True
+      when: manual
+      variables:
+        DEPLOY_PATH: $CI_JOB_ID/
+    - if: $CI_COMMIT_TAG
+      variables:
+        DEPLOY_PATH: ''
+
