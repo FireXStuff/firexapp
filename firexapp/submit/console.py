@@ -7,6 +7,11 @@ console_stdout = None
 console_stderr = None
 
 
+class RequeueingUndeliverableFilter(logging.Filter):
+    def filter(self, record):
+        return 'Requeuing undeliverable message for queue' not in record.getMessage()
+
+
 class DistlibWarningsFilter(logging.Filter):
     def filter(self, record):
         pathname = record.pathname
@@ -86,6 +91,7 @@ def setup_console_logging(module=None,
     console_stdout.setFormatter(formatter)
     console_stdout.addFilter(LogLevelFilter(stderr_logging_level))
     console_stdout.addFilter(DistlibWarningsFilter())
+    console_stdout.addFilter(RequeueingUndeliverableFilter())
 
     console_stderr = logging.StreamHandler()
     console_stderr.setLevel(stderr_logging_level)
