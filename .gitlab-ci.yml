@@ -83,7 +83,7 @@ update-docs:
   image: google/cloud-sdk
   script:
     - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
-    - gsutil -m rsync -r html gs://www.firexkit.com
+    - gsutil -m rsync -r html gs://www.firexstuff.com/firexapp
   needs:
     - upload-pkg
     - build-docs
