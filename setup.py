@@ -37,7 +37,7 @@ setup(name='firexapp',
           #     "g++: error trying to exec 'cc1plus': execvp: No such file or directory"
           # need to install "apk add g++" in docker.
           "greenlet==0.4.15",
-          "gevent==20.9.0"  # gevent will ask for too high of a greenlet if it isn't pinned.
+          "gevent==20.5.0",  # gevent will ask for too high of a greenlet if it isn't pinned.
       ],
       extras_require={
           'test': [
