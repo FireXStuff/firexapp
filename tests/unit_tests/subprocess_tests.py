@@ -42,26 +42,30 @@ class SubprocessRunnerTests(unittest.TestCase):
                              '')
 
         with self.subTest("remove_firex_pythonpath set to False"):
-            self.assertEqual(runner(f'/bin/echo $PYTHONPATH', shell=True, remove_firex_pythonpath=False).strip(),
-                             os.environ['PYTHONPATH'])
+            python_path = 'some value'
+            self.assertEqual(runner(f'/bin/echo $PYTHONPATH', shell=True, remove_firex_pythonpath=False,
+                                    env={'PYTHONPATH': python_path}).strip(),
+                             python_path)
 
         with self.subTest("user injected some PYTHONPATH"):
             new_path = 'some_path'
-            env = os.environ.copy()
+            env = {'PYTHONPATH': 'start_path'}
+            os.environ['PYTHONPATH'] = env['PYTHONPATH']
             env['PYTHONPATH'] = env['PYTHONPATH'] + ':' + new_path
             self.assertEqual(runner(f'/bin/echo $PYTHONPATH', shell=True, env=env).strip(),
                              new_path)
 
         with self.subTest("user injected multiple PYTHONPATH"):
             new_path = 'some_path:some_path2'
-            env = os.environ.copy()
+            env = {'PYTHONPATH': 'start_path'}
+            os.environ['PYTHONPATH'] = env['PYTHONPATH']
             env['PYTHONPATH'] = env['PYTHONPATH'] + ':' + new_path
             self.assertEqual(runner(f'/bin/echo $PYTHONPATH', shell=True, env=env).strip(),
                              new_path)
 
         with self.subTest("user set PYTHONPATH to empty string"):
             env = os.environ.copy()
-            del env['PYTHONPATH']
+            env.pop('PYTHONPATH', None)
             self.assertEqual(runner(f'/bin/echo $PYTHONPATH', shell=True, env=env).strip(),
                              '')
 
