@@ -32,7 +32,11 @@ setup(name='firexapp',
           "colorlog==2.10.0",
           "beautifulsoup4",
           "vine==1.3.0",  # 5.0.0 breaks /celery/__init__.py module load.
-          "greenlet==0.4.17",  # 1.0.0 breaks CI build.
+
+          # more recent greenlet version fail build with:
+          #     "g++: error trying to exec 'cc1plus': execvp: No such file or directory"
+          # need to install "apk add g++" in docker.
+          "greenlet==0.4.15",
       ],
       extras_require={
           'test': [
