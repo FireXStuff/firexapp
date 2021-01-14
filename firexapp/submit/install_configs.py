@@ -94,17 +94,53 @@ class FireXInstallConfigs:
 def load_existing_install_configs(firex_id: str, logs_dir: str) -> FireXInstallConfigs:
     return FireXInstallConfigs(firex_id, logs_dir, load_existing_raw_install_config(logs_dir))
 
+# See https://stackoverflow.com/questions/33181170/how-to-convert-a-nested-namedtuple-to-a-dict/39235373
+def isnamedtupleinstance(x):
+    _type = type(x)
+    bases = _type.__bases__
+    if len(bases) != 1 or bases[0] != tuple:
+        return False
+    fields = getattr(_type, '_fields', None)
+    if not isinstance(fields, tuple):
+        return False
+    return all(type(i)==str for i in fields)
 
-def load_new_install_configs(firex_id: str, logs_dir: str, install_config_path: str) -> FireXInstallConfigs:
+
+def recursive_named_tuple_asdict(obj):
+    if isinstance(obj, dict):
+        return {key: recursive_named_tuple_asdict(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [recursive_named_tuple_asdict(value) for value in obj]
+    elif isnamedtupleinstance(obj):
+        return {key: recursive_named_tuple_asdict(value) for key, value in obj._asdict().items()}
+    elif isinstance(obj, tuple):
+        return tuple(recursive_named_tuple_asdict(value) for value in obj)
+    else:
+        return obj
+
+
+def load_new_install_configs(firex_id: str, logs_dir: str, install_config_path: Optional[str],
+                             raw_install_config: Optional[FireXRawInstallConfigs] = None) -> FireXInstallConfigs:
+    """
+    Copies supplied install configs to supplied logs_dir and returns loaded (i.e. deserialized)
+    FireXInstallConfigs object. If no install_config_path is supplied, internally-defined default install config is
+    used. Install config file is guaranteed to be written to logs_dir.
+    """
+    assert not (install_config_path and raw_install_config), \
+        "Cannot specify both a file to load config from and an explicit config object."
     install_config_copy_path = install_config_path_from_logs_dir(logs_dir)
 
-    # Either write default configs or copy input file.
+    # Either write configs or copy input file.
     if install_config_path is None:
-        # default configs
-        raw_configs = FireXRawInstallConfigs(None, [])._asdict()
+        if raw_install_config is not None:
+            raw_configs_to_write = raw_install_config
+        else:
+            # built-in default configs
+            raw_configs_to_write = FireXRawInstallConfigs(None, [])
         with open(install_config_copy_path, 'w') as fp:
-            json.dump(raw_configs, fp)
+            json.dump(recursive_named_tuple_asdict(raw_configs_to_write), fp)
     else:
+        # Copy supplied JSON file specifying config.
         try:
             if not os.path.isabs(install_config_path) and not os.path.isfile(install_config_path):
                 # A non-absolute file that doesn't exist locally can be loaded from firexkit resources.

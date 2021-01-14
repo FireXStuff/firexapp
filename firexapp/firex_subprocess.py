@@ -183,7 +183,9 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
     def _get_live_file_monitor_link():
         from firexapp.engine.celery import app
         try:
-            # FIXME: it's worth defaulting to the flame_url when no viewer is supplied via the install_config.
+            # FIXME: if there is no install config, the log live-monitor link is never shown, even though it
+            #  could be the flame_url. There is currently no easy way to get the flame_url from here, though it could
+            #  be written to app.conf when no install_config is present.
             if app.conf.install_config.has_viewer():
                 run_url = app.conf.install_config.get_run_url()
             else:
@@ -191,11 +193,14 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
         except AttributeError:
             return
 
-        url = urllib.parse.urljoin(run_url, f"/live-file?file={urllib.parse.quote(filename, safe='')}&host={host}")
-        link = firexkit_common.get_link(url,
+        # Note we can't use urllib.parse.urljoin because the path is in the fragment, which urljoin can only overwrite.
+        if not run_url.endswith('/'):
+            run_url += '/'
+        live_link_url = run_url + f"live-file?file={urllib.parse.quote(filename, safe='')}&host={host}"
+        link = firexkit_common.get_link(live_link_url,
                                         text='',
                                         title_attribute=f'Live monitor of {filename}',
-                                        attrs=[("target", "_blank"), ("style", "margin-right:5px")],
+                                        attrs={"target": "_blank", "style": "margin-right:5px"},
                                         other_elements='<i class="far fa-eye"></i>',
                                         html_class=live_file_monitor_span_class)
         return link
