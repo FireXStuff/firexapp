@@ -77,6 +77,7 @@ def _tasks_from_active(active, task_predicate) -> MaybeCeleryActiveTasks:
 
 
 def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicate=lambda task: True):
+    logger.debug("Querying Celery to find any remaining active tasks.")
     maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
     revoke_retries = 0
     while (maybe_active_tasks.celery_read_success
