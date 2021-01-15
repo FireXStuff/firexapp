@@ -32,12 +32,16 @@ def _get_firex_dependant_package_locations()-> []:
         logging.getLogger('distlib.metadata').setLevel(logging.WARNING)
         logging.getLogger('distlib.database').setLevel(logging.WARNING)
         dependants = []
-        for d in distributions:
+        while True:
             try:
+                d = next(distributions)
+            except StopIteration:
+                break
+            except Exception as e:
+                logger.debug(f"Failed to get a distribution due to {e}")
+            else:
                 if firex_app_name in d.run_requires:
                     dependants.append(d)
-            except Exception as e:
-                logger.warning(f"Failed to inspect {d.path} due to {e}")
     finally:
         logging.raiseExceptions = old_raise
 
