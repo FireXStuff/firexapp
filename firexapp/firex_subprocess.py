@@ -16,6 +16,7 @@ from celery.utils.log import get_task_logger
 
 from firexkit import firex_exceptions, firexkit_common
 from firexapp.engine.logging import html_escape
+from firexapp.events.model import EXTERNAL_COMMANDS_KEY
 
 
 logger = get_task_logger(__name__)
@@ -54,6 +55,16 @@ def check_output(cmd, retries=0, retry_delay=3, **kwargs):
     return result.stdout
 
 
+def run(cmd, retries=0, retry_delay=3, **kwargs):
+    # Note that this differs from Python 3.8's API since capture_output is True by default in _subprocess_runner
+
+    runner_type = _SubprocessRunnerType.RUN
+
+    _sanitize_runner_kwargs(runner_type=runner_type, kwargs=kwargs)
+    return _subprocess_runner_retries(runner_type=runner_type, # Pass through 'capture_output' and 'check'
+                                      retries=retries, retry_delay=retry_delay, cmd=cmd, **kwargs)
+
+
 def _sanitize_runner_kwargs(runner_type: _SubprocessRunnerType, kwargs: dict):
     disallowed_keys = ['stderr', 'stdout', 'universal_newlines']
     if runner_type is _SubprocessRunnerType.RUN:
@@ -90,7 +101,7 @@ def _send_flame_subprocess(subprocess_data):
     try:
         from celery import current_task
         if current_task:
-            current_task.send_firex_event_raw({'external_commands': subprocess_data})
+            current_task.send_firex_event_raw({EXTERNAL_COMMANDS_KEY: subprocess_data})
     except Exception:
         pass
 
@@ -183,9 +194,7 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
     def _get_live_file_monitor_link():
         from firexapp.engine.celery import app
         try:
-            # FIXME: if there is no install config, the log live-monitor link is never shown, even though it
-            #  could be the flame_url. There is currently no easy way to get the flame_url from here, though it could
-            #  be written to app.conf when no install_config is present.
+            # FIXME: https://github.com/FireXStuff/firexapp/issues/10
             if app.conf.install_config.has_viewer():
                 run_url = app.conf.install_config.get_run_url()
             else:
@@ -194,6 +203,7 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
             return
 
         # Note we can't use urllib.parse.urljoin because the path is in the fragment, which urljoin can only overwrite.
+        # FIXME: ideally flame-ui URL path knowledge would be externalized.
         if not run_url.endswith('/'):
             run_url += '/'
         live_link_url = run_url + f"live-file?file={urllib.parse.quote(filename, safe='')}&host={host}"
@@ -344,13 +354,3 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
         raise CommandFailed(p.returncode, p.args, output=output, stderr=output)
 
     return subprocess.CompletedProcess(p.args, p.returncode, stdout=output, stderr=output)
-
-
-def run(cmd, retries=0, retry_delay=3, **kwargs):
-    # Note that this differs from Python 3.8's API since capture_output is True by default in _subprocess_runner
-
-    runner_type = _SubprocessRunnerType.RUN
-
-    _sanitize_runner_kwargs(runner_type=runner_type, kwargs=kwargs)
-    return _subprocess_runner_retries(runner_type=runner_type, # Pass through 'capture_output' and 'check'
-                                      retries=retries, retry_delay=retry_delay, cmd=cmd, **kwargs)

@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 # of that triggered non-child task, since it effectively cause it to execute, much like an ordinary (i.e. celery)
 # parent task.
 ADDITIONAL_CHILDREN_KEY = 'additional_children'
+EXTERNAL_COMMANDS_KEY = 'external_commands'
+
 
 
 class RunStates(Enum):
