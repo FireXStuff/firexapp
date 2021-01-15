@@ -6,6 +6,9 @@ from distlib.database import DistributionPath
 TASKS_DIRECTORY = "firex_tasks_directory"
 
 
+logger = logging.getLogger(__name__)
+
+
 def _get_paths_without_cwd():
     # This is needed because Celery temporarily adds the cwd into the sys.path via a context switcher,
     # and our discovery takes place inside that context.
@@ -28,7 +31,13 @@ def _get_firex_dependant_package_locations()-> []:
         firex_app_name = __name__.split(".")[0]
         logging.getLogger('distlib.metadata').setLevel(logging.WARNING)
         logging.getLogger('distlib.database').setLevel(logging.WARNING)
-        dependants = [d for d in distributions if firex_app_name in d.run_requires]
+        dependants = []
+        for d in distributions:
+            try:
+                if firex_app_name in d.run_requires:
+                    dependants.append(d)
+            except Exception as e:
+                logger.warning(f"Failed to inspect {d.path} due to {e}")
     finally:
         logging.raiseExceptions = old_raise
 
