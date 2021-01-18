@@ -401,19 +401,28 @@ class SubmitBaseApp:
         if services:
             logger.debug("Tracking services:")
             cli_disabled_service_names = args.disable_tracking_services.split(',')
+            requested_service_names = self.install_configs.raw_configs.requested_tracking_services
             for service in services:
                 service_name = get_service_name(service)
-                service_enabled = service_name not in cli_disabled_service_names
-                disabled_str = '' if service_enabled else ' (disabled)'
-                logger.debug("\t%s%s" % (service_name, disabled_str))
-                if service_enabled:
+                is_cli_disabled = service_name in cli_disabled_service_names
+                # requested_service_names being None means "load all installed".
+                is_requested = requested_service_names is None or service_name in requested_service_names
+
+                detail = ''
+                if not is_requested:
+                    detail = '(not requested via install_config)'
+                elif is_cli_disabled:
+                    detail = '(CLI disabled)'
+                else:
+                    detail += ' '
+                logger.debug(f"\t{service_name} {detail}")
+                if is_requested and not is_cli_disabled:
                     self.enabled_tracking_services.append(service)
 
             # disabled via CLI overrides required from install config.
-            required_service_names = set(self.install_configs.raw_configs.required_tracking_services)\
-                .difference(cli_disabled_service_names)
-            missing_require_services = required_service_names.difference(
-                {get_service_name(s) for s in self.enabled_tracking_services})
+            required_service_names = set(requested_service_names or []).difference(cli_disabled_service_names)
+            enabled_service_names = {get_service_name(s) for s in self.enabled_tracking_services}
+            missing_require_services = required_service_names.difference(enabled_service_names)
             assert not missing_require_services, \
                 "Missing the following tracking services required by install config. Ensure the pip packages that " \
                 f"contribute these tracking services are installed: {missing_require_services}"

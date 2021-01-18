@@ -22,8 +22,11 @@ class FireXViewerTemplates(NamedTuple):
 # Utilities on top of this data should go in the FireXInstallConfigs class.
 class FireXRawInstallConfigs(NamedTuple):
     viewer_templates: Optional[FireXViewerTemplates] = None
-    required_tracking_services: list = []
 
+    # None means "use all installed tracking services". A list means only listed tracking services will be started,
+    # and a service with each requested name must be installed. If a service is included here but not present during
+    # start, the run will fail.
+    requested_tracking_services: Optional[list] = None
 
 class FireXInstallConfigError(Exception):
     pass
@@ -87,12 +90,10 @@ class FireXInstallConfigs:
         # Assume rendered template is only path portion of URL and needs base prepended to become absolute.
         return urljoin(self.raw_configs.viewer_templates.viewer_base, rendered_template)
 
-    def is_tracking_service_required(self, name) -> bool:
-        return name in self.raw_configs.required_tracking_services
-
 
 def load_existing_install_configs(firex_id: str, logs_dir: str) -> FireXInstallConfigs:
     return FireXInstallConfigs(firex_id, logs_dir, load_existing_raw_install_config(logs_dir))
+
 
 # See https://stackoverflow.com/questions/33181170/how-to-convert-a-nested-namedtuple-to-a-dict/39235373
 def isnamedtupleinstance(x):
@@ -136,7 +137,7 @@ def load_new_install_configs(firex_id: str, logs_dir: str, install_config_path: 
             raw_configs_to_write = raw_install_config
         else:
             # built-in default configs
-            raw_configs_to_write = FireXRawInstallConfigs(None, [])
+            raw_configs_to_write = FireXRawInstallConfigs(viewer_templates=None, requested_tracking_services=None)
         with open(install_config_copy_path, 'w') as fp:
             json.dump(recursive_named_tuple_asdict(raw_configs_to_write), fp)
     else:
