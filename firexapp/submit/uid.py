@@ -28,7 +28,6 @@ class Uid(object):
         self._logs_dir = None
         self._debug_dir = None
         self._viewers = {}
-        self.copy_resources()
 
     @property
     def base_logging_dir(self):
@@ -41,6 +40,7 @@ class Uid(object):
         if not self._logs_dir:
             self._logs_dir = self.create_logs_dir()
             self._debug_dir = self.create_debug_dir()
+            self.copy_resources()
         return self._logs_dir
 
     @property
