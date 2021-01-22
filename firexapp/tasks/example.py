@@ -19,3 +19,9 @@ def sleep(sleep=None):
 @app.task(returns='username')
 def getusername():
     return getuser()
+
+
+# The @app.task() makes this normal python function a FireX Service.
+@app.task()
+def greet(name=getuser()):
+    return 'Hello %s!' % name
