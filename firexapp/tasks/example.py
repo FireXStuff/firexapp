@@ -1,5 +1,7 @@
-from firexapp.engine.celery import app
+from getpass import getuser
 import time
+
+from firexapp.engine.celery import app
 
 
 @app.task
@@ -16,5 +18,4 @@ def sleep(sleep=None):
 
 @app.task(returns='username')
 def getusername():
-    from getpass import getuser
     return getuser()
