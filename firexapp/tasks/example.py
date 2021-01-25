@@ -56,3 +56,20 @@ def greet_guests(self: FireXTask, guests):
 @SingleArgDecorator('guests')
 def to_list(guests):
     return guests.split(',')
+
+
+@app.task(returns=['amplified_message'])
+def amplify(to_amplify):
+    return to_amplify.upper()
+
+
+@app.task(bind=True, returns=['amplified_greeting'])
+def amplified_greet_guests(self: FireXTask, guests):
+
+    # Create a chain that can be enqueued. The greet_guests service will produce a guests_greeting,
+    # which will then be delivered to amplify as its to_amplify argument.
+    amplified_greet_guests_chain = greet_guests.s(guests=guests) | amplify.s(to_amplify='@guests_greeting')
+
+    # Chains can be enqueued just like signatures. You can consider a signature a chain with only one service.
+    chain_results = self.enqueue_child_and_get_results(amplified_greet_guests_chain)
+    return chain_results['amplified_message']

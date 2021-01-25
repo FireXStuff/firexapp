@@ -40,3 +40,22 @@ class GreetGuestsTest(FlowTestConfiguration):
         logs_dir = get_log_dir_from_output(cmd_output)
         completion_data = get_completion_report_data(logs_dir)
         assert completion_data['results']['chain_results']['guests_greeting'] == "Hello John! Hello Mohammad!"
+
+
+class AmplifiedGreetGuestsTest(FlowTestConfiguration):
+
+    def initial_firex_options(self) -> list:
+        return ['submit', '--chain', "amplified_greet_guests", "--guests", "John,Mohammad"]
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        assert not cmd_err, "no errors expected"
+
+        logs_dir = get_log_dir_from_output(cmd_output)
+        completion_data = get_completion_report_data(logs_dir)
+        expected_result = "Hello John! Hello Mohammad!".upper()
+        actual_result = completion_data['results']['chain_results']['amplified_greeting']
+        assert actual_result == expected_result, \
+            "Expected '%s'  \n Received '%s'" % (expected_result, actual_result)
