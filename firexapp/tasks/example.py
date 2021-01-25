@@ -35,15 +35,20 @@ def greet(name=getuser()):
 # (enqueue) other services, but provides much more functionality as outlined here:
 @app.task(bind=True, returns=['guests_greeting'])
 def greet_guests(self: FireXTask, guests):
-    greetings = []
+    child_promises = []
     for guest in guests:
         # Create a Celery Signature, see: https://docs.celeryproject.org/en/latest/userguide/canvas.html#signatures
         greet_signature = greet.s(name=guest)
-        # enqueue_child_and_get_results is useful when you want to block on a service invocation and receive the result
-        # immediately. See the details of other enqueue methods here: ____
-        greet_results = self.enqueue_child_and_get_results(greet_signature)
-        greetings.append(greet_results['greeting'])
+        # enqueue_child by default schedules the supplied signature for execution asynchronously and immediately
+        # returns the newly created child result promise.
+        child_promise = self.enqueue_child(greet_signature)
+        child_promises.append(child_promise)
 
+    # We want to get all the return values (greetings) from child tasks, but we must wait first to make sure they're all
+    # available before inspecting them with child_promise.result[<returns_key>]
+    self.wait_for_children()
+    # Since wait_for_children has completed, we know it's safe to inspect the results of all child task promises.
+    greetings = [promise.result['greeting'] for promise in child_promises]
     return ' '.join(greetings)
 
 
