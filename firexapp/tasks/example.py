@@ -28,6 +28,7 @@ def getusername():
 # The @app.task() makes this normal python function a FireX Service.
 @app.task(returns=['greeting'])
 def greet(name=getuser()):
+    assert len(name) > 1, "Cannot greet a name with 1 or fewer characters."
     return 'Hello %s!' % name
 
 
@@ -46,9 +47,14 @@ def greet_guests(self: FireXTask, guests):
 
     # We want to get all the return values (greetings) from child tasks, but we must wait first to make sure they're all
     # available before inspecting them with child_promise.result[<returns_key>]
-    self.wait_for_children()
-    # Since wait_for_children has completed, we know it's safe to inspect the results of all child task promises.
-    greetings = [promise.result['greeting'] for promise in child_promises]
+    self.wait_for_children(raise_exception_on_failure=False)
+    # Since wait_for_children has completed, we know it's safe to inspect the results of all child task promises,
+    # after verifying the task was a success.
+    greetings = [promise.result['greeting'] for promise in child_promises if promise.successful()]
+
+    if any(promise.failed() for promise in child_promises):
+        greetings.append("And apologies to those not mentioned.")
+
     return ' '.join(greetings)
 
 
