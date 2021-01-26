@@ -4,6 +4,7 @@ from firexapp.engine.celery import app
 from firexapp.submit.tracking_service import TrackingService, get_tracking_services
 import firexapp.submit.tracking_service
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run, assert_is_bad_run
+from firexapp.submit.install_configs import INSTALL_CONFIGS_ENV_NAME
 
 test_data_dir = os.path.join(os.path.dirname(__file__), "data", "tracking_services")
 tracking_test_install_config_path = os.path.join(test_data_dir, 'install-configs-test-service.json')
@@ -110,8 +111,9 @@ class TrackingServiceDisabledTest(FlowTestConfiguration):
 
 class TrackingServiceMissingRequiredTest(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "service_success",
-                '--install_config', os.path.join(test_data_dir, 'install-configs-missing-launcher.json')]
+        # Test getting the install config from the ENV instead of from the CLI arg.
+        os.environ[INSTALL_CONFIGS_ENV_NAME] = os.path.join(test_data_dir, 'install-configs-missing-launcher.json')
+        return ["submit", "--chain", "service_success"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert 'Failed to start tracking service' in cmd_err

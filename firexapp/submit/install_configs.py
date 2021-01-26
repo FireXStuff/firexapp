@@ -8,6 +8,7 @@ from firexkit.resources import get_packaged_install_config_path
 from firexapp.submit.uid import Uid
 from firexapp.common import render_template
 
+INSTALL_CONFIGS_ENV_NAME = 'firex_install_config'
 INSTALL_CONFIGS_RUN_BASENAME = 'install-configs.json'
 
 class FireXViewerTemplates(NamedTuple):
