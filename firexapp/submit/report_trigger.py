@@ -2,6 +2,7 @@ from firexkit.argument_conversion import ConverterRegister
 from firexapp.engine.celery import app
 from firexapp.tasks.core_tasks import get_configured_root_task
 from firexapp.submit.reporting import ReportersRegistry
+from firexkit.task import flame_collapse
 
 
 __all__ = ["RunInitialReport"]
@@ -20,5 +21,6 @@ def run_initial_reporting(kwargs):
 
 # noinspection PyPep8Naming
 @app.task
+@flame_collapse('self')
 def RunInitialReport(**kwargs):
     ReportersRegistry.pre_run_report(kwargs)
