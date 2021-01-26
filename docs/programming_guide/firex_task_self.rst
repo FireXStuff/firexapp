@@ -1,7 +1,7 @@
 .. _firex_prog_guide_firex_base_self:
 
 ========================================
-FireX Task Class (``self`` within a def)
+FireX Task Class (``self`` within a ``@app.task`` def)
 ========================================
 
 .. warning:: This page is a work in progress.

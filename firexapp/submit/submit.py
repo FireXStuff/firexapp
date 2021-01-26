@@ -29,7 +29,7 @@ from firexapp.application import import_microservices, get_app_tasks, get_app_ta
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.submit.shutdown import launch_background_shutdown
-from firexapp.submit.install_configs import load_new_install_configs, FireXInstallConfigs
+from firexapp.submit.install_configs import load_new_install_configs, FireXInstallConfigs, INSTALL_CONFIGS_ENV_NAME
 from firexapp.submit.arguments import whitelist_arguments
 from firexapp.common import dict2str, silent_mkdir, create_link
 
@@ -144,7 +144,7 @@ class SubmitBaseApp:
                                    help="Create a symlink back the root of the run's logs directory")
         submit_parser.add_argument('--soft_time_limit', help="Task default soft_time_limit", type=int)
         submit_parser.add_argument('--install_configs', help="Path to JSON file specifying installation-wide configs",
-                                   type=str, default=None)
+                                   type=str, default=os.environ.get(INSTALL_CONFIGS_ENV_NAME, None))
         submit_parser.add_argument('--celery_concurrency', '--celery_work_slots',
                                    type=int, action=AdjustCeleryConcurrency,
                                    help='Number of worker slots in celery pool',
