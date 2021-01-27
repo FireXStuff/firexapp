@@ -50,9 +50,8 @@ resulting graph in Flame:
 
     firexapp submit --chain greet
 
-..
-    TOOD: add link to public flame for greet run.
-    `🔥 View greet in Flame <http://firex-west.cisco.com/flame/#/FireX-djungic-191028-155559-1411>`_
+
+`View greet in Flame <http://www.firexflame.com/#/FireX-username-210127-125133-35215/>`_
 
 With only this straightforward service definition, developers can leverage:
 
@@ -163,9 +162,7 @@ The new ``greet_guests`` service can now be executed:
 
     firexapp submit --chain greet_guests --guests Li,Mohamed
 
-..
-    TOOD: add link to public flame for greet run.
-    `🔥 View greet_guests in Flame. <http://firex-west.cisco.com/flame/#/FireX-djungic-191028-160904-23021>`_
+`View greet_guests in Flame. <http://www.firexflame.com/#/FireX-username-210127-125232-2349>`_
 
 Observe that ``--guests`` was automatically made available as a command-line argument since it is an argument to the ``greet_guests``
 service. FireX also automatically generates a help for your service:
@@ -288,9 +285,7 @@ The ``amplified_greet_guests`` service can be executed:
 
     firexapp submit --chain amplified_greet_guests --guests Li,Mohamed
 
-..
-    TOOD: add link to public flame for greet run.
-    `🔥 View amplified_greet_guests in Flame. <http://firex-west.cisco.com/flame/#/FireX-djungic-191028-162940-30990>`_
+`View amplified_greet_guests in Flame. <http://www.firexflame.com/#/FireX-username-210127-125341-5024>`_
 
 With this example in mind, chaining can be discussed in more general terms. The input arguments flow from the first service to the next, with
 services later in the chain receiving inputs that may have been created or updated by return values produced by earlier services.
@@ -313,7 +308,7 @@ A data context can be created to make many arguments available to all services i
 It can be used only once and only at the head of the chain, not between services.
 
 ..
-    TOOD: create example that shows using InjectArgs that is open-source applicable.
+    TODO: create example that shows using InjectArgs that is open-source applicable.
     :ref:`Read more about this here. <advanced_dataflow>`
 
 .. note::
@@ -379,9 +374,7 @@ The ``greet_guests`` service can be executed to purposefully make a ``greet`` se
 
     firexapp submit --chain greet_guests --guests Li,A
 
-..
-    TOOD: add link to public flame for greet run.
-    `🔥 View greet_guests with a greet failure in Flame. <http://firex-west.cisco.com/flame/#/FireX-djungic-191030-143805-65364>`_
+`View greet_guests with a greet failure in Flame. <http://www.firexflame.com/#/FireX-username-210127-125454-25577>`_
 
 In general, calls that block on child results, such as ``self.enqueue_child_and_get_results`` and ``self.wait_for_children``,
 will by default raise a ``ChainInterruptedException`` when the enqueued chain fails. Conversely, if a parent service enqueues a child
