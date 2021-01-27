@@ -220,6 +220,8 @@ class SubmitBaseApp:
             sys.exit(rc)
         else:
             return chain_results
+        finally:
+            self.wait_tracking_services_release_console_ready()
 
     def format_results_str(self, chain_results):
         if chain_results:
@@ -275,13 +277,14 @@ class SubmitBaseApp:
 
         if args.sync:
             logger.info("Waiting for chain to complete...")
+            # process_sync does wait_tracking_services_release_console_ready for sync case.
             chain_results = self.process_sync(root_task_result_promise, chain_args)
             results_str = self.format_results_str(chain_results)
             self.log_results(results_str)
             self.self_destruct(chain_details=(root_task_result_promise, chain_args),
                                reason="Sync run: completed successfully")
-
-        self.wait_tracking_services_release_console_ready()
+        else:
+            self.wait_tracking_services_release_console_ready()
 
     def check_for_failures(self, root_task_result_promise, unsuccessful_services):
         if unsuccessful_services:
@@ -446,12 +449,12 @@ class SubmitBaseApp:
                     # Service has passed the predicate, remove it from the list of not passed services.
                     not_passed_pred_services = [n for n in not_passed_pred_services if service_name != n]
                     if not not_passed_pred_services:
-                        logger.debug(f"Last tracking service up (long pole) is: {service_name}")
+                        logger.debug(f"Last tracking service {description} (long pole) is: {service_name}")
             if not_passed_pred_services:
                 time.sleep(0.1)
 
         if not_passed_pred_services:
-            logger.warning("The following services are still not %s after %s secs:" % (description, timeout))
+            logger.warning(f"The following services are still not {description} after {timeout} secs:")
             for s in not_passed_pred_services:
                 launch_file = getattr(services_by_name[s], 'stdout_file', None)
                 msg = f'{s}: see {launch_file}' if launch_file else s
