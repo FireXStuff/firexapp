@@ -275,19 +275,13 @@ class SubmitBaseApp:
 
         if args.sync:
             logger.info("Waiting for chain to complete...")
-            try:
-                chain_results = self.process_sync(root_task_result_promise, chain_args)
-            except:  # pylint: disable=broad-except
-                # Broad exception necessary since process_sync calls sys.exit after doing self_destruct.
-                self.wait_tracking_services_release_console_ready()
-            else:
-                results_str = self.format_results_str(chain_results)
-                self.log_results(results_str)
-                self.self_destruct(chain_details=(root_task_result_promise, chain_args),
-                                   reason="Sync run: completed successfully")
-                self.wait_tracking_services_release_console_ready()
-        else:
-            self.wait_tracking_services_release_console_ready()
+            chain_results = self.process_sync(root_task_result_promise, chain_args)
+            results_str = self.format_results_str(chain_results)
+            self.log_results(results_str)
+            self.self_destruct(chain_details=(root_task_result_promise, chain_args),
+                               reason="Sync run: completed successfully")
+
+        self.wait_tracking_services_release_console_ready()
 
     def check_for_failures(self, root_task_result_promise, unsuccessful_services):
         if unsuccessful_services:
