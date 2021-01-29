@@ -17,7 +17,8 @@ from celery.exceptions import NotRegistered
 from firexapp.engine.logging import add_hostname_to_log_records
 
 from firexkit.result import wait_on_async_results, disable_async_result, ChainRevokedException, \
-    mark_queues_ready, get_results, get_task_name_from_result, ChainRevokedPreRunException
+    mark_queues_ready, get_results, get_task_name_from_result, ChainRevokedPreRunException, \
+    monkey_patch_async_result_to_track_instances, is_async_result_monkey_patched_to_track, disable_all_async_results
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
@@ -168,6 +169,9 @@ class SubmitBaseApp:
             self.init_file_logging()
             return self.submit(args, others)
         finally:
+            # FIXME: waiting for tracking services (like Flame) can really slow down when the console is released.
+            #  It might therefore be worth parametrizing this. Legacy currently never waits for tracking services.
+            self.wait_tracking_services_release_console_ready()
             self.copy_submission_log()
 
     @staticmethod
@@ -269,6 +273,12 @@ class SubmitBaseApp:
             self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
         self.wait_tracking_services_task_ready()
+
+        # AsyncResult objects cannot be in memory after the broker (i.e. backend) shutdowns, otherwise errors are
+        # produced when they are garbage collected. We therefore monkey patch AsyncResults to track all instances
+        # (e.g. from unpickle, instantiated directly, etc) so that disable_all_async_results can disable their
+        # references to the backend.
+        monkey_patch_async_result_to_track_instances()
         root_task_result_promise = root_task.s(submit_app=self, **chain_args).delay()
 
         self.copy_submission_log()
@@ -280,8 +290,6 @@ class SubmitBaseApp:
             self.log_results(results_str)
             self.self_destruct(chain_details=(root_task_result_promise, chain_args),
                                reason="Sync run: completed successfully")
-
-        self.wait_tracking_services_release_console_ready()
 
     def check_for_failures(self, root_task_result_promise, unsuccessful_services):
         if unsuccessful_services:
@@ -488,7 +496,11 @@ class SubmitBaseApp:
                 # Under no circumstances should report generation prevent celery and broker cleanup
                 logger.error('Error in generating reports', exc_info=True)
             finally:
-                if chain_result:
+                # AsyncResult objects access self.backend when garbage collected. Since we're about to initiate a
+                # process to stop the backend, prevent all AsyncResult objects from accessing self.backend.
+                if is_async_result_monkey_patched_to_track():
+                    disable_all_async_results()
+                elif chain_result:
                     disable_async_result(chain_result)
 
         logger.debug("Running FireX self destruct")
