@@ -2,7 +2,7 @@ from getpass import getuser
 import time
 
 from firexkit.argument_conversion import SingleArgDecorator
-from firexkit.task import FireXTask, flame
+from firexkit.task import FireXTask, flame, flame_collapse
 
 from firexapp.engine.celery import app
 from firexapp.submit.arguments import InputConverter
@@ -82,6 +82,7 @@ def _amplified_greeting_formatter(args_and_maybe_results):
 
 @app.task(bind=True, returns=['amplified_greeting'])
 @flame('*', _amplified_greeting_formatter)
+@flame_collapse({'greet_guests': 'descendants'})
 def amplified_greet_guests(self: FireXTask, guests):
     # Nonsense failure case to illustrate flame HTML data when the service fails (i.e. no return value present).
     assert len(guests) > 1, "Only willing to amplify greeting for more than one guest."
