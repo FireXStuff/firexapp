@@ -152,6 +152,11 @@ class SubmitBaseApp:
                                    # Some machines have loads of CPUs, so cap at 100.
                                    default=min([multiprocessing.cpu_count()*4, 100]))
         submit_parser.add_argument('--json_file', help='Link name for the report json file', action=JsonFileAction)
+        submit_parser.add_argument('--wait_tracking_services_release_console',
+                                   help='Wait for tracking services (e.g. Flame) to indicate they are ready to release '
+                                        'the console before doing so.', nargs='?', const=True,
+                                   default=False, action=OptionalBoolean,)
+
         submit_parser.set_defaults(func=self.run_submit)
 
         for service in get_tracking_services():
@@ -169,9 +174,8 @@ class SubmitBaseApp:
             self.init_file_logging()
             return self.submit(args, others)
         finally:
-            # FIXME: waiting for tracking services (like Flame) can really slow down when the console is released.
-            #  It might therefore be worth parametrizing this. Legacy currently never waits for tracking services.
-            self.wait_tracking_services_release_console_ready()
+            if args.wait_tracking_services_release_console:
+                self.wait_tracking_services_release_console_ready()
             self.copy_submission_log()
 
     @staticmethod
