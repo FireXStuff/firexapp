@@ -69,10 +69,22 @@ def amplify(to_amplify):
     return to_amplify.upper()
 
 
+def _amplified_greeting_formatter(args_and_maybe_results):
+    # Since 'amplified_greeting' is the return value name, it isn't available to the formatter when the task is first
+    # started. It will be available if the task completes successfully.
+    if 'amplified_greeting' in args_and_maybe_results:
+        return f'<h1 style="font-family: cursive;">{args_and_maybe_results["amplified_greeting"]}</h1>'
+
+    # Since 'guests' is an input argument, it will always be available to the formatter, even before the service
+    # has completed.
+    return f'Planning to greet: {",".join(args_and_maybe_results["guests"])}'
+
+
 @app.task(bind=True, returns=['amplified_greeting'])
-@flame('amplified_greeting',
-       lambda amplified_greeting: f'<h1 style="font-family: cursive;">{amplified_greeting}</h1>')
+@flame('*', _amplified_greeting_formatter)
 def amplified_greet_guests(self: FireXTask, guests):
+    # Nonsense failure case to illustrate flame HTML data when the service fails (i.e. no return value present).
+    assert len(guests) > 1, "Only willing to amplify greeting for more than one guest."
 
     # Create a chain that can be enqueued. The greet_guests service will produce a guests_greeting,
     # which will then be delivered to amplify as its to_amplify argument.
