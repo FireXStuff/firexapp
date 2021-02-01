@@ -442,7 +442,10 @@ class SubmitBaseApp:
                 additional_chain_args.update(extra)
         return additional_chain_args
 
-    def wait_tracking_services_pred(self, service_predicate, description, timeout)->None:
+    def wait_tracking_services_pred(self, service_predicate, description, timeout) -> None:
+        if not self.enabled_tracking_services:
+            return
+
         services_by_name = {get_service_name(s): s for s in self.enabled_tracking_services}
         not_passed_pred_services = list(services_by_name.keys())
         start_wait_time = time.time()
