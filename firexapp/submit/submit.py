@@ -155,7 +155,7 @@ class SubmitBaseApp:
         submit_parser.add_argument('--wait_tracking_services_release_console',
                                    help='Wait for tracking services (e.g. Flame) to indicate they are ready to release '
                                         'the console before doing so.', nargs='?', const=True,
-                                   default=False, action=OptionalBoolean,)
+                                   default=True, action=OptionalBoolean,)
 
         submit_parser.set_defaults(func=self.run_submit)
 
