@@ -2,7 +2,7 @@ from getpass import getuser
 import time
 
 from firexkit.argument_conversion import SingleArgDecorator
-from firexkit.task import FireXTask
+from firexkit.task import FireXTask, flame, flame_collapse
 
 from firexapp.engine.celery import app
 from firexapp.submit.arguments import InputConverter
@@ -26,7 +26,7 @@ def getusername():
 
 
 # The @app.task() makes this normal python function a FireX Service.
-@app.task(returns=['greeting'])
+@app.task(returns=['greeting'], flame=['greeting'])
 def greet(name=getuser()):
     assert len(name) > 1, "Cannot greet a name with 1 or fewer characters."
     return 'Hello %s!' % name
@@ -34,7 +34,7 @@ def greet(name=getuser()):
 
 # Setting bind=True makes the first argument received by the service 'self'. It's most commonly used to invoke
 # (enqueue) other services, but provides much more functionality as outlined here:
-@app.task(bind=True, returns=['guests_greeting'])
+@app.task(bind=True, returns=['guests_greeting'], flame=['guests_greeting'])
 def greet_guests(self: FireXTask, guests):
     child_promises = []
     for guest in guests:
@@ -69,8 +69,23 @@ def amplify(to_amplify):
     return to_amplify.upper()
 
 
+def _amplified_greeting_formatter(args_and_maybe_results):
+    # Since 'amplified_greeting' is the return value name, it isn't available to the formatter when the task is first
+    # started. It will be available if the task completes successfully.
+    if 'amplified_greeting' in args_and_maybe_results:
+        return f'<h1 style="font-family: cursive;">{args_and_maybe_results["amplified_greeting"]}</h1>'
+
+    # Since 'guests' is an input argument, it will always be available to the formatter, even before the service
+    # has completed.
+    return f'Planning to greet: {",".join(args_and_maybe_results["guests"])}'
+
+
 @app.task(bind=True, returns=['amplified_greeting'])
+@flame('*', _amplified_greeting_formatter)
+@flame_collapse({'greet_guests': 'descendants'})
 def amplified_greet_guests(self: FireXTask, guests):
+    # Nonsense failure case to illustrate flame HTML data when the service fails (i.e. no return value present).
+    assert len(guests) > 1, "Only willing to amplify greeting for more than one guest."
 
     # Create a chain that can be enqueued. The greet_guests service will produce a guests_greeting,
     # which will then be delivered to amplify as its to_amplify argument.
