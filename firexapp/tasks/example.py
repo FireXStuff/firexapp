@@ -2,7 +2,7 @@ from getpass import getuser
 import time
 
 from firexkit.argument_conversion import SingleArgDecorator
-from firexkit.chain import InjectArgs
+from firexkit.chain import InjectArgs, returns
 from firexkit.task import FireXTask, flame, flame_collapse
 
 from firexapp.engine.celery import app
@@ -103,8 +103,35 @@ def amplified_greet_guests(self: FireXTask, guests):
 
     # Create a chain that can be enqueued. The greet_guests service will produce a guests_greeting,
     # which will then be delivered to amplify as its to_amplify argument.
-    amplified_greet_guests_chain = greet_guests.s(guests=guests) | amplify.s(to_amplify='@guests_greeting')
+    amplified_greet_guests_chain = InjectArgs(**self.abog) | greet_guests.s() | amplify.s(to_amplify='@guests_greeting')
 
     # Chains can be enqueued just like signatures. You can consider a signature a chain with only one service.
     chain_results = self.enqueue_child_and_get_results(amplified_greet_guests_chain)
     return chain_results['amplified_message']
+
+
+@app.task()
+@returns('job_title')
+def get_springfield_power_plant_job_title(name):
+    username_to_title = {'Charles Montgomery Burns': 'OWNER',
+                         'Waylon Smithers': 'EXECUTIVE ASSISTANT',
+                         'Lenny Leonard': 'DIRECTOR',
+                         'Homer Simpson': 'SUPERVISOR'}
+    return username_to_title.get(name, 'UNKNOWN')
+
+
+@InputConverter.register
+@SingleArgDecorator('employee_names')
+def employee_names_to_list(employee_names):
+    return employee_names.split(',')
+
+
+@app.task(bind=True, returns=['amplified_greeting'])
+def greet_springfield_power_plant_employees(self, employee_names):
+    names_with_titles = []
+    for name in employee_names:
+        job_title = self.enqueue_child_and_get_results(get_springfield_power_plant_job_title.s(name=name))['job_title']
+        names_with_titles.append(f"{job_title} {name}")
+
+    results = self.enqueue_child_and_get_results(amplified_greet_guests.s(guests=names_with_titles))
+    return results['amplified_greeting']
