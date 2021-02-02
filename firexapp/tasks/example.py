@@ -2,6 +2,7 @@ from getpass import getuser
 import time
 
 from firexkit.argument_conversion import SingleArgDecorator
+from firexkit.chain import InjectArgs, returns
 from firexkit.task import FireXTask, flame, flame_collapse
 
 from firexapp.engine.celery import app
@@ -65,15 +66,28 @@ def to_list(guests):
 
 
 @app.task(returns=['amplified_message'])
-def amplify(to_amplify):
-    return to_amplify.upper()
+def amplify(to_amplify, upper=True, surround_str=None, underline_char=None, overline_char=None):
+    result = to_amplify
+    if upper:
+        result = to_amplify.upper()
+    if surround_str:
+        result = surround_str + result + surround_str
+    centerline_len = len(result)
+    if underline_char:
+        result = result + '\n' + (underline_char * centerline_len)
+
+    if overline_char:
+        result = (overline_char * centerline_len) + '\n' + result
+
+    return result
 
 
 def _amplified_greeting_formatter(args_and_maybe_results):
     # Since 'amplified_greeting' is the return value name, it isn't available to the formatter when the task is first
     # started. It will be available if the task completes successfully.
     if 'amplified_greeting' in args_and_maybe_results:
-        return f'<h1 style="font-family: cursive;">{args_and_maybe_results["amplified_greeting"]}</h1>'
+        br_as_nl = args_and_maybe_results["amplified_greeting"].replace('\n', '<br>')
+        return f'<h1 style="font-family: monospace;">{br_as_nl}</h1>'
 
     # Since 'guests' is an input argument, it will always be available to the formatter, even before the service
     # has completed.
@@ -89,8 +103,35 @@ def amplified_greet_guests(self: FireXTask, guests):
 
     # Create a chain that can be enqueued. The greet_guests service will produce a guests_greeting,
     # which will then be delivered to amplify as its to_amplify argument.
-    amplified_greet_guests_chain = greet_guests.s(guests=guests) | amplify.s(to_amplify='@guests_greeting')
+    amplified_greet_guests_chain = InjectArgs(**self.abog) | greet_guests.s() | amplify.s(to_amplify='@guests_greeting')
 
     # Chains can be enqueued just like signatures. You can consider a signature a chain with only one service.
     chain_results = self.enqueue_child_and_get_results(amplified_greet_guests_chain)
     return chain_results['amplified_message']
+
+
+@app.task()
+@returns('job_title')
+def get_springfield_power_plant_job_title(name):
+    username_to_title = {'Charles Montgomery Burns': 'OWNER',
+                         'Waylon Smithers': 'EXECUTIVE ASSISTANT',
+                         'Lenny Leonard': 'DIRECTOR',
+                         'Homer Simpson': 'SUPERVISOR'}
+    return username_to_title.get(name, 'UNKNOWN')
+
+
+@InputConverter.register
+@SingleArgDecorator('employee_names')
+def employee_names_to_list(employee_names):
+    return employee_names.split(',')
+
+
+@app.task(bind=True, returns=['amplified_greeting'])
+def greet_springfield_power_plant_employees(self, employee_names):
+    names_with_titles = []
+    for name in employee_names:
+        job_title = self.enqueue_child_and_get_results(get_springfield_power_plant_job_title.s(name=name))['job_title']
+        names_with_titles.append(f"{job_title} {name}")
+
+    results = self.enqueue_child_and_get_results(amplified_greet_guests.s(guests=names_with_titles))
+    return results['amplified_greeting']

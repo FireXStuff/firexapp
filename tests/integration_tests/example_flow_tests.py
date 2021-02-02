@@ -4,9 +4,13 @@
 # from the root of a firex install:
 #   flow_tests/flow_test_infra.py --tests plugins/firex_programming_guide.py
 #
+import os
+
 from firexapp.submit.submit import get_log_dir_from_output
 from firexapp.reporters.json_reporter import get_completion_report_data
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run, assert_is_bad_run
+
+test_data_dir = os.path.join(os.path.dirname(__file__), "data")
 
 
 class GreetTest(FlowTestConfiguration):
@@ -75,5 +79,44 @@ class GreetGuestsWithFailureTest(FlowTestConfiguration):
 
         expected_result = "Hello John! And apologies to those not mentioned."
         actual_result = completion_data['results']['chain_results']['guests_greeting']
+        assert actual_result == expected_result, \
+            "Expected '%s'  \n Received '%s'" % (expected_result, actual_result)
+
+
+class GreetSpringfieldPowerPlantTest(FlowTestConfiguration):
+
+    def initial_firex_options(self) -> list:
+        return ['submit', '--chain', "greet_springfield_power_plant_employees",
+                "--employee_names", "Waylon Smithers,Homer Simpson"]
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        logs_dir = get_log_dir_from_output(cmd_output)
+        completion_data = get_completion_report_data(logs_dir)
+
+        expected_result = "HELLO EXECUTIVE ASSISTANT WAYLON SMITHERS! HELLO SUPERVISOR HOMER SIMPSON!"
+        actual_result = completion_data['results']['chain_results']['amplified_greeting']
+        assert actual_result == expected_result, \
+            "Expected '%s'  \n Received '%s'" % (expected_result, actual_result)
+
+
+class GreetSpringfieldPowerPlantWithPluginTest(FlowTestConfiguration):
+
+    def initial_firex_options(self) -> list:
+        return ['submit', '--chain', "greet_springfield_power_plant_employees",
+                "--employee_names", "Homer Simpson,Waylon Smithers",
+                "--plugins", os.path.join(test_data_dir, 'plugins', 'springfield_monarchy.py')]
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        logs_dir = get_log_dir_from_output(cmd_output)
+        completion_data = get_completion_report_data(logs_dir)
+
+        expected_result = "HELLO CHANCELLOR HOMER SIMPSON! HELLO PRINCE WAYLON SMITHERS!"
+        actual_result = completion_data['results']['chain_results']['amplified_greeting']
         assert actual_result == expected_result, \
             "Expected '%s'  \n Received '%s'" % (expected_result, actual_result)
