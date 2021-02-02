@@ -41,7 +41,10 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
+    'sphinx_sitemap',
 ]
+
+html_baseurl = 'http://www.firexstuff.com/firexapp/'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
