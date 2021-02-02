@@ -70,7 +70,7 @@ FireX internally defines a do-nothing service called ``nop``. The service can be
     [11:43:00][HOSTNAME] Flame: http://HOSTNAME:59535
 
 Follow the Flame link to visualize the FireX run and see that the ``nop`` service was executed. Of course,
-since the service is trivial (i.e. receives no inputs, produces no outputs, and has no side-effects), there
+since the service is trivial (i.e. receives no arguments, produces no results, and has no side-effects), there
 isn't much to be seen, but running a ``nop`` verifies your FireX install is functioning.
 
 .. _execute_own_service:

@@ -153,8 +153,8 @@ value of ``guests`` in to a python list by using ``@InputConverter.register`` an
     def to_list(guests):
         return guests.split(',')
 
-
-:ref:`Read more about @InputConverter and @SingleArgDecorator <firex_prog_guide_arg_convert>`.
+.. _
+    :ref:`Read more about @InputConverter and @SingleArgDecorator <firex_prog_guide_arg_convert>`.
 
 The new ``greet_guests`` service can now be executed:
 
@@ -254,8 +254,6 @@ of the ``amplify`` service, then return the result as ``amplified_greeting``:
         return chain_results['amplified_message']
 
 
-`View diff with previous section. <https://github.com/FireXStuff/firexapp/commit/02de1664bdedbccfb5c2a81770ed57eb0c9094a5>`_
-
 .. warning:: Chains are built from **signatures**, not service names, so don't forget the ``.s(...)``!
 
 The chain operator ``|`` is used to combine two signatures in to a single chain. The ``greet_guests`` service will produce
@@ -279,6 +277,8 @@ We can reassign the name received by ``amplify`` by changing its signature const
         amplified_greet_guests_chain = greet_guests.s(guests=guests) | amplify.s(to_amplify='@guests_greeting')
 
 
+`View diff with previous section. <https://github.com/FireXStuff/firexapp/commit/02de1664bdedbccfb5c2a81770ed57eb0c9094a5>`_
+
 The ``amplified_greet_guests`` service can be executed:
 
 .. code-block:: text
@@ -296,9 +296,9 @@ So, if you a have a chain:
 
 then:
 
- - A input can use: all explicit arguments values specified for A.
- - B input can use: all arguments values A can use + the return values of A + all explicit arguments values of B.
- - C input can use: all arguments values B can use + the return values of B + all explicit arguments values of C.
+ - A input can use: all explicit argument values specified for A.
+ - B input can use: all arguments values A can use + the return values of A + all explicit argument values of B.
+ - C input can use: all arguments values B can use + the return values of B + all explicit argument values of C.
 
 A data context can be created to make many arguments available to all services in a chain via the ``InjectArgs`` construct:
 
@@ -307,9 +307,7 @@ A data context can be created to make many arguments available to all services i
 ``InjectArgs`` is a pseudo-service that can be used to inject a dictionary of arguments/values at the head of a chain.
 It can be used only once and only at the head of the chain, not between services.
 
-..
-    TODO: create example that shows using InjectArgs that is open-source applicable.
-    :ref:`Read more about this here. <advanced_dataflow>`
+:ref:`See an example that uses InjectArgs here <advanced_dataflow>`
 
 .. note::
     Remember: if a service updates a value with an existing name, it will override the previous value for downstream
