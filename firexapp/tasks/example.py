@@ -2,6 +2,7 @@ from getpass import getuser
 import time
 
 from firexkit.argument_conversion import SingleArgDecorator
+from firexkit.chain import InjectArgs
 from firexkit.task import FireXTask, flame, flame_collapse
 
 from firexapp.engine.celery import app
@@ -65,15 +66,28 @@ def to_list(guests):
 
 
 @app.task(returns=['amplified_message'])
-def amplify(to_amplify):
-    return to_amplify.upper()
+def amplify(to_amplify, upper=True, surround_str=None, underline_char=None, overline_char=None):
+    result = to_amplify
+    if upper:
+        result = to_amplify.upper()
+    if surround_str:
+        result = surround_str + result + surround_str
+    centerline_len = len(result)
+    if underline_char:
+        result = result + '\n' + (underline_char * centerline_len)
+
+    if overline_char:
+        result = (overline_char * centerline_len) + '\n' + result
+
+    return result
 
 
 def _amplified_greeting_formatter(args_and_maybe_results):
     # Since 'amplified_greeting' is the return value name, it isn't available to the formatter when the task is first
     # started. It will be available if the task completes successfully.
     if 'amplified_greeting' in args_and_maybe_results:
-        return f'<h1 style="font-family: cursive;">{args_and_maybe_results["amplified_greeting"]}</h1>'
+        br_as_nl = args_and_maybe_results["amplified_greeting"].replace('\n', '<br>')
+        return f'<h1 style="font-family: monospace;">{br_as_nl}</h1>'
 
     # Since 'guests' is an input argument, it will always be available to the formatter, even before the service
     # has completed.
