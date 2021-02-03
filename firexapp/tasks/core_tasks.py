@@ -33,9 +33,10 @@ def RootTask(self, chain, **chain_args):
 def CopyBogKeys(self: FireXTask, bog_key_map: dict, strict: bool = False):
     """
     This service copies selected keys from this FireXTask instance's bog into new keys with a different name and
-    returns the resulting dictionary.
+    returns the resulting dictionary. It can therefore be used to preserve values in a chain when they will
+    be trampled by return values from downstream in the chain.
 
-    :param bog_key_map: mapping from existing key names to new key names that existing values should be copied to
+    :param bog_key_map: mapping from existing key names to new key names that existing bog values should be copied to
         in the return value.
     :param strict: [True|False] (default=False):
         True: All source entries specified in the mapping must exist in the  bog or the service fails.
