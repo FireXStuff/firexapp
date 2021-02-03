@@ -152,7 +152,7 @@ class SubmitBaseApp:
                                    # Some machines have loads of CPUs, so cap at 100.
                                    default=min([multiprocessing.cpu_count()*4, 100]))
         submit_parser.add_argument('--json_file', help='Link name for the report json file', action=JsonFileAction)
-        submit_parser.add_argument('--wait_tracking_services_release_console',
+        submit_parser.add_argument('--tracking_services_wait_release_console',
                                    help='Wait for tracking services (e.g. Flame) to indicate they are ready to release '
                                         'the console before doing so.', nargs='?', const=True,
                                    default=True, action=OptionalBoolean,)
@@ -174,7 +174,7 @@ class SubmitBaseApp:
             self.init_file_logging()
             return self.submit(args, others)
         finally:
-            if args.wait_tracking_services_release_console:
+            if args.tracking_services_wait_release_console:
                 self.wait_tracking_services_release_console_ready()
             self.copy_submission_log()
 
