@@ -107,10 +107,10 @@ def {0}(**kwargs):
                 cmd += ["--sync"]
             if has_flame() and getattr(flow_test_config, "flame_terminate_on_complete", True):
                 cmd += ["--flame_terminate_on_complete"]
-            if self.is_public and '--install_config' not in cmd:
+            if self.is_public and '--install_configs' not in cmd:
                 # TODO: should merge test-specific install_configs with ci-viewer configs,
                 #  since we usually want the ci URLs, even with a test's install_config specifies other stuff.
-                cmd += ['--install_config', get_cloud_ci_install_config_path()]
+                cmd += ['--install_configs', get_cloud_ci_install_config_path()]
 
         return cmd
 

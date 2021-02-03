@@ -58,7 +58,7 @@ def service_success(service_success_value=False):
 class TrackingServiceTest(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
         return ["submit", "--chain", "service_success",
-                '--install_config', tracking_test_install_config_path]
+                '--install_configs', tracking_test_install_config_path]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert TestService.start_message in cmd_output
@@ -100,7 +100,7 @@ class TrackingServiceDisabledTest(FlowTestConfiguration):
         return ["submit", "--chain", "service_success",
                 '--service_success_value', 'True',
                 '--disable_tracking_services', 'TestService',
-                '--install_config', tracking_test_install_config_path]
+                '--install_configs', tracking_test_install_config_path]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert TestService.start_message not in cmd_output
