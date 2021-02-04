@@ -260,7 +260,7 @@ class SubmitBaseApp:
             if new_defaults:
                 # The defaults can only be set on the subparser, not the main parser
                 self.submit_parser.set_defaults(**new_defaults)
-                args, others = self.arg_parser.parse_known_args()
+                args, others = self.arg_parser.parse_known_args(args=self.submit_args_to_process)
 
         # Can't pickle the parsers
         self.del_parser_attributes()

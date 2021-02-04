@@ -83,6 +83,7 @@ class FireXBaseApp:
         self.arg_parser = None
         self.running_app = None
         self._signal_exit_handler = ExitSignalHandler(self)
+        self.submit_args_to_process = None
 
     def run(self, sys_argv=None):
         if not self.arg_parser:
@@ -109,6 +110,7 @@ class FireXBaseApp:
             arguments.func(arguments)
         else:
             self.running_app = self.submit_app
+            self.submit_app.submit_args_to_process = sys_argv
             arguments.func(arguments, others)
 
     def main_error_exit_handler(self, reason=None):
