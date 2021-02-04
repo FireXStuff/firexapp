@@ -108,7 +108,11 @@ def create_replacement_task(original, name_postfix, sigs):
                                                        "time_limit",
                                                        "track_started",
                                                        "trail",
-                                                       "typing"]}
+                                                       "typing",
+                                                       "returns",
+                                                       "flame",
+                                                       "pending_child_strategy"] if key in dir(original)}
+
     from celery import current_app
     new_task = current_app.task(name=new_name,
                                 bind=bound,
