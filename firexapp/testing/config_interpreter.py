@@ -7,7 +7,7 @@ import subprocess
 from firexkit.resources import get_cloud_ci_install_config_path
 from firexapp.submit.submit import get_firex_id_from_output, get_log_dir_from_output
 from firexapp.submit.tracking_service import has_flame
-from firexapp.submit.install_configs import load_new_install_configs
+from firexapp.submit.install_configs import load_new_install_configs, INSTALL_CONFIGS_ENV_NAME
 from firexapp.testing.config_base import InterceptFlowTestConfiguration, FlowTestConfiguration
 
 
@@ -107,7 +107,10 @@ def {0}(**kwargs):
                 cmd += ["--sync"]
             if has_flame() and getattr(flow_test_config, "flame_terminate_on_complete", True):
                 cmd += ["--flame_terminate_on_complete"]
-            if self.is_public and '--install_configs' not in cmd:
+            if (self.is_public # only use public CI install config for is_public runs
+                    # Some tests supply install configs (via CLI or ENV) for legitimate testing purposes.
+                    and '--install_configs' not in cmd
+                    and INSTALL_CONFIGS_ENV_NAME not in os.environ):
                 # TODO: should merge test-specific install_configs with ci-viewer configs,
                 #  since we usually want the ci URLs, even with a test's install_config specifies other stuff.
                 cmd += ['--install_configs', get_cloud_ci_install_config_path()]

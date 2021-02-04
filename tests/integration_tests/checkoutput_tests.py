@@ -9,13 +9,10 @@ from firexapp.testing.config_base import FlowTestConfiguration
 from firexapp.submit.submit import get_log_dir_from_output
 
 
-@app.task()
-def say_something_repeatedly(uid, say='something', timeout=300, file=None):
+@app.task(soft_time_limit=5)
+def say_something_repeatedly(uid, timeout, file, say='something'):
     cmd = f'bash -c "for v in {{1..{timeout}}};do echo {say};sleep 1;done"'
-
-    if file:
-        file = os.path.join(uid.logs_dir, file)
-    check_output(cmd, file=file)
+    check_output(cmd, file=os.path.join(uid.logs_dir, file))
 
 
 def get_partial_copied_tmpfilename(logs_dir, chain_name, filename='tmp'):
@@ -34,12 +31,13 @@ def _assert_file_exists_with_content(dir, file):
 
 
 class CheckOutputNonTempFileCopiedConfig(FlowTestConfiguration):
-    timeout = 60
     file = 'say_results.txt'
-    chain = 'say_something_repeatedly'
 
     def initial_firex_options(self) -> list:
-        return ['submit', '--chain', self.chain, '--file', self.file]
+        return ['submit',
+                '--chain', 'say_something_repeatedly',
+                '--timeout', '30', # relying on say_something_repeatedly's soft_time_limit to terminate the task early.
+                '--file', self.file]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_dir = get_log_dir_from_output(cmd_output)
