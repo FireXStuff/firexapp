@@ -90,7 +90,9 @@ class GreetSpringfieldPowerPlantTest(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
         return ['submit',
                 '--chain', "greet_springfield_power_plant_employees",
-                "--employee_names", "Waylon Smithers,Homer Simpson"]
+                "--employee_names", "Waylon Smithers,Homer Simpson",
+                "--celery_concurrency", '10',
+                ]
 
     def assert_expected_return_code(self, ret_value):
         assert_is_good_run(ret_value)
@@ -110,7 +112,9 @@ class GreetSpringfieldPowerPlantWithPluginTest(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
         return ['submit', '--chain', "greet_springfield_power_plant_employees",
                 "--employee_names", "Homer Simpson,Waylon Smithers",
-                "--plugins", os.path.join(test_data_dir, 'plugins', 'springfield_monarchy.py')]
+                "--plugins", os.path.join(test_data_dir, 'plugins', 'springfield_monarchy.py'),
+                "--celery_concurrency", '10',
+                ]
 
     def assert_expected_return_code(self, ret_value):
         assert_is_good_run(ret_value)
