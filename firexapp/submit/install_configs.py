@@ -29,6 +29,9 @@ class FireXRawInstallConfigs(NamedTuple):
     # start, the run will fail.
     requested_tracking_services: Optional[list] = None
 
+    submit_args: Optional[dict] = None
+
+
 class FireXInstallConfigError(Exception):
     pass
 
@@ -90,6 +93,9 @@ class FireXInstallConfigs:
             return rendered_template
         # Assume rendered template is only path portion of URL and needs base prepended to become absolute.
         return urljoin(self.raw_configs.viewer_templates.viewer_base, rendered_template)
+
+    def get_submit_args(self) -> dict:
+        return self.raw_configs.submit_args
 
 
 def load_existing_install_configs(firex_id: str, logs_dir: str) -> FireXInstallConfigs:

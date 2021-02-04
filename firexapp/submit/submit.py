@@ -95,6 +95,19 @@ class SubmitBaseApp:
         self.enabled_tracking_services = None
         self.install_configs = None
         self.submit_args = None
+        self.submit_parser = None
+        self.arg_parser = None
+
+    def store_parser_attributes(self, arg_parser, submit_parser):
+        # Only need to store these so that resolve_install_configs_args can operate on them
+        self.arg_parser = arg_parser
+        self.submit_parser = submit_parser
+
+    def del_parser_attributes(self):
+        # Can't pickle the parsers as part of the SubmitBaseApp, which is passed to the root task
+        # Delete them since we don't need them beyond this point
+        del self.arg_parser
+        del self.submit_parser
 
     def init_file_logging(self):
         os.umask(0)
@@ -155,12 +168,13 @@ class SubmitBaseApp:
         submit_parser.add_argument('--wait_tracking_services_release_console',
                                    help='Wait for tracking services (e.g. Flame) to indicate they are ready to release '
                                         'the console before doing so.', nargs='?', const=True,
-                                   default=True, action=OptionalBoolean,)
+                                   default=True, action=OptionalBoolean)
 
         submit_parser.set_defaults(func=self.run_submit)
 
         for service in get_tracking_services():
             service.extra_cli_arguments(submit_parser)
+
         return submit_parser
 
     def convert_chain_args(self, chain_args) -> dict:
@@ -239,21 +253,35 @@ class SubmitBaseApp:
         if results_str:
             logger.print("\n\nReturned values:\n" + results_str)
 
-    def submit(self, args, others):
-        chain_args = self.process_other_chain_args(args, others)
+    # TODO: move this functionality earlier in application.run() once the install_configs is loaded earlier
+    def resolve_install_configs_args(self, args: [argparse.Namespace], others: [list]) -> (argparse.Namespace, list):
+        if self.install_configs:
+            new_defaults = self.install_configs.get_submit_args()
+            if new_defaults:
+                # The defaults can only be set on the subparser, not the main parser
+                self.submit_parser.set_defaults(**new_defaults)
+                args, others = self.arg_parser.parse_known_args()
 
+        # Can't pickle the parsers
+        self.del_parser_attributes()
+
+        return args, others
+
+    def submit(self, args, others):
         uid = Uid()
         self.uid = uid
-        chain_args['uid'] = uid
         logger.info("FireX ID: %s", uid)
         logger.info('Logs: %s', uid.logs_dir)
+
+        self.install_configs = load_new_install_configs(uid.identifier, uid.logs_dir, args.install_configs)
+        args, others = self.resolve_install_configs_args(args, others)
+
+        chain_args = self.process_other_chain_args(args, others)
+        chain_args['uid'] = uid
 
         if args.logs_link:
             self.create_logs_link(args.logs_link)
 
-        # TODO: consider allowing install_configs to specify CLI args for the run
-        #   (at lower precedence than explicit CLI args, or make precedence also configurable)
-        self.install_configs = load_new_install_configs(uid.identifier, uid.logs_dir, args.install_configs)
         if self.install_configs.has_viewer():
             uid.add_viewers(logs_url=self.install_configs.get_logs_root_url())
             logger.info(f'Logs URL: {uid.logs_url}')
@@ -406,7 +434,7 @@ class SubmitBaseApp:
         self.broker = BrokerFactory.create_new_broker_manager(logs_dir=self.uid.logs_dir)
         self.broker.start()
 
-    def start_tracking_services(self, args, **chain_args)->{}:
+    def start_tracking_services(self, args, **chain_args) -> {}:
         assert self.enabled_tracking_services is None, "Cannot start tracking services twice."
         self.enabled_tracking_services = []
         services = get_tracking_services()
