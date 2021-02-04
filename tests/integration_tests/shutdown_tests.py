@@ -24,6 +24,8 @@ from firexapp.tasks.core_tasks import get_configured_root_task
 logger = get_task_logger(__name__)
 
 
+test_data_dir = os.path.join(os.path.dirname(__file__), "data")
+
 def get_broker(cmd_output):
     logs_dir = get_log_dir_from_output(cmd_output)
     file_exists = wait_until(lambda: os.path.exists(RedisManager.get_metadata_file(logs_dir)),
@@ -49,7 +51,7 @@ class NoBrokerLeakBase(FlowTestConfiguration):
         broker_not_alive = wait_until_broker_not_alive(broker)
         assert broker_not_alive, "We are leaking a broker: " + str(broker)
         expected_error = self.expected_error()
-        assert expected_error in cmd_err, f"Different error expected; expected {expected_error}, got {cmd_err}"
+        assert expected_error in cmd_err, f"Different error expected; expected '{expected_error}', got '{cmd_err}'"
 
     @abc.abstractmethod
     def expected_error(self):
@@ -153,7 +155,9 @@ firexapp.submit.tracking_service._services = tuple(list(existing_services) + [Fa
 
 class NoBrokerLeakOnFailedService(NoBrokerLeakBase):
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "fail_service_task"]
+        install_configs = os.path.join(test_data_dir, 'tracking_services', 'install-configs-failing-launcher.json')
+        return ["submit", "--chain", "fail_service_task",
+                "--install_configs", install_configs]
 
     def expected_error(self):
         return "Failed to start service"
