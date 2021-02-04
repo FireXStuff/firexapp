@@ -32,6 +32,7 @@ def _assert_file_exists_with_content(dir, file):
 
 class CheckOutputNonTempFileCopiedConfig(FlowTestConfiguration):
     file = 'say_results.txt'
+    no_coverage = True
 
     def initial_firex_options(self) -> list:
         return ['submit',
