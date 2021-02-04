@@ -85,8 +85,11 @@ class GreetGuestsWithFailureTest(FlowTestConfiguration):
 
 class GreetSpringfieldPowerPlantTest(FlowTestConfiguration):
 
+    no_coverage = True
+
     def initial_firex_options(self) -> list:
-        return ['submit', '--chain', "greet_springfield_power_plant_employees",
+        return ['submit',
+                '--chain', "greet_springfield_power_plant_employees",
                 "--employee_names", "Waylon Smithers,Homer Simpson"]
 
     def assert_expected_return_code(self, ret_value):
