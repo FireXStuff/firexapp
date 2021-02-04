@@ -254,7 +254,10 @@ class SubmitBaseApp:
             logger.print("\n\nReturned values:\n" + results_str)
 
     # TODO: move this functionality earlier in application.run() once the install_configs is loaded earlier
-    def resolve_install_configs_args(self) -> (argparse.Namespace, list):
+    def resolve_install_configs_args(self, args_from_first_pass, other_args_from_first_pass) -> (argparse.Namespace, list):
+        args = args_from_first_pass
+        others = other_args_from_first_pass
+
         if self.install_configs:
             new_defaults = self.install_configs.get_submit_args()
             if new_defaults:
@@ -267,7 +270,7 @@ class SubmitBaseApp:
 
         return args, others
 
-    def submit(self, args_from_first_pass, _other_args_from_first_pass):
+    def submit(self, args_from_first_pass, other_args_from_first_pass):
         uid = Uid()
         self.uid = uid
         logger.info("FireX ID: %s", uid)
@@ -276,7 +279,7 @@ class SubmitBaseApp:
         self.install_configs = load_new_install_configs(uid.identifier,
                                                         uid.logs_dir,
                                                         args_from_first_pass.install_configs)
-        args, others = self.resolve_install_configs_args()
+        args, others = self.resolve_install_configs_args(args_from_first_pass, other_args_from_first_pass)
 
         chain_args = self.process_other_chain_args(args, others)
         chain_args['uid'] = uid
