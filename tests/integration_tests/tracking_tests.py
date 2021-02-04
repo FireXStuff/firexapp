@@ -83,7 +83,7 @@ class NoInstallConfigTrackingServiceTest(FlowTestConfiguration):
     """Test all tracking services (e.g. TestService) installed in the env are started when no
         install_config is defined."""
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "service_success"]
+        return ["submit", "--chain", "service_success", '--service_success_value', 'True']
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert TestService.start_message in cmd_output
