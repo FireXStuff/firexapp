@@ -108,6 +108,7 @@ def {0}(**kwargs):
             if has_flame() and getattr(flow_test_config, "flame_terminate_on_complete", True):
                 cmd += ["--flame_terminate_on_complete"]
             if (self.is_public # only use public CI install config for is_public runs
+                    and not getattr(flow_test_config, 'no_install_config', False)
                     # Some tests supply install configs (via CLI or ENV) for legitimate testing purposes.
                     and '--install_configs' not in cmd
                     and INSTALL_CONFIGS_ENV_NAME not in os.environ):
