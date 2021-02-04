@@ -254,7 +254,9 @@ class SubmitBaseApp:
             logger.print("\n\nReturned values:\n" + results_str)
 
     # TODO: move this functionality earlier in application.run() once the install_configs is loaded earlier
-    def resolve_install_configs_args(self, args_from_first_pass, other_args_from_first_pass) -> (argparse.Namespace, list):
+    def resolve_install_configs_args(self,
+                                     args_from_first_pass: argparse.Namespace,
+                                     other_args_from_first_pass: list) -> (argparse.Namespace, list):
         args = args_from_first_pass
         others = other_args_from_first_pass
 
@@ -270,7 +272,7 @@ class SubmitBaseApp:
 
         return args, others
 
-    def submit(self, args_from_first_pass, other_args_from_first_pass):
+    def submit(self, args_from_first_pass: argparse.Namespace, other_args_from_first_pass: list):
         uid = Uid()
         self.uid = uid
         logger.info("FireX ID: %s", uid)
