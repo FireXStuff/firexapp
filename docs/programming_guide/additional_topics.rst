@@ -344,13 +344,15 @@ Take a particularly close look at a overridden ``get_springfield_power_plant_job
 
 http://www.firexflame.com/#/FireX-username-210202-171421-40936/tasks/41c3ab03-e4e8-48a6-a582-221ef499e719
 
-Note that Flame indicates that the service is from a plugin both in the service's name and by the dashed-outline.
+Observe that Flame indicates that the service is from a plugin both in the service's name and by the dashed-outline.
 
-With this plugin, the Monarchists team has successfully reused the ``greet_springfield_power_plant_employees`` workflow in its
-entirety, while overriding the single service they needed to. You can imagine some workflows are designed with this reuse/overriding
+With this plugin, the Monarchists team have successfully reused the ``greet_springfield_power_plant_employees`` workflow in its
+entirety, while overriding the single service they needed to. You can imagine that some workflows are designed with this reuse/overriding
 in mind, when many teams share the vast majority of a workflow, but every team is required to do something specialized
-within a specific step within the workflow.
+in a specific step (i.e. service) within the workflow.
 
 Keep in mind the plugin is in full control of its relationship with the original service. It could prevent some of its arguments
-from being received by the original service, or even not call the original service at all. Since plugins are just alternative
-definitions of services, they enable extremely flexible alteration of workflows.
+from being received by the original service, or even not call the original service at all. Further, this example only included
+a single overridden service in the plugin file, but it could have also defined another service used by the ``greet_springfield_power_plant_employees``
+service, such as ``amplify``, so that a custom version of ``amplify`` would also be used when the plugin is provided.
+Since plugins are just alternative definitions of services, they enable extremely flexible alteration of workflows.

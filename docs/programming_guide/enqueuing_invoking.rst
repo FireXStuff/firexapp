@@ -8,7 +8,7 @@ This page describes the different ways a service can schedule other chains of se
 
 Like any other Python function, FireX services can call other Python functions, nothing really special or different from native Python there. But where things get interesting, is the ability for FireX services to schedule other chains of services.
 
-FireX provides a wide range of APIs and primitives to handle various schedulings scenarios, like synchronous, asychronous and parallel execution.
+FireX provides a wide range of APIs and primitives to handle various scheduling scenarios, like synchronous, asynchronous and parallel execution.
 
 Some basic scenarios and usage are already described here:
 :ref:`Blocking/synchronous enqueue. <blocking_enqueue>`
