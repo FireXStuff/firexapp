@@ -7,6 +7,7 @@ from firexkit.task import FireXTask, flame, flame_collapse
 
 from firexapp.engine.celery import app
 from firexapp.submit.arguments import InputConverter
+from firexapp.tasks.core_tasks import CopyBogKeys
 
 
 @app.task
@@ -135,3 +136,19 @@ def greet_springfield_power_plant_employees(self, employee_names):
 
     results = self.enqueue_child_and_get_results(amplified_greet_guests.s(guests=names_with_titles))
     return results['amplified_greeting']
+
+
+# A contrived example showing how CopyBogKeys can be used to copy values in between chained services, preventing
+# data from being trampled when multiple services within a chain return values with the same name.
+# Of course, in practice, it's preferable to enqueue the multiple calls to greet separately.
+@app.task(bind=True, returns=['lee_greeting', 'tom_greeting'])
+def greet_lee_and_tom(self: FireXTask):
+    chain = (greet.s("Lee")
+             | CopyBogKeys.s({'greeting': 'lee_greeting'})
+             | greet.s("Tom"))
+    results = self.enqueue_child_and_get_results(chain)
+    # Lee's greeting has been copied to 'lee_greeting', so it's still accessible after Tom's greet has executed.
+    lee_greeting = results['lee_greeting']
+    # Tom's greeting still has the return name specified in the greet service.
+    tom_greeting = results['greeting']
+    return lee_greeting, tom_greeting

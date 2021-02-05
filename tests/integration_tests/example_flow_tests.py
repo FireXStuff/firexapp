@@ -127,3 +127,20 @@ class GreetSpringfieldPowerPlantWithPluginTest(FlowTestConfiguration):
         actual_result = completion_data['results']['chain_results']['amplified_greeting']
         assert actual_result == expected_result, \
             "Expected '%s'  \n Received '%s'" % (expected_result, actual_result)
+
+
+class GreetLeeAndTomTest(FlowTestConfiguration):
+
+    def initial_firex_options(self) -> list:
+        return ['submit', '--chain', "greet_lee_and_tom"]
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        logs_dir = get_log_dir_from_output(cmd_output)
+        completion_data = get_completion_report_data(logs_dir)
+        chain_results = completion_data['results']['chain_results']
+
+        assert chain_results['lee_greeting'] == "Hello Lee!"
+        assert chain_results['tom_greeting'] == "Hello Tom!"
