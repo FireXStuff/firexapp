@@ -19,7 +19,7 @@ from firexapp.submit.submit import get_log_dir_from_output, SubmitBaseApp
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexapp.celery_manager import CeleryManager
 from firexapp.common import wait_until
-from firexapp.tasks.core_tasks import get_configured_root_task
+from firexapp.tasks.root_tasks import get_configured_root_task
 
 logger = get_task_logger(__name__)
 
@@ -192,7 +192,7 @@ class NoBrokerLeakOnCeleryFailure(NoBrokerLeakBase):
 
 @app.task
 def revoke_root_task():
-    from firexapp.tasks.core_tasks import get_configured_root_task
+    from firexapp.tasks.root_tasks import get_configured_root_task
     root = get_configured_root_task()
     from firexkit.inspect import get_active
     active = get_active()

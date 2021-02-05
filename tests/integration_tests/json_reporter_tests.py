@@ -4,7 +4,7 @@ from tempfile import NamedTemporaryFile
 from firex_keeper.task_query import single_task_by_name
 from firexapp.application import get_app_tasks
 from firexapp.common import poll_until_path_exist
-from firexapp.tasks.core_tasks import get_configured_root_task
+from firexapp.tasks.root_tasks import get_configured_root_task
 from firexapp.submit.submit import get_log_dir_from_output
 from firexapp.engine.celery import app
 from firexapp.testing.config_base import FlowTestConfiguration

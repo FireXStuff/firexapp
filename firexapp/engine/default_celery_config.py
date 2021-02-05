@@ -31,11 +31,12 @@ if bundles:
 
 imports = tuple(bundles) + tuple(get_plugin_module_list()) + tuple(["firexapp.tasks.example",
                                                                     "firexapp.tasks.core_tasks",
+                                                                    "firexapp.tasks.root_tasks",
                                                                     "firexapp.submit.report_trigger",
                                                                     "firexapp.reporters.json_reporter"
                                                                     ])
 
-root_task = "firexapp.tasks.core_tasks.RootTask"
+root_task = "firexapp.tasks.root_tasks.RootTask"
 
 accept_content = ['pickle']
 task_serializer = 'pickle'
