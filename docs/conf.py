@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath('../'))
 # -- Project information -----------------------------------------------------
 
 project = 'FireX App'
-copyright = '2019, FireX'
+copyright = '2021, FireX'
 author = 'FireX'
 
 # The short X.Y version
