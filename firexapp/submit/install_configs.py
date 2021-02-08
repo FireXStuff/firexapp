@@ -68,16 +68,19 @@ class FireXInstallConfigs:
         return self.raw_configs.viewer_templates is not None
 
     def get_run_url(self) -> str:
+        assert self.has_viewer(), "Callers must verify install configs specify URLs."
         return self._template_viewer_url(self.raw_configs.viewer_templates.run_path_template,
                                          {'firex_id': self.firex_id})
 
     def get_log_entry_url(self, log_entry_rel_run_root) -> str:
+        assert self.has_viewer(), "Callers must verify install configs specify URLs."
         return self._template_viewer_url(self.raw_configs.viewer_templates.run_logs_entry_path_template,
                                          {'firex_id': self.firex_id,
                                           'run_logs_dir': self.logs_dir,
                                           'log_entry_rel_run_root': log_entry_rel_run_root})
 
     def get_logs_root_url(self) -> str:
+        assert self.has_viewer(), "Callers must verify install configs specify URLs."
         return self._template_viewer_url(self.raw_configs.viewer_templates.run_logs_root_path_template,
                                          {'firex_id': self.firex_id,
                                           'run_logs_dir': self.logs_dir})
