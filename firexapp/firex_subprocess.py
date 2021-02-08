@@ -132,7 +132,7 @@ def _send_flame_subprocess_end(flame_subprocess_id, hung_process, slow_process, 
 def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunnerType.CHECK_OUTPUT,
                        extra_header=None, file=None, chars=32000, timeout=None, capture_output=True, check=False,
                        inactivity_timeout=30 * 60, log_level=logging.DEBUG, copy_file_path=None, shell=False, cwd=None,
-                       env=None, remove_firex_pythonpath=True, **kwargs):
+                       env=None, remove_firex_pythonpath=True, logger=logger, **kwargs):
     ##########################
     # Local Helper functions #
     ##########################
