@@ -253,7 +253,7 @@ class CommaDelimitedListAction(Action):
 
 
 plugin_support_parser = ArgumentParser(add_help=False)
-plugin_support_parser.add_argument("--external", "--plugins", '-external', '-plugins',
+plugin_support_parser.add_argument("--external", "--plugins", '-external', '-plugins', "--plugin",
                                    help="Comma delimited list of plugins files to load",
                                    default="",
                                    dest='plugins',

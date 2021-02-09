@@ -145,6 +145,7 @@ class SubmitBaseApp:
         submit_parser = sub_parser.add_parser("submit",
                                               help="This tool invokes a fireX run and is the most common use of "
                                                    "firex. Check out our documentation for common usage patterns",
+                                              allow_abbrev=False,
                                               parents=[plugin_support_parser],
                                               formatter_class=argparse.RawDescriptionHelpFormatter)
         submit_parser.add_argument('--chain', '-chain', help='A comma delimited list of microservices to run',
