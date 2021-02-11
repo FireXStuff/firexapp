@@ -1,6 +1,6 @@
 from celery.utils.log import get_task_logger
 from firexkit.chain import FireXTask, InjectArgs
-from firexkit.task import flame
+from firexkit.task import flame, flame_collapse
 
 from firexapp.engine.celery import app
 
@@ -48,6 +48,7 @@ def CopyBogKeys(self: FireXTask, bog_key_map: dict, strict: bool = False):
 
 # noinspection PyPep8Naming
 @app.task(bind=True, returns=FireXTask.DYNAMIC_RETURN)
+@flame_collapse('self')
 def ScheduleSubChain(self: FireXTask, chain, enqueue_args: dict = {}, catch_errors: bool = False,
                      inject_abog: bool = True):
     """
