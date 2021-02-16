@@ -287,15 +287,14 @@ export default {
       );
 
       if (this.isRunstateIncomplete) {
-        // Prepend revoke button before all other links.
-        links = [
-          {
-            name: 'kill',
-            on: () => eventHub.$emit('revoke-task', this.uuid),
-            _class: 'kill-button',
-            icon: 'times',
-          },
-        ].concat(links);
+        // Add revoke button after all other links.
+        links.push({
+          name: 'kill',
+          on: () => eventHub.$emit('revoke-task', this.uuid),
+          _class: 'kill-button',
+          icon: 'skull-crossbones',
+          title: 'Kill This Task',
+        });
       }
 
       return {

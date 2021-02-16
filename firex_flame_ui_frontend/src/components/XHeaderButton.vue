@@ -79,20 +79,20 @@ export default {
   font-family: 'Source Sans Pro',sans-serif;
 }
 
-.flame-link.kill-button a{
-  color: #900;
+.flame-link.kill-button{
+  background-color: #dc3545!important;
 }
 
-.kill-button:hover {
-  background: #900;
-}
-
-.kill-button:hover a {
+.flame-link.kill-button a {
   color: #fff;
 }
 
-  .flame-link.active-icon  a {
-    color: #2B2;
-  }
+.kill-button:hover a {
+  color: #2980ff;
+}
+
+.flame-link.active-icon  a {
+  background-color: #dc3545!important;
+}
 
 </style>

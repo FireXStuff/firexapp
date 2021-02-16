@@ -74,9 +74,9 @@ export default {
         ),
         this.listViewHeaderEntry,
         this.timeChartViewHeaderEntry,
-        this.killHeaderEntry,
         this.runLogsViewHeaderEntry,
         this.helpViewHeaderEntry,
+        this.killHeaderEntry,
       ];
       // Remove live update and kill options if the run isn't alive.
       if (!this.canRevoke) {
