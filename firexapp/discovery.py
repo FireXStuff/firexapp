@@ -27,6 +27,7 @@ def _get_firex_dependant_package_locations()-> []:
         for r in package.requires():
             if r.project_name == 'firexapp':
                 pkgs.append(package)
+                break
 
     locations = []
     for d in pkgs:
