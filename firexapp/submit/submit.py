@@ -135,9 +135,11 @@ class SubmitBaseApp:
         for package in pkg_resources.WorkingSet():
             if package.project_name == 'firexkit':
                 pkgs.append(str(package))
-            for r in package.requires():
-                if r.project_name in ['firexkit', 'firexapp']:
-                    pkgs.append(str(package))
+            else:
+                for r in package.requires():
+                    if r.project_name in ['firexkit', 'firexapp']:
+                        pkgs.append(str(package))
+                        break
         pkgs = [f'\t - {p}' for p in pkgs]
         logger.debug('FireX Packages:\n' + '\n'.join(pkgs))
 
