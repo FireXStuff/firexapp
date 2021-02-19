@@ -8,6 +8,7 @@ import pkg_resources
 import shutil
 
 from firexapp.submit.arguments import whitelist_arguments
+from firexkit.permissions import DEFAULT_CHMOD_MODE, CHMOD_MODE_NONEXEC
 
 BASE_LOGGING_DIR_ENV_VAR_KEY = 'firex_base_logging_dir'
 
@@ -59,13 +60,13 @@ class Uid(object):
 
     def create_logs_dir(self):
         path = os.path.join(self.base_logging_dir, self.identifier)
-        os.makedirs(path, 0o777)
+        os.makedirs(path, DEFAULT_CHMOD_MODE)
         return path
 
     def create_debug_dir(self):
         path = os.path.join(self.logs_dir, self.debug_dirname)
         try:
-            os.makedirs(path, 0o777)
+            os.makedirs(path, DEFAULT_CHMOD_MODE)
         except FileExistsError:
             # Could have been created by other dependencies (e.g. redis)
             pass
@@ -85,9 +86,9 @@ class Uid(object):
         resources_dir = self.resources_dir
         shutil.copytree(pkg_resource_dir, resources_dir)
         # Open permissions
-        os.chmod(self.resources_dir, 0o777)
+        os.chmod(self.resources_dir, DEFAULT_CHMOD_MODE)
         for file in os.listdir(resources_dir):
-            os.chmod(os.path.join(resources_dir, file), 0o666)
+            os.chmod(os.path.join(resources_dir, file), CHMOD_MODE_NONEXEC)
 
     def add_viewers(self, **attrs):
         self._viewers.update(**attrs)

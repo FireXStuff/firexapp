@@ -6,6 +6,7 @@ import argparse
 import unittest
 from firexapp.testing.config_base import discover_tests
 from firexapp.testing.config_interpreter import ConfigInterpreter
+from firexkit.permissions import DEFAULT_UMASK
 
 TEST_EXE = os.path.realpath(os.path.abspath(__file__))
 if not os.path.isfile(TEST_EXE):
@@ -92,7 +93,7 @@ def main(default_results_dir, default_test_dir):
     results_directory = os.path.realpath(args.logs)
     if os.path.isdir(results_directory):
         shutil.rmtree(results_directory)
-    os.umask(0)
+    os.umask(DEFAULT_UMASK)
     os.mkdir(results_directory)
 
     FlowTestInfra.config_interpreter.profile = args.profile

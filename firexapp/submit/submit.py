@@ -33,6 +33,7 @@ from firexapp.submit.shutdown import launch_background_shutdown
 from firexapp.submit.install_configs import load_new_install_configs, FireXInstallConfigs, INSTALL_CONFIGS_ENV_NAME
 from firexapp.submit.arguments import whitelist_arguments
 from firexapp.common import dict2str, silent_mkdir, create_link
+from firexkit.permissions import DEFAULT_UMASK
 
 add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
@@ -110,7 +111,7 @@ class SubmitBaseApp:
         del self.submit_parser
 
     def init_file_logging(self):
-        os.umask(0)
+        os.umask(DEFAULT_UMASK)
         if self.submission_tmp_file:
             submission_log_handler = logging.FileHandler(filename=self.submission_tmp_file)
             submission_log_handler.setFormatter(logging.Formatter(fmt=self.SUBMISSION_LOGGING_FORMATTER,
