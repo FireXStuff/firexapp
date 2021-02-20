@@ -8,7 +8,7 @@ import pkg_resources
 import shutil
 
 from firexapp.submit.arguments import whitelist_arguments
-from firexkit.permissions import DEFAULT_CHMOD_MODE, CHMOD_MODE_NONEXEC
+from firexkit.permissions import DEFAULT_CHMOD_MODE, NONEXEC_CHMOD_MODE
 
 BASE_LOGGING_DIR_ENV_VAR_KEY = 'firex_base_logging_dir'
 
@@ -88,7 +88,7 @@ class Uid(object):
         # Open permissions
         os.chmod(self.resources_dir, DEFAULT_CHMOD_MODE)
         for file in os.listdir(resources_dir):
-            os.chmod(os.path.join(resources_dir, file), CHMOD_MODE_NONEXEC)
+            os.chmod(os.path.join(resources_dir, file), NONEXEC_CHMOD_MODE)
 
     def add_viewers(self, **attrs):
         self._viewers.update(**attrs)
