@@ -7,7 +7,6 @@ import socket
 
 from jinja2 import Template
 from celery.utils.log import get_task_logger
-from firexkit.permissions import DEFAULT_CHMOD_MODE
 
 logger = get_task_logger(__name__)
 
@@ -42,8 +41,8 @@ def get_available_port(so_reuseport=True):
     return port
 
 
-def silent_mkdir(path, mode=DEFAULT_CHMOD_MODE, exist_ok=True):
-    os.makedirs(path, mode=mode, exist_ok=exist_ok)
+def silent_mkdir(path, exist_ok=True, **kwargs):
+    os.makedirs(path, exist_ok=exist_ok, **kwargs)
 
 
 def poll_until_path_exist(path, timeout=10):

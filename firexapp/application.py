@@ -5,11 +5,13 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 
 from firexapp.plugins import load_plugin_modules, cdl2list
 from firexapp.submit.console import setup_console_logging
+from firexkit.permissions import DEFAULT_UMASK
 
 logger = setup_console_logging(__name__)
 
 
 def main():
+    os.umask(DEFAULT_UMASK)
     # Need to call setup_console_logging like this as this module is always called from another.
     setup_console_logging("__main__")
     with tempfile.NamedTemporaryFile(delete=True) as submission_tmp_file:

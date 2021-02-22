@@ -60,13 +60,13 @@ class Uid(object):
 
     def create_logs_dir(self):
         path = os.path.join(self.base_logging_dir, self.identifier)
-        os.makedirs(path, DEFAULT_CHMOD_MODE)
+        os.makedirs(path)
         return path
 
     def create_debug_dir(self):
         path = os.path.join(self.logs_dir, self.debug_dirname)
         try:
-            os.makedirs(path, DEFAULT_CHMOD_MODE)
+            os.makedirs(path)
         except FileExistsError:
             # Could have been created by other dependencies (e.g. redis)
             pass
