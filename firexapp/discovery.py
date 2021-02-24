@@ -1,9 +1,9 @@
 import os
 import sys
 import logging
+from collections import OrderedDict
 
 TASKS_DIRECTORY = "firex_tasks_directory"
-
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +20,45 @@ def _get_paths_without_cwd():
     return paths
 
 
-def _get_firex_dependant_package_locations() -> []:
+#
+# In case there are duplicate modules found, only keep one for each
+#   (name, module_name, object_name) tuple. This prevents duplicate
+#   arg registration failures when the sys.path causes the same service
+#   to be found twice.
+#
+def prune_duplicate_module_entry_points(entry_points):
+    id_to_entry_points = OrderedDict()
+
+    for e in entry_points:
+        key = (e.name, e.module_name, e.object_name)
+        if key not in id_to_entry_points:
+            id_to_entry_points[key] = e
+        # Replace the currently stored entry point for this key if the distro is None.
+        elif id_to_entry_points[key].distro is None and e.distro is not None:
+            id_to_entry_points[key] = e
+
+    return list(id_to_entry_points.values())
+
+
+def _get_entrypoints(name, prune_duplicates=True) -> []:
     import entrypoints
+    eps = [ep for ep in entrypoints.get_group_all(name)]
+    if prune_duplicates:
+        eps = prune_duplicate_module_entry_points(eps)
+    return eps
+
+
+def get_firex_bundles_entry_points():
+    return _get_entrypoints('firex.bundles')
+
+
+def get_firex_tracking_services_entry_points():
+    return _get_entrypoints('firex_tracking_service')
+
+
+def _get_firex_dependant_package_locations() -> []:
     locations = []
-    eps = [ep for ep in entrypoints.get_group_all('firex.bundles')]
+    eps = get_firex_bundles_entry_points()
     for ep in eps:
         loaded_pkg = ep.load()
         locations.extend(loaded_pkg.__path__)
