@@ -50,7 +50,6 @@ def setup_console_logging(module=None,
                           module_logger_logging_level=None):
     global console_stdout
     global console_stderr
-
     formatter = FireXColoredConsoleFormatter(fmt=console_logging_formatter,
                                              datefmt=console_datefmt,
                                              log_colors={'DEBUG': 'cyan',
@@ -60,6 +59,8 @@ def setup_console_logging(module=None,
                                                          'CRITICAL': 'red,bg_white'})
 
     if module == "__main__":
+        from firexapp.engine.logging import add_hostname_to_log_records
+        add_hostname_to_log_records()
         # For program entry point, use root logger
         module_logger = logging.getLogger()
         # noinspection PyUnresolvedReferences
