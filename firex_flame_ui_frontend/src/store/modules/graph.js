@@ -183,14 +183,16 @@ const graphGetters = {
   uncollapsedNodeUuids: (state, getters) => _.keys(_.omitBy(getters.isCollapsedByUuid)),
 
   uncollapsedGraphByNodeUuid: (state, getters, rootState, rootGetters) => {
-    const uncollapsedGraphByUuid = _.pick(getCollapsedGraphByNodeUuid(
-      rootGetters['tasks/rootUuid'],
-      getters.childrenUuidsByUuid,
-      getters.isCollapsedByUuid,
-    ),
-    getters.uncollapsedNodeUuids);
+    const uncollapsedGraphByUuid = _.pick(
+      getCollapsedGraphByNodeUuid(
+        rootGetters['tasks/rootUuid'],
+        getters.childrenUuidsByUuid,
+        getters.isCollapsedByUuid,
+      ),
+      getters.uncollapsedNodeUuids,
+    );
     return _.mapValues(uncollapsedGraphByUuid,
-      collapseData => ({
+      (collapseData, uuid) => ({
         background: getPrioritizedTaskStateBackground(
           _.map(collapseData.collapsedUuids,
             u => rootGetters['tasks/runStateByUuid'][u].state),
@@ -203,6 +205,7 @@ const graphGetters = {
         // Only pad vertical to make room for real stacked behind boxes.
         heightPadding: _.isEmpty(collapseData.collapsedUuids) ? 0 : stackCount * stackOffset,
         parent_id: collapseData.parentId,
+        task_num: rootState.tasks.allTasksByUuid[uuid].task_num,
       }));
   },
 

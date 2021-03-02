@@ -49,7 +49,7 @@ export default {
   methods: {
     updateLiveRuntimeAndSchedule() {
       if (this.liveUpdate
-        && (isTaskStateIncomplete(this.runState))
+        && isTaskStateIncomplete(this.runState)
         && this.firstStarted) {
         const newLatestNow = Date.now() / 1000;
         this.liveRunTime += newLatestNow - this.localLatestNow;

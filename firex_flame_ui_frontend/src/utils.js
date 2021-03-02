@@ -85,7 +85,10 @@ function flatGraphToTree(tasksByUuid) {
     n.children = [];
   });
 
-  const tasksByParentId = _.groupBy(_.values(tasksByUuid), 'parent_id');
+  const tasksByParentId = _.mapValues(
+    _.groupBy(_.values(tasksByUuid), 'parent_id'),
+    children => _.sortBy(children, 'task_num'),
+  );
   let uuidsToCheck = [root.uuid];
   while (uuidsToCheck.length > 0) {
     // TODO: guard against loops.

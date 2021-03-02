@@ -1,6 +1,6 @@
 <template>
   <transition-group :name="fadeTransitionName" tag="g">
-    <!-- uuid+'' hach is to ignore vue compiler warning. Map keys are safe, array indexes aren't.-->
+    <!-- uuid+'' hack is to ignore vue compiler warning. Map keys are safe, array indexes aren't.-->
     <g v-for="(nodeLayout, uuid) in nodeLayoutsByUuid"
        :key="uuid + ''"
        :transform="'translate(' + nodeLayout.x + ',' + nodeLayout.y + ')'"

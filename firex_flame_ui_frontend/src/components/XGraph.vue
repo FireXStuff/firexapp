@@ -89,9 +89,6 @@ export default {
     firexUid() {
       return this.runMetadata.uid;
     },
-    allUuids() {
-      return this.$store.getters['tasks/allTaskUuids'];
-    },
     parentUuidByUuid() {
       return this.$store.getters['graph/parentUuidByUuid'];
     },
@@ -134,6 +131,7 @@ export default {
             width: this.dimensionsByUuid[uuid].width + collapseData.widthPadding,
             height: this.dimensionsByUuid[uuid].height + collapseData.heightPadding,
             parent_id: collapseData.parent_id,
+            task_num: collapseData.task_num,
           }),
       );
     },
@@ -153,9 +151,6 @@ export default {
     },
     isCollapsedByUuid() {
       return this.$store.getters['graph/isCollapsedByUuid'];
-    },
-    uncollapsedNodeUuids() {
-      return this.$store.getters['graph/uncollapsedNodeUuids'];
     },
     focusedNodeUuid() {
       return this.$store.state.tasks.focusedTaskUuid;

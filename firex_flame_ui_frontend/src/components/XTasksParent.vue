@@ -21,7 +21,7 @@ import { mapGetters, mapState } from 'vuex';
 
 import * as api from '../api';
 import {
-  parseRecFileContentsToNodesByUuid, eventHub, orderByTaskNum, twoDepthAssign,
+  parseRecFileContentsToNodesByUuid, eventHub, twoDepthAssign,
   tasksViewKeyRouteChange, errorRoute,
 } from '../utils';
 
@@ -77,7 +77,7 @@ export default {
     },
     setNodesByUuid(newNodesByUuid) {
       this.newTaskDataToDispatch = {};
-      this.$store.dispatch('tasks/setTasks', orderByTaskNum(newNodesByUuid));
+      this.$store.dispatch('tasks/setTasks', newNodesByUuid);
     },
     debouncedDispatchTasksUpdate: _.debounce(
       // eslint-disable-next-line

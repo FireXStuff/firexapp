@@ -8,14 +8,14 @@
       Need inline-block display per node to get each node's intrinsic width (i.e. don't want it
       to force fill parent).
     -->
-    <div v-for="uuid in allUuids" :key="uuid"
+    <div v-for="uuid in uncollapsedNodeUuids" :key="uuid"
          style="display: inline-block; position: absolute; top: 0; z-index: -1000;">
       <!-- TODO: profile event performance with thousands of nodes. Might be worthwhile
           to catch all and send in one big event. -->
-      <x-task-node
+      <x-core-task-node
         :taskUuid="uuid"
         :emitDimensions="true"
-        :isLeaf="true"></x-task-node>
+        :allowCollapse="false"></x-core-task-node>
     </div>
   </div>
 </template>
@@ -24,11 +24,11 @@
 import _ from 'lodash';
 
 import { containsAll, eventHub } from '../../utils';
-import XTaskNode from './XTaskNode.vue';
+import XCoreTaskNode from './XCoreTaskNode.vue';
 
 export default {
   name: 'XSizeCapturingNodes',
-  components: { XTaskNode },
+  components: { XCoreTaskNode },
   data() {
     return {
       sizesToCommit: {},
@@ -38,8 +38,8 @@ export default {
     dimensionsByUuid() {
       return this.$store.state.tasks.taskNodeSizeByUuid;
     },
-    allUuids() {
-      return this.$store.getters['tasks/allTaskUuids'];
+    uncollapsedNodeUuids() {
+      return this.$store.getters['graph/uncollapsedNodeUuids'];
     },
   },
   created() {
@@ -51,7 +51,7 @@ export default {
         // Doing initial sizing collect -- save size & send once all retrieved.
         Object.assign(this.sizesToCommit, taskSize);
         // Check if this latest size completed the dimensions & should therefore cause commit.
-        if (containsAll(_.keys(this.sizesToCommit), this.allUuids)) {
+        if (containsAll(_.keys(this.sizesToCommit), this.uncollapsedNodeUuids)) {
           this.$store.dispatch('tasks/addTaskNodeSize', this.sizesToCommit);
           this.sizesToCommit = {};
         }

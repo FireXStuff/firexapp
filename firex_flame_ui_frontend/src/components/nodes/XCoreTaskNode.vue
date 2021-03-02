@@ -29,7 +29,7 @@
         </div>
       </div>
       <!-- Flame data might handle clicks in their own way, so we stop propagation to avoid
-      navigating to task node attribute page. Should likely find a better way.-->
+      navigating to task node attribute page. Should likely find a better way. -->
       <div class="flame-data" v-on:click="flameDataClick" >
         <div v-if="showTaskDetails">{{taskUuid}}</div>
 
@@ -66,7 +66,7 @@ export default {
     allowCollapse: { default: true },
     taskUuid: { required: true },
     toCollapse: { default: false },
-    isLeaf: { required: true, type: Boolean },
+    isLeaf: { default: false, type: Boolean },
     emitDimensions: { default: false, type: Boolean },
     showFlameData: { default: true, type: Boolean },
   },
