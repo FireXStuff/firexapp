@@ -14,8 +14,24 @@ import XError from '@/components/XError.vue';
 import XLiveFileViewer from '@/components/XLiveFileViewer.vue';
 import XErrorsTable from '@/components/XErrorsTable.vue';
 import XDirectoryListing from '@/components/XDirectoryListing.vue';
+import { getCookie, deleteCookie } from '../utils';
 
 Vue.use(Router);
+
+const CISCO_SSO_FRAGMENT_COOKIE_NAME = 'anchorvalue';
+
+function routeFromCiscoSsoCookieOrNext(next) {
+  const anchorValue = getCookie(CISCO_SSO_FRAGMENT_COOKIE_NAME);
+  const hasCiscoSsoCookie = anchorValue && anchorValue.startsWith('#/');
+  if (hasCiscoSsoCookie) {
+    const pathFromAnchorValue = anchorValue.slice(1); //  Remove '#" preceding the path.
+    // Delete the cookie to avoid future /find accesses incorrectly redirecting.
+    deleteCookie(CISCO_SSO_FRAGMENT_COOKIE_NAME, '/', '.cisco.com');
+    next(pathFromAnchorValue);
+  } else {
+    next();
+  }
+}
 
 const router = new Router({
   routes: [
@@ -23,6 +39,12 @@ const router = new Router({
       path: '/find',
       name: 'FindFirexId',
       component: XFindFirexId,
+      // This is effectively the default route, so handle the fact Cisco SSO doesn't restore URL
+      // Fragments. It's instead made available via a cookie, so route & delete cookie here if
+      // it's present.
+      beforeEnter: (to, from, next) => {
+        routeFromCiscoSsoCookieOrNext(next);
+      },
     },
     {
       path: '/find/:inputFireXId(FireX-.*-\\d+)',

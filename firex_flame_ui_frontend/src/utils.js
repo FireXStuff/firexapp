@@ -567,6 +567,23 @@ function arrayToPath(path) {
   return _.join(path, '/');
 }
 
+function getCookie(name) {
+  const matches = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+  if (matches) {
+    return matches.pop() || undefined;
+  }
+  return undefined;
+}
+
+function deleteCookie(name, path, domain) {
+  if(getCookie(name)) {
+    document.cookie = name + "=" +
+      ((path) ? ";path="+path:"")+
+      ((domain)?";domain="+domain:"") +
+      ";expires=Thu, 01 Jan 1970 00:00:01 GMT";
+  }
+}
+
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
 const eventHub = new Vue();
 
@@ -605,5 +622,7 @@ export {
   normalizeGoogleBucketItems,
   arrayToPath,
   pathStringToArray,
-  getParentArray
+  getParentArray,
+  getCookie,
+  deleteCookie,
 };
