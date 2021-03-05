@@ -24,14 +24,14 @@ setup(name='firexapp',
           "tqdm<=4.29.1",
           "xmlrunner",
           "redis==3.5.0",
-          "celery[redis]==4.3.0",
-          "kombu==4.6.8",           # app.inspect.active seems to be returning None all the time for Kombu==4.6.4
+          #"celery[redis]==4.3.0",
+          #"kombu==4.6.8",           # app.inspect.active seems to be returning None all the time for Kombu==4.6.4
           "psutil",
           "python-Levenshtein",
           "entrypoints",
           "colorlog==2.10.0",
           "beautifulsoup4",
-          "vine==1.3.0",  # 5.0.0 breaks /celery/__init__.py module load.
+          #"vine==1.3.0",  # 5.0.0 breaks /celery/__init__.py module load.
       ],
       extras_require={
           'test': [

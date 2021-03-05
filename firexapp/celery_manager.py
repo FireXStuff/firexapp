@@ -215,6 +215,7 @@ class CeleryManager(object):
 
         # Override defaults if applicable
         worker_log_level = worker_log_level if worker_log_level else self.worker_log_level
+        worker_log_level = 'DEBUG'
         app = app if app else self.app
         cap_concurrency = cap_concurrency if cap_concurrency else self.cap_concurrency
 
@@ -223,9 +224,9 @@ class CeleryManager(object):
         pid_file = self._get_pid_file(workername)
         self.pid_files[workername] = pid_file
 
-        cmd = '%s worker --hostname=%s@%%h --app=%s --loglevel=%s ' \
+        cmd = '%s --app=%s worker --hostname=%s@%%h --loglevel=%s ' \
               '--logfile=%s --pidfile=%s --events --without-gossip --without-heartbeat --without-mingle -Ofair' % \
-              (self.celery_bin, workername, app, worker_log_level, log_file, pid_file)
+              (self.celery_bin, app, workername, worker_log_level, log_file, pid_file)
         if queues:
             cmd += ' --queues=%s' % queues
         if concurrency:
