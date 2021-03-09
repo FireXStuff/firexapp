@@ -91,8 +91,4 @@ export default {
   color: #2980ff;
 }
 
-.flame-link.active-icon  a {
-  background-color: #dc3545!important;
-}
-
 </style>
