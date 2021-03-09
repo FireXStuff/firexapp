@@ -4,7 +4,7 @@ import pytz
 import tempfile
 from getpass import getuser
 import random
-import pkg_resources
+import firexkit
 import shutil
 
 from firexapp.submit.arguments import whitelist_arguments
@@ -82,7 +82,9 @@ class Uid(object):
         return str(other) == self.identifier
 
     def copy_resources(self):
-        pkg_resource_dir = pkg_resources.resource_filename('firexkit', 'resources')
+        # pkg_resources.resource_filename('firexkit', 'resources') would have been a cleaner way, but
+        # pkg_reources is very slow to load
+        pkg_resource_dir = os.path.join(os.path.dirname(firexkit.__file__), 'resources')
         resources_dir = self.resources_dir
         shutil.copytree(pkg_resource_dir, resources_dir)
         # Open permissions
