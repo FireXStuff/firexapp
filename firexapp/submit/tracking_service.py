@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from firexapp.discovery import get_firex_tracking_services_entry_points, prune_duplicate_module_entry_points
+from firexapp.discovery import get_firex_tracking_services_entry_points
 from firexapp.submit.install_configs import FireXInstallConfigs
 
 _services = None
@@ -13,6 +13,10 @@ def get_tracking_services() -> ():
         entry_objects = [e.load() for e in entry_pts]
         _services = tuple([point() for point in entry_objects])
     return _services
+
+
+def get_tracking_services_versions() -> {}:
+    return {get_service_name(service): service.get_version() for service in get_tracking_services()}
 
 
 def has_flame():
