@@ -14,11 +14,14 @@ from shutil import copyfile
 from contextlib import contextmanager
 
 from celery.exceptions import NotRegistered
+from firexapp.discovery import _get_firex_dependant_package_versions
 from firexapp.engine.logging import add_hostname_to_log_records
 
 from firexkit.result import wait_on_async_results, disable_async_result, ChainRevokedException, \
     mark_queues_ready, get_results, get_task_name_from_result, ChainRevokedPreRunException, \
     monkey_patch_async_result_to_track_instances, is_async_result_monkey_patched_to_track, disable_all_async_results
+import firexkit
+import firexapp
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
@@ -129,18 +132,12 @@ class SubmitBaseApp:
 
     @staticmethod
     def log_firex_pkgs_versions():
-        import pkg_resources
-        pkgs = []
-        for package in pkg_resources.WorkingSet():
-            if package.project_name == 'firexkit':
-                pkgs.append(str(package))
-            else:
-                for r in package.requires():
-                    if r.project_name in ['firexkit', 'firexapp']:
-                        pkgs.append(str(package))
-                        break
-        pkgs = [f'\t - {p}' for p in pkgs]
-        logger.debug('FireX Packages:\n' + '\n'.join(pkgs))
+        pkg_version_info = {'firexkit': firexkit.__version__,
+                            'firexapp': firexapp.__version__,
+                            **_get_firex_dependant_package_versions()}
+
+        pkg_version_info_str = [f'\t - {name}: {version}' for name, version in pkg_version_info.items()]
+        logger.debug('FireX Packages:\n' + '\n'.join(pkg_version_info_str))
 
     def create_submit_parser(self, sub_parser):
         submit_parser = sub_parser.add_parser("submit",
