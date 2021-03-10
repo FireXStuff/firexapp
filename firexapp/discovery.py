@@ -67,12 +67,14 @@ def get_firex_tracking_services_entry_points():
 
 def get_firex_dependant_package_versions() -> {}:
     versions = dict()
-    for ep, loaded_pkg in loaded_firex_bundles_entry_points().items():
-        try:
-            version = loaded_pkg.__version__
-        except AttributeError:
-            version = 'None'
-        versions[ep.name] = version
+    loaded_bundles = loaded_firex_bundles_entry_points()
+    if loaded_bundles:
+        for ep, loaded_pkg in loaded_bundles.items():
+            try:
+                version = loaded_pkg.__version__
+            except AttributeError:
+                version = 'None'
+            versions[ep.name] = version
     return versions
 
 
