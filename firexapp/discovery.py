@@ -78,7 +78,7 @@ def get_firex_dependant_package_versions() -> {}:
 
 def _get_firex_dependant_package_locations() -> []:
     locations = []
-    for p in loaded_firex_bundles_entry_points.values():
+    for p in loaded_firex_bundles_entry_points().values():
         locations.extend(p.__path__)
     return locations
 
