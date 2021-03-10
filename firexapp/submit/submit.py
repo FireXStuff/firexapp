@@ -457,11 +457,11 @@ class SubmitBaseApp:
                 # requested_service_names being None means "load all installed".
                 is_requested = requested_service_names is None or service_name in requested_service_names
 
-                detail = ''
+                detail = f'v{service.get_version()}'
                 if not is_requested:
-                    detail = '(not requested via install_config)'
+                    detail += ' (not requested via install_config)'
                 elif is_cli_disabled:
-                    detail = '(CLI disabled)'
+                    detail += ' (CLI disabled)'
                 else:
                     detail += ' '
                 logger.debug(f"\t{service_name} {detail}")

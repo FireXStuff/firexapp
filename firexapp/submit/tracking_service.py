@@ -38,6 +38,9 @@ class TrackingService(ABC):
     def ready_release_console(self, **kwargs) -> bool:
         return True
 
+    def get_version(self) -> str:
+        return None
+
 
 def get_service_name(service: TrackingService) -> str:
     return service.__class__.__name__
