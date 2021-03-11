@@ -284,10 +284,12 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
             last_output_size = 0
             timeout_time = last_output_time + timeout if timeout else 0
 
+            _sleep = 0.05
             # Wait for process to finish
             while True:
                 try:
-                    p.wait(1)
+                    p.wait(_sleep if _sleep < 1 else 1)
+                    _sleep *= 1.2   # Exponential backoff
                     # If we get here, process is done
                     break
                 except subprocess.TimeoutExpired:
