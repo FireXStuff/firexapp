@@ -1,28 +1,10 @@
 from abc import ABC, abstractmethod
+from typing import Tuple
 
-from firexapp.discovery import get_firex_tracking_services_entry_points
+from firexapp.discovery import get_firex_tracking_services_entry_points, PkgVersionInfo
 from firexapp.submit.install_configs import FireXInstallConfigs
 
 _services = None
-
-
-def get_tracking_services() -> ():
-    global _services
-    if _services is None:
-        entry_pts = get_firex_tracking_services_entry_points()
-        entry_objects = [e.load() for e in entry_pts]
-        _services = tuple([point() for point in entry_objects])
-    return _services
-
-
-def get_tracking_services_versions() -> {}:
-    return {get_service_name(service): service.get_version() for service in get_tracking_services()}
-
-
-def has_flame():
-    # Unfortunate coupling, but just too many things vary depending on presence of flame. Will eventually bring
-    # flame in to firexapp.
-    return 'FlameLauncher' in get_tracking_services()
 
 
 class TrackingService(ABC):
@@ -48,3 +30,27 @@ class TrackingService(ABC):
 
 def get_service_name(service: TrackingService) -> str:
     return service.__class__.__name__
+
+
+def get_service_top_module(service: TrackingService) -> str:
+    return service.__module__.split('.')[0]
+
+
+def get_tracking_services() -> Tuple[TrackingService]:
+    global _services
+    if _services is None:
+        entry_pts = get_firex_tracking_services_entry_points()
+        entry_objects = [e.load() for e in entry_pts]
+        _services = tuple([point() for point in entry_objects])
+    return _services
+
+
+def get_tracking_services_versions() -> [PkgVersionInfo]:
+    return [PkgVersionInfo(pkg=get_service_top_module(service), version=service.get_version())
+            for service in get_tracking_services()]
+
+
+def has_flame() -> bool:
+    # Unfortunate coupling, but just too many things vary depending on presence of flame. Will eventually bring
+    # flame in to firexapp.
+    return 'FlameLauncher' in get_tracking_services()

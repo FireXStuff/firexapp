@@ -1,7 +1,10 @@
 import os
 import sys
 import logging
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
+from typing import Dict
+
+from entrypoints import EntryPoint
 
 TASKS_DIRECTORY = "firex_tasks_directory"
 
@@ -10,7 +13,12 @@ logger = logging.getLogger(__name__)
 _loaded_firex_bundles = None
 
 
-def _get_paths_without_cwd():
+class PkgVersionInfo(namedtuple('PkgVersionInfo', ['pkg', 'version'])):
+    def __str__(self):
+        return f'{self.pkg}: {self.version}'
+
+
+def _get_paths_without_cwd() -> [str]:
     # This is needed because Celery temporarily adds the cwd into the sys.path via a context switcher,
     # and our discovery takes place inside that context.
     # Having cwd in the sys.path can slow down the discovery significantly without any benefit.
@@ -28,7 +36,7 @@ def _get_paths_without_cwd():
 #   arg registration failures when the sys.path causes the same service
 #   to be found twice.
 #
-def prune_duplicate_module_entry_points(entry_points):
+def prune_duplicate_module_entry_points(entry_points) -> [EntryPoint]:
     id_to_entry_points = OrderedDict()
 
     for e in entry_points:
@@ -42,7 +50,7 @@ def prune_duplicate_module_entry_points(entry_points):
     return list(id_to_entry_points.values())
 
 
-def _get_entrypoints(name, prune_duplicates=True) -> []:
+def _get_entrypoints(name, prune_duplicates=True) -> [EntryPoint]:
     import entrypoints
     eps = [ep for ep in entrypoints.get_group_all(name)]
     if prune_duplicates:
@@ -50,40 +58,40 @@ def _get_entrypoints(name, prune_duplicates=True) -> []:
     return eps
 
 
-def get_firex_bundles_entry_points():
+def get_firex_bundles_entry_points() -> [EntryPoint]:
     return _get_entrypoints('firex.bundles')
 
 
-def loaded_firex_bundles_entry_points() -> {}:
+def loaded_firex_bundles_entry_points() -> Dict[EntryPoint, object]:
     global _loaded_firex_bundles
     if _loaded_firex_bundles is None:
         _loaded_firex_bundles = {ep: ep.load() for ep in get_firex_bundles_entry_points()}
     return _loaded_firex_bundles
 
 
-def get_firex_tracking_services_entry_points():
+def get_firex_tracking_services_entry_points() -> [EntryPoint]:
     return _get_entrypoints('firex_tracking_service')
 
 
-def get_firex_dependant_package_versions() -> {}:
-    versions = dict()
+def get_firex_dependant_package_versions() -> [PkgVersionInfo]:
+    versions = list()
     for ep, loaded_pkg in loaded_firex_bundles_entry_points().items():
         try:
             version = loaded_pkg.__version__
         except AttributeError:
             version = 'None'
-        versions[ep.name] = version
+        versions.append(PkgVersionInfo(pkg=ep.name, version=version))
     return versions
 
 
-def _get_firex_dependant_package_locations() -> []:
+def _get_firex_dependant_package_locations() -> [str]:
     locations = []
     for p in loaded_firex_bundles_entry_points().values():
         locations.extend(p.__path__)
     return locations
 
 
-def discover_package_modules(current_path, root_path=None) -> []:
+def discover_package_modules(current_path, root_path=None) -> [str]:
     if root_path is None:
         root_path = os.path.dirname(current_path)
 
@@ -108,7 +116,7 @@ def discover_package_modules(current_path, root_path=None) -> []:
         return []
 
 
-def find_firex_task_bundles()->[]:
+def find_firex_task_bundles() -> [str]:
     # look for task modules in dependant packages
     bundles = []
     for location in _get_firex_dependant_package_locations():
