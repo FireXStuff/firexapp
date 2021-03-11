@@ -243,7 +243,7 @@ class RedisManager(BrokerManager):
         if self.log_file:
             cmd += ' --logfile %s' % self.log_file
         subprocess.check_call(shlex.split(cmd))
-        if not wait_until(os.path.exists, timeout, 1, self.pid_file):
+        if not wait_until(os.path.exists, timeout, 0.1, self.pid_file):
             raise RedisDidNotBecomeActive(f'The Redis pid file {self.pid_file} did not exist within {timeout}s')
         self.wait_until_active(port=port, timeout=timeout)
         self.port = port
