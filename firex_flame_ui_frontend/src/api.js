@@ -1,7 +1,7 @@
 import _ from 'lodash';
 import io from 'socket.io-client';
-import untar from 'js-untar';
 import { ungzip } from 'pako';
+import untar from 'js-untar';
 
 import { templateFireXId, fetchRunModelMetadata } from './utils';
 

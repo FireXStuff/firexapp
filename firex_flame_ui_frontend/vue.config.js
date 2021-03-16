@@ -17,7 +17,7 @@ module.exports = {
   devServer: {
     proxy: {
       '^/auto': {
-        target: 'http://firex.cisco.com',
+        target: 'http://firex-west.cisco.com',
       },
       '^/ws_proxy': {
         target: 'http://firex-west.cisco.com',

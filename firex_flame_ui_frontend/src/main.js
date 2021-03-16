@@ -11,9 +11,10 @@ import router from './router';
 import App from './App.vue';
 import store from './store';
 
-const debug = process.env.NODE_ENV !== 'production';
-Vue.config.devtools = debug;
-Vue.config.performance = debug;
+import { isDebug } from './utils';
+
+Vue.config.devtools = isDebug;
+Vue.config.performance = isDebug;
 
 Vue.use(AsyncComputed);
 Vue.use(VueClipboard);

@@ -586,6 +586,7 @@ function deleteCookie(name, path, domain) {
 
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
 const eventHub = new Vue();
+const isDebug = process.env.NODE_ENV !== 'production';
 
 export {
   parseRecFileContentsToNodesByUuid,
@@ -625,4 +626,5 @@ export {
   getParentArray,
   getCookie,
   deleteCookie,
+  isDebug,
 };

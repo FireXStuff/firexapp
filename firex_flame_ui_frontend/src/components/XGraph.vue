@@ -176,7 +176,10 @@ export default {
   },
   mounted() {
     d3select('div#chart-container').call(zoom).on('dblclick.zoom', null);
-    this.$el.focus();
+    if (this.$el.focus) {
+      // FIXME: find a way to stub this for Vue unit testing instead of ignoreing failure.
+      this.$el.focus();
+    }
   },
   methods: {
     zoomed(transform) {

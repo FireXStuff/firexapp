@@ -4,18 +4,22 @@ import tasks from './modules/tasks';
 import graph from './modules/graph';
 import firexRunMetadata from './modules/firexRunMetadata';
 import header from './modules/header';
+import { isDebug } from '../utils';
 
 Vue.use(Vuex);
 
-const debug = process.env.NODE_ENV !== 'production';
+function defaultStoreOptions() {
+  return {
+    modules: {
+      tasks,
+      graph,
+      firexRunMetadata,
+      header,
+    },
+    strict: isDebug,
+    devtools: isDebug,
+  };
+}
 
-export default new Vuex.Store({
-  modules: {
-    tasks,
-    graph,
-    firexRunMetadata,
-    header,
-  },
-  strict: debug,
-  devtools: debug,
-});
+const defaultStore = new Vuex.Store(defaultStoreOptions());
+export { defaultStore as default, defaultStoreOptions };
