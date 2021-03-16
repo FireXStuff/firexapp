@@ -1,14 +1,8 @@
-window = {
-  URL: {
-    createObjectURL: () => {},
-  },
-};
-
 import _ from 'lodash';
 import { mount, createLocalVue } from '@vue/test-utils';
 import VueRouter from 'vue-router';
 import Vuex from 'vuex';
-import fetchMock from "jest-fetch-mock";
+import fetchMock from 'jest-fetch-mock';
 import { sync } from 'vuex-router-sync';
 
 import router from '@/router/index.js';
@@ -16,7 +10,15 @@ import XGraph from '@/components/XGraph.vue';
 import XCollapseableTaskNode from '@/components/nodes/XCollapsableTaskNode.vue';
 import XSizeCapturingNodes from '@/components/nodes/XSizeCapturingNodes.vue';
 import XCoreTaskNode from '@/components/nodes/XCoreTaskNode.vue';
-import { defaultStoreOptions } from "../../src/store";
+import { defaultStoreOptions } from '../../src/store';
+
+// Mock for Vue unit tests.
+// eslint-disable-next-line no-global-assign
+window = {
+  URL: {
+    createObjectURL: () => {},
+  },
+};
 
 fetchMock.enableMocks();
 const localVue = createLocalVue();
@@ -39,6 +41,7 @@ const SIMPLE_TWO_NODE_CHAIN_BY_UUID = {
 function transitionStub() {
   return {
     render() {
+      // eslint-disable-next-line no-underscore-dangle
       return this.$options._renderChildren;
     },
   };
@@ -106,7 +109,6 @@ describe('XGraph.vue', () => {
   it('updates a simple tree with a new task', async () => {
     const wrapper = initGraphWrapper(SIMPLE_TWO_NODE_CHAIN_BY_UUID, store);
 
-    // console.log(wrapper.html());
     store.dispatch('tasks/addTasksData', {
       3: {
         uuid: '3',
