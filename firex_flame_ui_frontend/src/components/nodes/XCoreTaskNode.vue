@@ -1,15 +1,15 @@
 <template>
   <div :style="topLevelStyle" class="node">
-    <div style="overflow: hidden; text-overflow: ellipsis;">
-      <div style="display: flex;">
+    <div class="node-body">
+      <div class="node-header">
 
-        <div style="align-self: start; font-size: 12px">{{taskNumber}}</div>
+        <div class="task-num">{{taskNumber}}</div>
 
-        <div style="text-align: center; padding: 3px; align-self: center; flex: 1;">
+        <div class="task-name">
           {{taskName}}{{fromPlugin ? ' (plugin)' : ''}}
         </div>
 
-        <div v-if="retries" style="align-self: end; position: relative;">
+        <div v-if="retries" class="retries-container">
           <img src="../../assets/retry.png" class="retries-img">
           <div title="Retries" class="retries">{{retries}}</div>
         </div>
@@ -17,10 +17,10 @@
         <!-- visibility: collapsed to include space for collapse button, even when allowCollapse
           is false. -->
         <!-- TODO: seems odd both isLeaf and allowCollapse exist just to gate collapse. -->
-        <div style="align-self: end;"
+        <div class="align-self-end"
              :style="!isLeaf && !isChained && allowCollapse ? '' : 'visibility: collapse;'">
           <!-- Use prevent to avoid activating node-wide attribute link -->
-          <i v-on:click.prevent="emitCollapseToggle" style="cursor: pointer; padding: 2px;">
+          <i v-on:click.prevent="emitCollapseToggle" class="collapse-btn-container">
             <font-awesome-icon v-if="toCollapse" icon="compress-arrows-alt"
               title="collapse"></font-awesome-icon>
             <font-awesome-icon v-else icon="expand-arrows-alt" title="expand">
@@ -39,12 +39,15 @@
         </template>
       </div>
 
-      <div style="display: flex; flex-direction: row; font-size: 12px; margin-top: 4px;">
-        <div style="align-self: start; flex: 1;">{{displayHostname}}</div>
+      <div class="node-footer">
+        <div class="task-host">{{displayHostname}}</div>
+        <!-- FIXME: the decision if live time is necessary should be made here to reduce total #
+          of components. If live update is not needed, no peer-comp-eval occurs, so the extra
+          comp is pure overhead.-->
         <x-duration :runState="runState"
                     :firstStarted="firstStarted"
                     :actualRuntime="actualRuntime"
-                    style="align-self: end;"></x-duration>
+                    class="align-self-end"></x-duration>
       </div>
     </div>
   </div>
@@ -133,18 +136,18 @@ export default {
     },
   },
   mounted() {
-    this.emit_dimensions();
+    this.doEmitDimensions();
     // TODO: might still be worth considering in conjunction with other solutions.
     // Confirmed not affected by zoom, but still doesn't solve all flame-data node-sizing issues.
     // if (this.emitDimensions && typeof ResizeObserver !== 'undefined') {
     //   const resizeObserver = new ResizeObserver(() => {
-    //     this.emit_dimensions();
+    //     this.doEmitDimensions();
     //   });
     //   resizeObserver.observe(this.$el);
     // }
   },
   updated() {
-    this.emit_dimensions();
+    this.doEmitDimensions();
   },
   methods: {
     emitCollapseToggle() {
@@ -154,7 +157,7 @@ export default {
       event.stopPropagation();
     },
     // TODO: debounce?
-    emit_dimensions() {
+    doEmitDimensions() {
       if (this.emitDimensions) {
         this.$nextTick(() => {
           const r = this.$el.getBoundingClientRect();
@@ -196,8 +199,50 @@ export default {
   border-bottom: 1px solid white;
 }
 
+.node-body {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-header {
+  display: flex;
+}
+
+.task-num {
+  align-self: start;
+  font-size: 12px
+}
+
+.task-name {
+  text-align: center;
+  padding: 3px;
+  align-self: center;
+  flex: 1;
+}
+
+.node-footer {
+  display: flex;
+  flex-direction: row;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.task-host {
+  align-self: start;
+  flex: 1;
+}
+
+.align-self-end {
+  align-self: end;
+}
+
 .flame-data a {
   display: inline-block;
+}
+
+.retries-container {
+  align-self: end;
+  position: relative;
 }
 
  /* retries position is off for big numbers. TODO: find better solution. */
@@ -212,6 +257,11 @@ export default {
   position: absolute;
   right: 1px;
   height: 16px;
+}
+
+.collapse-btn-container {
+  cursor: pointer;
+  padding: 2px;
 }
 
 </style>

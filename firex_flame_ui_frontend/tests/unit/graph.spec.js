@@ -172,6 +172,6 @@ describe('XGraph.vue', () => {
 
     // 4 total size capturing nodes.
     expect(wrapper.findComponent(XSizeCapturingNodes).findAllComponents(XCoreTaskNode))
-      .toHaveLength(4);
+      .toHaveLength(2);
   });
 });
