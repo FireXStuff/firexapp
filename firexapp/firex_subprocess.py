@@ -288,12 +288,12 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
             # Wait for process to finish
             while True:
                 try:
-                    p.wait(_sleep if _sleep < 1 else 1)
-                    _sleep *= 1.1   # Exponential backoff
+                    p.wait(_sleep)
                     # If we get here, process is done
                     break
                 except subprocess.TimeoutExpired:
                     pass
+                _sleep = _sleep * 1.1 if _sleep < 1 else 1  # Exponential backoff
 
                 now = time.time()
                 if int(now) % (10 * 60) == 0:
