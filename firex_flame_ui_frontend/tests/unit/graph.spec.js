@@ -5,7 +5,7 @@ import Vuex from 'vuex';
 import fetchMock from 'jest-fetch-mock';
 import { sync } from 'vuex-router-sync';
 
-import router from '@/router/index.js';
+import router from '@/router/index';
 import XGraph from '@/components/XGraph.vue';
 import XCollapseableTaskNode from '@/components/nodes/XCollapsableTaskNode.vue';
 import XSizeCapturingNodes from '@/components/nodes/XSizeCapturingNodes.vue';
@@ -51,13 +51,36 @@ function fakeDimensionsByUuid(uuids) {
   return _.mapValues(_.keyBy(uuids), () => ({ width: 1, height: 2 }));
 }
 
-function cleanFlameStore() {
+function getCleanFlameStore() {
   const clonedStoreOptions = _.cloneDeep(defaultStoreOptions());
   _.each(clonedStoreOptions.modules, (m, name) => {
     // modules must be deep cloned specifically. They do contain state.
     clonedStoreOptions[name] = _.cloneDeep(m);
   });
   return new Vuex.Store(clonedStoreOptions);
+}
+
+function createCollapseFlameData(uuid, targets) {
+  return {
+    _default_display: {
+      order: 0,
+      type: 'object',
+      value: [
+        {
+          operation: 'collapse',
+          relative_to_nodes: {
+            type: 'task_uuid',
+            value: uuid,
+          },
+          source_node: {
+            type: 'task_uuid',
+            value: uuid,
+          },
+          targets,
+        },
+      ],
+    },
+  };
 }
 
 function initGraphWrapper(tasksByUuid, store) {
@@ -87,7 +110,7 @@ describe('XGraph.vue', () => {
   beforeEach(() => {
     fetch.resetMocks();
     fetchMock.mockIf('/flame-ui-config.json', () => {});
-    store = cleanFlameStore();
+    store = getCleanFlameStore();
     sync(store, router);
   });
 
@@ -120,5 +143,35 @@ describe('XGraph.vue', () => {
 
     await wrapper.vm.$nextTick();
     expect(wrapper.findAllComponents(XCollapseableTaskNode)).toHaveLength(3);
+  });
+
+  it('updates a graph with collapsed tasks', async () => {
+    const wrapper = initGraphWrapper(SIMPLE_TWO_NODE_CHAIN_BY_UUID, store);
+
+    store.dispatch('tasks/addTasksData', {
+      3: {
+        uuid: '3',
+        name: 'childChildName',
+        parent_id: '2',
+        flame_data: createCollapseFlameData('3', ['self', 'descendants']),
+      },
+      4: {
+        uuid: '4',
+        name: 'childChildChildName',
+        parent_id: '3',
+      },
+    });
+    store.dispatch('tasks/addTaskNodeSize', fakeDimensionsByUuid(['3', '4']));
+    await wrapper.vm.$nextTick();
+
+    // Expecting 2 collapsed nodes, 2 uncollapsed.
+    const collapseableTaskNodes = wrapper.findAllComponents(XCollapseableTaskNode);
+    expect(collapseableTaskNodes).toHaveLength(2);
+    expect(collapseableTaskNodes.at(1).props().taskUuid).toBe('2');
+    expect(collapseableTaskNodes.at(1).html()).toContain('2 Tasks');
+
+    // 4 total size capturing nodes.
+    expect(wrapper.findComponent(XSizeCapturingNodes).findAllComponents(XCoreTaskNode))
+      .toHaveLength(4);
   });
 });
