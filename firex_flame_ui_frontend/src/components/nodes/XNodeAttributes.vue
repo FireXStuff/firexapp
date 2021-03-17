@@ -292,7 +292,7 @@ export default {
           name: 'kill',
           on: () => eventHub.$emit('revoke-task', this.uuid),
           _class: 'kill-button',
-          icon: 'skull-crossbones',
+          icon: 'times',
           title: 'Kill This Task',
         });
       }

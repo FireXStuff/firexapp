@@ -1,7 +1,7 @@
 <template>
   <div class="error-container">
     <div style="font-size: 250px;"> &#x1F525; </div>
-    <div style="font-size: 5em;">ERROR</div>
+    <div style="font-size: 5em;">Something is wrong.</div>
     <div v-if="storedMessage" style="font-size: 1.5em; white-space: pre;"
     >{{storedMessage}}</div>
   </div>

@@ -12,6 +12,7 @@
     from child views, since the only way for tasks to be present is for the api accessor
     to be initialized. -->
     <router-view v-if="hasTasks"></router-view>
+    <x-error v-else-if="errorDetailMessage" :message="errorDetailMessage"></x-error>
   </div>
 </template>
 
@@ -21,18 +22,20 @@ import { mapGetters, mapState } from 'vuex';
 
 import * as api from '../api';
 import {
-  parseRecFileContentsToNodesByUuid, eventHub, twoDepthAssign,
-  tasksViewKeyRouteChange, errorRoute,
+  parseRecFileContentsToNodesByUuid, eventHub, twoDepthAssign, tasksViewKeyRouteChange,
 } from '../utils';
+import XError from './XError.vue';
 
 export default {
   name: 'XTasksParent',
+  components: { XError },
   data() {
     return {
       updating: false,
       displayMessage: { content: '', color: '' },
       // Batch incoming task data in order to debounce incoming changes.
       newTaskDataToDispatch: {},
+      errorDetailMessage: null,
     };
   },
   computed: {
@@ -106,16 +109,18 @@ export default {
           return nodesByUuid;
         });
       }
-      taskGraphPromise.then((nodesByUuid) => {
-        this.setNodesByUuid(nodesByUuid);
-      },
-      () => {
-        this.$router.push(errorRoute(`Failed to fetch tasks for ${this.taskDataKey}.
-        To reconstruct:
-          ${this.backfillFlameModelCommand}
-          `));
+      taskGraphPromise.then(
+        (nodesByUuid) => {
+          this.setNodesByUuid(nodesByUuid);
+        },
+        () => {
+          this.errorDetailMessage = `Failed to fetch tasks for ${this.taskDataKey}.
+        Attempt reconstructing the data by running:
+          ${this.backfillFlameModelCommand}`;
+        },
+      ).finally(() => {
+        this.updating = false;
       });
-      taskGraphPromise.finally(() => { this.updating = false; });
     },
     fetchAllTasksAndStartLiveUpdate() {
       this.updateFullTasksState(true);
@@ -158,33 +163,34 @@ export default {
           return runMetadata;
         },
         () => {
-          const msg = `Flame not started for ${this.taskDataKey}`;
-          this.$router.push(errorRoute(msg));
-          return Promise.reject(msg);
+          this.errorDetailMessage = `Flame not started for ${this.taskDataKey}`;
+          return Promise.reject(this.errorDetailMessage);
         },
       );
     },
     updateApiAccessor() {
+      let resultPromise;
       if (this.uiConfig.access_mode === 'webserver-file') {
         this.setWebserverFileApiAccessor();
         // Get the run_metadata via the webserver-file accessor we just set, but change to a
         // socketio accessor to get live updates if the run is in-progress.
-        return this.setFlameRunMetadata().then((runMetadata) => {
+        resultPromise = this.setFlameRunMetadata().then((runMetadata) => {
           if (!runMetadata.run_complete) {
             this.setSocketIoApiAccessor(runMetadata.flame_url);
           }
         });
-      }
-      if (_.includes(['socketio-origin', 'socketio-param'], this.uiConfig.access_mode)) {
+      } else if (_.includes(['socketio-origin', 'socketio-param'], this.uiConfig.access_mode)) {
         this.setSocketIoApiAccessor(this.inputFlameServerUrl);
-        return this.setFlameRunMetadata();
+        resultPromise = this.setFlameRunMetadata();
+      } else {
+        const error = `UI misconfiguration: unknown access_mode ${this.uiConfig.access_mode}`;
+        this.errorDetailMessage = error;
+        resultPromise = Promise.reject(error);
       }
-
-      const error = `UI misconfiguration: unknown access_mode ${this.uiConfig.access_mode}`;
-      this.$router.push(errorRoute(error));
-      return Promise.reject(error);
+      return resultPromise;
     },
     resetDataAndUpdateApiAccessor() {
+      this.errorDetailMessage = null;
       if (_.isNull(this.uiConfig)) {
         // uiConfig is fetched from server and therefore lazy loaded. We can't initialize
         // an API accessor without the uiConfig, since the access_mode is needed.
@@ -204,6 +210,10 @@ export default {
       api.setAccessor('socketio', flameServerUrl, {
         onConnect: () => this.$store.commit('tasks/setApiConnected', true),
         onDisconnect: () => this.$store.commit('tasks/setApiConnected', false),
+        onReconectFailed: () => {
+          this.setWebserverFileApiAccessor();
+          this.updateFullTasksState(false);
+        },
         socketPathTemplate: _.get(this.uiConfig, 'flame_live_path_template', null),
       });
     },

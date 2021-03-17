@@ -83,6 +83,9 @@ function createFlameSocket(url, options) {
   if (_.has(options, 'onDisconnect')) {
     socket.on('disconnect', options.onDisconnect);
   }
+  if (_.has(options, 'onReconectFailed')) {
+    socket.on('reconnect_failed', options.onReconectFailed);
+  }
 
   return socket;
 }
@@ -150,11 +153,11 @@ function createWebFileAccessor(firexId, modelPathTemplate) {
     getFireXRunMetadata: () => fetchRunModelMetadata(firexId, modelPathTemplate),
 
     // TODO: add failure, timeout, or auto-handle elsewhere.
-    getTaskGraph: () => fetch(graphUrl).then(r => r.json(), () => {}),
+    getTaskGraph: () => fetch(graphUrl).then(r => r.json()),
 
     // TODO: add failure, timeout, or auto-handle elsewhere.
     fetchTaskDetails: uuid => fetch((new URL(`full-tasks/${uuid}.json`, modelBaseUrl)).toString())
-      .then(r => r.json(), () => {}),
+      .then(r => r.json()),
 
     // TODO: add failure, timeout, or auto-handle elsewhere.
     fetchTaskFields: fields => fetch(

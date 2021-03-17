@@ -198,7 +198,7 @@ const headerGetters = {
       name: 'kill',
       on: () => eventHub.$emit('revoke-root'),
       _class: 'kill-button',
-      icon: 'skull-crossbones',
+      icon: 'times',
       title: 'Kill Entire Run',
     };
   },
