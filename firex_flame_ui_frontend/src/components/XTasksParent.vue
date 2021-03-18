@@ -115,7 +115,7 @@ export default {
         },
         () => {
           this.errorDetailMessage = `Failed to fetch tasks for ${this.taskDataKey}.
-        Attempt reconstructing the data by running:
+        You can attempt to reconstruct the data by running:
           ${this.backfillFlameModelCommand}`;
         },
       ).finally(() => {
