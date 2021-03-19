@@ -35,15 +35,22 @@ export default {
       liveUpdate: state => state.graph.liveUpdate,
     }),
     duration() {
-      let runtime;
-      if (!isTaskStateIncomplete(this.runState) && this.actualRuntime) {
-        runtime = this.actualRuntime;
-      } else if (!runtime && this.firstStarted) {
-        runtime = this.liveRunTime;
+      let runtimeStr;
+      if (this.runState === 'task-incomplete' && _.isNil(this.actualRuntime)) {
+        // UI-side run-state kludging, no idea what actual runtime is.
+        runtimeStr = '?';
       } else {
-        return '';
+        let runtime;
+        if (!isTaskStateIncomplete(this.runState) && this.actualRuntime) {
+          runtime = this.actualRuntime;
+        } else if (this.firstStarted) {
+          runtime = this.liveRunTime;
+        } else {
+          return '';
+        }
+        runtimeStr = durationString(runtime);
       }
-      return `time: ${durationString(runtime)}`;
+      return `time: ${runtimeStr}`;
     },
   },
   methods: {

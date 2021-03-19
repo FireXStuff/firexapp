@@ -136,7 +136,11 @@ function createSocketApiAccessor(url, options) {
       socket.off('stop-listen-file');
     },
 
-    cleanup: () => { socket.off(); socket.removeAllListeners(); socket.close(); },
+    cleanup: () => {
+      socket.off();
+      socket.removeAllListeners();
+      socket.close();
+    },
 
   };
 }

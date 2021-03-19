@@ -2,6 +2,7 @@ import _ from 'lodash';
 
 import {
   orderByTaskNum, hasIncompleteTasks, getDescendantUuids, twoDepthAssign, containsAny,
+  isTaskStateIncomplete,
 } from '../../utils';
 
 const tasksState = {
@@ -142,6 +143,16 @@ const actions = {
     // TODO: do other incremental updating (e.g. of graph structure, collapse data, etc) here
     // instead of doing a full re-calc every time a node is added.
     context.commit('addTasksData', newDataByUuid);
+  },
+
+  setInProgressTasksToIncomplete(context) {
+    const incompleteTaskUuids = _.map(
+      _.filter(_.values(context.state.allTasksByUuid), t => isTaskStateIncomplete(t.state)),
+      'uuid',
+    );
+    const incompleteStateByUuid = _.mapValues(_.keyBy(incompleteTaskUuids),
+      () => ({ state: 'task-incomplete' }));
+    context.commit('addTasksData', incompleteStateByUuid);
   },
 
   clearTaskData(context) {

@@ -57,6 +57,13 @@
                     :isLeaf="true"></x-node>
           </div>
         </div>
+        <div style="margin: 15px">
+          <h2 class="node-type">Incomplete Data</h2>
+          <div style="display: inline-block; width: 200px;">
+            <x-node taskUuid="incompleteNode" :allow-click-to-attributes="false"
+                    :isLeaf="true"></x-node>
+          </div>
+        </div>
       </div>
       <h1>Difference between round and square corners</h1>
       <div>
@@ -110,6 +117,7 @@ export default {
       pluginSucceededNode: _.merge({}, this.baseNode, { state: 'task-succeeded', from_plugin: true }),
       descendantFailedNode: _.merge({}, this.baseNode,
         { state: 'task-failed', exception: 'ChainInterruptedException' }),
+      incompleteNode: _.merge({}, this.baseNode, { state: 'task-incomplete' }),
     };
     this.$store.dispatch('tasks/setTasks', tasksByUuid);
   },

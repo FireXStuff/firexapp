@@ -109,7 +109,7 @@ export default {
           return nodesByUuid;
         });
       }
-      taskGraphPromise.then(
+      return taskGraphPromise.then(
         (nodesByUuid) => {
           this.setNodesByUuid(nodesByUuid);
         },
@@ -211,8 +211,17 @@ export default {
         onConnect: () => this.$store.commit('tasks/setApiConnected', true),
         onDisconnect: () => this.$store.commit('tasks/setApiConnected', false),
         onReconectFailed: () => {
+          // Fallback from socketio to webserver file and re-fetch tasks.
           this.setWebserverFileApiAccessor();
-          this.updateFullTasksState(false);
+          this.updateFullTasksState(false)
+            .then(this.setFlameRunMetadata)
+            .then((runMetadata) => {
+              if (!runMetadata.run_complete) {
+                // Run is not marked complete after failing to reconnect to socketio server.
+                // All in-progress statuses will never be updated, so show them as incomplete.
+                this.$store.dispatch('tasks/setInProgressTasksToIncomplete');
+              }
+            });
         },
         socketPathTemplate: _.get(this.uiConfig, 'flame_live_path_template', null),
       });
