@@ -1,5 +1,11 @@
 const GitRevisionPlugin = require('git-revision-webpack-plugin');
 
+const proxyAuthHeaders = {
+  Authorization: 'Bearer PUT_TOKEN_HERE',
+  scope: 'openid profile',
+  'X-Xsrf-Header': 'cisco.com',
+};
+
 module.exports = {
   lintOnSave: process.env.NODE_ENV !== 'production',
   runtimeCompiler: undefined,
@@ -17,13 +23,15 @@ module.exports = {
   devServer: {
     proxy: {
       '^/auto': {
-        target: 'http://firex-west.cisco.com',
+        target: 'https://firex-west.cisco.com',
+        headers: proxyAuthHeaders,
       },
       '^/ws_proxy': {
-        target: 'http://firex-west.cisco.com',
+        target: 'https://firex-west.cisco.com',
+        headers: proxyAuthHeaders,
       },
       '^/runs': {
-        target: 'http://www.firexflame.com',
+        target: 'https://www.firexflame.com',
       },
     },
   },
