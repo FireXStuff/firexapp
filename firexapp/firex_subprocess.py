@@ -280,10 +280,11 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
             # Run the command
             p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=f, stderr=subprocess.STDOUT, shell=shell, cwd=cwd,
                                  env=env, **kwargs)
-            last_output_time = time.time()
-            last_output_size = 0
-            timeout_time = last_output_time + timeout if timeout else 0
+            start_time = time.monotonic()
 
+            last_output_size = 0
+            last_log_time = last_output_time = start_time
+            last_output_clock_time = time.time()
             _sleep = 0.05
             # Wait for process to finish
             while True:
@@ -293,15 +294,16 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
                     break
                 except subprocess.TimeoutExpired:
                     pass
-                _sleep = _sleep * 1.1 if _sleep < 1 else 1  # Exponential backoff
+                _sleep = _sleep * 1.1 if _sleep*1.1 < 1 else 1  # Exponential backoff
 
-                now = time.time()
-                if int(now) % (10 * 60) == 0:
-                    time_str = datetime.datetime.fromtimestamp(last_output_time).strftime('%Y-%m-%d %H:%M:%S')
+                now = time.monotonic()
+                if now - last_log_time > 10 * 60:  # Log every 10 minutes
+                    time_str = datetime.datetime.fromtimestamp(last_output_clock_time).strftime('%Y-%m-%d %H:%M:%S')
                     logger.info(f'Waiting for command to finish...\n(Last command output was at {time_str}. '
                                 f'Total output size is {last_output_size} bytes.)')
+                    last_log_time = now
 
-                if timeout and now >= timeout_time:
+                if timeout and now - start_time > timeout:
                     # Process too slow. Kill it.
                     _kill_proc_gently(p)
                     slow_process = True
@@ -312,6 +314,7 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
                     # We have some activity!
                     last_output_size = current_output_size
                     last_output_time = now
+                    last_output_clock_time = time.time()
                 elif inactivity_timeout and now - last_output_time > inactivity_timeout:
                     # Process hung. Kill it.
                     _kill_proc_gently(p)
