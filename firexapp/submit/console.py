@@ -2,6 +2,7 @@ import sys
 import logging
 import colorlog
 from bs4 import BeautifulSoup
+from firexkit.result import ChainInterruptedException
 
 console_stdout = None
 console_stderr = None
@@ -40,6 +41,11 @@ class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
 class RetryFilter(logging.Filter):
     def filter(self, record):
         return 'Retry in' not in record.getMessage()
+
+
+class ChainInterruptedExceptionFilter(logging.Filter):
+    def filter(self, record):
+        return ChainInterruptedException.__name__ not in record.getMessage()
 
 
 def setup_console_logging(module=None,
@@ -98,6 +104,7 @@ def setup_console_logging(module=None,
     console_stderr.setLevel(stderr_logging_level)
     console_stderr.setFormatter(formatter)
     console_stderr.addFilter(RetryFilter())
+    console_stderr.addFilter(ChainInterruptedExceptionFilter())
 
     module_logger.addHandler(console_stdout)
     module_logger.addHandler(console_stderr)
