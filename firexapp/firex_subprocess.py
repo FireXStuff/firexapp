@@ -102,14 +102,14 @@ def _send_flame_subprocess(subprocess_data):
         from celery import current_task
         if current_task:
             current_task.send_firex_event_raw({EXTERNAL_COMMANDS_KEY: subprocess_data})
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Error while sending flame subprocess event: {e}")
 
 
 def _send_flame_subprocess_start(flame_subprocess_id, cmd, filename, cwd):
     _send_flame_subprocess({flame_subprocess_id:
                                 {'cmd': cmd,
-                                 'cwd': cwd,
+                                 'cwd': str(cwd) if cwd else cwd,
                                  'output_file': filename,
                                  'host': gethostname(),
                                  'start_time': time.time()}})
