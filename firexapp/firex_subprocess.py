@@ -237,12 +237,12 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
     def _kill_proc_gently(proc):
         proc.terminate()
         try:
-            proc.wait(timeout=10)
+            proc.wait(timeout=60)
         except subprocess.TimeoutExpired:
             # Okay, kill not so gently
             proc.kill()
             try:
-                proc.wait(timeout=10)
+                proc.wait(timeout=6)
             except subprocess.TimeoutExpired:
                 # Give up at this point. It is undead.
                 pass
