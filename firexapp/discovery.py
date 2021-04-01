@@ -65,7 +65,8 @@ def get_firex_bundles_entry_points() -> [EntryPoint]:
 def loaded_firex_bundles_entry_points() -> Dict[EntryPoint, object]:
     global _loaded_firex_bundles
     if _loaded_firex_bundles is None:
-        _loaded_firex_bundles = {ep: ep.load() for ep in get_firex_bundles_entry_points()}
+        eps = get_firex_bundles_entry_points()
+        _loaded_firex_bundles = {ep: ep.load() for ep in eps}
     return _loaded_firex_bundles
 
 
@@ -84,10 +85,24 @@ def get_firex_dependant_package_versions() -> [PkgVersionInfo]:
     return versions
 
 
-def _get_firex_dependant_package_locations() -> [str]:
+def _find_bundle_pkg_root(path, namespace):
+    while True:
+        head, tail = os.path.split(path)
+        if tail == namespace:
+            return head
+        else:
+            path = os.path.dirname(path)
+
+
+def _get_firex_bundle_package_locations() -> [str]:
     locations = []
-    for p in loaded_firex_bundles_entry_points().values():
-        locations.extend(p.__path__)
+    loaded_entry_points = loaded_firex_bundles_entry_points()
+    for p in loaded_entry_points.values():
+        namespace = p.__package__.split('.')[0]
+        paths = p.__path__
+        for path in paths:
+            root = _find_bundle_pkg_root(path, namespace)
+            locations.append((path, root))
     return locations
 
 
@@ -119,8 +134,9 @@ def discover_package_modules(current_path, root_path=None) -> [str]:
 def find_firex_task_bundles() -> [str]:
     # look for task modules in dependant packages
     bundles = []
-    for location in _get_firex_dependant_package_locations():
-        bundles += discover_package_modules(location)
+    locations = _get_firex_bundle_package_locations()
+    for path, root_path in locations:
+        bundles += discover_package_modules(path, root_path)
     # look for task modules in env defined location
     if TASKS_DIRECTORY in os.environ:
         include_location = os.environ[TASKS_DIRECTORY]
