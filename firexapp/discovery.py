@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 from collections import OrderedDict, namedtuple
-from typing import Dict
+from typing import Dict, List, Tuple
 
 from entrypoints import EntryPoint
 
@@ -10,7 +10,7 @@ TASKS_DIRECTORY = "firex_tasks_directory"
 
 logger = logging.getLogger(__name__)
 
-_loaded_firex_bundles = None
+_loaded_firex_bundles = {}
 
 
 class PkgVersionInfo(namedtuple('PkgVersionInfo', ['pkg', 'version'])):
@@ -50,24 +50,27 @@ def prune_duplicate_module_entry_points(entry_points) -> [EntryPoint]:
     return list(id_to_entry_points.values())
 
 
-def _get_entrypoints(name, prune_duplicates=True) -> [EntryPoint]:
+def _get_entrypoints(name, prune_duplicates=True, path=None) -> [EntryPoint]:
     import entrypoints
-    eps = [ep for ep in entrypoints.get_group_all(name)]
+    if path is not None and not isinstance(path, list):
+        path = [path]
+    eps = [ep for ep in entrypoints.get_group_all(name, path=path)]
     if prune_duplicates:
         eps = prune_duplicate_module_entry_points(eps)
     return eps
 
 
-def get_firex_bundles_entry_points() -> [EntryPoint]:
-    return _get_entrypoints('firex.bundles')
+def get_firex_bundles_entry_points(path=None) -> [EntryPoint]:
+    return _get_entrypoints('firex.bundles', path=path)
 
 
-def loaded_firex_bundles_entry_points() -> Dict[EntryPoint, object]:
+def loaded_firex_bundles_entry_points(path=None) -> Dict[EntryPoint, object]:
     global _loaded_firex_bundles
-    if _loaded_firex_bundles is None:
-        eps = get_firex_bundles_entry_points()
-        _loaded_firex_bundles = {ep: ep.load() for ep in eps}
-    return _loaded_firex_bundles
+    key = str(path)
+    if key not in _loaded_firex_bundles:
+        eps = get_firex_bundles_entry_points(path=path)
+        _loaded_firex_bundles[key] = {ep: ep.load() for ep in eps}
+    return _loaded_firex_bundles[key]
 
 
 def get_firex_tracking_services_entry_points() -> [EntryPoint]:
@@ -94,9 +97,12 @@ def _find_bundle_pkg_root(path, namespace):
             path = os.path.dirname(path)
 
 
-def _get_firex_bundle_package_locations() -> [str]:
+# Return a list of two-element tuples
+# Where the 1st element is the path of package
+# and the 2nd element is the path of package's root
+def _get_firex_bundle_package_locations(path=None) -> List[Tuple[str, str]]:
     locations = []
-    loaded_entry_points = loaded_firex_bundles_entry_points()
+    loaded_entry_points = loaded_firex_bundles_entry_points(path=path)
     for p in loaded_entry_points.values():
         namespace = p.__package__.split('.')[0]
         paths = p.__path__
