@@ -105,10 +105,10 @@ def _get_firex_bundle_package_locations(path=None) -> List[Tuple[str, str]]:
     loaded_entry_points = loaded_firex_bundles_entry_points(path=path)
     for p in loaded_entry_points.values():
         namespace = p.__package__.split('.')[0]
-        paths = p.__path__
-        for path in paths:
-            root = _find_bundle_pkg_root(path, namespace)
-            locations.append((path, root))
+        pkg_paths = p.__path__
+        for pkg_path in pkg_paths:
+            root = _find_bundle_pkg_root(pkg_path, namespace)
+            locations.append((pkg_path, root))
     return locations
 
 
