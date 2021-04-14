@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 _loaded_firex_bundles = {}
 
 
-class PkgVersionInfo(namedtuple('PkgVersionInfo', ['pkg', 'version'])):
+class PkgVersionInfo(namedtuple('PkgVersionInfo', ('pkg', 'version', 'commit'), defaults=(None, None, None))):
     def __str__(self):
-        return f'{self.pkg}: {self.version}'
+        return f'{self.pkg}: {self.version or self.commit}'
 
 
 def _get_paths_without_cwd() -> [str]:
@@ -83,9 +83,27 @@ def get_firex_dependant_package_versions() -> [PkgVersionInfo]:
         try:
             version = loaded_pkg.__version__
         except AttributeError:
-            version = 'None'
-        versions.append(PkgVersionInfo(pkg=ep.name, version=version))
+            version = None
+        try:
+            commit = loaded_pkg._version.get_versions()['full-revisionid']
+        except AttributeError:
+            commit = None
+        versions.append(PkgVersionInfo(pkg=ep.name, version=version, commit=commit))
     return versions
+
+
+def get_all_pkg_versions() -> [PkgVersionInfo]:
+    import firexkit
+    import firexapp
+    from firexapp.submit.tracking_service import get_tracking_services_versions
+    return [
+               PkgVersionInfo(pkg='firexkit',
+                           version=firexkit.__version__,
+                           commit=firexkit._version.get_versions()['full-revisionid']),
+               PkgVersionInfo(pkg='firexapp',
+                           version=firexapp.__version__,
+                           commit=firexapp._version.get_versions()['full-revisionid'])
+    ] + get_tracking_services_versions() + get_firex_dependant_package_versions()
 
 
 def _find_bundle_pkg_root(path, namespace):

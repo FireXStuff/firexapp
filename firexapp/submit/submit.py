@@ -14,7 +14,7 @@ from shutil import copyfile
 from contextlib import contextmanager
 
 from celery.exceptions import NotRegistered
-from firexapp.discovery import get_firex_dependant_package_versions, PkgVersionInfo
+from firexapp.discovery import get_firex_dependant_package_versions, get_all_pkg_versions
 from firexapp.engine.logging import add_hostname_to_log_records
 
 from firexkit.result import wait_on_async_results, disable_async_result, ChainRevokedException, \
@@ -26,7 +26,7 @@ from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsE
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
 from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args, find_unused_arguments
-from firexapp.submit.tracking_service import get_tracking_services, get_service_name, get_tracking_services_versions
+from firexapp.submit.tracking_service import get_tracking_services, get_service_name
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
 from firexapp.application import import_microservices, get_app_tasks, get_app_task
@@ -132,12 +132,7 @@ class SubmitBaseApp:
 
     @staticmethod
     def log_firex_pkgs_versions():
-        pkg_version_info = [PkgVersionInfo(pkg='firexkit', version=firexkit.__version__),
-                            PkgVersionInfo(pkg='firexapp', version=firexapp.__version__)] \
-                           + get_tracking_services_versions() \
-                           + get_firex_dependant_package_versions()
-
-        pkg_version_info_str = [f'\t - {p_info}' for p_info in pkg_version_info]
+        pkg_version_info_str = [f'\t - {p_info}' for p_info in get_all_pkg_versions()]
         logger.debug('FireX Packages:\n' + '\n'.join(pkg_version_info_str))
 
     def create_submit_parser(self, sub_parser):
@@ -455,7 +450,7 @@ class SubmitBaseApp:
                 # requested_service_names being None means "load all installed".
                 is_requested = requested_service_names is None or service_name in requested_service_names
 
-                detail = f'v{service.get_version()}'
+                detail = f'v{service.get_pkg_version_info()}'
                 if not is_requested:
                     detail += ' (not requested via install_config)'
                 elif is_cli_disabled:

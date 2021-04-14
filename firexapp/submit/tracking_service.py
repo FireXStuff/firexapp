@@ -24,16 +24,13 @@ class TrackingService(ABC):
     def ready_release_console(self, **kwargs) -> bool:
         return True
 
-    def get_version(self) -> str:
-        return None
+    @abstractmethod
+    def get_pkg_version_info(self) -> PkgVersionInfo:
+        pass
 
 
 def get_service_name(service: TrackingService) -> str:
     return service.__class__.__name__
-
-
-def get_service_top_module(service: TrackingService) -> str:
-    return service.__module__.split('.')[0]
 
 
 def get_tracking_services() -> Tuple[TrackingService]:
@@ -44,11 +41,8 @@ def get_tracking_services() -> Tuple[TrackingService]:
         _services = tuple([point() for point in entry_objects])
     return _services
 
-
 def get_tracking_services_versions() -> [PkgVersionInfo]:
-    return [PkgVersionInfo(pkg=get_service_top_module(service), version=service.get_version())
-            for service in get_tracking_services()]
-
+    return [service.get_pkg_version_info() for service in get_tracking_services()]
 
 def has_flame() -> bool:
     # Unfortunate coupling, but just too many things vary depending on presence of flame. Will eventually bring
