@@ -24,7 +24,6 @@ class TrackingService(ABC):
     def ready_release_console(self, **kwargs) -> bool:
         return True
 
-    @abstractmethod
     def get_pkg_version_info(self) -> PkgVersionInfo:
         pass
 
