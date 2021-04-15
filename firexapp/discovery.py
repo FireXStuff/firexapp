@@ -106,6 +106,10 @@ def get_all_pkg_versions() -> [PkgVersionInfo]:
     ] + get_tracking_services_versions() + get_firex_dependant_package_versions()
 
 
+def get_all_pkg_versions_as_dict() -> dict():
+    return {pkg_info.pkg: pkg_info for pkg_info in get_all_pkg_versions()}
+
+
 def _find_bundle_pkg_root(path, namespace):
     while True:
         head, tail = os.path.split(path)

@@ -14,14 +14,12 @@ from shutil import copyfile
 from contextlib import contextmanager
 
 from celery.exceptions import NotRegistered
-from firexapp.discovery import get_firex_dependant_package_versions, get_all_pkg_versions
+from firexapp.discovery import get_all_pkg_versions
 from firexapp.engine.logging import add_hostname_to_log_records
 
 from firexkit.result import wait_on_async_results, disable_async_result, ChainRevokedException, \
     mark_queues_ready, get_results, get_task_name_from_result, ChainRevokedPreRunException, \
     monkey_patch_async_result_to_track_instances, is_async_result_monkey_patched_to_track, disable_all_async_results
-import firexkit
-import firexapp
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
