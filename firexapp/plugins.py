@@ -105,6 +105,7 @@ def create_replacement_task(original, name_postfix, sigs):
                                                        "resultrepr_maxsize",
                                                        "soft_time_limit",
                                                        "store_errors_even_if_ignored",
+                                                       "soft_time_limit",
                                                        "time_limit",
                                                        "track_started",
                                                        "trail",
