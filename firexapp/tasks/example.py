@@ -8,7 +8,10 @@ from firexkit.task import FireXTask, flame, flame_collapse
 from firexapp.engine.celery import app
 from firexapp.submit.arguments import InputConverter
 from firexapp.tasks.core_tasks import CopyBogKeys
+from firexapp.firex_subprocess import check_output
+from celery.utils.log import get_task_logger
 
+logger = get_task_logger(__name__)
 
 @app.task
 def nop():
@@ -31,7 +34,8 @@ def getusername():
 @app.task(returns=['greeting'], flame=['greeting'])
 def greet(name=getuser()):
     assert len(name) > 1, "Cannot greet a name with 1 or fewer characters."
-    return 'Hello %s!' % name
+    logger.print(f'id returned: {check_output("id")}')
+    return f'Hello {name}!'
 
 
 # Setting bind=True makes the first argument received by the service 'self'. It's most commonly used to invoke
