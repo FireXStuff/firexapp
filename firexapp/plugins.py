@@ -6,6 +6,7 @@ from argparse import ArgumentParser, Action
 from celery.signals import worker_init
 from celery.utils.log import get_task_logger
 from firexapp.common import delimit2list
+from firexkit.task import REPLACEMENT_TASK_NAME_POSTFIX
 
 logger = get_task_logger(__name__)
 PLUGGING_ENV_NAME = "firex_external"
@@ -118,6 +119,7 @@ def create_replacement_task(original, name_postfix, sigs):
     new_task = current_app.task(name=new_name,
                                 bind=bound,
                                 base=inspect.getmro(original.__class__)[1],
+                                check_name_for_override_posfix=False,
                                 **options)(fun=func)
     if hasattr(original, "orig"):
         new_task.orig = original.orig
@@ -153,7 +155,7 @@ def _unregister_duplicate_tasks():
             original = current_app.tasks[original_name]
             current_app.tasks[original_name] = current_app.tasks[prime_overrider]
 
-            postfix = "_orig"*(len(substitutions)-index-1)
+            postfix = REPLACEMENT_TASK_NAME_POSTFIX * (len(substitutions) - index - 1)
             new_task = create_replacement_task(original, postfix, sigs)
             overrider = substitutions[index+1]
             current_app.tasks[overrider].orig = new_task
