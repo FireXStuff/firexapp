@@ -32,6 +32,15 @@ build:
     paths:
       - dist/
 
+build-with-firexkit-at-tip:
+  stage: build
+  script:
+    - pip install git+https://gitlab.com/FireXStuff/firexkit.git
+  only:
+    - pipelines
+  needs:
+    - build
+
 build-docs:
   stage:  test
   script:
