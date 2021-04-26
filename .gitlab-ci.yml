@@ -9,6 +9,7 @@ cache:
 
 stages:
   - build
+  - build-firexkit-from-tip
   - test
   - upload
   - update-docs
@@ -18,7 +19,7 @@ default:
   before_script:
     - source venv/bin/activate
     
-build-firexapp:
+build:
   stage: build
   before_script:
     - python -m venv venv
@@ -32,14 +33,12 @@ build-firexapp:
     paths:
       - dist/
 
-build-with-firexkit-at-tip:
-  stage: build
+build-firexkit-from-tip:
+  stage: build-firexkit-from-tip
   script:
     - pip install git+https://gitlab.com/FireXStuff/firexkit.git
   rules:
     - if: '$CI_PIPELINE_SOURCE == "pipeline"'
-  needs:
-    - build-firexapp
 
 build-docs:
   stage:  test
