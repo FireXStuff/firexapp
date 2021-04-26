@@ -18,7 +18,7 @@ default:
   before_script:
     - source venv/bin/activate
     
-build:
+build-firexapp:
   stage: build
   before_script:
     - python -m venv venv
@@ -39,7 +39,7 @@ build-with-firexkit-at-tip:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "pipeline"'
   needs:
-    - build
+    - build-firexapp
 
 build-docs:
   stage:  test
