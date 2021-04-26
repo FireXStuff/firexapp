@@ -36,8 +36,8 @@ build-with-firexkit-at-tip:
   stage: build
   script:
     - pip install git+https://gitlab.com/FireXStuff/firexkit.git
-  only:
-    - pipelines
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "pipeline"'
   needs:
     - build
 
