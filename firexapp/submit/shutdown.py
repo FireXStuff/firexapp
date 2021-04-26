@@ -56,7 +56,6 @@ def wait_for_broker_shutdown(broker, timeout=15, force_kill=True):
     return not broker.is_alive()
 
 
-
 def get_active_broker_safe(broker, celery_app):
     #
     # Note: get_active can hang in celery/kombu library if broker is down.
@@ -65,6 +64,12 @@ def get_active_broker_safe(broker, celery_app):
     if not broker.is_alive():
         return None
     return get_active(inspect_retry_timeout=4, celery_app=celery_app)
+
+
+def get_revoked_broker_safe(broker, celery_app):
+    if not broker.is_alive():
+        return None
+    return get_revoked(inspect_retry_timeout=4, celery_app=celery_app)
 
 
 def _tasks_from_active(active, task_predicate) -> MaybeCeleryActiveTasks:
@@ -76,10 +81,23 @@ def _tasks_from_active(active, task_predicate) -> MaybeCeleryActiveTasks:
     return MaybeCeleryActiveTasks(True, tasks)
 
 
+def wait_for_revoked_tasks(broker, celery_app):
+    revoked = get_revoked_broker_safe(broker, celery_app)
+    if not revoked:
+        return  # <-- Nothing to do
+    revoked_ids = set()
+    for id_list in revoked.values():
+        revoked_ids.update(id_list)
+
+    # Wait for all tasks mark as revoked to finish running
+    wait_for_running_tasks_from_results([AsyncResult(id) for id in revoked_ids])
+
+
 def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicate=lambda task: True):
     logger.debug("Querying Celery to find any remaining active tasks.")
     maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
     revoke_retries = 0
+    # Revoke retry loop
     while (maybe_active_tasks.celery_read_success
            and maybe_active_tasks.active_tasks
            and revoke_retries < max_revoke_retries):
@@ -93,9 +111,17 @@ def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicat
             logger.info(f"Revoking {task['name']}[{task['id']}]")
             celery_app.control.revoke(task_id=task["id"], terminate=True)
 
-        time.sleep(3)
+        # wait for confirmation of revoke
         maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
+        wait_for_task_revoke_start = time.monotonic()
+        while maybe_active_tasks.celery_read_success and maybe_active_tasks.active_tasks \
+              and time.monotonic() - wait_for_task_revoke_start < 3:
+            sleep(0.25)
+            maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
+
         revoke_retries += 1
+
+    wait_for_revoked_tasks(broker, celery_app)
 
     if not maybe_active_tasks.celery_read_success:
         logger.info("Failed to read active tasks from celery. May shutdown with unrevoked tasks.")
