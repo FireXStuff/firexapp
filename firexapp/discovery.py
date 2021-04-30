@@ -98,17 +98,16 @@ def get_all_pkg_versions() -> [PkgVersionInfo]:
     from firexapp.submit.tracking_service import get_tracking_services_versions
     return [
                PkgVersionInfo(pkg='firexkit',
-                           version=firexkit.__version__,
-                           commit=firexkit._version.get_versions()['full-revisionid']),
+                              version=firexkit.__version__,
+                              commit=firexkit._version.get_versions()['full-revisionid']),
                PkgVersionInfo(pkg='firexapp',
-                           version=firexapp.__version__,
-                           commit=firexapp._version.get_versions()['full-revisionid'])
+                              version=firexapp.__version__,
+                              commit=firexapp._version.get_versions()['full-revisionid']),
     ] + get_tracking_services_versions() + get_firex_dependant_package_versions()
 
 
 def get_all_pkg_versions_as_dict() -> dict():
     return {pkg_info.pkg: pkg_info for pkg_info in get_all_pkg_versions()}
-
 
 def _find_bundle_pkg_root(path, namespace):
     while True:
