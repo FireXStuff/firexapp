@@ -11,7 +11,7 @@ from celery import Celery
 from firexapp.celery_manager import CeleryManager
 from firexapp.submit.uid import Uid
 from firexapp.broker_manager.broker_factory import BrokerFactory, REDIS_BIN_ENV
-from firexkit.inspect import get_active
+from firexkit.inspect import get_active, get_revoked
 from firexapp.common import qualify_firex_bin, select_env_vars
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 CELERY_SHUTDOWN_WAIT = 5 * 60
 MaybeCeleryActiveTasks = namedtuple('MaybeCeleryActiveTasks', ['celery_read_success', 'active_tasks'])
+
 
 def launch_background_shutdown(logs_dir, reason):
     try:
@@ -81,18 +82,6 @@ def _tasks_from_active(active, task_predicate) -> MaybeCeleryActiveTasks:
     return MaybeCeleryActiveTasks(True, tasks)
 
 
-def wait_for_revoked_tasks(broker, celery_app):
-    revoked = get_revoked_broker_safe(broker, celery_app)
-    if not revoked:
-        return  # <-- Nothing to do
-    revoked_ids = set()
-    for id_list in revoked.values():
-        revoked_ids.update(id_list)
-
-    # Wait for all tasks mark as revoked to finish running
-    wait_for_running_tasks_from_results([AsyncResult(id) for id in revoked_ids])
-
-
 def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicate=lambda task: True):
     logger.debug("Querying Celery to find any remaining active tasks.")
     maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
@@ -115,8 +104,8 @@ def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicat
         maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
         wait_for_task_revoke_start = time.monotonic()
         while maybe_active_tasks.celery_read_success and maybe_active_tasks.active_tasks \
-              and time.monotonic() - wait_for_task_revoke_start < 3:
-            sleep(0.25)
+                and time.monotonic() - wait_for_task_revoke_start < 3:
+            time.sleep(0.25)
             maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
 
         revoke_retries += 1
