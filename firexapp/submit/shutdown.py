@@ -121,8 +121,6 @@ def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicat
 
         revoke_retries += 1
 
-    wait_for_revoked_tasks(broker, celery_app)
-
     if not maybe_active_tasks.celery_read_success:
         logger.info("Failed to read active tasks from celery. May shutdown with unrevoked tasks.")
     elif len(maybe_active_tasks.active_tasks) == 0:
