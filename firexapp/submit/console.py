@@ -21,6 +21,7 @@ class DistlibWarningsFilter(logging.Filter):
 
 class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
     def format(self, record):
+        format_orig = self._style._fmt
         override_exc_text = None
         if record.exc_text and not record.exc_info and hasattr(record, 'task_id'):
             # This is a serialized exception, and we are not interested in showing the traceback on the console,
@@ -31,7 +32,13 @@ class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
             record.msg = BeautifulSoup(record.msg, 'html.parser').get_text()
         except Exception:
             pass
+        prefixes = getattr(record, 'prefixes', True)
+        if not prefixes:
+            # Use a minimal format without the hostname and time
+            self._style._fmt = '%(log_color)s%(message)s'
         msg = super(FireXColoredConsoleFormatter, self).format(record)
+        # Restore original formats
+        self._style._fmt = format_orig
         if override_exc_text:
             # Restore exc_text
             record.exc_text = override_exc_text
