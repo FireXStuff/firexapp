@@ -28,7 +28,7 @@ class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
             override_exc_text = record.exc_text
             record.exc_text = None
         try:
-            record.msg = BeautifulSoup(record.msg, 'lxml').get_text()
+            record.msg = BeautifulSoup(record.msg, 'html.parser').get_text()
         except Exception:
             pass
         msg = super(FireXColoredConsoleFormatter, self).format(record)
