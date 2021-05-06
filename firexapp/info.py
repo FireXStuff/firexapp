@@ -77,7 +77,7 @@ class InfoBaseApp:
         print("\nUse the info sub-command for more details\n")
 
     def print_partial_task_matches(self, entity, all_tasks):
-        entries_found = 0
+        entries_found = False
         for task_name in sorted(all_tasks, key=lambda i: i.split('.')[-1]):
             # Is this even a partial match
             if not re.search(entity, task_name):
@@ -87,12 +87,11 @@ class InfoBaseApp:
             except NotRegistered:
                 continue
             else:
-                if task:
-                    if entries_found > 0:
-                        print('\n')
-                    self.print_task_details(task)
-                    entries_found += 1
-        return entries_found > 0
+                if entries_found:
+                    print('\n')
+                self.print_task_details(task)
+                entries_found = True
+        return entries_found
 
     def print_details(self, entity, plugins, all_tasks=None):
         if not all_tasks:
