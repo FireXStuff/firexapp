@@ -76,34 +76,41 @@ class InfoBaseApp:
             print(arg)
         print("\nUse the info sub-command for more details\n")
 
-    def print_details(self, entity, plugins, all_tasks=None):
-        if not all_tasks:
-            all_tasks = import_microservices(plugins)
-
+    def print_partial_task_matches(self, entity, all_tasks):
         entries_found = 0
-        # Is this thing a microservice?
         for task_name in sorted(all_tasks, key=lambda i: i.split('.')[-1]):
-
+            # Is this even a partial match
             if not re.search(entity, task_name):
                 continue
-
-            # noinspection PyUnusedLocal
-            task = None
             try:
                 task = get_app_task(task_name, all_tasks)
             except NotRegistered:
                 continue
+            else:
+                if task:
+                    if entries_found > 0:
+                        print('\n')
+                    self.print_task_details(task)
+                    entries_found += 1
+        return entries_found > 0
 
-            if task:
-                if entries_found > 0:
-                    print('\n')
-                self.print_task_details(task)
-                entries_found += 1
+    def print_details(self, entity, plugins, all_tasks=None):
+        if not all_tasks:
+            all_tasks = import_microservices(plugins)
 
-        if entries_found > 0:
+        # Is this entity a microservice
+        try:
+            # Do we have a match on the full name?
+            task = get_app_task(entity, all_tasks)
+        except NotRegistered:
+            # Do we have a match on the partial name
+            if self.print_partial_task_matches(entity, all_tasks):
+                return
+        else:
+            self.print_task_details(task)
             return
 
-        # Is this thing an argument
+        # Is this entity an argument
         all_args = get_argument_use(all_tasks)
         if entity in all_args:
             print("Argument name: " + entity)
