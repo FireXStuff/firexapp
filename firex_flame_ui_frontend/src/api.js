@@ -3,7 +3,9 @@ import io from 'socket.io-client';
 import { ungzip } from 'pako';
 import untar from 'js-untar';
 
-import { templateFireXId, fetchRunModelMetadata } from './utils';
+import { templateFireXId, fetchRunModelMetadata, ACCEPT_JSON_HTTP_HEADER } from './utils';
+
+const COMMON_FETCH_HEADERS = { headers: ACCEPT_JSON_HTTP_HEADER };
 
 function socketRequestResponse(socket, requestEvent, successEventName, failedEventName, timeout) {
   const p = new Promise(
@@ -157,15 +159,18 @@ function createWebFileAccessor(firexId, modelPathTemplate) {
     getFireXRunMetadata: () => fetchRunModelMetadata(firexId, modelPathTemplate),
 
     // TODO: add failure, timeout, or auto-handle elsewhere.
-    getTaskGraph: () => fetch(graphUrl).then(r => r.json()),
+    getTaskGraph: () => fetch(graphUrl, COMMON_FETCH_HEADERS).then(r => r.json()),
 
     // TODO: add failure, timeout, or auto-handle elsewhere.
-    fetchTaskDetails: uuid => fetch((new URL(`full-tasks/${uuid}.json`, modelBaseUrl)).toString())
-      .then(r => r.json()),
+    fetchTaskDetails: uuid => fetch(
+      (new URL(`full-tasks/${uuid}.json`, modelBaseUrl)).toString(),
+      COMMON_FETCH_HEADERS,
+    ).then(r => r.json()),
 
     // TODO: add failure, timeout, or auto-handle elsewhere.
     fetchTaskFields: fields => fetch(
       (new URL('full-run-state.tar.gz', modelBaseUrl)).toString(),
+      COMMON_FETCH_HEADERS,
     )
       .then(r => r.arrayBuffer())
       .then((blob) => {

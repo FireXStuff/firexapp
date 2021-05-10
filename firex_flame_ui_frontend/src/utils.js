@@ -5,6 +5,8 @@ import { flextree } from 'd3-flextree';
 const FIREX_ID_REGEX_STR = 'FireX-.*-(\\d\\d)(\\d\\d)(\\d\\d)-\\d{6}-\\d+';
 const FIREX_ID_REGEX = new RegExp(FIREX_ID_REGEX_STR);
 
+const ACCEPT_JSON_HTTP_HEADER = { Accept: 'application/json' };
+
 function captureEventState(event, tasksByUuid, taskNum) {
   let isNew = false;
   if (!_.has(event, 'uuid')) {
@@ -387,7 +389,7 @@ function supportsFindView(accessMode) {
 }
 
 function fetchUiConfig() {
-  return fetch('flame-ui-config.json')
+  return fetch('flame-ui-config.json', { headers: ACCEPT_JSON_HTTP_HEADER })
     .then((r) => {
         if (r.ok) {
           return r.json();
@@ -403,7 +405,7 @@ function fetchRunModelMetadata(firexId, modelPathTemplate) {
     return new Promise((u, reject) => reject());
   }
   return fetchWithRetry(templateFireXId(modelPathTemplate, firexId), 7,
-    { cache: "no-cache", mode: 'cors' })
+    { cache: "no-cache", mode: 'cors', headers: ACCEPT_JSON_HTTP_HEADER })
     .then(r => {
       if (!r.ok) {
         throw Error("Run metadata now found.");
@@ -473,15 +475,6 @@ function getFireXIdParts(firexId) {
     'day': match[3],
     'firex_id': firexId,
   };
-}
-
-function fetchWithTimeout(fetchUrl, fetchOptions, timeout = 5000, onTimeout) {
-  return Promise.race([
-        fetch(fetchUrl, fetchOptions),
-        new Promise((_, reject) =>
-            setTimeout(() => reject(onTimeout()), timeout)
-        )
-    ]);
 }
 
 
@@ -630,4 +623,5 @@ export {
   getCookie,
   deleteCookie,
   isDebug,
+  ACCEPT_JSON_HTTP_HEADER,
 };
