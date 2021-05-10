@@ -1,4 +1,8 @@
-# Flame2
+# Flame UI
+
+The Flame UI visualizes [FireX](https://github.com/FireXStuff/firexapp) task (i.e. service) data produced by the [Flame Server](https://github.com/FireXStuff/firex-flame).
+
+[Learn more about FireX here.](http://www.firexstuff.com/firexapp/index.html)
 
 ## Project setup
 ```
