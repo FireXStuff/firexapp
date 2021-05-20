@@ -2,7 +2,7 @@
 # FireX provides a flow_test harness for running integration tests of entire FireX runs.
 # The GreetTest example is overkill, but should give you an idea of how to write flow tests. Execute the following
 # from the root of a firex install:
-#   flow_tests/flow_test_infra.py --tests plugins/firex_programming_guide.py
+#   tests/integration_tests/flow_test_infra.py --tests plugins/firex_programming_guide.py
 #
 import os
 
