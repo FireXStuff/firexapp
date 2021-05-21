@@ -43,7 +43,7 @@ Let's begin by discussing the chain results extraction. Although it's the last s
 Conceptually, the results of a chain are essentially the ``bog`` of that chain after the last service has executed.
 :ref:`Read about the bog here. <advanced_dataflow>`
 
-This means a that:
+This means that:
 
  - The results are only available if the chain successfully executed to completion. If an exception was thrown by a service and the chain aborted, only the exception data will be available and results cannot be extracted.
  - Input values, which are part of the ``bog``, can also be extracted if desired.
