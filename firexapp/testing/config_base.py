@@ -59,9 +59,18 @@ def assert_is_good_run(ret_value):
                            "Check the err output to see what went wrong." % str(ret_value)
 
 
-def skip_test(cls):
-    setattr(cls, "skip_test", True)
+def skip_test(cls, condition=True, reason=None):
+    if condition:
+        setattr(cls, "skip_test", True)
+        if reason:
+            print(reason)
     return cls
+
+
+def skip_test_unless_ci(cls):
+    return skip_test(cls,
+                     condition=not os.getenv('FIREX_CI', default=False),
+                     reason='This test only runs if FIREX_CI env var is set')
 
 
 def discover_tests(tests, config_filter="") -> list:
