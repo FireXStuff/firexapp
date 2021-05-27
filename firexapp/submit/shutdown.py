@@ -143,7 +143,8 @@ def shutdown_run(logs_dir, reason='No reason provided'):
     logger.info(f"Shutting down with broker: {broker.broker_url_safe_print}.")
 
     celery_manager = CeleryManager(logs_dir=logs_dir, broker=broker)
-    celery_app = Celery(broker=broker.broker_url)
+    celery_app = Celery(broker=broker.broker_url,
+                        accept_content=['pickle', 'json'])
 
     try:
         if get_active_broker_safe(broker, celery_app):

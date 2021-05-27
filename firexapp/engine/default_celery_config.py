@@ -38,10 +38,9 @@ imports = tuple(bundles) + tuple(get_plugin_module_list()) + tuple(["firexapp.ta
 
 root_task = "firexapp.tasks.root_tasks.RootTask"
 
-accept_content = ['pickle']
+accept_content = ['pickle', 'json']
 task_serializer = 'pickle'
 result_serializer = 'pickle'
-
 result_expires = None
 
 task_track_started = True
