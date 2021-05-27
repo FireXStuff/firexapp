@@ -155,8 +155,8 @@ class SubmitBaseApp:
         submit_parser.add_argument('--celery_concurrency', '--celery_work_slots',
                                    type=int, action=AdjustCeleryConcurrency,
                                    help='Number of worker slots in celery pool',
-                                   # Some machines have loads of CPUs, so cap at 100.
-                                   default=min([multiprocessing.cpu_count()*4, 100]))
+                                   # default is autoscale from a minimum of cpu_count, to a maximum of 8*cpu_count
+                                   default=None)
         submit_parser.add_argument('--json_file', help='Link name for the report json file', action=JsonFileAction)
         submit_parser.add_argument('--tracking_services_wait_release_console',
                                    help='Wait for tracking services (e.g. Flame) to indicate they are ready to release '
@@ -403,7 +403,11 @@ class SubmitBaseApp:
     def start_celery(self, args, plugins):
         from firexapp.celery_manager import CeleryManager
         celery_manager = CeleryManager(logs_dir=self.uid.logs_dir, plugins=plugins)
-        celery_manager.start(workername=self.PRIMARY_WORKER_NAME, wait=True, concurrency=args.celery_concurrency,
+        cpu_count = multiprocessing.cpu_count()
+        celery_manager.start(workername=self.PRIMARY_WORKER_NAME,
+                             wait=True,
+                             concurrency=args.celery_concurrency,
+                             autoscale=None if args.celery_concurrency else (cpu_count, cpu_count*8),
                              soft_time_limit=args.soft_time_limit)
         self.celery_manager = celery_manager
 
