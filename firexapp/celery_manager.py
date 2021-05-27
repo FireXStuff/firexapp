@@ -10,6 +10,7 @@ from socket import gethostname
 from firexapp.common import poll_until_file_not_empty, poll_until_dir_empty, find_procs
 from firexapp.plugins import PLUGGING_ENV_NAME, cdl2list
 from firexapp.fileregistry import FileRegistry
+from collections.abc import Iterable
 
 logger = setup_console_logging(__name__)
 
@@ -235,8 +236,11 @@ class CeleryManager(object):
         if concurrency:
             cmd += ' --concurrency=%d' % self.cap_cpu_count(concurrency, cap_concurrency)
         elif autoscale:
-            assert isinstance(autoscale, tuple), 'autoscale should be a tuple of (min, max)'
-            autoscale_min, autoscale_max = autoscale
+            assert isinstance(autoscale, Iterable), 'autoscale should be a tuple of (min, max)'
+            assert len(autoscale) == 2, 'autoscale should be a tuple of two elements (min, max)'
+            autoscale_v1, autoscale_v2 = autoscale
+            autoscale_min = min(autoscale_v1, autoscale_v2)
+            autoscale_max = max(autoscale_v1, autoscale_v2)
             autoscale_min = self.cap_cpu_count(autoscale_min, cap_concurrency)
             autoscale_max = self.cap_cpu_count(autoscale_max, cap_concurrency)
             cmd += f' --autoscale={autoscale_max},{autoscale_min}'
