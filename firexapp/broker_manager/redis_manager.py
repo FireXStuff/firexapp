@@ -237,7 +237,8 @@ class RedisManager(BrokerManager):
                                                       '--daemonize yes ' \
                                                       '--timeout 0 ' \
                                                       '--client-output-buffer-limit slave 0 0 0 ' \
-                                                      '--client-output-buffer-limit pubsub 0 0 0'
+                                                      '--client-output-buffer-limit pubsub 0 0 0 ' \
+                                                      '--save ""'
         if self.pid_file:
             cmd += ' --pidfile %s' % self.pid_file
         if self.log_file:
