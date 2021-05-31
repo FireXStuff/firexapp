@@ -3,7 +3,7 @@ import os
 from importlib import import_module
 from celery import bootsteps
 from celery.signals import task_postrun
-from celery.states import REVOKED
+from celery.states import REVOKED, RETRY
 from celery.utils.log import get_task_logger
 from firexkit.chain import InjectArgs, FireXTask
 from firexkit.result import get_results_upto_parent, find_unsuccessful_in_chain
@@ -54,7 +54,8 @@ def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_c
     result = task.AsyncResult(task_id)
     sync = kwargs.get("sync", False)
 
-    if sync and result.state != REVOKED:
+    result_state = result.state
+    if sync and result_state != REVOKED and result_state != RETRY:  # Revoked can be in retry state with celery 5.1.0
         logger.debug("Sync run has not been revoked. Cleanup skipped.")
         # Only if --sync run was revoked do we want to do the shutdown here; else it's done in firex.py
         return
