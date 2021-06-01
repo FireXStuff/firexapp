@@ -22,19 +22,19 @@ class DuplicateIdentificationTests(unittest.TestCase):
         all_tasks = ["microservice.tasks.joey",
                      "external.chandler"]
         results = identify_duplicate_tasks(all_tasks, [])
-        self.assertTrue(len(results) is 0)
+        self.assertTrue(len(results) == 0)
 
         # We make sure a sub string is not caught
         all_tasks = ["microservice.tasks.joey",
                      "microservice.tasks.joey_different"]
         results = identify_duplicate_tasks(all_tasks, [])
-        self.assertTrue(len(results) is 0)
+        self.assertTrue(len(results) == 0)
 
         # Now we reverse the order to make sure the result is the same
         all_tasks = ["microservice.tasks.joey",
                      "microservice.tasks.joey_different"]
         results = identify_duplicate_tasks(all_tasks, [])
-        self.assertTrue(len(results) is 0)
+        self.assertTrue(len(results) == 0)
 
     def test_identify_duplicate_tasks_prioritize(self):
         all_tasks = ["microservice.tasks.joey",

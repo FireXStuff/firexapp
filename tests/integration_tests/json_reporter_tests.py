@@ -61,5 +61,5 @@ class JsonReportsGetGenerated(FlowTestConfiguration):
             f'Expected {expected} to be in {json_content}'
 
     def assert_expected_return_code(self, ret_value):
-        assert ret_value is 0, "Test expects a CLEAN run, but returned %s. " \
+        assert ret_value == 0, "Test expects a CLEAN run, but returned %s. " \
                                "Check the err output to see what went wrong." % str(ret_value)
