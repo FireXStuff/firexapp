@@ -219,7 +219,7 @@ def find_unused_arguments(chain_args: {}, ignore_list: [], all_tasks: []):
     """
     import Levenshtein as Lev
 
-    if len(chain_args) is 0:
+    if len(chain_args) == 0:
         return {}, {}
 
     ignore_list += _global_argument_whitelist

@@ -189,7 +189,7 @@ def {0}(**kwargs):
             if expected_return is not None:
                 raise Exception("assert_expected_return_code should not return. It should assert if needed")
 
-            if self.is_submit_command(flow_test_config) and process.returncode is 0 and \
+            if self.is_submit_command(flow_test_config) and process.returncode == 0 and \
                     self.is_instance_of_intercept(flow_test_config) and \
                     flow_test_config.intercept_service():
                 # retrieve captured kwargs and validate them

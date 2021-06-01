@@ -55,7 +55,7 @@ def assert_is_bad_run(ret_value):
 
 
 def assert_is_good_run(ret_value):
-    assert ret_value is 0, "Test expects a CLEAN run, but returned %s. " \
+    assert ret_value == 0, "Test expects a CLEAN run, but returned %s. " \
                            "Check the err output to see what went wrong." % str(ret_value)
 
 

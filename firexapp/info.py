@@ -231,7 +231,7 @@ class InfoBaseApp:
         for chain_arg in sorted(required_args):
             if "self" not in chain_arg and \
                "uid" not in chain_arg and \
-               chain_arg is not 'kwargs':
+               chain_arg != 'kwargs':
                 desc = arguments.get(chain_arg, None)
                 print_arg(chain_arg, None, desc)
                 cnt += 1
