@@ -136,6 +136,12 @@ const tasksGetters = {
 const actions = {
 
   setTasks(context, tasksByUuid) {
+    // Live update has performance issues for big runs. This should be fixed, but for now
+    //  disable live update when there are many tasks.
+    const taskCount = _.keys(tasksByUuid).length;
+    if (taskCount > 3500) {
+      context.dispatch('graph/disableLiveUpdate', null, { root: true });
+    }
     context.commit('setTasks', Object.freeze(tasksByUuid));
   },
 

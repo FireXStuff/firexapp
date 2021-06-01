@@ -20,6 +20,7 @@ const getters = {
 const actions = {
   setFlameRunMetadata(context, firexRunMetadata) {
     context.dispatch('tasks/clearTaskNodeSize');
+    context.dispatch('graph/enableLiveUpdate', null, { root: true });
     context.commit('setFlameRunMetadata', firexRunMetadata);
   },
 };

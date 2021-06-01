@@ -238,6 +238,14 @@ const actions = {
       applyDefaultCollapseOps: _.get(partialConfig, 'applyDefaultCollapseOps', false),
     });
   },
+
+  disableLiveUpdate(context) {
+    context.commit('setLiveUpdate', false);
+  },
+
+  enableLiveUpdate(context) {
+    context.commit('setLiveUpdate', true);
+  },
 };
 
 // mutations
@@ -253,6 +261,10 @@ const mutations = {
 
   toggleLiveUpdate(state) {
     state.liveUpdate = !state.liveUpdate;
+  },
+
+  setLiveUpdate(state, newLiveUpdate) {
+    state.liveUpdate = newLiveUpdate;
   },
 
   toggleShowTaskDetails(state) {
