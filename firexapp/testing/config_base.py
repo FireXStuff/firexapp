@@ -59,22 +59,12 @@ def assert_is_good_run(ret_value):
                            "Check the err output to see what went wrong." % str(ret_value)
 
 
-def skip_test_unless(cls, condition, reason=None):
-    if condition:
-        setattr(cls, "skip_test", True)
-        if reason:
-            print(reason)
+def skip_test(cls):
+    setattr(cls, "skip_test", True)
     return cls
 
 
-def skip_test(cls, reason=None):
-    return skip_test_unless(cls,
-                            condition=True,
-                            reason=reason)
-
-
 def discover_tests(tests, config_filter="") -> list:
-
     configs = []
     for tests_path in tests.split(","):
 
