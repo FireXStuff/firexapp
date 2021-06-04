@@ -74,7 +74,6 @@ class TaskColumn(Enum):
     UTCOFFSET = "utcoffset"
     EXCEPTION = "exception"
     TRACEBACK = "traceback"
-    EXCEPTION_CAUSE_UUID = "exception_cause_uuid"
 
 
 TASK_COLUMN_NAMES = [tc.value for tc in TaskColumn]
@@ -94,8 +93,8 @@ def is_chain_exception(task):
 def get_chain_exception_child_uuid(task):
     assert is_chain_exception(task)
     exception_str = task.exception.strip()
-    # example: ChainInterruptedException('38f3a6f7-0f7f-4dbb-aa84-60bf13d39a71', 'all_tests.Fail', ...)
-    m = re.search(r'' + ChainInterruptedException.__name__ + "\('([\da-f\-]+)'", exception_str)
+    # example: ChainInterruptedException('package.module.Service[ad9b0b79-86e9-4d76-8654-9c19886d50a1]',).
+    m = re.search(r'' + ChainInterruptedException.__name__ + "\('.*\[(.*?)\]'", exception_str)
     assert m, "No UUID found in %s." % exception_str
     return m.group(1)
 
