@@ -66,6 +66,7 @@ FIELD_CONFIG = {
     },
     TaskColumn.CHAIN_DEPTH.value: {'copy_celery': True},
     TaskColumn.FIRST_STARTED.value: {'aggregate_keep_initial': True},
+    TaskColumn.EXCEPTION_CAUSE_UUID.value: {'copy_celery': True},
     'states': {'aggregate_merge': True},
     'url': {
         # TODO: only for backwards compat. Can use log_filepath.
