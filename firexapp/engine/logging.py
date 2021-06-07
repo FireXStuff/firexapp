@@ -1,4 +1,6 @@
 import logging
+
+import celery.utils.log
 from _socket import gethostname
 from logging.handlers import WatchedFileHandler
 import html
@@ -7,6 +9,7 @@ import os
 from firexapp.engine.celery import app
 from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
 from firexkit.firexkit_common import JINJA_ENV
+from celery._state import get_current_task
 
 RAW_LEVEL_NAME = 'RAW'
 PRINT_LEVEL_NAME = 'PRINT'
@@ -61,70 +64,69 @@ def html_escape(msg):
         return html.escape(msg.decode('ascii', errors='ignore'))
 
 
-class FireXFormatter(object):
-    def __init__(self, orig_formatter, original_fmt):
-        FMT_TYPES = {logging.DEBUG: "<span class='debug'>" + original_fmt + "</span>",
-                     logging.ERROR: "<span class='error'>" + original_fmt + "</span>",
-                     logging.PRINT: "<span class='print'>" + original_fmt + "</span>",
-                     logging.WARNING: "<span class='warning'>" + original_fmt + "</span>",
-                     logging.RAW: "%(message)s"}
+class AddHtmlElementsToLogRecords(logging.Filter):
+    def filter(self, record):
+        # Add a span class element in the dict
+        span_classes = record.levelname.lower()
+        try:
+            span_class = record.span_class
+        except AttributeError:
+            pass
+        else:
+            span_classes += f' {span_class}'
+        record.span_class_element = f"<span class='{span_classes}'>"
 
-        self._formatters = {'ORIGINAL': orig_formatter}
+        # Add a label element if it exists
+        try:
+            record.label_element += f'<a name="{record.label}"></a>'
+        except AttributeError:
+            record.label_element = ''
 
-        for level, level_fmt in FMT_TYPES.items():
-            self._formatters[level] = orig_formatter.__class__(fmt=level_fmt, use_color=False)
+        return True
+
+class FireXFormatter(celery.utils.log.ColorFormatter):
+    def __init__(self, fmt):
+        new_fmt = '%(span_class_element)s%(label_element)s' + fmt + '</span>'
+        super().__init__(fmt=new_fmt, use_color=False)
+        self.datefmt = '%m-%d %H:%M:%S %z'
 
     def format(self, record):
-        # Take a copy of the stuff we'll override
-        keys_to_override = ['msg', 'label', 'span_class', 'span_class_end']
-        original_sub_dict = {}
-        for key in keys_to_override:
-            try:
-                original_sub_dict[key] = record.__dict__[key]
-            except KeyError:
-                pass
+        if record.levelno == logging.RAW:
+            original_format = self._style._fmt
+            self._style._fmt = '%(message)s'
+            mssg = super().format(record)
+            self._style._fmt = original_format
+            return mssg
+        else:
+            return super().format(record)
 
-        try:
-            record.__dict__['label'] = f'<a name="{record.__dict__["label"]}"></a>'
-        except KeyError:
-            record.__dict__['label'] = ''
-        try:
-            record.__dict__['span_class'] = "<span class='%s'>" % record.__dict__['span_class']
-            record.__dict__['span_class_end'] = '</span>'
-        except KeyError:
-            record.__dict__['span_class'] = ''
-            record.__dict__['span_class_end'] = ''
-
-        if record.levelno != logging.RAW and getattr(record, 'html_escape', True):
-            record.msg = html_escape(record.msg)
-
-        result = self._formatters.get(record.levelno, self._formatters['ORIGINAL']).format(record)
-
-        # Restore overridden keys:
-        for key in keys_to_override:
-            try:
-                record.__dict__[key] = original_sub_dict[key]
-            except KeyError:
-                record.__dict__.pop(key)
-
-        return result
-
-
-def set_formatter_for_logging_file_handlers(logger, format):
-    # Find the WatchedFileHandler
-    file_handler = [handler for handler in logger.handlers if isinstance(handler, WatchedFileHandler)][0]
-    # set it's formatter to our custom Formatter
-    file_handler.setFormatter(FireXFormatter(file_handler.formatter, format))
+class FireXTaskFormatter(FireXFormatter):
+    def format(self, record):
+        task = get_current_task()
+        if task and task.request:
+            record.__dict__.update(task_id=task.request.id,
+                                   task_name=task.name)
+        else:
+            record.__dict__.setdefault('task_name', '???')
+            record.__dict__.setdefault('task_id', '???')
+        return super().format(record)
 
 
 @after_setup_task_logger.connect
 def configure_task_logger(logger, loglevel, logfile, format, colorize, **_kwargs):
-    set_formatter_for_logging_file_handlers(logger, format)
-
+    # Find the WatchedFileHandler
+    file_handler = [handler for handler in logger.handlers if isinstance(handler, WatchedFileHandler)][0]
+    # set it's formatter to our custom Formatter
+    file_handler.addFilter(AddHtmlElementsToLogRecords())
+    file_handler.setFormatter(FireXTaskFormatter(format))
 
 @after_setup_logger.connect
 def configure_main_logger(logger, loglevel, logfile, format, colorize, **_kwargs):
-    set_formatter_for_logging_file_handlers(logger, format)
+    # Find the WatchedFileHandler
+    file_handler = [handler for handler in logger.handlers if isinstance(handler, WatchedFileHandler)][0]
+    # set it's formatter to our custom Formatter
+    file_handler.addFilter(AddHtmlElementsToLogRecords())
+    file_handler.setFormatter(FireXFormatter(format))
     # Deduce the worker name from the logfile, which is unfortunate
     worker_name = os.path.splitext(os.path.basename(logfile))[0]
     base_dir = os.path.dirname(logfile)

@@ -9,10 +9,10 @@ add_custom_log_levels()
 add_hostname_to_log_records()
 
 # logging formats
-timestamp_format = "%(span_class)s%(label)s<small>[%(asctime).19s]"
+timestamp_format = "<small>[%(asctime)s]"
 process_format = "[%(levelname)s/%(processName)-13s]"
 task_format = "[%(task_id).8s-%(task_name)s]"
-message_format = ":</small> %(message)s%(span_class_end)s"
+message_format = ":</small> %(message)s"
 worker_log_format = timestamp_format + process_format + message_format
 worker_task_log_format = timestamp_format + process_format + task_format + message_format
 
