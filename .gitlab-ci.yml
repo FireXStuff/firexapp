@@ -18,7 +18,7 @@ default:
   image: firexstuff/firex-alpine-build:latest
   before_script:
     - source venv/bin/activate
-    
+
 build:
   stage: build
   before_script:
@@ -46,8 +46,8 @@ build-docs:
     - firex-build docs
   artifacts:
     paths:
-      - html/ 
-      
+      - html/
+
 test-unit:
   stage: test
   script:
@@ -60,7 +60,7 @@ test-integration:
   stage: test
   script:
     - pip install --upgrade firex-bundle-ci
-    - firexapp submit --chain RunAllIntegrationTests --public_runs True --install_configs cloud-ci-install-configs.json --sync --coverage False
+    #- firexapp submit --chain RunAllIntegrationTests --public_runs True --install_configs cloud-ci-install-configs.json --sync --coverage False
   artifacts:
     paths:
       - flow_test_results/
@@ -68,7 +68,7 @@ test-integration:
 
 upload-pkg:
   stage: upload
-  script: 
+  script:
     - pip install keyrings.alt
     - firex-build upload_pip
   only:
@@ -80,7 +80,7 @@ upload-results:
   stage: upload
   image: google/cloud-sdk
   script:
-    - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
+    - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS
     - gsutil -m rsync -e -r $firex_base_logging_dir  gs://runs.firexflame.com
   when: always
 
@@ -90,7 +90,7 @@ update-docs:
   stage: update-docs
   image: google/cloud-sdk
   script:
-    - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
+    - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS
     - gsutil -m rsync -r html gs://www.firexstuff.com/firexapp
   needs:
     - upload-pkg
