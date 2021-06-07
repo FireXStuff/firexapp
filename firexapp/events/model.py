@@ -74,16 +74,18 @@ class TaskColumn(Enum):
     UTCOFFSET = "utcoffset"
     EXCEPTION = "exception"
     TRACEBACK = "traceback"
+    EXCEPTION_CAUSE_UUID = 'exception_cause_uuid'
 
 
 TASK_COLUMN_NAMES = [tc.value for tc in TaskColumn]
 
 
 def get_task_data(input_dict):
-    return {k: v for k, v in input_dict.items() if k in TASK_COLUMN_NAMES}
+    return {k: v for k, v in input_dict.items() if k in TASK_COLUMN_NAMES and k != 'exception_cause_uuid'}
 
 
-FireXTask = namedtuple('FireXTask', [tc.value for tc in TaskColumn])
+FireXTask = namedtuple('FireXTask', [tc.value for tc in TaskColumn
+                                     if tc != TaskColumn.EXCEPTION_CAUSE_UUID])
 
 
 def is_chain_exception(task):
