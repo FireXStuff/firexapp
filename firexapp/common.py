@@ -169,7 +169,7 @@ def create_link(src, target, delete_link=None, relative=False):
         if delete_link is True:
             try:
                 os.remove(target)
-            except:
+            except Exception:
                 pass
         attempts += 1
         try:
