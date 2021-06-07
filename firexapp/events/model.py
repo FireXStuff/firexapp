@@ -94,8 +94,8 @@ def is_chain_exception(task):
 def get_chain_exception_child_uuid(task):
     assert is_chain_exception(task)
     exception_str = task.exception.strip()
-    # example: ChainInterruptedException('package.module.Service[ad9b0b79-86e9-4d76-8654-9c19886d50a1]',).
-    m = re.search(r'' + ChainInterruptedException.__name__ + "\('.*\[(.*?)\]'", exception_str)
+    # example: ChainInterruptedException('ad9b0b79-86e9-4d76-8654-9c19886d50a1', ...).
+    m = re.search(r'' + ChainInterruptedException.__name__ + "\('([\da-f\-]+)'", exception_str)
     assert m, "No UUID found in %s." % exception_str
     return m.group(1)
 
