@@ -98,6 +98,8 @@ class FireXFormatter(celery.utils.log.ColorFormatter):
             self._style._fmt = original_format
             return mssg
         else:
+            if getattr(record, 'html_escape', True):
+                record.msg = html_escape(record.msg)
             return super().format(record)
 
 class FireXTaskFormatter(FireXFormatter):
