@@ -94,13 +94,17 @@ class FireXFormatter(celery.utils.log.ColorFormatter):
         if record.levelno == logging.RAW:
             original_format = self._style._fmt
             self._style._fmt = '%(message)s'
-            mssg = super().format(record)
+            msg = super().format(record)
             self._style._fmt = original_format
-            return mssg
+            return msg
         else:
+            original_msg = record.msg
             if getattr(record, 'html_escape', True):
-                record.msg = html_escape(record.msg)
-            return super().format(record)
+                record.msg = html_escape(original_msg)
+            msg = super().format(record)
+            record.msg = original_msg
+            return msg
+
 
 class FireXTaskFormatter(FireXFormatter):
     def format(self, record):
