@@ -224,37 +224,34 @@ class CeleryManager(object):
         pid_file = self._get_pid_file(workername)
         self.pid_files[workername] = pid_file
 
-        cmd = '%s --app=%s worker --hostname=%s@%%h --loglevel=%s ' \
-              '--logfile=%s --pidfile=%s --events --without-gossip --without-heartbeat --without-mingle -Ofair' % \
-              (self.celery_bin, app, workername, worker_log_level, log_file, pid_file)
+        cmd = [self.celery_bin,
+               '--app', app,
+               'worker',
+               '--detach',
+               '--hostname', f'{workername}@%h',
+               '--loglevel', worker_log_level,
+               '--logfile', log_file,
+               '--pidfile', pid_file,
+               '--events',
+               '--without-gossip',
+               '--without-heartbeat',
+               '--without-mingle',
+               '-Ofair']
         if queues:
-            cmd += ' --queues=%s' % queues
+            cmd += ['--queues', queues]
 
         if concurrency and autoscale:
             raise AssertionError('You can either provide a value of concurrency or autoscale, but not both')
 
         if concurrency:
-            cmd += ' --concurrency=%d' % self.cap_cpu_count(concurrency, cap_concurrency)
+            cmd += ['--concurrency', str(self.cap_cpu_count(concurrency, cap_concurrency))]
         elif autoscale:
             assert isinstance(autoscale, Iterable), 'autoscale should be a tuple of (min, max)'
             assert len(autoscale) == 2, 'autoscale should be a tuple of two elements (min, max)'
             autoscale_v1, autoscale_v2 = autoscale
-            autoscale_min = min(autoscale_v1, autoscale_v2)
-            autoscale_max = max(autoscale_v1, autoscale_v2)
-            autoscale_min = self.cap_cpu_count(autoscale_min, cap_concurrency)
-            autoscale_max = self.cap_cpu_count(autoscale_max, cap_concurrency)
-            cmd += f' --autoscale={autoscale_max},{autoscale_min}'
+            cmd += ['--autoscale', f'{autoscale_v1},{autoscale_v2}']
         if soft_time_limit:
-            cmd += f' --soft-time-limit={soft_time_limit}'
-
-        # piping to ts is helpful for debugging if available
-        try:
-            subprocess.check_call(["which", "ts"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
-        except subprocess.CalledProcessError:
-            pass
-        else:
-            cmd += " | ts '[%Y-%m-%d %H:%M:%S]'"
-        cmd += ' &'
+            cmd += ['--soft-time-limit', str(soft_time_limit)]
 
         self.log('Starting %s on %s...' % (workername, self.hostname))
         self.log(cmd)
@@ -263,7 +260,10 @@ class CeleryManager(object):
             self.log('cwd=%s' % cwd)
 
         with open(stdout_file, 'ab') as fp:
-            subprocess.check_call(cmd, shell=True, stdout=fp, stderr=subprocess.STDOUT, env=self.env,
+            subprocess.check_call(cmd,
+                                  stdout=fp,
+                                  stderr=subprocess.STDOUT,
+                                  env=self.env,
                                   cwd=cwd)
 
         if wait:
