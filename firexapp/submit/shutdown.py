@@ -7,6 +7,7 @@ from psutil import Process, TimeoutExpired
 from collections import namedtuple
 
 from celery import Celery
+import redis.exceptions
 
 from firexapp.celery_manager import CeleryManager
 from firexapp.submit.uid import Uid
@@ -64,7 +65,10 @@ def get_active_broker_safe(broker, celery_app):
     # the broker can theoretically die between that call and the get_active() call.
     if not broker.is_alive():
         return None
-    return get_active(inspect_retry_timeout=4, celery_app=celery_app)
+    try:
+        return get_active(inspect_retry_timeout=4, celery_app=celery_app)
+    except redis.exceptions.ConnectionError:
+        return None
 
 
 def get_revoked_broker_safe(broker, celery_app):
@@ -167,7 +171,6 @@ def shutdown_run(logs_dir, reason='No reason provided'):
     finally:
         if broker.is_alive():
             logger.info("Broker is alive; sending redis shutdown.")
-            # broker will be shut down by celery if active
             broker.shutdown()
             wait_for_broker_shutdown(broker)
         else:
