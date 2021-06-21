@@ -78,7 +78,7 @@ class AddHtmlElementsToLogRecords(logging.Filter):
 
         # Add a label element if it exists
         try:
-            record.label_element += f'<a name="{record.label}"></a>'
+            record.label_element = f"<a name='{record.label}'></a>"
         except AttributeError:
             record.label_element = ''
 
