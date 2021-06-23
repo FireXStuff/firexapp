@@ -5,6 +5,8 @@ from collections import namedtuple
 from datetime import datetime
 import logging
 
+from firexkit.task import FIREX_REVOKE_COMPLETE_EVENT_TYPE
+
 from firexapp.events.model import ALL_RUNSTATES, INCOMPLETE_RUNSTATES, COMPLETE_RUNSTATES, TaskColumn
 
 logger = logging.getLogger(__name__)
@@ -12,6 +14,17 @@ logger = logging.getLogger(__name__)
 
 EventAggregatorConfig = namedtuple('EventAggregatorConfig',
                                    ['copy_fields', 'merge_fields', 'keep_initial_fields', 'field_to_celery_transforms'])
+
+REVOKED_EVENT_TYPE = 'task-revoked'
+RUN_STATE_EVENT_TYPES = list(ALL_RUNSTATES.keys()) + [FIREX_REVOKE_COMPLETE_EVENT_TYPE]
+
+
+def event_type_to_task_state(event_type):
+    # Handle both Celery and FireX revoked events as the same state. The FireX event is better because it is sent when the task
+    # is actually completed, so it can't be overriten by other events with state.
+    if event_type == FIREX_REVOKE_COMPLETE_EVENT_TYPE:
+        return REVOKED_EVENT_TYPE
+    return event_type
 
 
 #
@@ -40,10 +53,10 @@ FIELD_CONFIG = {
     'type': {
         'copy_celery': True,
         'transform_celery': lambda e: {
-            'state': e['type'],
-            'states': [{TaskColumn.STATE.value: e['type'],
+            'state': event_type_to_task_state(e['type']),
+            'states': [{TaskColumn.STATE.value: event_type_to_task_state(e['type']),
                         'timestamp': e.get('timestamp', None)}],
-        } if e['type'] in ALL_RUNSTATES else {},
+        } if e['type'] in RUN_STATE_EVENT_TYPES else {},
     },
     TaskColumn.RETRIES.value: {'copy_celery': True},
     TaskColumn.BOUND_ARGS.value: {'copy_celery': True},
@@ -227,7 +240,7 @@ class FireXEventAggregator:
                 or not event['uuid']
                 # Revoked events can be sent before any other, and we'll never get any data (name, etc) for that task.
                 # Therefore ignore events that are for a new UUID that have revoked type.
-                or (event['uuid'] not in self.tasks_by_uuid and event.get('type', '') == 'task-revoked')):
+                or (event['uuid'] not in self.tasks_by_uuid and event.get('type', '') == REVOKED_EVENT_TYPE)):
             return {}
 
         if event.get(TaskColumn.PARENT_ID.value, '__no_match') is None and self.root_uuid is None:
