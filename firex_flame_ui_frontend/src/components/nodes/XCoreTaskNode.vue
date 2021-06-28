@@ -21,9 +21,13 @@
              :style="!isLeaf && !isChained && allowCollapse ? '' : 'visibility: collapse;'">
           <!-- Use prevent to avoid activating node-wide attribute link -->
           <i v-on:click.prevent="emitCollapseToggle" class="collapse-btn-container">
-            <font-awesome-icon v-if="toCollapse" icon="compress-arrows-alt"
-              title="collapse"></font-awesome-icon>
-            <font-awesome-icon v-else icon="expand-arrows-alt" title="expand">
+            <font-awesome-icon v-if="toCollapse"
+                               icon="compress-arrows-alt"
+                               title="collapse" fixed-width>
+            </font-awesome-icon>
+            <font-awesome-icon v-else
+                               icon="expand-arrows-alt"
+                               title="expand" fixed-width>
             </font-awesome-icon>
           </i>
         </div>
