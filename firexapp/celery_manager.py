@@ -45,6 +45,7 @@ class CeleryManager(object):
         self.celery_bin_dir = celery_bin_dir
 
         self.env = os.environ.copy()
+        self.env['CELERY_RDBSIG'] = '1'
         self.update_env(self.get_plugins_env(plugins))
         if env:
             self.update_env(env)
