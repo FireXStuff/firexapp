@@ -73,8 +73,7 @@ class BrokerShutdown(bootsteps.StartStopStep):
 
     # noinspection PyMethodMayBeStatic
     def shutdown(self, parent):
-        from firexapp.submit.submit import SubmitBaseApp
-        if parent.hostname.startswith(SubmitBaseApp.PRIMARY_WORKER_NAME + "@"):
+        if parent.hostname.startswith(app.conf.primary_worker_name + "@"):
             # shut down the broker
             from firexapp.broker_manager.broker_factory import BrokerFactory
             BrokerFactory.broker_manager_from_env().shutdown()

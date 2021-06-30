@@ -82,7 +82,6 @@ class AdjustCeleryConcurrency(argparse.Action):
 class SubmitBaseApp:
     SUBMISSION_LOGGING_FORMATTER = '[%(asctime)s %(levelname)s] %(message)s'
     DEFAULT_MICROSERVICE = None
-    PRIMARY_WORKER_NAME = "mc"
 
     install_configs: FireXInstallConfigs
 
@@ -404,7 +403,7 @@ class SubmitBaseApp:
         from firexapp.celery_manager import CeleryManager
         celery_manager = CeleryManager(logs_dir=self.uid.logs_dir, plugins=plugins)
         cpu_count = multiprocessing.cpu_count()
-        celery_manager.start(workername=self.PRIMARY_WORKER_NAME,
+        celery_manager.start(workername=app.conf.primary_worker_name,
                              wait=True,
                              concurrency=args.celery_concurrency,
                              autoscale=None if args.celery_concurrency else (cpu_count, cpu_count*8),

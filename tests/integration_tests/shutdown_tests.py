@@ -236,7 +236,7 @@ class AsyncNoBrokerLeakOnRootRevoke(NoBrokerLeakBase):
 
 @app.task
 def terminate_celery(uid):
-    worker_name = SubmitBaseApp.PRIMARY_WORKER_NAME
+    worker_name = app.conf.primary_worker_name
     pid = CeleryManager.get_pid(uid.logs_dir, worker_name)
     logger.info(f'Killing pid {pid} for {worker_name}')
     Process(pid).kill()
