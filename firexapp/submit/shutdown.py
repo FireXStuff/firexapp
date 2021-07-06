@@ -8,11 +8,12 @@ from collections import namedtuple
 
 from celery import Celery
 import redis.exceptions
+import kombu.exceptions
 
 from firexapp.celery_manager import CeleryManager
 from firexapp.submit.uid import Uid
 from firexapp.broker_manager.broker_factory import BrokerFactory, REDIS_BIN_ENV
-from firexkit.inspect import get_active, get_revoked
+from firexkit.inspect import get_active, get_revoked, get_active_queues
 from firexapp.common import qualify_firex_bin, select_env_vars
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ def wait_for_broker_shutdown(broker, timeout=15, force_kill=True):
     return not broker.is_alive()
 
 
-def get_active_broker_safe(broker, celery_app):
+def _inspect_broker_safe(inspect_fn, broker, celery_app):
     #
     # Note: get_active can hang in celery/kombu library if broker is down.
     # Checking for broker.is_alive() is an attempt to prevent that, but note
@@ -66,9 +67,19 @@ def get_active_broker_safe(broker, celery_app):
     if not broker.is_alive():
         return None
     try:
-        return get_active(inspect_retry_timeout=4, celery_app=celery_app)
-    except redis.exceptions.ConnectionError:
+        return inspect_fn(inspect_retry_timeout=4, celery_app=celery_app)
+    except (redis.exceptions.ConnectionError, kombu.exceptions.DecodeError):
         return None
+
+
+def get_active_broker_safe(broker, celery_app):
+    return _inspect_broker_safe(get_active, broker, celery_app)
+
+
+def is_celery_responsive(broker, celery_app):
+    # use get_active_queues instead of get_active to check Celery responsiveness
+    # because get_active can fail to deserialize its response (i.e. raise DecodeError)
+    return _inspect_broker_safe(get_active_queues, broker, celery_app)
 
 
 def get_revoked_broker_safe(broker, celery_app):
@@ -151,7 +162,7 @@ def shutdown_run(logs_dir, reason='No reason provided'):
                         accept_content=['pickle', 'json'])
 
     try:
-        if get_active_broker_safe(broker, celery_app):
+        if is_celery_responsive(broker, celery_app):
             revoke_active_tasks(broker, celery_app)
 
             logger.info("Found active Celery; sending Celery shutdown.")
