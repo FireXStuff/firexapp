@@ -336,6 +336,7 @@ class SubmitBaseApp:
 
         app.conf.result_backend = broker_url
         app.conf.broker_url = broker_url
+        app.conf.mc = BrokerFactory.get_hostname_port_from_url(broker_url)[0]
 
     def start_engine(self, args, chain_args, uid) -> {}:
         # Start Broker
