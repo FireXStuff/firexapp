@@ -65,7 +65,7 @@ def wait_for_broker_shutdown(broker, timeout=15, force_kill=True):
     return not broker.is_alive()
 
 
-def _inspect_broker_safe(inspect_fn, broker, celery_app):
+def _inspect_broker_safe(inspect_fn, broker, celery_app, **kwargs):
     #
     # Note: get_active can hang in celery/kombu library if broker is down.
     # Checking for broker.is_alive() is an attempt to prevent that, but note
@@ -73,14 +73,17 @@ def _inspect_broker_safe(inspect_fn, broker, celery_app):
     if not broker.is_alive():
         return None
     try:
-        return inspect_fn(inspect_retry_timeout=4, celery_app=celery_app)
+        return inspect_fn(inspect_retry_timeout=4, celery_app=celery_app, **kwargs)
     except (redis.exceptions.ConnectionError, kombu.exceptions.DecodeError) as e:
         logger.warning(e)
         return None
 
 
 def get_active_broker_safe(broker, celery_app):
-    return _inspect_broker_safe(get_active, broker, celery_app)
+    return _inspect_broker_safe(get_active, broker, celery_app,
+                                # shutdown can't deserialize task args because it doesn't know about many classes
+                                # (e.g. FireXUid), so set active(safe=True)
+                                method_args=(True,))
 
 
 def is_celery_responsive(broker, celery_app):
