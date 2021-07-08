@@ -184,6 +184,7 @@ class SubmitBaseApp:
         finally:
             if args.tracking_services_wait_release_console:
                 self.wait_tracking_services_release_console_ready()
+            logger.debug('Copying submit log one final time and exiting')
             self.copy_submission_log()
 
     @staticmethod
