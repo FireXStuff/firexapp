@@ -28,7 +28,11 @@ def launch_background_shutdown(logs_dir, reason):
         shutdown_cmd = [qualify_firex_bin("firex_shutdown"), "--logs_dir",  logs_dir]
         if reason:
             shutdown_cmd += ['--reason', reason]
-        pid = subprocess.Popen(shutdown_cmd, close_fds=True, env=select_env_vars([REDIS_BIN_ENV, 'PATH'])).pid
+        pid = subprocess.Popen(shutdown_cmd,
+                               close_fds=True,
+                               env=select_env_vars([REDIS_BIN_ENV, 'PATH']),
+                               preexec_fn=os.setpgrp,
+                               ).pid
     except Exception as e:
         logger.error("SHUTDOWN PROCESS FAILED TO LAUNCH -- REDIS WILL LEAK.")
         logger.error(e)
