@@ -19,22 +19,16 @@ from firexapp.common import qualify_firex_bin, select_env_vars
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_CELERY_SHUTDOWN_TIMEOUT = 5 * 60
+CELERY_SHUTDOWN_WAIT = 5 * 60
 MaybeCeleryActiveTasks = namedtuple('MaybeCeleryActiveTasks', ['celery_read_success', 'active_tasks'])
 
 
-def launch_background_shutdown(logs_dir, reason, celery_shutdown_timeout=DEFAULT_CELERY_SHUTDOWN_TIMEOUT):
+def launch_background_shutdown(logs_dir, reason):
     try:
-        shutdown_cmd = [qualify_firex_bin("firex_shutdown"),
-                        "--logs_dir",  logs_dir,
-                        "--celery_shutdown_timeout", str(celery_shutdown_timeout)]
+        shutdown_cmd = [qualify_firex_bin("firex_shutdown"), "--logs_dir",  logs_dir]
         if reason:
             shutdown_cmd += ['--reason', reason]
-        pid = subprocess.Popen(shutdown_cmd,
-                               close_fds=True,
-                               env=select_env_vars([REDIS_BIN_ENV, 'PATH']),
-                               preexec_fn=os.setpgrp,
-                               ).pid
+        pid = subprocess.Popen(shutdown_cmd, close_fds=True, env=select_env_vars([REDIS_BIN_ENV, 'PATH'])).pid
     except Exception as e:
         logger.error("SHUTDOWN PROCESS FAILED TO LAUNCH -- REDIS WILL LEAK.")
         logger.error(e)
@@ -150,10 +144,6 @@ def init():
                         required=True)
     parser.add_argument("--reason", help="A reason that will be logged for clarity.",
                         required=False, default='No reason provided.')
-    parser.add_argument("--celery_shutdown_timeout", help="Timeout in seconds for which to wait for Celery shutdown before terminating Celery processes individually."
-                        " Celery will wait for task completion after receiving a graceful shutdown, so this timeout should consider how "
-                        "long FireX shutdown should be willing to wait for remaining tasks.",
-                        default=DEFAULT_CELERY_SHUTDOWN_TIMEOUT, type=int)
     args = parser.parse_args()
     logs_dir = args.logs_dir
 
@@ -162,10 +152,10 @@ def init():
                         format='[%(asctime)s %(levelname)s] %(message)s',
                         datefmt="%Y-%m-%d %H:%M:%S")
 
-    return logs_dir, args.reason, args.celery_shutdown_timeout
+    return logs_dir, args.reason
 
 
-def shutdown_run(logs_dir, celery_shutdown_timeout, reason='No reason provided'):
+def shutdown_run(logs_dir, reason='No reason provided'):
     logger.info(f"Shutting down due to reason: {reason}")
     logger.info(f"Shutting down with logs: {logs_dir}.")
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
@@ -182,9 +172,9 @@ def shutdown_run(logs_dir, celery_shutdown_timeout, reason='No reason provided')
             logger.info("Found active Celery; sending Celery shutdown.")
             celery_app.control.shutdown()
 
-            celery_shutdown_success = celery_manager.wait_for_shutdown(celery_shutdown_timeout)
+            celery_shutdown_success = celery_manager.wait_for_shutdown(CELERY_SHUTDOWN_WAIT)
             if not celery_shutdown_success:
-                logger.warning(f"Celery not shutdown after {celery_shutdown_timeout} secs, force killing instead.")
+                logger.warning(f"Celery not shutdown after {CELERY_SHUTDOWN_WAIT} secs, force killing instead.")
                 celery_manager.shutdown()
             else:
                 logger.debug("Confirmed Celery shutdown successfully.")
@@ -205,8 +195,8 @@ def shutdown_run(logs_dir, celery_shutdown_timeout, reason='No reason provided')
 
 
 def main():
-    logs_dir, reason, celery_shutdown_timeout = init()
+    logs_dir, reason = init()
     try:
-        shutdown_run(logs_dir, celery_shutdown_timeout, reason)
+        shutdown_run(logs_dir, reason)
     except Exception as e:
         logger.exception(e)
