@@ -30,7 +30,7 @@ from firexapp.submit.console import setup_console_logging
 from firexapp.application import import_microservices, get_app_tasks, get_app_task
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
-from firexapp.submit.shutdown import launch_background_shutdown
+from firexapp.submit.shutdown import launch_background_shutdown, DEFAULT_CELERY_SHUTDOWN_TIMEOUT
 from firexapp.submit.install_configs import load_new_install_configs, FireXInstallConfigs, INSTALL_CONFIGS_ENV_NAME
 from firexapp.submit.arguments import whitelist_arguments
 from firexapp.common import dict2str, silent_mkdir, create_link
@@ -161,6 +161,8 @@ class SubmitBaseApp:
                                    help='Wait for tracking services (e.g. Flame) to indicate they are ready to release '
                                         'the console before doing so.', nargs='?', const=True,
                                    default=True, action=OptionalBoolean)
+        submit_parser.add_argument('--celery_shutdown_timeout', help='How long to wait in seconds for Celery during shutdown.',
+                                   default=DEFAULT_CELERY_SHUTDOWN_TIMEOUT, type=int)
 
         submit_parser.set_defaults(func=self.run_submit)
 
@@ -544,7 +546,7 @@ class SubmitBaseApp:
                     disable_async_result(chain_result)
 
         logger.debug("Running FireX self destruct")
-        launch_background_shutdown(self.uid.logs_dir, reason)
+        launch_background_shutdown(self.uid.logs_dir, reason, getattr(self.submit_args, 'celery_shutdown_timeout', DEFAULT_CELERY_SHUTDOWN_TIMEOUT))
 
     @classmethod
     def validate_argument_applicability(cls, chain_args, args, all_tasks):
