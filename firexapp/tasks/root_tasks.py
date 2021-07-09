@@ -5,9 +5,9 @@ from celery import bootsteps
 from celery.signals import task_postrun
 from celery.states import REVOKED, RETRY
 from celery.utils.log import get_task_logger
-from firexkit.chain import InjectArgs, FireXTask
-from firexkit.result import get_results_upto_parent, find_unsuccessful_in_chain
-from firexkit.task import flame
+from firexkit.chain import InjectArgs
+from firexkit.result import find_unsuccessful_in_chain
+from firexkit.result import get_results
 
 from firexapp.application import get_app_tasks
 from firexapp.engine.celery import app
@@ -22,7 +22,7 @@ def RootTask(self, chain, **chain_args):
     for task in get_app_tasks(chain):
         c |= task.s()
     promise = self.enqueue_child(c, block=True, raise_exception_on_failure=False)
-    chain_results = get_results_upto_parent(promise)
+    chain_results = get_results(promise)
     unsuccessful_services = find_unsuccessful_in_chain(promise)
     return chain_results, unsuccessful_services
 
