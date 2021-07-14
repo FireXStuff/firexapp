@@ -3,6 +3,7 @@ import time
 import os
 import inspect
 import subprocess
+from datetime import datetime
 
 from firexkit.resources import get_cloud_ci_install_config_path
 from firexapp.submit.submit import get_firex_id_from_output, get_log_dir_from_output
@@ -170,7 +171,6 @@ def {0}(**kwargs):
         print("\tStdout:", self.document_viewer(flow_test_config.std_out), file=sys.stderr)
         print("\tStderr:", self.document_viewer(flow_test_config.std_err), file=sys.stderr)
 
-
         elapsed_time = None
         verification_time = None
 
@@ -183,7 +183,7 @@ def {0}(**kwargs):
                 _, _ = process.communicate(timeout=getattr(flow_test_config, "timeout", None))
                 elapsed_time = time.monotonic() - start_time
 
-            start_time = time.monotonic()
+            verification_start_time = time.monotonic()
             # check for expected return code
             expected_return = flow_test_config.assert_expected_return_code(process.returncode)
             if expected_return is not None:
@@ -206,10 +206,13 @@ def {0}(**kwargs):
                 errors = std_err_f.read().split("\n")
                 errors = [line for line in errors if line and not line.startswith("pydev debugger:")]
                 flow_test_config.assert_expected_firex_output(std_out_f.read(), "\n".join(errors))
-            verification_time = time.monotonic() - start_time
+            verification_time = time.monotonic() - verification_start_time
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as e:
-            print("\t%s!" % type(e).__name__, file=sys.stderr)
+            elapsed_time = getattr(e, 'timeout', None)
+            print("\t%s! Current wall time: %s" % (type(e).__name__, datetime.now().strftime('%c')), file=sys.stderr)
+            verification_start_time = time.monotonic()
             self.cleanup_after_timeout(flow_test_config.std_out, flow_test_config.std_err)
+            verification_time = time.monotonic() - verification_start_time
             raise
         except Exception as e:
             print('\tException: {}: {}'.format(type(e).__name__, e), file=sys.stderr)
