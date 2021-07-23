@@ -86,7 +86,7 @@ function createFlameSocket(url, options) {
     socket.on('disconnect', options.onDisconnect);
   }
   if (_.has(options, 'onReconectFailed')) {
-    socket.on('reconnect_failed', options.onReconectFailed);
+    socket.io.on('reconnect_failed', options.onReconectFailed);
   }
 
   return socket;
