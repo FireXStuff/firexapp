@@ -8,6 +8,6 @@
   "central_documentation_url": "http://www.firexstuff.com/",
   "logs_serving": {
     "serve_mode": "google-bucket",
-    "list_url_template": "https://www.googleapis.com/storage/v1/b/firexstuff.com/o?prefix=runs/<%- firex_id %>/<%- log_entry_rel_run_root %>&delimiter=/"
+    "list_url_template": "https://www.googleapis.com/storage/v1/b/www.firexstuff.com/o?prefix=runs/<%- firex_id %>/<%- log_entry_rel_run_root %>&delimiter=/"
   }
 }
