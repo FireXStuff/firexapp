@@ -51,7 +51,7 @@ resulting graph in Flame:
     firexapp submit --chain greet
 
 
-`View greet in Flame <http://www.firexflame.com/#/FireX-username-210127-125133-35215/>`_
+`View greet in Flame <http://www.firexstuff.com/flame/#/FireX-username-210127-125133-35215/>`_
 
 With only this straightforward service definition, developers can leverage:
 
@@ -162,7 +162,7 @@ The new ``greet_guests`` service can now be executed:
 
     firexapp submit --chain greet_guests --guests Li,Mohamed
 
-`View greet_guests in Flame. <http://www.firexflame.com/#/FireX-username-210127-125232-2349>`_
+`View greet_guests in Flame. <http://www.firexstuff.com/flame/#/FireX-username-210127-125232-2349>`_
 
 Observe that ``--guests`` was automatically made available as a command-line argument since it is an argument to the ``greet_guests``
 service. FireX also automatically generates a help for your service:
@@ -285,7 +285,7 @@ The ``amplified_greet_guests`` service can be executed:
 
     firexapp submit --chain amplified_greet_guests --guests Li,Mohamed
 
-`View amplified_greet_guests in Flame. <http://www.firexflame.com/#/FireX-username-210127-125341-5024>`_
+`View amplified_greet_guests in Flame. <http://www.firexstuff.com/flame/#/FireX-username-210127-125341-5024>`_
 
 With this example in mind, chaining can be discussed in more general terms. The input arguments flow from the first service to the next, with
 services later in the chain receiving inputs that may have been created or updated by return values produced by earlier services.
@@ -372,7 +372,7 @@ The ``greet_guests`` service can be executed to purposefully make a ``greet`` se
 
     firexapp submit --chain greet_guests --guests Li,A
 
-`View greet_guests with a greet failure in Flame. <http://www.firexflame.com/#/FireX-username-210127-125454-25577>`_
+`View greet_guests with a greet failure in Flame. <http://www.firexstuff.com/flame/#/FireX-username-210127-125454-25577>`_
 
 In general, calls that block on child results, such as ``self.enqueue_child_and_get_results`` and ``self.wait_for_children``,
 will by default raise a ``ChainInterruptedException`` when the enqueued chain fails. Conversely, if a parent service enqueues a child
