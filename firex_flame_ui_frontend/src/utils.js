@@ -544,7 +544,7 @@ function normalizeGoogleBucketItems(googleBucketItems, firexId) {
       id: item.id,
       path,
       name: _.last(pathStringToArray(path)),
-      link: `http://${item.bucket}/${item.name}`,
+      link: item.selfLink,
       parentDir: getParentArray(path),
     };
   });
