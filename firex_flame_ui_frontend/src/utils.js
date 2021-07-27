@@ -544,7 +544,10 @@ function normalizeGoogleBucketItems(googleBucketItems, firexId) {
       id: item.id,
       path,
       name: _.last(pathStringToArray(path)),
-      link: item.selfLink,
+      // FIXME: The only links on item are to metadata and download, but we want to
+      // in-browser view. There must be a better way, but hardcode the
+      // base google cloud storage URL.
+      link: `https://storage.cloud.google.com/${item.bucket}/${item.name}`,
       parentDir: getParentArray(path),
     };
   });
