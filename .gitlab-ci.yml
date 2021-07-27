@@ -81,7 +81,7 @@ upload-results:
   image: google/cloud-sdk
   script:
     - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS
-    - gsutil -m rsync -e -r $firex_base_logging_dir  gs://www.firexstuff.com/runs/
+    - gsutil -m rsync -e -r $firex_base_logging_dir  gs://runs.firexflame.com
   when: always
 
 update-docs:
