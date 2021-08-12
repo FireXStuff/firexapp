@@ -60,17 +60,23 @@ def _get_entrypoints(name, prune_duplicates=True, path=None) -> [EntryPoint]:
     return eps
 
 
-def get_firex_bundles_entry_points(path=None) -> [EntryPoint]:
-    return _get_entrypoints('firex.bundles', path=path)
-
-
-def loaded_firex_bundles_entry_points(path=None) -> Dict[EntryPoint, object]:
+def _loaded_firex_entry_points(entrypoint_names: list, path=None) -> Dict[EntryPoint, object]:
     global _loaded_firex_bundles
     key = str(path)
     if key not in _loaded_firex_bundles:
-        eps = get_firex_bundles_entry_points(path=path)
-        _loaded_firex_bundles[key] = {ep: ep.load() for ep in eps}
+        for entrypoint_name in entrypoint_names:
+            eps = _get_entrypoints(entrypoint_name, path=path)
+            new_entry = {ep: ep.load() for ep in eps}
+            try:
+                _loaded_firex_bundles[key].update(new_entry)
+            except KeyError:
+                _loaded_firex_bundles[key] = new_entry
     return _loaded_firex_bundles[key]
+
+
+def loaded_firex_entry_points(path=None) -> Dict[EntryPoint, object]:
+    return _loaded_firex_entry_points(entrypoint_names=['firex.core', 'firex.bundles'],
+                                      path=path)
 
 
 def get_firex_tracking_services_entry_points() -> [EntryPoint]:
@@ -79,7 +85,7 @@ def get_firex_tracking_services_entry_points() -> [EntryPoint]:
 
 def get_firex_dependant_package_versions() -> [PkgVersionInfo]:
     versions = list()
-    for ep, loaded_pkg in loaded_firex_bundles_entry_points().items():
+    for ep, loaded_pkg in loaded_firex_entry_points().items():
         try:
             version = loaded_pkg.__version__
         except AttributeError:
@@ -93,17 +99,8 @@ def get_firex_dependant_package_versions() -> [PkgVersionInfo]:
 
 
 def get_all_pkg_versions() -> [PkgVersionInfo]:
-    import firexkit
-    import firexapp
     from firexapp.submit.tracking_service import get_tracking_services_versions
-    return [
-               PkgVersionInfo(pkg='firexkit',
-                              version=firexkit.__version__,
-                              commit=firexkit._version.get_versions()['full-revisionid']),
-               PkgVersionInfo(pkg='firexapp',
-                              version=firexapp.__version__,
-                              commit=firexapp._version.get_versions()['full-revisionid']),
-    ] + get_tracking_services_versions() + get_firex_dependant_package_versions()
+    return get_firex_dependant_package_versions() + get_tracking_services_versions()
 
 
 def get_all_pkg_versions_as_dict() -> dict():
@@ -123,7 +120,7 @@ def _find_bundle_pkg_root(path, namespace):
 # and the 2nd element is the path of package's root
 def _get_firex_bundle_package_locations(path=None) -> List[Tuple[str, str]]:
     locations = []
-    loaded_entry_points = loaded_firex_bundles_entry_points(path=path)
+    loaded_entry_points = loaded_firex_entry_points(path=path)
     for p in loaded_entry_points.values():
         namespace = p.__package__.split('.')[0]
         pkg_paths = p.__path__
