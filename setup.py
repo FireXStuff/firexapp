@@ -45,12 +45,9 @@ setup(name='firexapp',
           "License :: OSI Approved :: BSD License",
       ],
       entry_points={
-          'firex.core': 'firexapp = firexapp',
           'console_scripts': ['firexapp = firexapp.application:main',
                               'flow_tests = firexapp.testing.test_infra:default_main',
                               'firex_shutdown = firexapp.submit.shutdown:main',
                               ],
       },
-    )
-
-
+      )
