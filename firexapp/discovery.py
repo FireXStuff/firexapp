@@ -60,17 +60,32 @@ def _get_entrypoints(name, prune_duplicates=True, path=None) -> [EntryPoint]:
     return eps
 
 
-def get_firex_bundles_entry_points(path=None) -> [EntryPoint]:
-    return _get_entrypoints('firex.bundles', path=path)
+def loaded_firex_core_entry_points(path=None) -> Dict[EntryPoint, object]:
+    return _load_firex_entry_points('firex.core', path=path)
 
 
 def loaded_firex_bundles_entry_points(path=None) -> Dict[EntryPoint, object]:
+    return _load_firex_entry_points('firex.bundles', path=path)
+
+
+def loaded_firex_entry_points(path=None):
+    cores = loaded_firex_core_entry_points(path=path)
+    bundles = loaded_firex_bundles_entry_points(path=path)
+    return {**cores, **bundles}
+
+def _load_firex_entry_points(entrypoint_name, path=None) -> Dict[EntryPoint, object]:
     global _loaded_firex_bundles
     key = str(path)
-    if key not in _loaded_firex_bundles:
-        eps = get_firex_bundles_entry_points(path=path)
-        _loaded_firex_bundles[key] = {ep: ep.load() for ep in eps}
-    return _loaded_firex_bundles[key]
+    try:
+        return _loaded_firex_bundles[key][entrypoint_name]
+    except KeyError:
+        eps = _get_entrypoints(entrypoint_name, path=path)
+        loaded_eps = {ep: ep.load() for ep in eps}
+        try:
+            _loaded_firex_bundles[key][entrypoint_name] = loaded_eps
+        except KeyError:
+            _loaded_firex_bundles[key] = dict(entrypoint_name=loaded_eps)
+        return loaded_eps
 
 
 def get_firex_tracking_services_entry_points() -> [EntryPoint]:
@@ -79,7 +94,7 @@ def get_firex_tracking_services_entry_points() -> [EntryPoint]:
 
 def get_firex_dependant_package_versions() -> [PkgVersionInfo]:
     versions = list()
-    for ep, loaded_pkg in loaded_firex_bundles_entry_points().items():
+    for ep, loaded_pkg in loaded_firex_entry_points().items():
         try:
             version = loaded_pkg.__version__
         except AttributeError:
