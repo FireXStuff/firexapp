@@ -11,6 +11,7 @@ from firexapp.common import poll_until_file_not_empty, poll_until_dir_empty, fin
 from firexapp.plugins import PLUGGING_ENV_NAME, cdl2list
 from firexapp.fileregistry import FileRegistry
 from collections.abc import Iterable
+from firexapp.common import qualify_firex_bin
 
 logger = setup_console_logging(__name__)
 
@@ -32,7 +33,7 @@ class CeleryManager(object):
     celery_bin_name = 'celery'
 
     def __init__(self, plugins=None, logs_dir=None, worker_log_level='debug', cap_concurrency=None,
-                 app='firexapp.engine', celery_bin_dir='', env=None, broker=None):
+                 app='firexapp.engine', env=None, broker=None):
 
         if not broker:
             self.broker = BrokerFactory.get_broker_url(assert_if_not_set=True)
@@ -42,7 +43,6 @@ class CeleryManager(object):
         self.worker_log_level = worker_log_level
         self.cap_concurrency = cap_concurrency
         self.app = app
-        self.celery_bin_dir = celery_bin_dir
 
         self.env = os.environ.copy()
         self.env['CELERY_RDBSIG'] = '1'
@@ -57,7 +57,7 @@ class CeleryManager(object):
 
     @property
     def celery_bin(self):
-        return os.path.join(self.celery_bin_dir, self.celery_bin_name)
+        return qualify_firex_bin(self.celery_bin_name)
 
     @classmethod
     def log(cls, msg, header=None, level=DEBUG):
