@@ -61,8 +61,7 @@ def setup_console_logging(module=None,
                           console_datefmt="%H:%M:%S",
                           stderr_logging_level=logging.ERROR,
                           module_logger_logging_level=None):
-    global console_stdout
-    global console_stderr
+
     formatter = FireXColoredConsoleFormatter(fmt=console_logging_formatter,
                                              datefmt=console_datefmt,
                                              log_colors={'DEBUG': 'cyan',
@@ -70,23 +69,6 @@ def setup_console_logging(module=None,
                                                          'WARNING': 'yellow',
                                                          'ERROR': 'bold_red',
                                                          'CRITICAL': 'red,bg_white'})
-
-    if module == "__main__":
-        from firexapp.engine.logging import add_hostname_to_log_records
-        add_hostname_to_log_records()
-        # For program entry point, use root logger
-        module_logger = logging.getLogger()
-        # noinspection PyUnresolvedReferences
-        if module_logger_logging_level is None:
-            module_logger_logging_level = logging.DEBUG
-        module_logger.setLevel(module_logger_logging_level)
-    else:
-        # For submodules, create sub-loggers
-        module_logger = logging.getLogger(module)
-        if module_logger_logging_level is None:
-            module_logger_logging_level = logging.NOTSET
-        module_logger.setLevel(module_logger_logging_level)
-        return module_logger
 
     class LogLevelFilter(logging.Filter):
         """Filters (lets through) all messages with level < LEVEL"""
@@ -100,21 +82,43 @@ def setup_console_logging(module=None,
             # be exclusive
             return record.levelno < self.level
 
-    console_stdout = logging.StreamHandler(sys.stdout)
-    console_stdout.setLevel(stdout_logging_level)
-    console_stdout.setFormatter(formatter)
-    console_stdout.addFilter(LogLevelFilter(stderr_logging_level))
-    console_stdout.addFilter(DistlibWarningsFilter())
-    console_stdout.addFilter(RequeueingUndeliverableFilter())
+    if module == "__main__":
+        # For program entry point, use root logger
+        module_logger = logging.getLogger()
+        if module_logger_logging_level is None:
+            module_logger_logging_level = logging.DEBUG
+        module_logger.setLevel(module_logger_logging_level)
 
-    console_stderr = logging.StreamHandler()
-    console_stderr.setLevel(stderr_logging_level)
-    console_stderr.setFormatter(formatter)
-    console_stderr.addFilter(RetryFilter())
-    console_stderr.addFilter(ChainInterruptedExceptionFilter())
+        global console_stdout
+        global console_stderr
 
-    module_logger.addHandler(console_stdout)
-    module_logger.addHandler(console_stderr)
+        if not console_stdout:
+            # This setup hasn't been done before
+
+            from firexapp.engine.logging import add_hostname_to_log_records
+            add_hostname_to_log_records()
+
+            console_stdout = logging.StreamHandler(sys.stdout)
+            console_stdout.setLevel(stdout_logging_level)
+            console_stdout.setFormatter(formatter)
+            console_stdout.addFilter(LogLevelFilter(stderr_logging_level))
+            console_stdout.addFilter(DistlibWarningsFilter())
+            console_stdout.addFilter(RequeueingUndeliverableFilter())
+            module_logger.addHandler(console_stdout)
+
+            console_stderr = logging.StreamHandler()
+            console_stderr.setLevel(stderr_logging_level)
+            console_stderr.setFormatter(formatter)
+            console_stderr.addFilter(RetryFilter())
+            console_stderr.addFilter(ChainInterruptedExceptionFilter())
+            module_logger.addHandler(console_stderr)
+    else:
+        # For submodules, create sub-loggers
+        module_logger = logging.getLogger(module)
+        if module_logger_logging_level is None:
+            module_logger_logging_level = logging.NOTSET
+        module_logger.setLevel(module_logger_logging_level)
+
     return module_logger
 
 
