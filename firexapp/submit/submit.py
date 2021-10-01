@@ -172,7 +172,7 @@ class SubmitBaseApp:
         return submit_parser
 
     def convert_chain_args(self, chain_args) -> dict:
-        with self.graceful_exit_on_failure("The arguments you provided have the following errors"):
+        with self.graceful_exit_on_failure("The arguments you provided have errors."):
             return InputConverter.convert(**chain_args)
 
     def run_submit(self, args, others):
