@@ -45,7 +45,6 @@ result_expires = None
 
 task_track_started = True
 task_acks_late = True
-worker_cancel_long_running_tasks_on_connection_loss = True  # Trying to prevent tasks running twice on connection loss
 
 worker_prefetch_multiplier = 1
 
