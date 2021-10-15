@@ -3,15 +3,17 @@
     <div class="node-body">
       <div class="node-header">
 
-        <div class="task-num">{{taskNumber}}</div>
+        <div class="task-num" title="task number">{{taskNumber}}</div>
 
         <div class="task-name">
           {{taskName}}{{fromPlugin ? ' (plugin)' : ''}}
         </div>
 
-        <div v-if="retries" class="retries-container">
-          <img src="../../assets/retry.png" class="retries-img">
-          <div title="Retries" class="retries">{{retries}}</div>
+        <div v-if="retries" :title="'retried ' + retries + ' times'">
+          <font-awesome-layers fixed-width >
+            <font-awesome-icon :icon="['fal', 'redo']"/>
+            <font-awesome-layers-text transform="shrink-3" :value="retries" />
+          </font-awesome-layers>
         </div>
 
         <!-- visibility: collapsed to include space for collapse button, even when allowCollapse
@@ -44,7 +46,7 @@
       </div>
 
       <div class="node-footer">
-        <div class="task-host">{{displayHostname}}</div>
+        <div class="task-host" title="hostname@queuename">{{displayHostname}}</div>
         <!-- FIXME: the decision if live time is necessary should be made here to reduce total #
           of components. If live update is not needed, no peer-comp-eval occurs, so the extra
           comp is pure overhead.-->
@@ -219,7 +221,7 @@ export default {
 
 .task-name {
   text-align: center;
-  padding: 3px;
+  padding: 0 3px;
   align-self: center;
   flex: 1;
 }
@@ -244,28 +246,9 @@ export default {
   display: inline-block;
 }
 
-.retries-container {
-  align-self: end;
-  position: relative;
-}
-
- /* retries position is off for big numbers. TODO: find better solution. */
-.retries {
-  position: absolute;
-  right: 6px;
-  font-size: 11px;
-  top: 2px;
-}
-
-.retries-img {
-  position: absolute;
-  right: 1px;
-  height: 16px;
-}
-
 .collapse-btn-container {
   cursor: pointer;
-  padding: 2px;
+  padding: 0 2px;
 }
 
 </style>
