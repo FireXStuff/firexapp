@@ -112,7 +112,7 @@ def get_all_pkg_versions() -> [PkgVersionInfo]:
     return get_tracking_services_versions() + get_firex_dependant_package_versions()
 
 
-def get_all_pkg_versions_as_dict() -> dict():
+def get_all_pkg_versions_as_dict() -> dict:
     return {pkg_info.pkg: pkg_info for pkg_info in get_all_pkg_versions()}
 
 
