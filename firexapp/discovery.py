@@ -116,7 +116,7 @@ def get_all_pkg_versions_as_dict() -> dict:
     return {pkg_info.pkg: pkg_info for pkg_info in get_all_pkg_versions()}
 
 
-def get_all_pkg_versions_str():
+def get_all_pkg_versions_str() -> str:
     pkg_version_info_str = [f'\t - {p_info}' for p_info in get_all_pkg_versions()]
     return 'FireX Package Versions:\n' + '\n'.join(pkg_version_info_str) + '\n'
 
