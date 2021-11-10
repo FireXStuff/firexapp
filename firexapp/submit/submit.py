@@ -14,7 +14,7 @@ from shutil import copyfile
 from contextlib import contextmanager
 
 from celery.exceptions import NotRegistered
-from firexapp.discovery import get_all_pkg_versions
+from firexapp.discovery import get_all_pkg_versions_str
 from firexapp.engine.logging import add_hostname_to_log_records
 
 from firexkit.result import wait_on_async_results, disable_async_result, ChainRevokedException, \
@@ -129,8 +129,7 @@ class SubmitBaseApp:
 
     @staticmethod
     def log_firex_pkgs_versions():
-        pkg_version_info_str = [f'\t - {p_info}' for p_info in get_all_pkg_versions()]
-        logger.debug('FireX Packages:\n' + '\n'.join(pkg_version_info_str))
+        logger.debug(get_all_pkg_versions_str())
 
     def create_submit_parser(self, sub_parser):
         submit_parser = sub_parser.add_parser("submit",

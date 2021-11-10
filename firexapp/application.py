@@ -131,6 +131,7 @@ and testing processes."""
 
         self.info_app.create_list_sub_parser(sub_parser)
         self.info_app.create_info_sub_parser(sub_parser)
+        self.info_app.create_version_sub_parser(sub_parser)
         submit_parser = self.submit_app.create_submit_parser(sub_parser)
 
         self.arg_parser = main_parser

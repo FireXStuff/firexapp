@@ -2,6 +2,8 @@ import inspect
 import re
 from textwrap import wrap
 from celery.exceptions import NotRegistered
+
+from firexapp.discovery import get_all_pkg_versions_str
 from firexapp.plugins import plugin_support_parser
 from firexapp.application import import_microservices, get_app_task
 
@@ -37,6 +39,16 @@ class InfoBaseApp:
             info_parser.set_defaults(func=self.run_info)
             self._info_sub_parser = info_parser
         return self._info_sub_parser
+
+    def create_version_sub_parser(self, sub_parser):
+        version_parser = sub_parser.add_parser("version", help="Print FireX Package Version Information",
+                                               parents=[plugin_support_parser])
+        version_parser.set_defaults(func=self.version)
+        return version_parser
+
+    @staticmethod
+    def version(_args):
+        print(get_all_pkg_versions_str())
 
     def run_list(self, args):
         if args.microservices:
