@@ -11,10 +11,6 @@ from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
 from firexkit.firexkit_common import JINJA_ENV
 from celery._state import get_current_task
 
-# Apply monkey patch to avoid 2 newlines with every print
-from firexapp.engine.LoggingProxy_monkeypatch import monkeypatch_LogggingProxy
-monkeypatch_LogggingProxy()
-
 RAW_LEVEL_NAME = 'RAW'
 PRINT_LEVEL_NAME = 'PRINT'
 
