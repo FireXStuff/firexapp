@@ -1,9 +1,16 @@
 import os
 
+from celery import platforms
+# Prevent main celery proc from killing pre-forked procs,
+# otherwise killing celery main proc causes sync main firex proc
+# to hang since broker will remain up.
+platforms.set_pdeathsig = lambda n: None
+
 from celery.app.base import Celery
 from firexkit.task import FireXTask
 from celery.signals import celeryd_init
 from firexapp.submit.install_configs import install_config_path_from_logs_dir, load_existing_install_configs
+
 
 
 firex_app_name = '.'.join(__name__.split(".")[:-1])
