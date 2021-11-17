@@ -17,8 +17,7 @@ def do_i_barf(arg_value):
         raise Exception("Barf")
 
 
-def get_submission_file(cmd_output: str):
-    logs_dir = get_log_dir_from_output(cmd_output)
+def get_submission_file(logs_dir: str):
     submission_file = FileRegistry().get_file(SUBMISSION_FILE_REGISTRY_KEY, logs_dir)
     assert os.path.isfile(submission_file), "submission file missing not there"
     return submission_file
@@ -31,7 +30,7 @@ class SubmitConvertFailureStillHasLogs(FlowTestConfiguration):
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert "barf: Barf" in cmd_err, "Error in converter did not show up"
-        submission_file = get_submission_file(cmd_output)
+        submission_file = get_submission_file(get_log_dir_from_output(cmd_output))
 
         # open submission
         with open(submission_file) as f:
@@ -61,8 +60,7 @@ class SubmitHighRunnerCase(FlowTestConfiguration):
         return ["submit", "--chain", "write_a_test_file"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        logs_dir = get_log_dir_from_output(cmd_output)
-        test_file_path = os.path.join(logs_dir, "success")
+        test_file_path = os.path.join(self.run_data.logs_path, "success")
         assert os.path.isfile(os.path.join(test_file_path)), "Test file was not created in the logs directory, " \
                                                              "therefor the microservice did not run"
 

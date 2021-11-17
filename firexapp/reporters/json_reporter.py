@@ -1,6 +1,8 @@
 import json
 import os
 from socket import gethostname
+from dataclasses import dataclass, fields
+from typing import List, Dict
 
 from firexapp.application import get_app_tasks
 from firexapp.common import silent_mkdir, create_link
@@ -11,6 +13,17 @@ from celery.utils.log import get_task_logger
 from firexapp.engine.celery import app
 
 logger = get_task_logger(__name__)
+
+@dataclass
+class FireXRunData:
+    completed: bool
+    chain: List[str]
+    firex_id: str
+    logs_path: str
+    submission_host: str
+    submission_dir: str
+    submission_cmd: List[str]
+    results: Dict = None
 
 
 class FireXJsonReportGenerator(ReportGenerator):
@@ -99,3 +112,14 @@ def get_completion_report_data(logs_dir):
                                FireXJsonReportGenerator.completion_report_filename)
     with open(report_file) as f:
         return json.load(fp=f)
+
+def load_completion_report(json_file) -> FireXRunData:
+    assert os.path.isfile(json_file), f"File doesn't exist: {json_file}"
+
+    with open(json_file) as f:
+        run_dict = json.load(fp=f)
+
+    field_names = {f.name for f in fields(FireXRunData)}
+    filtered_run_dict = {k: v for k, v in run_dict.items() if k in field_names}
+    # TODO: consider using dacite library instead.
+    return FireXRunData(**filtered_run_dict)

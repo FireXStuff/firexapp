@@ -1,7 +1,5 @@
 import os
 import abc
-from glob import glob
-from pathlib import Path
 from psutil import Process
 import signal
 from time import sleep
@@ -15,7 +13,7 @@ from firexapp.submit.arguments import InputConverter
 from firexapp.submit.reporting import ReportGenerator, report
 from firexapp.submit.tracking_service import TrackingService, get_tracking_services
 import firexapp.submit.tracking_service
-from firexapp.submit.submit import get_log_dir_from_output, SubmitBaseApp
+from firexapp.submit.submit import get_log_dir_from_output
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexapp.celery_manager import CeleryManager
 from firexapp.common import wait_until

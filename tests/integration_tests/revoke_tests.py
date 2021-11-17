@@ -3,7 +3,6 @@ from time import sleep
 from firex_keeper import task_query
 
 from firexapp.engine.celery import app
-from firexapp.submit.submit import get_log_dir_from_output
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run
 
 
@@ -27,7 +26,7 @@ class RevokeOnShutdown(FlowTestConfiguration):
         return ["submit", "--chain", "revoke_root_via_child"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        logs_dir = get_log_dir_from_output(cmd_output)
+        logs_dir = self.run_data.logs_path
         keeper_complete = task_query.wait_on_keeper_complete(logs_dir, timeout=60)
         assert keeper_complete, "Keeper database is not complete."
 

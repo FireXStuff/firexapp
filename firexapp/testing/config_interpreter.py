@@ -4,7 +4,11 @@ import os
 import inspect
 import subprocess
 from datetime import datetime
+from typing import Optional, List
+import tempfile
 
+from firexapp.common import wait_until
+from firexapp.reporters.json_reporter import load_completion_report
 from firexkit.resources import get_cloud_ci_install_config_path
 from firexapp.submit.submit import get_firex_id_from_output, get_log_dir_from_output
 from firexapp.submit.tracking_service import has_flame
@@ -15,10 +19,13 @@ from firexapp.testing.config_base import InterceptFlowTestConfiguration, FlowTes
 class ConfigInterpreter:
     execution_directory = None
 
+    tmp_json_file: Optional[str]
+
     def __init__(self):
         self.profile = False
         self.coverage = False
         self.is_public = False
+        self.tmp_json_file = None
 
     @staticmethod
     def is_submit_command(test_config: FlowTestConfiguration):
@@ -91,7 +98,7 @@ def {0}(**kwargs):
         cmd = self.create_cmd(flow_test_config)
         self.run_executable(cmd, flow_test_config)
 
-    def create_cmd(self, flow_test_config)->[]:
+    def create_cmd(self, flow_test_config) -> List[str]:
         # assemble options, adding/consolidating --external and --sync
         cmd = self.get_exe(flow_test_config)
         cmd += flow_test_config.initial_firex_options()
@@ -116,10 +123,13 @@ def {0}(**kwargs):
                 # TODO: should merge test-specific install_configs with ci-viewer configs,
                 #  since we usually want the ci URLs, even with a test's install_config specifies other stuff.
                 cmd += ['--install_configs', get_cloud_ci_install_config_path()]
+            if '--json_file' not in cmd:
+                self.tmp_json_file = tempfile.mktemp(prefix='firex_json_file_')
+                cmd += ['--json_file', self.tmp_json_file]
 
         return cmd
 
-    def get_exe(self, flow_test_config)->[]:
+    def get_exe(self, flow_test_config) -> List[str]:
         import firexapp
         if self.coverage and not hasattr(flow_test_config, 'no_coverage'):
             return ["coverage", "run", "--branch", "--append", "-m", firexapp.__name__]
@@ -189,6 +199,16 @@ def {0}(**kwargs):
             if expected_return is not None:
                 raise Exception("assert_expected_return_code should not return. It should assert if needed")
 
+            if self.tmp_json_file:
+                # Dealing with firex as an external process is non-trivial. There is no guarantee json_file
+                # will ever be populated, and it may be created after the console is released. Yikes. Guess
+                # the timeout value to avoid waiting in lots of cases when we know it will never appear, like
+                # invalid args or failed tracking services.
+                json_path_timeout = 10 if process.returncode == 0 else 0
+                exists = wait_until(os.path.isfile, timeout=json_path_timeout, sleep_for=0.2, path=self.tmp_json_file)
+                if exists:
+                    flow_test_config.run_data = load_completion_report(self.tmp_json_file)
+
             if self.is_submit_command(flow_test_config) and process.returncode == 0 and \
                     self.is_instance_of_intercept(flow_test_config) and \
                     flow_test_config.intercept_service():
@@ -219,6 +239,9 @@ def {0}(**kwargs):
             raise
         finally:
             self.on_test_exit(flow_test_config.std_out, flow_test_config.std_err)
+
+            if self.tmp_json_file and os.path.exists(self.tmp_json_file):
+                os.unlink(self.tmp_json_file)
 
             # report on time
             if elapsed_time is not None:

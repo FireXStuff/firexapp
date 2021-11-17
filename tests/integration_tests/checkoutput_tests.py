@@ -6,7 +6,6 @@ from firexapp.testing.config_base import assert_is_bad_run
 
 from firexapp.engine.celery import app
 from firexapp.testing.config_base import FlowTestConfiguration
-from firexapp.submit.submit import get_log_dir_from_output
 
 
 @app.task(soft_time_limit=5)
@@ -41,8 +40,7 @@ class CheckOutputNonTempFileCopiedConfig(FlowTestConfiguration):
                 '--file', self.file]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        logs_dir = get_log_dir_from_output(cmd_output)
-        _assert_file_exists_with_content(logs_dir, self.file)
+        _assert_file_exists_with_content(self.run_data.logs_path, self.file)
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)

@@ -3,7 +3,6 @@ import os
 from firexkit.chain import returns
 from firexapp.engine.celery import app
 from firexapp.submit.reporting import ReportGenerator, report
-from firexapp.submit.submit import get_log_dir_from_output
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run
 
 
@@ -58,7 +57,7 @@ class CreateCustomReportType(FlowTestConfiguration):
         return ["submit", "--chain", "secret"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        logs_dir = get_log_dir_from_output(cmd_output)
+        logs_dir = self.run_data.logs_path
         initial_test_file_path = os.path.join(logs_dir, "initial_success")
         assert os.path.isfile(os.path.join(initial_test_file_path)), "Initial Test file was not created in the logs " \
                                                                      "directory, therefor the report was not generated"

@@ -3,13 +3,19 @@ import abc
 import sys
 import inspect
 from importlib import import_module
+from typing import Optional
+
+from firexapp.reporters.json_reporter import FireXRunData
 
 
 class FlowTestConfiguration(object):
     __metaclass__ = abc.ABCMeta
 
+    run_data: Optional[FireXRunData]
+
     def __init__(self):
         self.results_folder = ""
+        self.run_data = None
 
     @property
     def name(self):
