@@ -34,6 +34,7 @@ from firexapp.submit.shutdown import launch_background_shutdown, DEFAULT_CELERY_
 from firexapp.submit.install_configs import load_new_install_configs, FireXInstallConfigs, INSTALL_CONFIGS_ENV_NAME
 from firexapp.submit.arguments import whitelist_arguments
 from firexapp.common import dict2str, silent_mkdir, create_link
+from firexapp.submit.report_trigger import run_initial_reporting
 
 add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
@@ -312,9 +313,11 @@ class SubmitBaseApp:
         # (e.g. from unpickle, instantiated directly, etc) so that disable_all_async_results can disable their
         # references to the backend.
         monkey_patch_async_result_to_track_instances()
+        initial_report_promise = run_initial_reporting(chain_args)
         root_task_result_promise = root_task.s(submit_app=self, **chain_args).delay()
 
         self.copy_submission_log()
+        wait_on_async_results(initial_report_promise)
 
         if args.sync:
             logger.info("Waiting for chain to complete...")
