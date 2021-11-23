@@ -23,8 +23,8 @@ class FireXRunData:
     submission_host: str
     submission_dir: str
     submission_cmd: List[str]
+    viewers: Dict[str, str]
     results: Dict = None
-
 
 class FireXJsonReportGenerator(ReportGenerator):
     formatters = ('json',)
@@ -44,9 +44,9 @@ class FireXJsonReportGenerator(ReportGenerator):
                 'submission_cmd': original_cli or list(argv),
                 }
 
-        viewers = uid.viewers
-        if viewers:
-            data.update(viewers)
+        viewers = uid.viewers or {}
+        data.update(viewers)
+        data['viewers'] = viewers
 
         return data
 
