@@ -23,7 +23,10 @@ class FireXRunData:
     submission_host: str
     submission_dir: str
     submission_cmd: List[str]
-    viewers: Dict[str, str]
+    # TODO: the following default is temporary to workaround
+    # a testing chicken-and-egg problem. It should be removed
+    # after 25/11/2021
+    viewers: Dict[str, str] = None
     results: Dict = None
 
 class FireXJsonReportGenerator(ReportGenerator):
