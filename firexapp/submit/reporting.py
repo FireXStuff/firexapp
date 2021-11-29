@@ -52,7 +52,7 @@ class ReportersRegistry:
             report_gen.pre_run_report(**kwargs)
 
     @classmethod
-    def post_run_report(cls, results, kwargs):
+    def post_run_report(cls, results, kwargs, run_revoked=False):
         if kwargs is None:
             kwargs = {}
 
@@ -103,7 +103,7 @@ class ReportersRegistry:
         for report_gen in cls.get_generators():
             try:
                 logger.debug(f'Running post_run_report for {report_gen}')
-                report_gen.post_run_report(root_id=results, **kwargs)
+                report_gen.post_run_report(root_id=results, run_revoked=run_revoked, **kwargs)
                 logger.debug(f'Completed post_run_report for {report_gen}')
             except Exception:
                 # Failure in one report generator should not impact another

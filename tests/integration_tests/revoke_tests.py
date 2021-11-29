@@ -3,7 +3,7 @@ from time import sleep
 from firex_keeper import task_query
 
 from firexapp.engine.celery import app
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run
+from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
 
 
 @app.task()
@@ -19,7 +19,6 @@ def revoke_root_via_child(self):
     self.enqueue_child(revoke.s(root_uuid=root_uuid), block=True)
 
 class RevokeOnShutdown(FlowTestConfiguration):
-    sync = False
     no_coverage = True
 
     def initial_firex_options(self) -> list:
@@ -33,5 +32,7 @@ class RevokeOnShutdown(FlowTestConfiguration):
         revoked_task_count = len(task_query.revoked_tasks(logs_dir))
         assert revoked_task_count == 3, f"Not all 3 tasks were revoked, was: {revoked_task_count}"
 
+        assert self.run_data.revoked, "run.json should indicate revoked."
+
     def assert_expected_return_code(self, ret_value):
-        assert_is_good_run(ret_value)
+        assert_is_bad_run(ret_value)

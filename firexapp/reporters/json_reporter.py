@@ -28,6 +28,7 @@ class FireXRunData:
     # after 25/11/2021
     viewers: Dict[str, str] = None
     results: Dict = None
+    revoked: bool = False
 
 class FireXJsonReportGenerator(ReportGenerator):
     formatters = ('json',)
@@ -69,6 +70,7 @@ class FireXJsonReportGenerator(ReportGenerator):
         data = self.get_common_run_data(uid=uid, chain=chain, submission_dir=submission_dir, argv=argv,
                                         original_cli=original_cli)
         data['completed'] = False
+        data['revoked'] = False
         report_file = os.path.join(uid.logs_dir, self.reporter_dirname, self.initial_report_filename)
         self.write_report_file(data, report_file)
 
@@ -86,11 +88,13 @@ class FireXJsonReportGenerator(ReportGenerator):
                 logger.debug(f'{json_file} link already exist; '
                              f'post_run must have already created the link to {report_link}')
 
-    def post_run_report(self, uid, chain, root_id, submission_dir, argv, original_cli=None, json_file=None, **kwargs):
+    def post_run_report(self, uid, chain, root_id, submission_dir, argv, original_cli=None, json_file=None,
+                        run_revoked=False, **kwargs):
         data = self.get_common_run_data(uid=uid, chain=chain, submission_dir=submission_dir, argv=argv,
                                         original_cli=original_cli)
         data['completed'] = True
         data['results'] = get_results(root_id)
+        data['revoked'] = run_revoked
         report_file = os.path.join(uid.logs_dir, self.reporter_dirname, self.completion_report_filename)
 
         self.write_report_file(data, report_file)

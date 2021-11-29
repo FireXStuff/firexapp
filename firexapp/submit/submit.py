@@ -525,13 +525,15 @@ class SubmitBaseApp:
         if self.uid:
             self.copy_submission_log()
 
-    def self_destruct(self, chain_details=None, reason=None):
+    def self_destruct(self, chain_details=None, reason=None, run_revoked=False):
         if chain_details:
             chain_result, chain_args = chain_details
             try:
                 logger.debug("Generating reports")
                 from firexapp.submit.reporting import ReportersRegistry
-                ReportersRegistry.post_run_report(results=chain_result, kwargs=chain_args)
+                ReportersRegistry.post_run_report(results=chain_result,
+                                                  kwargs=chain_args,
+                                                  run_revoked=run_revoked)
                 logger.debug('Reports successfully generated')
             except Exception:
                 # Under no circumstances should report generation prevent celery and broker cleanup
