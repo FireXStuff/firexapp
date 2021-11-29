@@ -406,11 +406,12 @@ class SubmitBaseApp:
     def start_celery(self, args, plugins):
         from firexapp.celery_manager import CeleryManager
         celery_manager = CeleryManager(logs_dir=self.uid.logs_dir, plugins=plugins)
-        cpu_count = multiprocessing.cpu_count()
+        auto_scale_min = primary_worker_minimum_concurrency
+        auto_scale_max = multiprocessing.cpu_count()*8
         celery_manager.start(workername=app.conf.primary_worker_name,
                              wait=True,
                              concurrency=args.celery_concurrency,
-                             autoscale=None if args.celery_concurrency else (cpu_count, cpu_count*8),
+                             autoscale=None if args.celery_concurrency else (auto_scale_min, auto_scale_max),
                              soft_time_limit=args.soft_time_limit)
         self.celery_manager = celery_manager
 
