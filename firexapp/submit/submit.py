@@ -15,6 +15,7 @@ from contextlib import contextmanager
 
 from celery.exceptions import NotRegistered
 from firexapp.discovery import get_all_pkg_versions_str
+from firexapp.engine.default_celery_config import primary_worker_minimum_concurrency
 from firexapp.engine.logging import add_hostname_to_log_records
 
 from firexkit.result import wait_on_async_results, disable_async_result, ChainRevokedException, \
@@ -75,7 +76,7 @@ class OptionalBoolean(argparse.Action):
 
 class AdjustCeleryConcurrency(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        concurrency = max([values, 4])
+        concurrency = max([values, primary_worker_minimum_concurrency])
         setattr(namespace, self.dest, concurrency)
 
 
