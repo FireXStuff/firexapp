@@ -18,6 +18,7 @@ def main():
         from firexapp.submit.submit import SubmitBaseApp
         submit_app = SubmitBaseApp(submission_tmp_file=submission_tmp_file.name)
         app = FireXBaseApp(submit_app=submit_app)
+        ExitSignalHandler(app)
         app.run()
 
 
@@ -84,7 +85,6 @@ class FireXBaseApp:
         self.submit_app = submit_app
         self.arg_parser = None
         self.running_app = None
-        self._signal_exit_handler = ExitSignalHandler(self)
         self.submit_args_to_process = None
 
     def run(self, sys_argv=None):
