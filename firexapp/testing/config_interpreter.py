@@ -204,7 +204,7 @@ def {0}(**kwargs):
                 # will ever be populated, and it may be created after the console is released. Yikes. Guess
                 # the timeout value to avoid waiting in lots of cases when we know it will never appear, like
                 # invalid args or failed tracking services.
-                json_path_timeout = 10 if process.returncode == 0 else 0
+                json_path_timeout = 15 if process.returncode == 0 else 0
                 exists = wait_until(os.path.isfile, timeout=json_path_timeout, sleep_for=0.2, path=self.tmp_json_file)
                 if exists:
                     flow_test_config.run_data = load_completion_report(self.tmp_json_file)
