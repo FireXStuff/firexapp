@@ -35,6 +35,7 @@ from firexapp.submit.shutdown import launch_background_shutdown, DEFAULT_CELERY_
 from firexapp.submit.install_configs import load_new_install_configs, FireXInstallConfigs, INSTALL_CONFIGS_ENV_NAME
 from firexapp.submit.arguments import whitelist_arguments
 from firexapp.common import dict2str, silent_mkdir, create_link
+from firexapp.reporters.json_reporter import FireXJsonReportGenerator
 
 add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
@@ -79,6 +80,21 @@ class AdjustCeleryConcurrency(argparse.Action):
         concurrency = max([values, primary_worker_minimum_concurrency])
         setattr(namespace, self.dest, concurrency)
 
+
+def safe_create_completed_run_json(results, run_revoked, **kwargs):
+    try:
+        FireXJsonReportGenerator.create_completed_run_json(
+            root_id=results, run_revoked=run_revoked, **kwargs,
+        )
+    except Exception as e:
+        logger.error(f'Failed to generate completion run JSON: {e}')
+
+
+def safe_create_initial_run_json(**kwargs):
+    try:
+        FireXJsonReportGenerator.create_initial_run_json(**kwargs)
+    except Exception as e:
+        logger.error(f'Failed to generate initial run JSON: {e}')
 
 class SubmitBaseApp:
     SUBMISSION_LOGGING_FORMATTER = '[%(asctime)s %(levelname)s] %(message)s'
@@ -308,6 +324,7 @@ class SubmitBaseApp:
             sys.exit(-1)
         self.wait_tracking_services_task_ready()
 
+        safe_create_initial_run_json(**chain_args)
         # AsyncResult objects cannot be in memory after the broker (i.e. backend) shutdowns, otherwise errors are
         # produced when they are garbage collected. We therefore monkey patch AsyncResults to track all instances
         # (e.g. from unpickle, instantiated directly, etc) so that disable_all_async_results can disable their
@@ -530,12 +547,14 @@ class SubmitBaseApp:
     def self_destruct(self, chain_details=None, reason=None, run_revoked=False):
         if chain_details:
             chain_result, chain_args = chain_details
+            safe_create_completed_run_json(results=chain_result,
+                                           run_revoked=run_revoked,
+                                           **chain_args)
             try:
                 logger.debug("Generating reports")
                 from firexapp.submit.reporting import ReportersRegistry
                 ReportersRegistry.post_run_report(results=chain_result,
-                                                  kwargs=chain_args,
-                                                  run_revoked=run_revoked)
+                                                  kwargs=chain_args)
                 logger.debug('Reports successfully generated')
             except Exception:
                 # Under no circumstances should report generation prevent celery and broker cleanup

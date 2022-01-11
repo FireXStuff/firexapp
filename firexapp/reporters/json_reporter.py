@@ -6,7 +6,6 @@ from typing import List, Dict
 
 from firexapp.application import get_app_tasks
 from firexapp.common import silent_mkdir, create_link
-from firexapp.submit.reporting import ReportGenerator
 from firexkit.result import get_results
 from firexkit.task import convert_to_serializable
 from celery.utils.log import get_task_logger
@@ -23,14 +22,11 @@ class FireXRunData:
     submission_host: str
     submission_dir: str
     submission_cmd: List[str]
-    # TODO: the following default is temporary to workaround
-    # a testing chicken-and-egg problem. It should be removed
-    # after 25/11/2021
-    viewers: Dict[str, str] = None
+    viewers: Dict[str, str]
     results: Dict = None
     revoked: bool = False
 
-class FireXJsonReportGenerator(ReportGenerator):
+class FireXJsonReportGenerator:
     formatters = ('json',)
 
     reporter_dirname = 'json_reporter'
@@ -66,15 +62,17 @@ class FireXJsonReportGenerator(ReportGenerator):
                       sort_keys=True,
                       indent=4)
 
-    def pre_run_report(self, uid, chain, submission_dir, argv, original_cli=None, json_file=None, **kwargs):
-        data = self.get_common_run_data(uid=uid, chain=chain, submission_dir=submission_dir, argv=argv,
-                                        original_cli=original_cli)
+    @staticmethod
+    def create_initial_run_json(uid, chain, submission_dir, argv, original_cli=None, json_file=None, **kwargs):
+        data = FireXJsonReportGenerator.get_common_run_data(uid=uid, chain=chain,
+            submission_dir=submission_dir, argv=argv, original_cli=original_cli)
         data['completed'] = False
         data['revoked'] = False
-        report_file = os.path.join(uid.logs_dir, self.reporter_dirname, self.initial_report_filename)
-        self.write_report_file(data, report_file)
+        report_file = os.path.join(uid.logs_dir, FireXJsonReportGenerator.reporter_dirname,
+            FireXJsonReportGenerator.initial_report_filename)
+        FireXJsonReportGenerator.write_report_file(data, report_file)
 
-        report_link = os.path.join(uid.logs_dir, self.report_link_filename)
+        report_link = os.path.join(uid.logs_dir, FireXJsonReportGenerator.report_link_filename)
         try:
             create_link(report_file, report_link, delete_link=False)
         except FileExistsError:
@@ -88,18 +86,20 @@ class FireXJsonReportGenerator(ReportGenerator):
                 logger.debug(f'{json_file} link already exist; '
                              f'post_run must have already created the link to {report_link}')
 
-    def post_run_report(self, uid, chain, root_id, submission_dir, argv, original_cli=None, json_file=None,
-                        run_revoked=False, **kwargs):
-        data = self.get_common_run_data(uid=uid, chain=chain, submission_dir=submission_dir, argv=argv,
+    @staticmethod
+    def create_completed_run_json(uid, chain, root_id, submission_dir, argv, original_cli=None, json_file=None,
+                                  run_revoked=False, **kwargs):
+        data = FireXJsonReportGenerator.get_common_run_data(uid=uid, chain=chain, submission_dir=submission_dir, argv=argv,
                                         original_cli=original_cli)
         data['completed'] = True
         data['results'] = get_results(root_id)
         data['revoked'] = run_revoked
-        report_file = os.path.join(uid.logs_dir, self.reporter_dirname, self.completion_report_filename)
+        report_file = os.path.join(uid.logs_dir, FireXJsonReportGenerator.reporter_dirname,
+            FireXJsonReportGenerator.completion_report_filename)
 
-        self.write_report_file(data, report_file)
+        FireXJsonReportGenerator.write_report_file(data, report_file)
 
-        report_link = os.path.join(uid.logs_dir, self.report_link_filename)
+        report_link = os.path.join(uid.logs_dir, FireXJsonReportGenerator.report_link_filename)
         create_link(report_file, report_link, relative=True)
 
         if json_file:
@@ -110,15 +110,12 @@ class FireXJsonReportGenerator(ReportGenerator):
                 # This is expected for most cases
                 pass
 
-    def add_entry(self, key_name, value, priority, formatters, **extra):
-        pass
-
-
 def get_completion_report_data(logs_dir):
     report_file = os.path.join(logs_dir, FireXJsonReportGenerator.reporter_dirname,
                                FireXJsonReportGenerator.completion_report_filename)
     with open(report_file) as f:
         return json.load(fp=f)
+
 
 def load_completion_report(json_file) -> FireXRunData:
     assert os.path.isfile(json_file), f"File doesn't exist: {json_file}"
