@@ -324,7 +324,6 @@ class SubmitBaseApp:
             sys.exit(-1)
         self.wait_tracking_services_task_ready()
 
-        safe_create_initial_run_json(**chain_args)
         # AsyncResult objects cannot be in memory after the broker (i.e. backend) shutdowns, otherwise errors are
         # produced when they are garbage collected. We therefore monkey patch AsyncResults to track all instances
         # (e.g. from unpickle, instantiated directly, etc) so that disable_all_async_results can disable their
@@ -418,6 +417,10 @@ class SubmitBaseApp:
         # Start Celery
         with self.graceful_exit_on_failure("Unable to start Celery."):
             self.start_celery(args, chain_args.get("plugins", args.plugins))
+
+        # Create initial run json
+        safe_create_initial_run_json(**chain_args)
+
         return chain_args
 
     def start_celery(self, args, plugins):
