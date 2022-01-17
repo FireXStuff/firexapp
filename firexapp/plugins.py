@@ -7,9 +7,10 @@ from celery.signals import worker_init
 from celery.utils.log import get_task_logger
 from firexapp.common import delimit2list
 from firexkit.task import REPLACEMENT_TASK_NAME_POSTFIX
+import importlib.util
 
 logger = get_task_logger(__name__)
-PLUGGING_ENV_NAME = "firex_external"
+PLUGGING_ENV_NAME = "firex_plugins"
 
 
 def get_short_name(long_name: str) -> str:
@@ -28,34 +29,29 @@ def find_plugin_file(file_path):
     raise FileNotFoundError(file_path)
 
 
-def cdl2list(external_files):
-    if not external_files:
+def cdl2list(plugin_files):
+    if not plugin_files:
         return []
 
-    external_modules = [file.strip() for file in external_files.split(",")]
-    external_modules = [find_plugin_file(file) for file in external_modules if file]
-    return external_modules
+    plugin_files = [file.strip() for file in plugin_files.split(",")]
+    plugin_files = [find_plugin_file(file) for file in plugin_files if file]
+    return plugin_files
 
 
-def get_plugin_modules(external_files):
-    external_modules = cdl2list(external_files)
-    if not external_modules:
+def get_plugin_module_name(plugin_file):
+    return os.path.splitext(os.path.basename(plugin_file))[0]
+
+
+def get_plugin_module_names(plugin_files):
+    files = cdl2list(plugin_files)
+    if not files:
         return []
+    return [get_plugin_module_name(file) for file in files]
 
-    modules = []
-    py_paths_to_add = []
-    for file_path in external_modules:
-        module_directory = os.path.dirname(os.path.abspath(file_path))
-        py_paths_to_add.append(module_directory)  # allow dups. They can be removed later
-        module_name = os.path.splitext(os.path.basename(file_path))[0]
-        modules.append(module_name)
 
-    # the last external takes precedence, so append those python paths first
-    for p in reversed(py_paths_to_add):
-        if p not in sys.path:
-            sys.path.append(p)
-
-    return modules
+def get_plugin_module_names_from_env():
+    plugin_files = get_active_plugins()
+    return get_plugin_module_names(plugin_files)
 
 
 # noinspection PyUnusedLocal
@@ -67,7 +63,7 @@ def _worker_init_signal(*args, **kwargs):
 
 def _mark_plugin_module_tasks():
     from celery import current_app
-    ext_mods = get_plugin_module_list()
+    ext_mods = get_plugin_module_names_from_env()
     for ext_mod in ext_mods:
         ext_mod_tasks = [t for t in current_app.tasks if t.startswith(ext_mod)]
         for ext_mod_task in ext_mod_tasks:
@@ -147,7 +143,7 @@ def create_replacement_task(original, name_postfix, sigs):
 def _unregister_duplicate_tasks():
     sigs = _get_signals_with_connections()
     from celery import current_app
-    becomes = identify_duplicate_tasks(current_app.tasks, get_plugin_module_list())
+    becomes = identify_duplicate_tasks(current_app.tasks, get_plugin_module_names_from_env())
     for substitutions in becomes:
         prime_overrider = substitutions[-1]  # the last item in the list is the last override
         for index in range(0, len(substitutions)-1):
@@ -180,47 +176,50 @@ def identify_duplicate_tasks(all_tasks, priority_modules: list) -> [[]]:
     return overrides
 
 
-def get_plugin_module_list(external_files=None):
-    if external_files is None:
-        external_files = get_active_plugins()
-
-    external_modules = get_plugin_modules(external_files)
-    return external_modules
-
-
-def load_plugin_modules(external_files=None):
-    if external_files is None:
-        external_files = get_active_plugins()
-    else:
-        set_plugins_env(external_files)
-
-    external_modules = get_plugin_modules(external_files)
-    if not external_modules:
+def load_plugin_modules(plugin_files, unregister_dups_and_mark_plugins=True):
+    set_plugins_env(plugin_files)
+    plugin_files = cdl2list(plugin_files)
+    if not plugin_files:
         return
+    for plugin_file in plugin_files:
+        import_plugin_file(plugin_file)
 
-    external_files = cdl2list(external_files)
-    for module_name in external_modules:
-        import_plugin_module(module_name=module_name, external_files=external_files)
-    _unregister_duplicate_tasks()
+    if unregister_dups_and_mark_plugins:
+        _unregister_duplicate_tasks()
+        _mark_plugin_module_tasks()
 
 
-def import_plugin_module(module_name, external_files):
-    __import__(module_name)
+def load_plugin_modules_from_env(unregister_dups_and_mark_plugins=True):
+    plugin_files = get_active_plugins()
+    load_plugin_modules(plugin_files, unregister_dups_and_mark_plugins=unregister_dups_and_mark_plugins)
+
+
+def import_plugin_file(plugin_file):
+
+    def _import_plugin(module_name, plugin_file):
+        spec = importlib.util.spec_from_file_location(module_name, plugin_file)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        print(f"Plugins module {module_name!r} imported from {plugin_file!r}")
+
+    module_name = get_plugin_module_name(plugin_file)
+
     if module_name in sys.modules:
         module_source = sys.modules[module_name].__file__
-        if module_source in external_files:
-            print("External module %s imported" % module_name)
+        if module_source != plugin_file:
+            logger.error(f'Plugin module {module_name!r} was NOT imported from {plugin_file!r}. '
+                         f'A module with the same name was already imported from {module_source!r}')
         else:
-            logger.error("External module %s was NOT imported. "
-                         "A module with the same name was already imported from %s" % (module_name, module_source))
+            logger.warning(f'Plugin module {module_name!r} was already imported from {module_source!r}.')
     else:
-        logger.error("External module %s was NOT imported." % module_name)
+        _import_plugin(module_name, plugin_file)
 
 
-def set_plugins_env(external_files):
-    if external_files:
-        external_files = cdl2list(external_files)
-        os.environ[PLUGGING_ENV_NAME] = ",".join(external_files)
+def set_plugins_env(plugin_files):
+    if plugin_files:
+        plugin_files = cdl2list(plugin_files)
+        os.environ[PLUGGING_ENV_NAME] = ",".join(plugin_files)
 
 
 def get_active_plugins():

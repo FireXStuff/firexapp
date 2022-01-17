@@ -35,7 +35,8 @@ def import_microservices(plugins_files=None, imports: tuple = None) -> []:
     for module_name in imports:
         __import__(module_name)
 
-    load_plugin_modules(plugins_files)
+    if plugins_files is not None:
+        load_plugin_modules(plugins_files)
 
     return app.tasks
 
