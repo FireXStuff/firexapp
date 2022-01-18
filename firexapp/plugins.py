@@ -180,11 +180,15 @@ def import_plugin_file(plugin_file):
     def _import_plugin(module_name, plugin_file):
         spec = importlib.util.spec_from_file_location(module_name, plugin_file)
         module = importlib.util.module_from_spec(spec)
+        module_directory = os.path.dirname(os.path.abspath(plugin_file))
+        if module_directory not in sys.path:
+            sys.path.append(module_directory)
         mod = sys.modules[module_name] = module
         spec.loader.exec_module(module)
         print(f"Plugins module {module_name!r} imported from {plugin_file!r}")
         return mod
 
+    plugin_file = find_plugin_file(plugin_file)
     module_name = get_plugin_module_name(plugin_file)
 
     if module_name in sys.modules:
