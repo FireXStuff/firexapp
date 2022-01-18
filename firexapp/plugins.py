@@ -57,8 +57,7 @@ def get_plugin_module_names_from_env():
 # noinspection PyUnusedLocal
 @worker_init.connect()
 def _worker_init_signal(*args, **kwargs):
-    _unregister_duplicate_tasks()
-    _mark_plugin_module_tasks()
+    load_plugin_modules_from_env()
 
 
 def _mark_plugin_module_tasks():
@@ -176,32 +175,15 @@ def identify_duplicate_tasks(all_tasks, priority_modules: list) -> [[]]:
     return overrides
 
 
-def load_plugin_modules(plugin_files, unregister_dups_and_mark_plugins=True):
-    set_plugins_env(plugin_files)
-    plugin_files = cdl2list(plugin_files)
-    if not plugin_files:
-        return
-    for plugin_file in plugin_files:
-        import_plugin_file(plugin_file)
-
-    if unregister_dups_and_mark_plugins:
-        _unregister_duplicate_tasks()
-        _mark_plugin_module_tasks()
-
-
-def load_plugin_modules_from_env(unregister_dups_and_mark_plugins=True):
-    plugin_files = get_active_plugins()
-    load_plugin_modules(plugin_files, unregister_dups_and_mark_plugins=unregister_dups_and_mark_plugins)
-
-
 def import_plugin_file(plugin_file):
 
     def _import_plugin(module_name, plugin_file):
         spec = importlib.util.spec_from_file_location(module_name, plugin_file)
         module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
+        mod = sys.modules[module_name] = module
         spec.loader.exec_module(module)
         print(f"Plugins module {module_name!r} imported from {plugin_file!r}")
+        return mod
 
     module_name = get_plugin_module_name(plugin_file)
 
@@ -213,17 +195,37 @@ def import_plugin_file(plugin_file):
         else:
             logger.warning(f'Plugin module {module_name!r} was already imported from {module_source!r}.')
     else:
-        _import_plugin(module_name, plugin_file)
+        return _import_plugin(module_name, plugin_file)
+
+
+def import_plugin_files(plugin_files):
+    plugin_files = cdl2list(plugin_files)
+    if not plugin_files:
+        return
+    for plugin_file in plugin_files:
+        import_plugin_file(plugin_file)
 
 
 def set_plugins_env(plugin_files):
-    if plugin_files:
-        plugin_files = cdl2list(plugin_files)
-        os.environ[PLUGGING_ENV_NAME] = ",".join(plugin_files)
+    plugin_files = cdl2list(plugin_files)
+    os.environ[PLUGGING_ENV_NAME] = ",".join(plugin_files)
 
 
 def get_active_plugins():
     return os.environ.get(PLUGGING_ENV_NAME, "")
+
+
+def load_plugin_modules(plugin_files):
+    set_plugins_env(plugin_files)
+    import_plugin_files(plugin_files)
+    if plugin_files:
+        _unregister_duplicate_tasks()
+        _mark_plugin_module_tasks()
+
+
+def load_plugin_modules_from_env():
+    plugin_files = get_active_plugins()
+    load_plugin_modules(plugin_files)
 
 
 def merge_plugins(*plugin_lists) -> []:

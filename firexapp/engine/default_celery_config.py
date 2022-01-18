@@ -28,8 +28,8 @@ logger.debug("Bundle discovery completed.")
 if bundles:
     logger.debug('Bundles discovered:\n' + '\n'.join([f'\t - {b}' for b in bundles]))
 
-imports = tuple(bundles) + tuple(["firexapp.plugins_importer",
-                                  "firexapp.tasks.example",
+# Plugins are imported via firexapp.plugins._worker_init_signal()
+imports = tuple(bundles) + tuple(["firexapp.tasks.example",
                                   "firexapp.tasks.core_tasks",
                                   "firexapp.tasks.root_tasks",
                                   "firexapp.submit.report_trigger",
