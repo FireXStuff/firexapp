@@ -2,6 +2,7 @@ from celery.utils.log import get_task_logger
 
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.engine.logging import add_hostname_to_log_records, add_custom_log_levels, PRINT_LEVEL_NAME
+from firexapp.plugins import get_plugin_module_list
 from firexapp.discovery import find_firex_task_bundles
 
 add_custom_log_levels()
@@ -28,13 +29,12 @@ logger.debug("Bundle discovery completed.")
 if bundles:
     logger.debug('Bundles discovered:\n' + '\n'.join([f'\t - {b}' for b in bundles]))
 
-imports = tuple(bundles) + tuple(["firexapp.plugins_importer",
-                                  "firexapp.tasks.example",
-                                  "firexapp.tasks.core_tasks",
-                                  "firexapp.tasks.root_tasks",
-                                  "firexapp.submit.report_trigger",
-                                  "firexapp.reporters.json_reporter"
-                                  ])
+imports = tuple(bundles) + tuple(get_plugin_module_list()) + tuple(["firexapp.tasks.example",
+                                                                    "firexapp.tasks.core_tasks",
+                                                                    "firexapp.tasks.root_tasks",
+                                                                    "firexapp.submit.report_trigger",
+                                                                    "firexapp.reporters.json_reporter"
+                                                                    ])
 
 root_task = "firexapp.tasks.root_tasks.RootTask"
 

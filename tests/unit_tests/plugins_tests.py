@@ -1,9 +1,9 @@
 import os
 import unittest
 
-from firexapp.plugins import identify_duplicate_tasks, find_plugin_file, cdl2list, get_plugin_module_names, \
-    get_active_plugins, set_plugins_env, load_plugin_modules, merge_plugins, \
-    plugin_support_parser, get_plugin_module_names_from_env, load_plugin_modules_from_env
+from firexapp.plugins import identify_duplicate_tasks, find_plugin_file, cdl2list, get_plugin_modules, \
+    get_active_plugins, set_plugins_env, load_plugin_modules, get_plugin_module_list, merge_plugins, \
+    plugin_support_parser
 from firexkit.task import FireXTask
 
 
@@ -13,7 +13,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
                      "external.joey"]
         results = identify_duplicate_tasks(all_tasks, ["external"])
 
-        self.assertTrue(len(results) == 1)
+        self.assertTrue(len(results) is 1)
         this, that = tuple(results[0])
         self.assertEqual(this, "microservice.tasks.joey")
         self.assertEqual(that, "external.joey")
@@ -40,7 +40,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
         all_tasks = ["microservice.tasks.joey",
                      "external.joey"]
         results = identify_duplicate_tasks(all_tasks, ["external"])
-        self.assertTrue(len(results) == 1)
+        self.assertTrue(len(results) is 1)
         this, that = tuple(results[0])
         self.assertEqual(this, "microservice.tasks.joey")
         self.assertEqual(that, "external.joey")
@@ -49,7 +49,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
         all_tasks = ["microservice.tasks.joey",
                      "external.joey"]
         results = identify_duplicate_tasks(all_tasks, ["microservice.tasks"])
-        self.assertTrue(len(results) == 1)
+        self.assertTrue(len(results) is 1)
         this, that = tuple(results[0])
         self.assertEqual(this, "external.joey")
         self.assertEqual(that, "microservice.tasks.joey")
@@ -58,7 +58,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
         all_tasks = ["external.joey",
                      "microservice.tasks.joey"]
         results = identify_duplicate_tasks(all_tasks, ["microservice.tasks"])
-        self.assertTrue(len(results) == 1)
+        self.assertTrue(len(results) is 1)
         this, that = tuple(results[0])
         self.assertEqual(this, "external.joey")
         self.assertEqual(that, "microservice.tasks.joey")
@@ -98,7 +98,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
                      "external.joey"]
         results = identify_duplicate_tasks(all_tasks, ["external"])
 
-        self.assertTrue(len(results) == 1)
+        self.assertTrue(len(results) is 1)
         this, that = tuple(results[0])
         self.assertEqual(this, "microservice.tasks.joey")
         self.assertEqual(that, "external.joey")
@@ -128,16 +128,16 @@ class ResolvePathTests(unittest.TestCase):
         self.assertEqual([], cdl2list(None))
 
     def test_get_plugin_modules(self):
-        self.assertFalse(get_plugin_module_names(None))
-        self.assertTrue(self.__module__ in get_plugin_module_names(__file__))
+        self.assertFalse(get_plugin_modules(None))
+        self.assertTrue(self.__module__ in get_plugin_modules(__file__))
 
         with self.assertRaises(FileNotFoundError):
-            self.assertFalse(get_plugin_module_names("complete/gibberish.py"))
+            self.assertFalse(get_plugin_modules("complete/gibberish.py"))
 
     def test_plugin_env(self):
-        self.assertFalse(get_plugin_module_names_from_env())
+        self.assertFalse(get_plugin_module_list(""))
         set_plugins_env("")
-        self.assertFalse(load_plugin_modules_from_env())
+        self.assertFalse(load_plugin_modules())
         set_plugins_env(__file__)
         self.assertEqual(get_active_plugins(), __file__)
         load_plugin_modules(__file__)
