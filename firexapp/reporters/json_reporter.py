@@ -87,10 +87,9 @@ class FireXJsonReportGenerator:
                              f'post_run must have already created the link to {report_link}')
 
     @staticmethod
-    def create_completed_run_json(uid, chain, root_id, submission_dir, argv, original_cli=None, json_file=None,
-                                  run_revoked=False, **kwargs):
-        data = FireXJsonReportGenerator.get_common_run_data(uid=uid, chain=chain, submission_dir=submission_dir, argv=argv,
-                                        original_cli=original_cli)
+    def create_completed_run_json(uid, chain, root_id, submission_dir, argv, original_cli, json_file, run_revoked):
+        data = FireXJsonReportGenerator.get_common_run_data(
+            uid=uid, chain=chain, submission_dir=submission_dir, argv=argv, original_cli=original_cli)
         data['completed'] = True
         data['results'] = get_results(root_id)
         data['revoked'] = run_revoked

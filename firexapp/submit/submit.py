@@ -81,10 +81,17 @@ class AdjustCeleryConcurrency(argparse.Action):
         setattr(namespace, self.dest, concurrency)
 
 
-def safe_create_completed_run_json(results, run_revoked, **kwargs):
+def safe_create_completed_run_json(chain_result, run_revoked, chain_args):
     try:
         FireXJsonReportGenerator.create_completed_run_json(
-            root_id=results, run_revoked=run_revoked, **kwargs,
+            uid=chain_args['uid'],
+            chain=chain_args['chain'],
+            root_id=chain_result,
+            submission_dir=chain_args['submission_dir'],
+            argv=chain_args['argv'],
+            original_cli=chain_args.get('original_cli'),
+            json_file=chain_args.get('json_file'),
+            run_revoked=run_revoked,
         )
     except Exception as e:
         logger.error(f'Failed to generate completion run JSON: {e}')
@@ -95,6 +102,7 @@ def safe_create_initial_run_json(**kwargs):
         FireXJsonReportGenerator.create_initial_run_json(**kwargs)
     except Exception as e:
         logger.error(f'Failed to generate initial run JSON: {e}')
+
 
 class SubmitBaseApp:
     SUBMISSION_LOGGING_FORMATTER = '[%(asctime)s %(levelname)s] %(message)s'
@@ -547,9 +555,7 @@ class SubmitBaseApp:
     def self_destruct(self, chain_details=None, reason=None, run_revoked=False):
         if chain_details:
             chain_result, chain_args = chain_details
-            safe_create_completed_run_json(results=chain_result,
-                                           run_revoked=run_revoked,
-                                           **chain_args)
+            safe_create_completed_run_json(chain_result, run_revoked, chain_args)
             try:
                 logger.debug("Generating reports")
                 from firexapp.submit.reporting import ReportersRegistry
