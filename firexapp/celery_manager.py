@@ -29,6 +29,7 @@ FileRegistry().register_file(MICROSERVICE_LOGS_REGISTRY_KEY, 'microservice_logs'
 class CeleryWorkerStartFailed(Exception):
     pass
 
+
 class CeleryManager(object):
     celery_bin_name = 'celery'
 
@@ -202,13 +203,19 @@ class CeleryManager(object):
             if err_list:
                 extra_err_info += '\nFound the following errors:\n' + '\n'.join(err_list)
 
-            raise CeleryWorkerStartFailed('The worker %s@%s did not come up after %d seconds.'
-                                          '\nPlease look into %s for details.'
-                                          '%s' % (workername,
-                                                  self.hostname,
-                                                  timeout,
-                                                  stdout_file,
-                                                  extra_err_info))
+            extra_err_info += '\nAttempting to delete the invocation pids'
+            deleted_pids = subprocess.run(['/bin/pkill', '-e', '-f', pid_file],
+                                          capture_output=True,
+                                          text=True)
+            if deleted_pids.stdout:
+                extra_err_info += f'\nstdout: {deleted_pids.stdout}'
+            if deleted_pids.stderr:
+                extra_err_info += f'\nstderr: {deleted_pids.stderr}'
+
+            raise CeleryWorkerStartFailed(f'The worker{workername}@{self.hostname} did not come up after'
+                                          f' {timeout} seconds.\n'
+                                          f'Please look into {stdout_file!r} for details.'
+                                          f'{extra_err_info}')
         pid = self.get_pid_from_file(pid_file)
         self.log('pid %d became active' % pid)
 
