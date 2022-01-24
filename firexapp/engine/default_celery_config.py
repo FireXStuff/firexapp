@@ -5,7 +5,8 @@ from firexapp.engine.logging import add_hostname_to_log_records, add_custom_log_
 from firexapp.discovery import find_firex_task_bundles
 
 # Monkey Patch for auto-scaler race condition where a forked worker pool instance that
-# receives a job/task but didn't get a chance to ack it yet would be wrongly eligible for scale_down/shrink.
+# was sent a job (Pool.apply) but didn't get a chance to ack it (ApplyResult._ack)  would be wrongly
+# eligible to be scaled down (Pool.shrink).
 # This bug manifests itself in the following error:
 # "Task handler raised error: WorkerLostError('Worker exited prematurely: signal 15 (SIGTERM) Job: 628.')"
 import billiard.pool
