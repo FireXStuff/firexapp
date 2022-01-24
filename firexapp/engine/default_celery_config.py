@@ -22,6 +22,7 @@ def _worker_active_monkey_patch(self, worker):
             return True
     return False
 
+
 # Apply the monkey patch
 billiard.pool.Pool._worker_active = _worker_active_monkey_patch
 # End of Monkey Patch
