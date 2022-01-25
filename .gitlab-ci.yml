@@ -15,7 +15,7 @@ stages:
   - update-docs
 
 default:
-  image: firexstuff/firex-alpine-build:3.10.2
+  image: firexstuff/firex-alpine-build:3.9.10
   before_script:
     - source venv/bin/activate
 
