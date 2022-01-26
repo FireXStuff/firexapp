@@ -4,29 +4,6 @@ from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.engine.logging import add_hostname_to_log_records, add_custom_log_levels, PRINT_LEVEL_NAME
 from firexapp.discovery import find_firex_task_bundles
 
-# Monkey Patch for auto-scaler race condition where a forked worker pool instance that
-# was sent a job (Pool.apply) but didn't get a chance to ack it (ApplyResult._ack)  would be wrongly
-# eligible to be scaled down (Pool.shrink).
-# This bug manifests itself in the following error:
-# "Task handler raised error: WorkerLostError('Worker exited prematurely: signal 15 (SIGTERM) Job: 628.')"
-import billiard.pool
-from billiard.five import values
-
-
-def _worker_active_monkey_patch(self, worker):
-    for job in values(self._cache):
-        worker_pids = job.worker_pids()
-        # This crude fix would declare a worker busy if there were ANY jobs received but not ack'd
-        # (i.e., were not assigned a worker pid yet)
-        if not worker_pids or worker.pid in worker_pids:
-            return True
-    return False
-
-
-# Apply the monkey patch
-billiard.pool.Pool._worker_active = _worker_active_monkey_patch
-# End of Monkey Patch
-
 
 add_custom_log_levels()
 add_hostname_to_log_records()
