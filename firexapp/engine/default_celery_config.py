@@ -40,7 +40,6 @@ worker_task_log_format = timestamp_format + process_format + task_format + messa
 
 logger = get_task_logger(__name__)
 
-
 broker_url = BrokerFactory.get_broker_url()
 result_backend = broker_url
 
