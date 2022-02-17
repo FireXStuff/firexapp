@@ -210,15 +210,33 @@ class FireXEventAggregator:
         that is generated here so that the UI can show a non-incomplete runstate.
         :return:
         """
-        return [{'uuid': task['uuid'], 'type': 'task-incomplete', 'timestamp': datetime.now().timestamp()}
-                for task in self.tasks_by_uuid.values()
-                if task['state'] in INCOMPLETE_RUNSTATES]
+        new_events = []
+        now = datetime.now().timestamp()
+        for task in self.tasks_by_uuid.values():
+            if task.get(TaskColumn.ACTUAL_RUNTIME.value) is None:
+                if task.get('state') in INCOMPLETE_RUNSTATES:
+                    event_type = 'task-incomplete'
+                else:
+                    event_type = 'task-completed'
+                new_events.append(
+                    {'uuid': task['uuid'],
+                     'type': event_type,
+                     TaskColumn.ACTUAL_RUNTIME.value: now - task.get('first_started', now)}
+                )
+        return new_events
 
     def is_root_complete(self):
         if not self.root_uuid or self.root_uuid not in self.tasks_by_uuid:
             return False  # Might not have root event yet.
         root_runstate = self.tasks_by_uuid[self.root_uuid].get('state', None)
         return root_runstate in COMPLETE_RUNSTATES
+
+    def are_all_tasks_complete(self):
+        if not self.is_root_complete():
+            return False
+        all_run_states = {t.get('state', None) for t in self.tasks_by_uuid.values()}
+        incomplete_task_runstates = all_run_states - COMPLETE_RUNSTATES
+        return len(incomplete_task_runstates) == 0
 
     def _get_or_create_task(self, task_uuid):
         if task_uuid not in self.tasks_by_uuid:

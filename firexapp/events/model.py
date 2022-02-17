@@ -38,8 +38,8 @@ ALL_RUNSTATES = {
     RunStates.REVOKED.value: {'terminal': True},
     RunStates.INCOMPLETE.value: {'terminal': True},  # server-side kludge state to fix tasks that will never complete.
 }
-COMPLETE_RUNSTATES = [s for s, v in ALL_RUNSTATES.items() if v['terminal']]
-INCOMPLETE_RUNSTATES = [s for s, v in ALL_RUNSTATES.items() if not v['terminal']]
+COMPLETE_RUNSTATES = {s for s, v in ALL_RUNSTATES.items() if v['terminal']}
+INCOMPLETE_RUNSTATES = {s for s, v in ALL_RUNSTATES.items() if not v['terminal']}
 
 
 class RunMetadataColumn(Enum):
