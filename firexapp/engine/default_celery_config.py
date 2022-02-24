@@ -115,8 +115,11 @@ result_expires = None
 task_track_started = True
 task_acks_late = True
 
-worker_prefetch_multiplier = 1
+# No connection retry, otherwise the celery event loop restarts on "connection reset by peer" errors
+# This results in tasks being double-scheduled and completely broken in our use case
+broker_connection_retry = False
 
+worker_prefetch_multiplier = 1
 worker_redirect_stdouts_level = PRINT_LEVEL_NAME
 
 primary_worker_name = 'mc'
