@@ -105,18 +105,17 @@ def _send_flame_subprocess(subprocess_data):
         logger.warning(f"Error while sending flame subprocess event: {e}")
 
 
-def _send_flame_subprocess_start(flame_subprocess_id, cmd, filename, cwd, host, remote_host=None):
-    _send_flame_subprocess({flame_subprocess_id:
-                                {'cmd': cmd,
-                                 'cwd': str(cwd) if cwd else cwd,
-                                 'output_file': filename,
-                                 'host': host,
-                                 'remote_host': remote_host,
-                                 'start_time': time.time()}})
+def _send_flame_subprocess_start(flame_subprocess_id, cmd, cwd, host, filename=None, remote_host=None):
+    _send_flame_subprocess({flame_subprocess_id: {'cmd': cmd,
+                                                  'cwd': str(cwd) if cwd else cwd,
+                                                  'output_file': filename,
+                                                  'host': host,
+                                                  'remote_host': remote_host,
+                                                  'start_time': time.time()}})
 
 
-def _send_flame_subprocess_end(flame_subprocess_id, hung_process, slow_process, output, returncode,
-                               stderr_output=None, chars=None):
+def _send_flame_subprocess_end(flame_subprocess_id, output, returncode, chars=None, hung_process=None,
+                               slow_process=None, stderr_output=None):
     ui_max_chars = 8000
     chars = ui_max_chars if chars is None else min(chars, ui_max_chars)
     subproc_result = {
