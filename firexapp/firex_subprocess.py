@@ -18,7 +18,6 @@ from firexkit import firex_exceptions, firexkit_common
 from firexapp.engine.logging import html_escape
 from firexapp.events.model import EXTERNAL_COMMANDS_KEY
 
-
 logger = get_task_logger(__name__)
 
 
@@ -61,7 +60,7 @@ def run(cmd, retries=0, retry_delay=3, **kwargs):
     runner_type = _SubprocessRunnerType.RUN
 
     _sanitize_runner_kwargs(runner_type=runner_type, kwargs=kwargs)
-    return _subprocess_runner_retries(runner_type=runner_type, # Pass through 'capture_output' and 'check'
+    return _subprocess_runner_retries(runner_type=runner_type,  # Pass through 'capture_output' and 'check'
                                       retries=retries, retry_delay=retry_delay, cmd=cmd, **kwargs)
 
 
@@ -106,12 +105,12 @@ def _send_flame_subprocess(subprocess_data):
         logger.warning(f"Error while sending flame subprocess event: {e}")
 
 
-def _send_flame_subprocess_start(flame_subprocess_id, cmd, filename, cwd):
+def _send_flame_subprocess_start(flame_subprocess_id, cmd, filename, cwd, host):
     _send_flame_subprocess({flame_subprocess_id:
                                 {'cmd': cmd,
                                  'cwd': str(cwd) if cwd else cwd,
                                  'output_file': filename,
-                                 'host': gethostname(),
+                                 'host': host,
                                  'start_time': time.time()}})
 
 
@@ -270,7 +269,8 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
     open_og_rw_permissions(filename)
 
     if log_level is not None:
-        _send_flame_subprocess_start(flame_subprocess_id=subprocess_id, cmd=cmd, filename=filename, cwd=cwd_str)
+        _send_flame_subprocess_start(flame_subprocess_id=subprocess_id, cmd=cmd, filename=filename, cwd=cwd_str,
+                                     host=host)
         _log_intro_msg(subprocess_id)
 
     slow_process = hung_process = False
@@ -294,7 +294,7 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
                     break
                 except subprocess.TimeoutExpired:
                     pass
-                _sleep = _sleep * 1.1 if _sleep*1.1 < 1 else 1  # Exponential backoff
+                _sleep = _sleep * 1.1 if _sleep * 1.1 < 1 else 1  # Exponential backoff
 
                 now = time.monotonic()
                 if now - last_log_time > 10 * 60:  # Log every 10 minutes
@@ -334,8 +334,9 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
                                                                      stderr=output)
         finally:
             if log_level is not None:
-                _send_flame_subprocess_end(subprocess_id, hung_process, slow_process, output, chars,
-                                           getattr(p, 'returncode', None))
+                _send_flame_subprocess_end(flame_subprocess_id=subprocess_id, hung_process=hung_process,
+                                           slow_process=slow_process, output=output, chars=chars,
+                                           returncode=getattr(p, 'returncode', None))
                 _hide_live_file_monitor_element()
 
             if p and p.stdin:
