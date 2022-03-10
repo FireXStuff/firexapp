@@ -111,7 +111,7 @@
         <x-external-commands
           :external-commands="externalCommands"
           :taskLogsUrl="detailedTask.logs_url"
-          :parentTaskEndTime="taskEndTime"></x-external-commands>
+          :parentTask="detailedTask"/>
       </x-section>
 
       <x-section v-if="shouldShowSection('attributes')" heading="Attributes">
@@ -359,15 +359,10 @@ export default {
     someExternalCommandRunning() {
       return _.some(this.externalCommands, c => !_.has(c, 'result'));
     },
-    taskEndTime() {
-      if (!this.detailedTask.actual_runtime) {
-        return null;
-      }
-      return this.detailedTask.first_started + this.detailedTask.actual_runtime;
-    },
   },
   methods: {
     fetchTaskAttributes() {
+      this.taskAttributes = {};
       api.fetchTaskDetails(this.uuid).then((taskAttributes) => {
         this.taskAttributes = taskAttributes;
         this.$nextTick(this.scrollToSelectedSubsection);

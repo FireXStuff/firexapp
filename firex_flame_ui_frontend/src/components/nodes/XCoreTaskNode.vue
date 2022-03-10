@@ -46,7 +46,7 @@
       </div>
 
       <div class="node-footer">
-        <div class="task-host" title="hostname@queuename">{{displayHostname}}</div>
+        <div class="task-host" title="queuename@hostname">{{displayHostname}}</div>
         <!-- FIXME: the decision if live time is necessary should be made here to reduce total #
           of components. If live update is not needed, no peer-comp-eval occurs, so the extra
           comp is pure overhead.-->

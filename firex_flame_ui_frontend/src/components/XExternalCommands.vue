@@ -1,72 +1,99 @@
 <template>
   <div>
-    <x-section v-if="orderedIds.length > 1">
+    <x-section v-if="displayExternalCommands.length > 1">
       <template v-slot:header><strong style="font-size: medium;">Summary</strong></template>
       <div>
-        <router-link v-for="id in orderedIds" :key="'summary-' + id"
-                     :to="{params: { selectedSubsection: id }}">
+        <router-link v-for="displayCommand in displayExternalCommands" :key="'summary-' + displayCommand.id"
+                     :to="{params: { selectedSubsection: displayCommand.id }}">
           <div style="display: flex; flex-direction: row;">
             <div>
               <x-external-command-status
-                :display-external-command="displayExternalCommands[id]"
+                :display-external-command="displayCommand"
                 :parent-task-complete="parentTaskComplete"
-                :show-text="false"></x-external-command-status>
+                :show-text="false"/>
             </div>
-            <div style="flex: 1;">{{summarizeCommand(displayExternalCommands[id].cmd)}}</div>
-            <div style="align-self: flex-end;">{{displayExternalCommands[id].duration}}</div>
+            <div style="flex: 1;">{{summarizeCommand(displayCommand.cmd)}}</div>
+            <div style="align-self: flex-end;">{{displayCommand.duration}}</div>
           </div>
         </router-link>
       </div>
     </x-section>
 
-    <x-section v-for="id in orderedIds" :key="id" style="margin-bottom: 3em;"
-      :id="'subsection' + id">
-      <template v-slot:header>
-        <div  style="display: inline; user-select: all; font-style: italic;">
-          {{ displayExternalCommands[id].cwd }}</div>
-        <strong style="font-size: medium;">$
-          <span style="user-select: all;"
-                v-html="createLinkedHtml(displayExternalCommands[id].cmd)"></span>
+    <x-section
+      v-for="displayCommand in displayExternalCommands"
+      :key="displayCommand.id" style="margin-bottom: 3em;"
+      :id="'subsection' + displayCommand.id">
 
-          <button v-if="isExpandableOutput(id)"
-            class="btn btn-sm btn-primary pull-right" @click="expandedOutputIds.push(id)">
+      <template v-slot:header>
+        <!-- v-if here breaks slot. -->
+        <div
+          v-show="displayCommand.remoteHost"
+          style="display: inline; font-weight: bold;"
+          >[ssh {{ displayCommand.remoteHost }}]
+        </div>
+        <div style="display: inline; font-style: italic;"
+          >{{ displayCommand.cwd }}</div>
+        <strong style="font-size: medium;">$
+          <span v-html="createLinkedHtml(displayCommand.cmd)"/>
+
+          <button v-if="isExpandableOutput(displayCommand)"
+            class="btn btn-sm btn-primary pull-right" @click="expandedOutputIds.push(displayCommand.id)">
             <font-awesome-icon icon="expand-arrows-alt"></font-awesome-icon>
           </button>
-          <router-link class="btn btn-link pull-right" :to="{params: { selectedSubsection: id }}">
+          <router-link class="btn btn-link pull-right" :to="{params: { selectedSubsection: displayCommand.id }}">
             <font-awesome-icon icon="link"></font-awesome-icon>
           </router-link>
         </strong>
       </template>
+
       <div>
-        <pre v-if="displayExternalCommands[id].result"
-            style="background-color: #fafafa;"
-            :style="{color: displayExternalCommands[id].result.returncode ? 'darkred' : '',
-                     'max-height': isExpandedOutput(id) ? null : '15em'}"
-            ref="outputs"
-        >{{ displayExternalCommands[id].output }}</pre>
-        <router-link
-          v-else-if="!parentTaskComplete"
-          :to="getLiveFileRoute(displayExternalCommands[id].file, displayExternalCommands[id].host)"
-          class="btn btn-primary" style="margin: 1em 0;">
-          <font-awesome-icon :icon="['far', 'eye']"></font-awesome-icon>
-          View Live Output
-        </router-link>
+        <template v-if="displayCommand.result">
+          <h4 v-if="displayCommand.stderrOutput" style="text-decoration: underline;">
+            stdout
+          </h4>
+          <pre
+              style="background-color: #fafafa;"
+              :style="{color: displayCommand.result.returncode ? 'darkred' : '',
+                      'max-height': isExpandedOutput(displayCommand.id) ? null : '15em'}"
+              ref="outputs"
+          >{{ displayCommand.output }}</pre>
+
+          <template v-if="displayCommand.stderrOutput">
+            <h4 style="text-decoration: underline;">stderr</h4>
+            <pre
+                style="background-color: #fafafa;"
+                :style="{color: 'darkred',
+                        'max-height': isExpandedOutput(displayCommand.id) ? null : '15em'}"
+                ref="outputs"
+            >{{ displayCommand.stderrOutput }}</pre>
+          </template>
+
+        </template>
+        <template v-else-if="!parentTaskComplete">
+          <router-link
+            v-if="!displayCommand.remoteHost"
+            :to="getLiveFileRoute(displayCommand.file, displayCommand.host)"
+            class="btn btn-primary" style="margin: 1em 0;">
+            <font-awesome-icon :icon="['far', 'eye']"/>
+            View Live Output
+          </router-link>
+        </template>
         <div class="row" style="margin-left: 2em">
-            <div class="col-md-2">
-              <strong>time: </strong> {{ displayExternalCommands[id].duration }}
-            </div>
+          <div class="col-md-2">
+            <strong>time: </strong> {{ displayCommand.duration }}
+          </div>
 
           <x-external-command-status
-            :display-external-command="displayExternalCommands[id]"
+            :display-external-command="displayCommand"
             :parent-task-complete="parentTaskComplete"
-          ></x-external-command-status>
+          />
 
           <div class="col-md-4">
-            <strong>started: </strong> {{ displayExternalCommands[id].startTime }}
+            <strong>started: </strong> {{ displayCommand.startTime }}
           </div>
-          <div v-if="displayExternalCommands[id].taskLogLink" class="col-md-4">
-            <a :href="displayExternalCommands[id].taskLogLink">
-              <font-awesome-icon icon="file-alt"></font-awesome-icon>
+          <div v-if="displayCommand.taskLogLink" class="col-md-4">
+            <a :href="displayCommand.taskLogLink">
+              <font-awesome-icon icon="file-alt"/>
               View in Task Log
             </a>
           </div>
@@ -90,7 +117,7 @@ export default {
   props: {
     externalCommands: { required: true, type: Object },
     taskLogsUrl: { required: false, default: null },
-    parentTaskEndTime: { type: Number },
+    parentTask: { type: Object },
   },
   data() {
     return {
@@ -107,24 +134,36 @@ export default {
       createLinkedHtml: 'header/createLinkedHtml',
     }),
     displayExternalCommands() {
-      return _.mapValues(this.externalCommands, (c, id) => ({
-        cmd: this.formatCommand(c.cmd),
-        result: c.result,
-        output: this.formatOutput(c),
-        duration: this.commandDuration(c),
-        startTimeEpoch: c.start_time,
-        startTime: this.formatTime(c.start_time),
-        taskLogLink: this.taskLogsUrl ? `${this.taskLogsUrl}#${id}` : null,
-        host: c.host,
-        file: c.output_file,
-        cwd: c.cwd,
-      }));
-    },
-    orderedIds() {
-      return _.sortBy(_.keys(this.externalCommands), k => this.externalCommands[k].start_time);
+      return _.sortBy(
+        _.mapValues(this.externalCommands, (c, id) => ({
+          id,
+          cmd: this.formatCommand(c.cmd),
+          result: c.result,
+          output: this.formatOutput(c),
+          stderrOutput: this.formatStderrOutput(c),
+          duration: this.commandDuration(c),
+          startTimeEpoch: c.start_time,
+          startTime: this.formatTime(c.start_time),
+          taskLogLink: this.taskLogsUrl ? `${this.taskLogsUrl}#${id}` : null,
+          host: c.host,
+          file: c.output_file,
+          cwd: c.cwd ? _.trim(c.cwd) : c.cwd,
+          remoteHost: this.displayRemoteHost(_.get(c, 'remote_host', null)),
+        })),
+        'startTimeEpoch',
+      );
     },
     parentTaskComplete() {
       return !_.isNull(this.parentTaskEndTime);
+    },
+    parentTaskEndTime() {
+      if (!this.parentTask.actual_runtime) {
+        return null;
+      }
+      return this.parentTask.first_started + this.parentTask.actual_runtime;
+    },
+    parentTaskHost() {
+      return _.last(_.split(_.get(this.parentTask, 'hostname'), '@', 2));
     },
   },
   methods: {
@@ -174,9 +213,21 @@ export default {
       }
       return cmd.result.output;
     },
-    isExpandableOutput(cmdId) {
-      const newlinesCount = _.countBy(this.displayExternalCommands[cmdId].output)['\n'] || 0;
-      return newlinesCount > 6 && !this.isExpandedOutput(cmdId);
+    formatStderrOutput(cmd) {
+      if (!_.has(cmd, 'result.stderr_output')) {
+        return null;
+      }
+      const stderr = cmd.result.stderr_output;
+      if (_.get(cmd, 'result.stderr_output_truncated')) {
+        return `<truncated>\n...${stderr}`;
+      }
+      return stderr;
+    },
+    isExpandableOutput(displayCommand) {
+      const newlinesCount = _.countBy(displayCommand.output)['\n'] || 0;
+      const stderrNewLinesCount = _.countBy(displayCommand.stderrOutput || '')['\n'] || 0;
+      const someOutputBig = newlinesCount > 6 || stderrNewLinesCount > 6;
+      return someOutputBig && !this.isExpandedOutput(displayCommand.id);
     },
     isExpandedOutput(cmdId) {
       return _.includes(this.expandedOutputIds, cmdId);
@@ -217,6 +268,15 @@ export default {
       }
 
       return shortCommand;
+    },
+    displayRemoteHost(remoteHost) {
+      if (!remoteHost) {
+        return remoteHost;
+      }
+      if (remoteHost === 'localhost' && this.parentTaskHost) {
+        return this.parentTaskHost;
+      }
+      return remoteHost;
     },
   },
 };
