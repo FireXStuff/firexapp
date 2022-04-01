@@ -10,14 +10,9 @@ from firexkit.result import get_task_postrun_info
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.engine.logging import add_hostname_to_log_records, add_custom_log_levels, PRINT_LEVEL_NAME
 from firexapp.discovery import find_firex_task_bundles
-
-# Monkey Patch for auto-scaler race condition where a forked worker pool instance that
-# was sent a job (Pool.apply) but didn't get a chance to ack it (ApplyResult._ack)  would be wrongly
-# eligible to be scaled down (Pool.shrink).
-# This bug manifests itself in the following error:
-# "Task handler raised error: WorkerLostError('Worker exited prematurely: signal 15 (SIGTERM) Job: 628.')"
 import billiard.pool
 from billiard.five import values
+from kombu.transport.redis import QoS
 
 
 def _worker_active_monkey_patch(self, worker):
@@ -30,8 +25,18 @@ def _worker_active_monkey_patch(self, worker):
     return False
 
 
-# Apply the monkey patch
+# Monkey Patch for auto-scaler race condition where a forked worker pool instance that
+# was sent a job (Pool.apply) but didn't get a chance to ack it (ApplyResult._ack)  would be wrongly
+# eligible to be scaled down (Pool.shrink).
+# This bug manifests itself in the following error:
+# "Task handler raised error: WorkerLostError('Worker exited prematurely: signal 15 (SIGTERM) Job: 628.')"
 billiard.pool.Pool._worker_active = _worker_active_monkey_patch
+# End of Monkey Patch
+
+# Monkey Patch: prevent tasks from running again if a worker receives SIGHUP
+QoS.restore_at_shutdown = False
+
+
 # End of Monkey Patch
 
 
