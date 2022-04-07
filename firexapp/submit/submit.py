@@ -47,6 +47,7 @@ FileRegistry().register_file(SUBMISSION_FILE_REGISTRY_KEY, os.path.join(Uid.debu
 ENVIRON_FILE_REGISTRY_KEY = 'env'
 FileRegistry().register_file(ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'environ.json'))
 
+RUN_SOFT_TIME_LIMIT_KEY = 'run_soft_time_limit'
 
 class JsonFileAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -374,6 +375,8 @@ class SubmitBaseApp:
             app.backend.set('uid', str(uid))
             app.backend.set('logs_dir', uid.logs_dir)
             app.backend.set('resources_dir', uid.resources_dir)
+            if args.soft_time_limit:
+                app.backend.set(RUN_SOFT_TIME_LIMIT_KEY, args.soft_time_limit)
 
             # IMPORT ALL THE MICROSERVICES
             # ONLY AFTER BROKER HAD STARTED
