@@ -3,6 +3,11 @@ import logging
 import colorlog
 from bs4 import BeautifulSoup
 from firexkit.result import ChainInterruptedException
+import warnings
+
+# BeautifulSoup thinks we're giving it an URL because there is an URL in msg.
+# Not good. Keep stderr clean by ignoring this warning.
+warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 console_stdout = None
 console_stderr = None
