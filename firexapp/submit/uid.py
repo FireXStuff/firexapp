@@ -6,11 +6,27 @@ from getpass import getuser
 import random
 import firexkit
 import shutil
+import re
+from typing import Dict, Optional
 
 from firexapp.submit.arguments import whitelist_arguments
 from firexkit.permissions import DEFAULT_CHMOD_MODE
 
 BASE_LOGGING_DIR_ENV_VAR_KEY = 'firex_base_logging_dir'
+
+
+FIREX_ID_REGEX = re.compile(r'^FireX-(?P<user>.*?)-(?P<day_str>\d{6})-(?P<time_str>\d{6})-\d+$')
+
+def is_firex_id(maybe_firex_id: str) -> bool:
+    return bool(FIREX_ID_REGEX.match(maybe_firex_id))
+
+def get_firex_id_parts(maybe_firex_id: str) -> Optional[Dict[str, str]]:
+    m = FIREX_ID_REGEX.match(maybe_firex_id)
+    if m:
+        parts = m.groupdict()
+        parts['firex_id'] = maybe_firex_id
+        return parts
+    return None
 
 
 class Uid(object):
