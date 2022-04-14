@@ -24,7 +24,7 @@ def firex_id_str(user: str, timestamp: datetime.datetime, random_int: int) -> st
     return f'FireX-{user}-{timestamp.strftime(FIREX_ID_DATE_FMT)}-{random_int}'
 
 
-@dataclass
+@dataclass(frozen=True)
 class FireXIdParts:
     user: str
     timestamp: datetime.datetime
