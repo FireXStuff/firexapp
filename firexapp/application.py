@@ -134,7 +134,9 @@ class FireXBaseApp:
             self.arg_parser.error(
                 'You entered a non-ascii character at the command line.\n' + str(ue))
 
-        args_to_process = sys_argv + get_args_from_json_from_all_args(sys_argv)
+        args_to_process = sys_argv
+        if sys_argv is not None:
+            sys_argv += get_args_from_json_from_all_args(sys_argv)
         arguments, others = self.arg_parser.parse_known_args(args_to_process)
 
         # run default help
