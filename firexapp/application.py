@@ -2,12 +2,16 @@ import os
 import signal
 import tempfile
 from argparse import ArgumentParser, RawTextHelpFormatter
+import json
+from typing import List
 
 from firexapp.plugins import load_plugin_modules, cdl2list
 from firexapp.submit.console import setup_console_logging
 from firexkit.permissions import DEFAULT_UMASK
 
 logger = setup_console_logging(__name__)
+
+JSON_ARGS_PATH_ARG_NAME = '--json_args_path'
 
 
 def main():
@@ -72,6 +76,38 @@ def get_app_tasks(tasks, all_tasks=None):
     return [get_app_task(task, all_tasks) for task in tasks]
 
 
+class JsonContentNotList(Exception):
+    pass
+
+
+def get_args_from_json(json_file: str) -> List[str]:
+    with open(json_file) as fp:
+        try:
+            input_list = json.load(fp)
+        except json.decoder.JSONDecodeError:
+            logger.error(f'The json file {json_file} could not be correctly decoded.')
+            raise
+    if not isinstance(input_list, list):
+        raise JsonContentNotList('The provided json %s must contain a list of arguments')
+    return input_list
+
+
+def get_args_from_json_from_all_args(all_args: List[str]) -> List[str]:
+    if not all_args:
+        return []
+    try:
+        json_args_name_index = all_args.index(JSON_ARGS_PATH_ARG_NAME)
+    except ValueError:
+        return []
+    else:
+        try:
+            json_args_path = all_args[json_args_name_index + 1]
+        except IndexError:
+            raise Exception(f'The {JSON_ARGS_PATH_ARG_NAME} argument is not followed by a value.')
+        else:
+            return get_args_from_json(json_args_path)
+
+
 class FireXBaseApp:
     def __init__(self, submit_app=None, info_app=None):
         if not info_app:
@@ -98,7 +134,8 @@ class FireXBaseApp:
             self.arg_parser.error(
                 'You entered a non-ascii character at the command line.\n' + str(ue))
 
-        arguments, others = self.arg_parser.parse_known_args(sys_argv)
+        args_to_process = sys_argv + get_args_from_json_from_all_args(sys_argv)
+        arguments, others = self.arg_parser.parse_known_args(args_to_process)
 
         # run default help
         if not hasattr(arguments, "func"):
@@ -112,7 +149,7 @@ class FireXBaseApp:
             arguments.func(arguments)
         else:
             self.running_app = self.submit_app
-            self.submit_app.submit_args_to_process = sys_argv
+            self.submit_app.submit_args_to_process = args_to_process
             arguments.func(arguments, others)
 
     def main_error_exit_handler(self, reason=None):

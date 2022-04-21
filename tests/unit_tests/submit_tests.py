@@ -3,7 +3,7 @@ import shutil
 import unittest
 
 from celery import Celery
-from firexapp.application import FireXBaseApp
+from firexapp.application import FireXBaseApp, JSON_ARGS_PATH_ARG_NAME
 from firexapp.submit.arguments import get_chain_args, ChainArgException, InputConverter, convert_booleans, \
     find_unused_arguments, whitelist_arguments
 from firexapp.submit.uid import Uid
@@ -59,6 +59,16 @@ class SubmitArgsTests(unittest.TestCase):
             main.arg_parser.print_usage = lambda _: _
             with self.assertRaises(AppExited):
                 main.run(sys_argv=['--pound', '£'])
+
+        with self.subTest("with not found json file"):
+            main.arg_parser.print_usage = lambda _: _
+            with self.assertRaises(FileNotFoundError):
+                main.run(sys_argv=[JSON_ARGS_PATH_ARG_NAME, 'not a file'])
+
+        with self.subTest("with no json file value"):
+            main.arg_parser.print_usage = lambda _: _
+            with self.assertRaises(Exception):
+                main.run(sys_argv=[JSON_ARGS_PATH_ARG_NAME])
 
 
 class InputConversionTests(unittest.TestCase):

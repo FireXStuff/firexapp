@@ -1,4 +1,6 @@
 import os
+from tempfile import NamedTemporaryFile
+import json
 
 from firexkit.argument_conversion import SingleArgDecorator
 from firexapp.engine.celery import app
@@ -8,6 +10,7 @@ from firexapp.submit.submit import SUBMISSION_FILE_REGISTRY_KEY, get_log_dir_fro
 from firexapp.submit.uid import Uid
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexapp.tasks.example import nop, sleep
+from firexapp.application import JSON_ARGS_PATH_ARG_NAME
 
 
 @InputConverter.register("convert_booleans")
@@ -151,3 +154,21 @@ class InvalidPluginArgumentError(FlowTestConfiguration):
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
+
+
+class ArgsFromJsonFile(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        args = ['--i_need_me_some_of_this', 'here is the arg']
+        self.json_args_path = NamedTemporaryFile(mode='w', delete=False)
+        json.dump(args, self.json_args_path)
+        self.json_args_path.flush()
+        return ["submit",
+                '--chain', 'need_an_argument',
+                JSON_ARGS_PATH_ARG_NAME, self.json_args_path.name]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        assert not cmd_err
+
+    def assert_expected_return_code(self, ret_value):
+        os.unlink(self.json_args_path.name)
+        assert_is_good_run(ret_value)
