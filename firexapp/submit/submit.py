@@ -28,7 +28,7 @@ from firexapp.submit.arguments import InputConverter, ChainArgException, get_cha
 from firexapp.submit.tracking_service import get_tracking_services, get_service_name
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
-from firexapp.application import import_microservices, get_app_tasks, get_app_task
+from firexapp.application import import_microservices, get_app_tasks, get_app_task, JSON_ARGS_PATH_ARG_NAME
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.submit.shutdown import launch_background_shutdown, DEFAULT_CELERY_SHUTDOWN_TIMEOUT
@@ -188,6 +188,9 @@ class SubmitBaseApp:
                                    default=True, action=OptionalBoolean)
         submit_parser.add_argument('--celery_shutdown_timeout', help='How long to wait in seconds for Celery during shutdown.',
                                    default=DEFAULT_CELERY_SHUTDOWN_TIMEOUT, type=int)
+        submit_parser.add_argument(JSON_ARGS_PATH_ARG_NAME,
+                                   help='Specify submit arguments via a JSON file containing a list of argument names and values.')
+
 
         submit_parser.set_defaults(func=self.run_submit)
 
