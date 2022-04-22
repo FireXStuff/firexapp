@@ -158,9 +158,8 @@ class InvalidPluginArgumentError(FlowTestConfiguration):
 
 class ArgsFromJsonFile(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
-        args = ['--i_need_me_some_of_this', 'here is the arg']
         self.json_args_path = NamedTemporaryFile(mode='w', delete=False)
-        json.dump(args, self.json_args_path)
+        json.dump(['--i_need_me_some_of_this', 'here is the arg'], self.json_args_path)
         self.json_args_path.flush()
         return ["submit",
                 '--chain', 'need_an_argument',

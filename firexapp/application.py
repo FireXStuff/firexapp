@@ -4,6 +4,7 @@ import tempfile
 from argparse import ArgumentParser, RawTextHelpFormatter
 import json
 from typing import List
+import sys
 
 from firexapp.plugins import load_plugin_modules, cdl2list
 from firexapp.submit.console import setup_console_logging
@@ -23,7 +24,7 @@ def main():
         submit_app = SubmitBaseApp(submission_tmp_file=submission_tmp_file.name)
         app = FireXBaseApp(submit_app=submit_app)
         ExitSignalHandler(app)
-        app.run()
+        app.run(sys_argv=sys.argv[1:])
 
 
 def import_microservices(plugins_files=None, imports: tuple = None) -> []:
