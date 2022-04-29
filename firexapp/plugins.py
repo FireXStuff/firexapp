@@ -1,6 +1,7 @@
 import os
 import sys
 import inspect
+import traceback
 from argparse import ArgumentParser, Action
 
 from celery.signals import worker_init
@@ -11,6 +12,10 @@ import importlib.util
 
 logger = get_task_logger(__name__)
 PLUGGING_ENV_NAME = "firex_plugins"
+
+
+class PluginLoadError(Exception):
+    pass
 
 
 def get_short_name(long_name: str) -> str:
@@ -57,7 +62,13 @@ def get_plugin_module_names_from_env():
 # noinspection PyUnusedLocal
 @worker_init.connect()
 def _worker_init_signal(*args, **kwargs):
-    load_plugin_modules_from_env()
+    try:
+        load_plugin_modules_from_env()
+    except PluginLoadError:
+        traceback.print_exc()
+        # We will just exit, the pid file won't be written,
+        # and the bringup of the worker will eventually timeout
+        exit(-2)
 
 
 def _mark_plugin_module_tasks():
@@ -184,7 +195,10 @@ def import_plugin_file(plugin_file):
         if module_directory not in sys.path:
             sys.path.append(module_directory)
         mod = sys.modules[module_name] = module
-        spec.loader.exec_module(module)
+        try:
+            spec.loader.exec_module(module)
+        except BaseException:
+            raise PluginLoadError(f'Fatal Error loading plugin {plugin_file!r}')
         print(f"Plugins module {module_name!r} imported from {plugin_file!r}")
         return mod
 
