@@ -65,7 +65,7 @@ def run(cmd, retries=0, retry_delay=3, **kwargs):
 
 
 def _sanitize_runner_kwargs(runner_type: _SubprocessRunnerType, kwargs: dict):
-    disallowed_keys = ['stderr', 'stdout', 'universal_newlines']
+    disallowed_keys = ['stdout', 'universal_newlines']
     if runner_type is _SubprocessRunnerType.RUN:
         disallowed_keys.extend(['input'])
     else:
@@ -134,7 +134,7 @@ def _send_flame_subprocess_end(flame_subprocess_id, output, returncode, chars=No
 def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunnerType.CHECK_OUTPUT,
                        extra_header=None, file=None, chars=32000, timeout=None, capture_output=True, check=False,
                        inactivity_timeout=30 * 60, log_level=logging.DEBUG, copy_file_path=None, shell=False, cwd=None,
-                       env=None, remove_firex_pythonpath=True, logger=logger, **kwargs):
+                       env=None, remove_firex_pythonpath=True, logger=logger, stderr=subprocess.STDOUT, **kwargs):
     ##########################
     # Local Helper functions #
     ##########################
@@ -281,7 +281,7 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
         p = output = None
         try:
             # Run the command
-            p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=f, stderr=subprocess.STDOUT, shell=shell, cwd=cwd,
+            p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=f, stderr=stderr, shell=shell, cwd=cwd,
                                  env=env, **kwargs)
             start_time = time.monotonic()
 
