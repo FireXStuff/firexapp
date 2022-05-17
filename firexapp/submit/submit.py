@@ -646,7 +646,9 @@ class FireXReturnCodeException(Exception):
         return self.error_msg + '\n' + f'[RC {self.firex_returncode}]'
 
 
-def get_unsuccessful_items(list_of_tasks):
+def get_unsuccessful_items(list_of_tasks, filters=None):
+    if not filters:
+        filters = []
     failures_by_name = {}
     for task_async_result in list_of_tasks:
         task_name = get_task_name_from_result(task_async_result)
@@ -656,6 +658,15 @@ def get_unsuccessful_items(list_of_tasks):
             failures_by_name[task_name] = 1
     formatted_list = []
     for task_name, instances in failures_by_name.items():
+        # Apply filters
+        ignore = False
+        for f in filters:
+            if re.fullmatch(f, task_name):
+                ignore = True
+                break
+        if ignore:
+            continue
+        # Record the failed task
         item = f'\t- {task_name}'
         if instances > 1:
             item += f' ({instances} instances)'
