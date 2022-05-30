@@ -109,6 +109,7 @@ class FireXJsonReportGenerator:
                 # This is expected for most cases
                 pass
 
+
 def get_completion_report_data(logs_dir):
     report_file = os.path.join(logs_dir, FireXJsonReportGenerator.reporter_dirname,
                                FireXJsonReportGenerator.completion_report_filename)
@@ -116,7 +117,11 @@ def get_completion_report_data(logs_dir):
         return json.load(fp=f)
 
 
-def load_completion_report(json_file) -> FireXRunData:
+def is_completed_report(json_file: str) -> bool:
+    return os.path.basename(os.path.realpath(json_file)) == FireXJsonReportGenerator.completion_report_filename
+
+
+def load_completion_report(json_file: str) -> FireXRunData:
     assert os.path.isfile(json_file), f"File doesn't exist: {json_file}"
 
     with open(json_file) as f:
