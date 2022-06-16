@@ -119,7 +119,8 @@ def main(default_results_dir, default_test_dir):
     success = unittest.main(module=FlowTestInfra.__module__,
                             testRunner=xmlrunner.XMLTestRunner(output=args.logs, outsuffix="results"),
                             argv=sys.argv[:1],
-                            exit=False).result.wasSuccessful()
+                            exit=False,
+                            verbosity=2).result.wasSuccessful()
 
     # let the user decide what to call the output
     if args.xunit_file_name:
