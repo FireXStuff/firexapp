@@ -117,7 +117,7 @@ def main(default_results_dir, default_test_dir):
 
     import xmlrunner
     success = unittest.main(module=FlowTestInfra.__module__,
-                            testRunner=xmlrunner.XMLTestRunner(output=args.logs, outsuffix="results"),
+                            testRunner=xmlrunner.XMLTestRunner(output=args.logs, outsuffix="results", verbosity=2),
                             argv=sys.argv[:1],
                             exit=False,
                             verbosity=2).result.wasSuccessful()
