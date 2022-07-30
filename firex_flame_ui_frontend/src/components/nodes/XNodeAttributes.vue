@@ -165,6 +165,7 @@ export default {
       getTaskRoute: 'header/getTaskRoute',
       taskNameByUuid: 'tasks/taskNameByUuid',
       createLinkedHtml: 'header/createLinkedHtml',
+      graphViewHeaderEntry: 'header/graphViewHeaderEntry',
     }),
     ...mapState({
       logsDir: state => state.firexRunMetadata.logs_dir,
@@ -270,6 +271,7 @@ export default {
       }
       links = links.concat(
         [
+          this.graphViewHeaderEntry,
           // TODO: use new 'log_filepath' field & central_server instead of 'logs_url'.
           {
             name: 'logs',
