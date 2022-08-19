@@ -1,5 +1,6 @@
 import json
 import os
+import getpass
 from socket import gethostname
 from dataclasses import dataclass, fields
 from typing import List, Dict
@@ -35,14 +36,17 @@ class FireXJsonReportGenerator:
     report_link_filename = 'run.json'
 
     @staticmethod
-    def get_common_run_data(uid, chain, submission_dir, argv, original_cli):
+    def get_common_run_data(uid, chain, submission_dir, argv, original_cli, firex_requester=None):
         data = {'chain': [t.short_name for t in get_app_tasks(chain)],
                 'firex_id': str(uid),
                 'logs_path': uid.logs_dir,
                 'submission_host': app.conf.mc or gethostname(),
                 'submission_dir': submission_dir,
                 'submission_cmd': original_cli or list(argv),
+                'submitter': getpass.getuser()
                 }
+        if firex_requester:
+            data['firex_requester'] = firex_requester
 
         viewers = uid.viewers or {}
         data.update(viewers)
@@ -63,9 +67,10 @@ class FireXJsonReportGenerator:
                       indent=4)
 
     @staticmethod
-    def create_initial_run_json(uid, chain, submission_dir, argv, original_cli=None, json_file=None, **kwargs):
+    def create_initial_run_json(uid, chain, submission_dir, argv, original_cli=None, json_file=None, firex_requester=None, **kwargs):
         data = FireXJsonReportGenerator.get_common_run_data(uid=uid, chain=chain,
-            submission_dir=submission_dir, argv=argv, original_cli=original_cli)
+                                                            submission_dir=submission_dir, argv=argv, original_cli=original_cli,
+                                                            firex_requester=firex_requester)
         data['completed'] = False
         data['revoked'] = False
         report_file = os.path.join(uid.logs_dir, FireXJsonReportGenerator.reporter_dirname,
@@ -87,9 +92,9 @@ class FireXJsonReportGenerator:
                              f'post_run must have already created the link to {report_link}')
 
     @staticmethod
-    def create_completed_run_json(uid, chain, root_id, submission_dir, argv, original_cli, json_file, run_revoked):
+    def create_completed_run_json(uid, chain, root_id, submission_dir, argv, original_cli, json_file, run_revoked, firex_requester=None):
         data = FireXJsonReportGenerator.get_common_run_data(
-            uid=uid, chain=chain, submission_dir=submission_dir, argv=argv, original_cli=original_cli)
+            uid=uid, chain=chain, submission_dir=submission_dir, argv=argv, original_cli=original_cli, firex_requester=firex_requester)
         data['completed'] = True
         data['results'] = get_results(root_id)
         data['revoked'] = run_revoked

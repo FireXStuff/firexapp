@@ -92,6 +92,7 @@ def safe_create_completed_run_json(chain_result, run_revoked, chain_args):
             argv=chain_args['argv'],
             original_cli=chain_args.get('original_cli'),
             json_file=chain_args.get('json_file'),
+            firex_requester=chain_args.get('firex_requester'),
             run_revoked=run_revoked,
         )
     except Exception as e:
