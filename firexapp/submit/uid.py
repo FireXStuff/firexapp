@@ -147,5 +147,10 @@ class Uid(object):
         except KeyError:
             return None
 
+    @property
+    def run_data(self):
+        return {'firex_id': self.identifier,
+                'logs_path': self.logs_dir}
+
 
 whitelist_arguments("uid")

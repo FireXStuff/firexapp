@@ -36,17 +36,16 @@ class FireXJsonReportGenerator:
     report_link_filename = 'run.json'
 
     @staticmethod
-    def get_common_run_data(uid, chain, submission_dir, argv, original_cli, firex_requester=None):
-        data = {'chain': [t.short_name for t in get_app_tasks(chain)],
-                'firex_id': str(uid),
+    def get_common_run_data(uid, chain, submission_dir, argv, original_cli, inputs):
+        data = {**uid.run_data,
+                'chain': [t.short_name for t in get_app_tasks(chain)],
                 'logs_path': uid.logs_dir,
                 'submission_host': app.conf.mc or gethostname(),
                 'submission_dir': submission_dir,
                 'submission_cmd': original_cli or list(argv),
-                'submitter': getpass.getuser()
+                'submitter': getpass.getuser(),
+                'inputs': inputs
                 }
-        if firex_requester:
-            data['firex_requester'] = firex_requester
 
         viewers = uid.viewers or {}
         data.update(viewers)
@@ -67,14 +66,18 @@ class FireXJsonReportGenerator:
                       indent=4)
 
     @staticmethod
-    def create_initial_run_json(uid, chain, submission_dir, argv, original_cli=None, json_file=None, firex_requester=None, **kwargs):
-        data = FireXJsonReportGenerator.get_common_run_data(uid=uid, chain=chain,
-                                                            submission_dir=submission_dir, argv=argv, original_cli=original_cli,
-                                                            firex_requester=firex_requester)
+    def create_initial_run_json(uid, chain, submission_dir, argv, original_cli=None, json_file=None,
+                                **inputs):
+        data = FireXJsonReportGenerator.get_common_run_data(uid=uid,
+                                                            chain=chain,
+                                                            submission_dir=submission_dir,
+                                                            argv=argv,
+                                                            original_cli=original_cli,
+                                                            inputs=inputs)
         data['completed'] = False
         data['revoked'] = False
         report_file = os.path.join(uid.logs_dir, FireXJsonReportGenerator.reporter_dirname,
-            FireXJsonReportGenerator.initial_report_filename)
+                                   FireXJsonReportGenerator.initial_report_filename)
         FireXJsonReportGenerator.write_report_file(data, report_file)
 
         report_link = os.path.join(uid.logs_dir, FireXJsonReportGenerator.report_link_filename)
@@ -92,14 +95,19 @@ class FireXJsonReportGenerator:
                              f'post_run must have already created the link to {report_link}')
 
     @staticmethod
-    def create_completed_run_json(uid, chain, root_id, submission_dir, argv, original_cli, json_file, run_revoked, firex_requester=None):
-        data = FireXJsonReportGenerator.get_common_run_data(
-            uid=uid, chain=chain, submission_dir=submission_dir, argv=argv, original_cli=original_cli, firex_requester=firex_requester)
+    def create_completed_run_json(uid, chain, root_id, submission_dir, argv, run_revoked, original_cli=None,
+                                  json_file=None, **inputs):
+        data = FireXJsonReportGenerator.get_common_run_data(uid=uid,
+                                                            chain=chain,
+                                                            submission_dir=submission_dir,
+                                                            argv=argv,
+                                                            original_cli=original_cli,
+                                                            inputs=inputs)
         data['completed'] = True
         data['results'] = get_results(root_id)
         data['revoked'] = run_revoked
         report_file = os.path.join(uid.logs_dir, FireXJsonReportGenerator.reporter_dirname,
-            FireXJsonReportGenerator.completion_report_filename)
+                                   FireXJsonReportGenerator.completion_report_filename)
 
         FireXJsonReportGenerator.write_report_file(data, report_file)
 

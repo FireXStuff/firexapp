@@ -84,17 +84,9 @@ class AdjustCeleryConcurrency(argparse.Action):
 
 def safe_create_completed_run_json(chain_result, run_revoked, chain_args):
     try:
-        FireXJsonReportGenerator.create_completed_run_json(
-            uid=chain_args['uid'],
-            chain=chain_args['chain'],
-            root_id=chain_result,
-            submission_dir=chain_args['submission_dir'],
-            argv=chain_args['argv'],
-            original_cli=chain_args.get('original_cli'),
-            json_file=chain_args.get('json_file'),
-            firex_requester=chain_args.get('firex_requester'),
-            run_revoked=run_revoked,
-        )
+        FireXJsonReportGenerator.create_completed_run_json(root_id=chain_result,
+                                                           run_revoked=run_revoked,
+                                                           **chain_args)
     except Exception as e:
         logger.error(f'Failed to generate completion run JSON: {e}')
 
@@ -465,6 +457,7 @@ class SubmitBaseApp:
         chain_args['submission_dir'] = os.getcwd()
         chain_args['argv'] = sys.argv
         chain_args['json_file'] = args.json_file
+
         whitelist_arguments(['submitter', 'submission_dir', 'argv'])
 
         return chain_args
