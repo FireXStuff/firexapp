@@ -27,6 +27,7 @@ class FireXRunData:
     results: Dict = None
     revoked: bool = False
 
+
 class FireXJsonReportGenerator:
     formatters = ('json',)
 

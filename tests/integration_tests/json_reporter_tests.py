@@ -1,4 +1,5 @@
 import json
+import pprint
 from socket import gethostname
 from tempfile import NamedTemporaryFile
 from firex_keeper.task_query import single_task_by_name
@@ -10,8 +11,17 @@ from firexapp.engine.celery import app
 from firexapp.testing.config_base import FlowTestConfiguration
 
 
+@app.task(returns='some_output')
+def SomePassThroughService(some_input):
+    return some_input
+
+
+def verify_inputs(expected_inputs, inputs):
+    assert all(item in inputs.items() for item in expected_inputs.items())
+
+
 @app.task(returns='common_json_data')
-def VerifyInitialJsonReport(uid, chain, submission_dir, json_file, argv, original_cli=None):
+def VerifyInitialJsonReport(uid, chain, submission_dir, json_file, argv, some_input, original_cli=None):
     poll_until_path_exist(json_file)
     with open(json_file) as f:
         json_content = json.load(f)
@@ -20,25 +30,33 @@ def VerifyInitialJsonReport(uid, chain, submission_dir, json_file, argv, origina
                         'logs_path': uid.logs_dir,
                         'submission_host': gethostname(),
                         'submission_dir': submission_dir,
-                        'submission_cmd': original_cli or list(argv)
-                       }
+                        'submission_cmd': original_cli or list(argv),
+                        }
+
     if uid.viewers:
         common_json_data.update(uid.viewers)
     expected = {**common_json_data, 'completed': False}
     assert all(item in json_content.items() for item in expected.items()), \
-        f'Expected {expected} to be in {json_content}'
+        f'Expected\n {pprint.pformat(expected)}\nto be in:\n{pprint.pformat(json_content)}'
+
+    verify_inputs(expected_inputs={'some_input': some_input},
+                  inputs=json_content['inputs'])
+
     # Will return the common json entries to verify they are the same in the final report
     return common_json_data
 
 
 class JsonReportsGetGenerated(FlowTestConfiguration):
-
     json_file = NamedTemporaryFile().name
 
+    some_service_arg = 'some_input'
+    some_service_arg_value = 'some_value'
+    some_service_arg_dict = {some_service_arg: some_service_arg_value}
+
     def initial_firex_options(self) -> list:
-        from firexapp.tasks.example import getusername
-        return ["submit", "--chain", f"{getusername.__name__},{VerifyInitialJsonReport.__name__}",
-                "--json_file", self.json_file]
+        return ["submit", "--chain", f"{SomePassThroughService.__name__},{VerifyInitialJsonReport.__name__}",
+                "--json_file", self.json_file,
+                f"--{self.some_service_arg}", self.some_service_arg_value]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_path = get_log_dir_from_output(cmd_output)
@@ -59,6 +77,9 @@ class JsonReportsGetGenerated(FlowTestConfiguration):
 
         assert all(item in json_content.items() for item in expected.items()), \
             f'Expected {expected} to be in {json_content}'
+
+        verify_inputs(expected_inputs=self.some_service_arg_dict,
+                      inputs=json_content['inputs'])
 
     def assert_expected_return_code(self, ret_value):
         assert ret_value == 0, "Test expects a CLEAN run, but returned %s. " \
