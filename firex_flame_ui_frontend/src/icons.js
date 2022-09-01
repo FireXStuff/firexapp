@@ -33,6 +33,7 @@ import { faTimesCircle } from '@fortawesome/free-regular-svg-icons/faTimesCircle
 import { faFolderOpen } from '@fortawesome/free-solid-svg-icons/faFolderOpen';
 import { faLevelUpAlt } from '@fortawesome/free-solid-svg-icons/faLevelUpAlt';
 import { faRedo } from '@fortawesome/pro-light-svg-icons/faRedo';
+import { faBriefcase } from '@fortawesome/free-solid-svg-icons/faBriefcase';
 
 import {
   FontAwesomeIcon, FontAwesomeLayers, FontAwesomeLayersText,
@@ -44,7 +45,7 @@ library.add(faBullseye, faEye, faSearch, faListUl, faPlusCircle,
   faUndo, faExclamationCircle, faClock, faQuestionCircle, faKeyboard, faBook,
   faCogs, faClipboard, faFileInvoice, faArrowDown, faCircleNotch, faLink,
   faCheckCircle, faExclamationTriangle, faTimesCircle, faFolderOpen, faLevelUpAlt,
-  faRedo);
+  faRedo, faBriefcase);
 
 Vue.component('font-awesome-icon', FontAwesomeIcon);
 Vue.component('font-awesome-layers', FontAwesomeLayers);

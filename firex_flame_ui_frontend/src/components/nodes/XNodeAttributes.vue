@@ -29,17 +29,29 @@
       </div>
 
       <div style="display: inline-flex; align-items: center; justify-content: center;">
+
         <div style="padding: 1em;">
 
+          <router-link
+            v-if="detailedTask.cached_result_from"
+            :to="getTaskRoute(detailedTask.cached_result_from)"
+            class="btn btn-primary btn-lg"
+            style="margin-right: 1em;"
+            title="Click to view the task that initially produced these cached results."
+          >
+            <font-awesome-icon icon="briefcase"/>
+            Cached Result From Task
+          </router-link>
 
           <router-link v-if="detailedTask.exception_cause_uuid"
                        :to="getTaskRoute(detailedTask.exception_cause_uuid)"
                        class="btn btn-danger btn-lg" style="margin-right: 1em;">
-            <font-awesome-icon icon="exclamation-circle"></font-awesome-icon>
+            <font-awesome-icon icon="exclamation-circle"/>
             Causing Failure Task
           </router-link>
+
           <a class="btn btn-primary btn-lg" :href="detailedTask.logs_url" role="button">
-            <font-awesome-icon icon="file-alt"></font-awesome-icon>
+            <font-awesome-icon icon="file-alt"/>
             {{detailedTask.name}} Log
           </a>
         </div>
