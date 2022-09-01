@@ -119,6 +119,7 @@ def create_replacement_task(original, name_postfix, sigs):
                                                        "typing",
                                                        "returns",
                                                        "flame",
+                                                       "use_cache",
                                                        "pending_child_strategy"] if key in dir(original)}
 
     from celery import current_app
