@@ -33,6 +33,9 @@ class FlowTestConfiguration(object):
     def assert_expected_return_code(self, ret_value):
         pass
 
+    def cleanup(self):
+        pass
+
 
 class InterceptFlowTestConfiguration(FlowTestConfiguration):
     __metaclass__ = abc.ABCMeta

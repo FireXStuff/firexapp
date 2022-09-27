@@ -233,6 +233,11 @@ def {0}(**kwargs):
         finally:
             self.on_test_exit(flow_test_config.std_out, flow_test_config.std_err)
 
+            try:
+                flow_test_config.cleanup()
+            except Exception as cleanup_e:
+                print(f'Exception during flow test cleanup: {cleanup_e}')
+
             if self.tmp_json_file and os.path.exists(self.tmp_json_file):
                 os.unlink(self.tmp_json_file)
 
