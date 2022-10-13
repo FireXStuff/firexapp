@@ -20,17 +20,16 @@
           is false. -->
         <!-- TODO: seems odd both isLeaf and allowCollapse exist just to gate collapse. -->
         <div class="align-self-end"
-             :style="!isLeaf && !isChained && allowCollapse ? '' : 'visibility: collapse;'">
-          <!-- Use prevent to avoid activating node-wide attribute link -->
+             :style="!isLeaf && allowCollapse ? '' : 'visibility: collapse;'">
+
+             <!-- Use prevent to avoid activating node-wide attribute link -->
           <i v-on:click.prevent="emitCollapseToggle" class="collapse-btn-container">
             <font-awesome-icon v-if="toCollapse"
                                icon="compress-arrows-alt"
-                               title="collapse" fixed-width>
-            </font-awesome-icon>
+                               title="collapse" fixed-width/>
             <font-awesome-icon v-else
                                icon="expand-arrows-alt"
-                               title="expand" fixed-width>
-            </font-awesome-icon>
+                               title="expand" fixed-width/>
           </i>
         </div>
       </div>
@@ -105,9 +104,6 @@ export default {
     },
     taskNumber() {
       return this.task.task_num;
-    },
-    isChained() {
-      return Boolean(this.chainDepth);
     },
     runState() {
       return this.$store.getters['tasks/runStateByUuid'][this.taskUuid].state;

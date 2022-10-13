@@ -15,7 +15,7 @@
       <x-core-task-node
         :taskUuid="uuid"
         :emitDimensions="true"
-        :allowCollapse="false"></x-core-task-node>
+        :allowCollapse="false"/>
     </div>
   </div>
 </template>
