@@ -95,9 +95,11 @@ class BrokerEventConsumerThread(threading.Thread):
     def _on_event(self, event):
         try:
             self._on_celery_event(event)
+
             if (self._is_root_complete()
                 # In case checking all tests is expensive, check root first. Remaining
-                # tasks can only be complete once root is complete.
+                # tasks only need to be checked once root is complete since everything
+                # can't be complete if the root is not complete.
                 and self._all_tasks_complete()
                 and self.celery_event_receiver):
                 logger.info(f"Stopping Celery event receiver because all tasks are complete.")

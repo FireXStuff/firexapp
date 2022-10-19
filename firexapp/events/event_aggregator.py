@@ -4,6 +4,7 @@ Aggregates events in to the task data model.
 from collections import namedtuple
 from datetime import datetime
 import logging
+from typing import Optional, Any
 
 from firexkit.task import FIREX_REVOKE_COMPLETE_EVENT_TYPE
 
@@ -184,11 +185,10 @@ def find_data_changes(task, new_task_data, keep_initial_fields, merge_fields):
     return changed_data
 
 
-class FireXEventAggregator:
+class AbstractFireXEventAggregator:
     """ Aggregates many events in to the task data model. """
 
-    def __init__(self, aggregator_config: EventAggregatorConfig = DEFAULT_AGGREGATOR_CONFIG):
-        self.tasks_by_uuid = {}
+    def __init__(self, aggregator_config: EventAggregatorConfig):
         self.new_task_num = 1
         self.root_uuid = None
         self.aggregator_config = aggregator_config
@@ -212,43 +212,50 @@ class FireXEventAggregator:
         """
         new_events = []
         now = datetime.now().timestamp()
-        for task in self.tasks_by_uuid.values():
-            if task.get(TaskColumn.ACTUAL_RUNTIME.value) is None:
-                if task.get('state') in INCOMPLETE_RUNSTATES:
-                    event_type = 'task-incomplete'
-                else:
-                    event_type = 'task-completed'
-                new_events.append(
-                    {'uuid': task['uuid'],
-                     'type': event_type,
-                     TaskColumn.ACTUAL_RUNTIME.value: now - task.get('first_started', now)}
-                )
+        for incomplete_task in self._get_incomplete_tasks():
+            if incomplete_task.get('state') in INCOMPLETE_RUNSTATES:
+                event_type = 'task-incomplete'
+            else:
+                event_type = 'task-completed'
+
+            new_event = {
+                'uuid': incomplete_task['uuid'],
+                'type': event_type,
+            }
+
+            if not incomplete_task.get(TaskColumn.ACTUAL_RUNTIME.value):
+                task_runtime = now - incomplete_task.get('first_started', now)
+                new_event[TaskColumn.ACTUAL_RUNTIME.value] = task_runtime
+
+            new_events.append(new_event)
         return new_events
 
-    def is_root_complete(self):
-        if not self.root_uuid or self.root_uuid not in self.tasks_by_uuid:
+    def is_root_complete(self) -> bool:
+        if (
+            not self.root_uuid
+            or not self._task_exists(self.root_uuid)
+        ):
             return False  # Might not have root event yet.
-        root_runstate = self.tasks_by_uuid[self.root_uuid].get('state', None)
+        root_runstate = self._get_task(self.root_uuid).get('state', None)
         return root_runstate in COMPLETE_RUNSTATES
 
-    def are_all_tasks_complete(self):
+    def are_all_tasks_complete(self) -> bool:
         if not self.is_root_complete():
+            # optimization: don't query all incomplete tasks if the root isn't done yet.
             return False
-        all_run_states = {t.get('state', None) for t in self.tasks_by_uuid.values()}
-        incomplete_task_runstates = all_run_states - COMPLETE_RUNSTATES
-        return len(incomplete_task_runstates) == 0
+        return len(self._get_incomplete_tasks()) == 0
 
     def _get_or_create_task(self, task_uuid):
-        if task_uuid not in self.tasks_by_uuid:
+        if not self._task_exists(task_uuid):
             task = {
                 'uuid': task_uuid,
                 'task_num': self.new_task_num,
             }
             self.new_task_num += 1
-            self.tasks_by_uuid[task_uuid] = task
+            self._insert_new_task(task)
             is_new = True
         else:
-            task = self.tasks_by_uuid[task_uuid]
+            task = self._get_task(task_uuid)
             is_new = False
         return task, is_new
 
@@ -258,7 +265,8 @@ class FireXEventAggregator:
                 or not event['uuid']
                 # Revoked events can be sent before any other, and we'll never get any data (name, etc) for that task.
                 # Therefore ignore events that are for a new UUID that have revoked type.
-                or (event['uuid'] not in self.tasks_by_uuid and event.get('type', '') == REVOKED_EVENT_TYPE)):
+                or (not self._task_exists(event['uuid'])
+                    and event.get('type', '') == REVOKED_EVENT_TYPE)):
             return {}
 
         if event.get(TaskColumn.PARENT_ID.value, '__no_match') is None and self.root_uuid is None:
@@ -282,3 +290,44 @@ class FireXEventAggregator:
             changes_by_task_uuid[task_uuid] = dict(task) if is_new_task else dict(changed_data)
 
         return changes_by_task_uuid
+
+    def _task_exists(self, task_uuid):
+        raise NotImplementedError("This should be implemented by concrete subclasses")
+
+    def _get_task(self, task_uuid: str) -> Optional[dict[str, Any]]:
+        raise NotImplementedError("This should be implemented by concrete subclasses")
+
+    def _get_incomplete_tasks(self) -> list[dict[str, Any]]:
+        raise NotImplementedError("This should be implemented by concrete subclasses")
+
+    def _insert_new_task(self, task: dict[str, Any]) -> None:
+        raise NotImplementedError("This should be implemented by concrete subclasses")
+
+
+class FireXEventAggregator(AbstractFireXEventAggregator):
+    """ Aggregates many Celery events in to the FireX tasks data model. """
+
+    def __init__(self, aggregator_config: EventAggregatorConfig = DEFAULT_AGGREGATOR_CONFIG):
+        super().__init__(aggregator_config)
+        self.tasks_by_uuid : dict[str, Any] = {}
+
+    def _task_exists(self, task_uuid: str) -> bool:
+        if not task_uuid:
+            return False
+        return task_uuid in self.tasks_by_uuid
+
+    def _get_task(self, task_uuid: str) -> Optional[dict[str, Any]]:
+        return self.tasks_by_uuid.get(task_uuid)
+
+    def _get_incomplete_tasks(self) -> list[dict[str, Any]]:
+        return [
+            task for task in self.tasks_by_uuid.values()
+            if task.get(TaskColumn.ACTUAL_RUNTIME.value) is None
+                or task.get('state') in INCOMPLETE_RUNSTATES
+        ]
+
+    def _insert_new_task(self, task: dict[str, Any]) -> None:
+        assert 'uuid' in task, f'Cannot insert task without uuid: {task}'
+        assert not self._task_exists(task['uuid']), f'Task already exists, cannot insert: {task}'
+        self.tasks_by_uuid[task['uuid']] = task
+
