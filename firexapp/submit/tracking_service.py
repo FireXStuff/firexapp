@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Optional
 
 from firexapp.discovery import get_firex_tracking_services_entry_points, PkgVersionInfo
 from firexapp.submit.install_configs import FireXInstallConfigs
@@ -24,15 +24,15 @@ class TrackingService(ABC):
     def ready_release_console(self, **kwargs) -> bool:
         return True
 
-    def get_pkg_version_info(self) -> PkgVersionInfo:
-        pass
+    def get_pkg_version_info(self) -> Optional[PkgVersionInfo]:
+        return None
 
 
 def get_service_name(service: TrackingService) -> str:
     return service.__class__.__name__
 
 
-def get_tracking_services() -> Tuple[TrackingService]:
+def get_tracking_services() -> Optional[tuple[TrackingService]]:
     global _services
     if _services is None:
         entry_pts = get_firex_tracking_services_entry_points()
@@ -40,8 +40,9 @@ def get_tracking_services() -> Tuple[TrackingService]:
         _services = tuple([point() for point in entry_objects])
     return _services
 
-def get_tracking_services_versions() -> [PkgVersionInfo]:
-    return [service.get_pkg_version_info() for service in get_tracking_services()]
+def get_tracking_services_versions() -> list[PkgVersionInfo]:
+    version_infos = [service.get_pkg_version_info() for service in get_tracking_services()]
+    return [v for v in version_infos if v]
 
 def has_flame() -> bool:
     # Unfortunate coupling, but just too many things vary depending on presence of flame. Will eventually bring
