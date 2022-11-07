@@ -100,12 +100,18 @@ def _get_keys_with_true(input_dict, key):
     return [k for k, v in input_dict.items() if v.get(key, False)]
 
 
-DEFAULT_AGGREGATOR_CONFIG = EventAggregatorConfig(
-    copy_fields=_get_keys_with_true(FIELD_CONFIG, 'copy_celery'),
-    merge_fields=_get_keys_with_true(FIELD_CONFIG, 'aggregate_merge'),
-    keep_initial_fields=_get_keys_with_true(FIELD_CONFIG, 'aggregate_keep_initial'),
-    field_to_celery_transforms={k: v['transform_celery'] for k, v in FIELD_CONFIG.items() if 'transform_celery' in v},
-)
+def event_aggregator_from_field_spec(field_spec: dict[str, dict[str, Any]]):
+    return EventAggregatorConfig(
+        copy_fields=_get_keys_with_true(field_spec, 'copy_celery'),
+        merge_fields=_get_keys_with_true(field_spec, 'aggregate_merge'),
+        keep_initial_fields=_get_keys_with_true(field_spec, 'aggregate_keep_initial'),
+        field_to_celery_transforms={
+            k: v['transform_celery']
+            for k, v in field_spec.items()
+            if 'transform_celery' in v},
+    )
+
+DEFAULT_AGGREGATOR_CONFIG = event_aggregator_from_field_spec(FIELD_CONFIG)
 
 
 def _deep_merge_keys(dict1, dict2, keys):

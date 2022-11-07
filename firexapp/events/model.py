@@ -34,6 +34,9 @@ ALL_RUNSTATES = {
     RunStates.BLOCKED.value: {'terminal': False},
     RunStates.UNBLOCKED.value: {'terminal': False},
     RunStates.SUCCEEDED.value: {'terminal': True},
+
+    # There are gotchas here, failed isn't "really" terminal
+    # in the presence of retries.
     RunStates.FAILED.value: {'terminal': True},
     RunStates.REVOKED.value: {'terminal': True},
     RunStates.INCOMPLETE.value: {'terminal': True},  # server-side kludge state to fix tasks that will never complete.
