@@ -4,7 +4,7 @@
       <template v-slot:header><strong style="font-size: medium;">Summary</strong></template>
       <div>
         <router-link v-for="displayCommand in displayExternalCommands" :key="'summary-' + displayCommand.id"
-                     :to="{params: { selectedSubsection: displayCommand.id }}">
+                     :to="commandRoute(displayCommand.id)">
           <div style="display: flex; flex-direction: row;">
             <div>
               <x-external-command-status
@@ -40,8 +40,9 @@
             class="btn btn-sm btn-primary pull-right" @click="expandedOutputIds.push(displayCommand.id)">
             <font-awesome-icon icon="expand-arrows-alt"></font-awesome-icon>
           </button>
-          <router-link class="btn btn-link pull-right" :to="{params: { selectedSubsection: displayCommand.id }}">
-            <font-awesome-icon icon="link"></font-awesome-icon>
+          <router-link class="btn btn-link pull-right"
+            :to="commandRoute(displayCommand.id)">
+            <font-awesome-icon icon="link"/>
           </router-link>
         </strong>
       </template>
@@ -277,6 +278,14 @@ export default {
         return this.parentTaskHost;
       }
       return remoteHost;
+    },
+    commandRoute(displayCommandId) {
+      return {
+        params: {
+          selectedSubsection: displayCommandId,
+          selectedSection: 'external_commands',
+        },
+      };
     },
   },
 };
