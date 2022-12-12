@@ -89,10 +89,23 @@ const tasksGetters = {
     if (!_.isNil(metadataRootUuid) && _.has(state.allTasksByUuid, metadataRootUuid)) {
       return metadataRootUuid;
     }
-    // Fallback to searching graph.
+    // Server did not capture the root_uuid, fallback to searching graph.
     const nullParents = _.filter(state.allTasksByUuid, { parent_id: null });
-    // TODO: consider finding by earliest task num if multiple null parent_id.
-    return _.isEmpty(nullParents) ? null : _.head(nullParents).uuid;
+    if (_.isEmpty(nullParents)) {
+      let firstTask = _.minBy(_.values(state.allTasksByUuid), 'first_started');
+      if (_.isNil(firstTask)) {
+        return null; // no tasks, no root.
+      }
+
+      // Check if the server just missed the fact the root is the root, but have the task.
+      while (
+        firstTask.parent_id && _.has(state.allTasksByUuid, firstTask.parent_id)
+      ) {
+        firstTask = state.allTasksByUuid[firstTask.parent_id];
+      }
+      return firstTask.uuid;
+    }
+    return _.head(nullParents).uuid;
   },
 
   canRevoke: (state, getters) => getters.hasIncompleteTasks && state.apiConnected,

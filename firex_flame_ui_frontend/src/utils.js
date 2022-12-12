@@ -349,7 +349,7 @@ const DEFAULT_UI_CONFIG = {
   firex_bin: 'firex',
   rel_completion_report_path: null,
   logs_serving: {
-    /*
+  /*
    * Allowed values:
    *  central-webserver: prepends the 'central_webserver' to log paths. Assumes the central
    *    webserver supports listing directories.
