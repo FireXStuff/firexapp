@@ -18,6 +18,10 @@ from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_ru
 from firexapp.celery_manager import CeleryManager
 from firexapp.common import wait_until
 from firexapp.tasks.root_tasks import get_configured_root_task
+from firexapp.submit.shutdown import launch_background_shutdown
+
+
+from psutil import Process
 
 logger = get_task_logger(__name__)
 
@@ -283,3 +287,27 @@ class AsyncNoBrokerLeakOnCeleryTerminated(NoBrokerLeakOnCeleryTerminated):
 
     def expected_error(self):
         return ""
+
+
+class ShutdownDetachedFromParentProcess(NoBrokerLeakOnCeleryTerminated):
+    # It isn't completely clear why, but coverage causes the CI to hang after this test has completed.
+    no_coverage = True
+    sync = False
+
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "Sleep", '--sleep', '20']
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        logs_dir = get_log_dir_from_output(cmd_output)
+        shutdown_pid = launch_background_shutdown(
+            logs_dir,
+            'terminating out-of-run for integration testing',
+        )
+        shutdown_proc = Process(shutdown_pid)
+        assert shutdown_proc.name() == 'firex_shutdown', f'Unexpected shutdown proc name: {shutdown_proc.name()}'
+
+        child_procs = Process().children(recursive=True)
+        assert shutdown_proc not in child_procs, f'Expected shutdown to not be a child of the current process'
+        shutdown_proc.wait(10) # unfortunately can't confirm return code since it isn't a child.
+
+        super().assert_expected_firex_output(cmd_output, cmd_err)

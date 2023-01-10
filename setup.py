@@ -31,6 +31,7 @@ setup(name='firexapp',
           "entrypoints",
           "colorlog==2.10.0",
           "beautifulsoup4",
+          "detach3k",
       ],
       extras_require={
           'test': [

@@ -5,6 +5,7 @@ import subprocess
 import time
 from psutil import Process, TimeoutExpired
 from collections import namedtuple
+from typing import Optional
 
 from celery import Celery
 import redis.exceptions
@@ -23,29 +24,45 @@ DEFAULT_CELERY_SHUTDOWN_TIMEOUT = 5 * 60
 MaybeCeleryActiveTasks = namedtuple('MaybeCeleryActiveTasks', ['celery_read_success', 'active_tasks'])
 
 
-def launch_background_shutdown(logs_dir, reason, celery_shutdown_timeout=DEFAULT_CELERY_SHUTDOWN_TIMEOUT):
+def _launch_shutdown_subprocess(shutdown_cmd: list[str]) -> int:
+    shutdown_subprocess_env = select_env_vars([REDIS_BIN_ENV, 'PATH'])
+    try:
+        import detach
+    except ModuleNotFoundError:
+        # don't break old installs that don't have detach
+        return subprocess.Popen(
+            shutdown_cmd,
+            close_fds=True,
+            env=shutdown_subprocess_env,
+            preexec_fn=os.setpgrp,
+        ).pid
+    else:
+        return detach.call(
+            shutdown_cmd,
+            env=shutdown_subprocess_env,
+        )
+
+
+def launch_background_shutdown(logs_dir, reason, celery_shutdown_timeout=DEFAULT_CELERY_SHUTDOWN_TIMEOUT) -> Optional[int]:
     try:
         shutdown_cmd = [qualify_firex_bin("firex_shutdown"),
                         "--logs_dir",  logs_dir,
                         "--celery_shutdown_timeout", str(celery_shutdown_timeout)]
         if reason:
             shutdown_cmd += ['--reason', reason]
-        pid = subprocess.Popen(shutdown_cmd,
-                               close_fds=True,
-                               env=select_env_vars([REDIS_BIN_ENV, 'PATH']),
-                               preexec_fn=os.setpgrp,
-                               ).pid
-    except Exception as e:
-        logger.error("SHUTDOWN PROCESS FAILED TO LAUNCH -- REDIS WILL LEAK.")
-        logger.error(e)
+        pid = _launch_shutdown_subprocess(shutdown_cmd)
+    except Exception:
+        logger.exception("SHUTDOWN PROCESS FAILED TO LAUNCH -- REDIS WILL LEAK.")
         raise
     else:
         try:
             Process(pid).wait(0.1)
         except TimeoutExpired:
-            logger.debug("Started background shutdown with pid %s" % pid)
+            logger.debug(f"Started background shutdown with pid {pid}")
+            return pid
         else:
             logger.error("SHUTDOWN PROCESS FAILED TO RUN -- REDIS WILL LEAK.")
+            return None
 
 
 def wait_for_broker_shutdown(broker, timeout=15, force_kill=True):
@@ -59,7 +76,7 @@ def wait_for_broker_shutdown(broker, timeout=15, force_kill=True):
     if not broker.is_alive():
         logger.debug("Confirmed successful graceful broker shutdown.")
     elif force_kill:
-        logger.debug("Warning! Broker was not shut down after %s seconds. FORCE KILLING BROKER." % str(timeout))
+        logger.debug(f"Warning! Broker was not shut down after {timeout} seconds. FORCE KILLING BROKER.")
         broker.force_kill()
 
     return not broker.is_alive()
@@ -112,12 +129,13 @@ def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicat
     maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
     revoke_retries = 0
     # Revoke retry loop
-    while (maybe_active_tasks.celery_read_success
-           and maybe_active_tasks.active_tasks
-           and revoke_retries < max_revoke_retries):
+    while (
+        maybe_active_tasks.celery_read_success
+        and maybe_active_tasks.active_tasks
+        and revoke_retries < max_revoke_retries
+    ):
         if revoke_retries:
-            logger.warning("Found %s active tasks after revoke. Revoking active tasks again."
-                           % len(maybe_active_tasks.active_tasks))
+            logger.warning(f"Found {len(maybe_active_tasks.active_tasks)} active tasks after revoke. Revoking active tasks again.")
 
         # Revoke tasks in order they were started. This avoids ChainRevokedException errors when children are revoked
         # before their parents.
@@ -128,8 +146,11 @@ def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicat
         # wait for confirmation of revoke
         maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
         wait_for_task_revoke_start = time.monotonic()
-        while maybe_active_tasks.celery_read_success and maybe_active_tasks.active_tasks \
-                and time.monotonic() - wait_for_task_revoke_start < 3:
+        while (
+            maybe_active_tasks.celery_read_success
+            and maybe_active_tasks.active_tasks
+            and time.monotonic() - wait_for_task_revoke_start < 3
+        ):
             time.sleep(0.25)
             maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
 
@@ -201,12 +222,13 @@ def shutdown_run(logs_dir, celery_shutdown_timeout, reason='No reason provided')
         else:
             logger.info("No active Broker.")
 
-    logger.info("Shutdown of %s complete." % logs_dir)
+    logger.info(f"Shutdown of {logs_dir} complete.")
 
 
-def main():
+def main() -> None:
     logs_dir, reason, celery_shutdown_timeout = init()
     try:
         shutdown_run(logs_dir, celery_shutdown_timeout, reason)
-    except Exception as e:
-        logger.exception(e)
+    except BaseException:
+        logger.exception("Shutdown failed.")
+        raise
