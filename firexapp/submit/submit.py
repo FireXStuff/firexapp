@@ -542,13 +542,13 @@ class SubmitBaseApp:
     def wait_tracking_services_release_console_ready(self, timeout=5)->None:
         self.wait_tracking_services_pred(lambda s: s.ready_release_console(), 'ready to release console', timeout)
 
-    def main_error_exit_handler(self, chain_details=None, reason=None):
+    def main_error_exit_handler(self, chain_details=None, reason=None, run_revoked=False):
         mssg = 'Aborting FireX submission...'
         if reason:
             mssg += '\n' + str(reason)
         logger.error(mssg)
         if self.broker:
-            self.self_destruct(chain_details=chain_details, reason=reason)
+            self.self_destruct(chain_details=chain_details, reason=reason, run_revoked=run_revoked)
         if self.uid:
             self.copy_submission_log()
 
