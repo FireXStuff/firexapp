@@ -125,5 +125,4 @@ worker_redirect_stdouts_level = PRINT_LEVEL_NAME
 
 primary_worker_name = 'mc'
 primary_worker_minimum_concurrency = 4
-maximum_concurrency_multiplier = 5
 mc = BrokerFactory.get_hostname_port_from_url(broker_url)[0]
