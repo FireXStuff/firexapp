@@ -6,20 +6,19 @@
        @keydown.left="translateBy(30, 0)"
        @keydown.right="translateBy(-30, 0)"
   >
-    <div id="chart-container" ref="graph-svg">
+    <div id="chart-container" ref="svg-container">
         <svg preserveAspectRatio="xMinYMin" style="width: 100%; height: 100%;">
           <g :transform="svgGraphTransform">
             <x-link
               :parentUuidByUuid="uncollapsedParentUuidByUuid"
               :nodeLayoutsByUuid="nodeLayoutsByUuid"
               :additionalChildrenByUuid="additionalChildrenByUuid"
-            ></x-link>
-            <x-svg-task-nodes
-              :nodeLayoutsByUuid="nodeLayoutsByUuid"></x-svg-task-nodes>
+            />
+            <x-svg-task-nodes :nodeLayoutsByUuid="nodeLayoutsByUuid"/>
           </g>
         </svg>
     </div>
-    <x-task-capturing-nodes></x-task-capturing-nodes>
+    <x-task-capturing-nodes/>
   </div>
 </template>
 
@@ -51,6 +50,34 @@ function zoomed() {
   });
 }
 const scaleBounds = { max: 2, min: 0.05 };
+
+function nodeLayoutToRect(nodeLayout) {
+  return {
+    left: nodeLayout.x,
+    right: nodeLayout.x + nodeLayout.width,
+    top: nodeLayout.y,
+    bottom: nodeLayout.y + nodeLayout.height,
+  };
+}
+
+function rectsIntersect(rect1, rect2) {
+  return (
+    rect1.left < rect2.right
+    && rect1.right > rect2.left
+    && rect1.top < rect2.bottom
+    && rect1.bottom > rect2.top
+  );
+}
+
+function transformRect(rect, transform) {
+  return {
+    left: rect.left * transform.scale + transform.x,
+    right: rect.right * transform.scale + transform.x,
+    top: rect.top * transform.scale + transform.y,
+    bottom: rect.bottom * transform.scale + transform.y,
+  };
+}
+
 
 // TODO: likely should attach this to the component after confirming no preformance impacts.
 const zoom = d3zoom()
@@ -210,27 +237,24 @@ export default {
     },
     getCenterTransform() {
       // Not available during re-render.
-      if (this.$refs['graph-svg']) {
-        const boundingRect = this.$refs['graph-svg'].getBoundingClientRect();
+      if (this.$refs['svg-container']) {
+        const boundingRect = this.$refs['svg-container'].getBoundingClientRect();
         // Visible extent might not be initialized before first graph draw, so fall back here.
         if (_.every(this.nonCollapsedNodesExtent, _.negate(_.isNil))) {
-          return getCenteringTransform(this.nonCollapsedNodesExtent, boundingRect,
-            scaleBounds, 200);
+          return getCenteringTransform(
+            this.nonCollapsedNodesExtent,
+            boundingRect,
+            scaleBounds, 200,
+          );
         }
       }
       return { x: 0, y: 0, scale: 1 };
     },
     getCenterOnNodeTransform(uuid) {
       // Not available during re-render.
-      if (this.$refs['graph-svg']) {
-        const boundingRect = this.$refs['graph-svg'].getBoundingClientRect();
-        const nodeLayout = this.nodeLayoutsByUuid[uuid];
-        const nodeRect = {
-          left: nodeLayout.x,
-          right: nodeLayout.x + nodeLayout.width,
-          top: nodeLayout.y,
-          bottom: nodeLayout.y + nodeLayout.height,
-        };
+      if (this.$refs['svg-container']) {
+        const boundingRect = this.$refs['svg-container'].getBoundingClientRect();
+        const nodeRect = nodeLayoutToRect(this.nodeLayoutsByUuid[uuid]);
         return getCenteringTransform(nodeRect, boundingRect, scaleBounds, 0);
       }
       return { x: 0, y: 0, scale: 1 };
@@ -406,13 +430,31 @@ export default {
       const vals = [transform.x, transform.y, transform.scale];
       return _.every(_.map(vals, v => !_.isNil(v) && _.isNumber(v)));
     },
-    getLocalStorageTransform() {
+    getLocalStorageTransform(nodeLayoutsByUuid) {
       // Only load stored transform when viewing the entire tree, since loading it when viewing
       // subtrees might load transform that includes no tasks.
       if (_.isNil(this.selectedRoot)) {
         const storedTransform = readPathsFromLocalStorage(this.firexUid, ['x', 'y', 'scale']);
         if (this.isTransformValid(storedTransform)) {
-          return storedTransform;
+          let storedTransformOk;
+          if (this.$refs['svg-container']) {
+            const boundingRect = this.$refs['svg-container'].getBoundingClientRect();
+            // if no nodes are visible, do not use the stored transform, since
+            // it will be empty and confusing to users.
+            storedTransformOk = _.some(
+              nodeLayoutsByUuid,
+              nodeLayout => rectsIntersect(
+                transformRect(nodeLayoutToRect(nodeLayout), storedTransform),
+                boundingRect,
+              ),
+            );
+          } else {
+            // Can't tell if it's OK, it usually is (guess).
+            storedTransformOk = true;
+          }
+          if (storedTransformOk) {
+            return storedTransform;
+          }
         }
       }
       // Default to the centering transform.
@@ -439,14 +481,15 @@ export default {
       },
       immediate: true,
     },
-    nodeLayoutsByUuid(newVal) {
+    nodeLayoutsByUuid(newNodeLayoutsByUuid) {
       // Need to load stored transform AFTER initial layout.
-      if (!_.isEmpty(newVal) && this.isFirstLayout) {
+      if (!_.isEmpty(newNodeLayoutsByUuid) && this.isFirstLayout) {
         // Want first render not to fade, but second render to fade-in new nodes.
         // Without next tick, every render has isFirstLayout false.
         this.$nextTick(() => this.$store.commit('graph/setIsFirstLayout', false));
+
         // TODO: combine localstorage reads, or cache at lower level.
-        this.updateTransformViaZoom(this.getLocalStorageTransform());
+        this.updateTransformViaZoom(this.getLocalStorageTransform(newNodeLayoutsByUuid));
       }
     },
     collapseConfig: {

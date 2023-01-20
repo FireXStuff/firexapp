@@ -169,8 +169,10 @@ const actions = {
       _.filter(_.values(context.state.allTasksByUuid), t => isTaskStateIncomplete(t.state)),
       'uuid',
     );
-    const incompleteStateByUuid = _.mapValues(_.keyBy(incompleteTaskUuids),
-      () => ({ state: 'task-incomplete' }));
+    const incompleteStateByUuid = _.mapValues(
+      _.keyBy(incompleteTaskUuids),
+      () => ({ state: 'task-incomplete' }),
+    );
     context.commit('addTasksData', incompleteStateByUuid);
   },
 

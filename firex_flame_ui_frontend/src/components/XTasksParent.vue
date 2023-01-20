@@ -87,8 +87,8 @@ export default {
       function () {
         this.$store.dispatch('tasks/addTasksData', this.newTaskDataToDispatch);
         this.newTaskDataToDispatch = {};
-      // Wait at least 500ms of no events before updating tasks, up to a max of 1.5s.
-      }, 500, { maxWait: 1500, leading: true, trailing: true },
+      // Wait at least 500ms of no events before updating tasks, up to a max of 3s.
+      }, 500, { maxWait: 3000, leading: true, trailing: true },
     ),
     mergeNodesByUuid(newDataByUuid) {
       this.newTaskDataToDispatch = Object.freeze(
