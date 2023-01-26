@@ -240,6 +240,8 @@ function uuidv4() {
 /* eslint-disable */
 
 const successGreen = '#2A2';
+const TASK_STATE_SUCCEEDED = 'task-succeeded';
+const TASK_STATE_FAILED = 'task-failed';
 const statusToProps = {
   'task-received': {
     background: '#888',
@@ -252,11 +254,11 @@ const statusToProps = {
     display: 'Blocked',
   },
   'task-started': {
-    background: 'cornflowerblue', // animated in SVG, not in HTML.
+    background: 'cornflowerblue',
     priority: 1,
     display: 'In-Progress',
   },
-  'task-succeeded': {
+  [[TASK_STATE_SUCCEEDED]]: {
     background: successGreen,
     priority: 9,
     display: 'Success',
@@ -266,7 +268,7 @@ const statusToProps = {
     priority: 10,
     display: 'Success',
   },
-  'task-failed': {
+  [[TASK_STATE_FAILED]]: {
     background: '#B00',
     priority: 3,
     display: 'Failed',
@@ -289,7 +291,9 @@ const statusToProps = {
 };
 
 function getNodeBackground(exception, state) {
-  if (isChainInterrupted(exception)) {
+  // A task can fail (have an exception) then succeed on retry,
+  // in which case we'ld like to show success.
+  if (state === TASK_STATE_FAILED && isChainInterrupted(exception)) {
     return 'repeating-linear-gradient(45deg,#888,#888 5px,#893C3C 5px,#F71818  10px)';
   }
   const defaultColor = '#888';

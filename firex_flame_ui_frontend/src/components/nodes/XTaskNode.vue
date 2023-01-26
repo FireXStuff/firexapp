@@ -9,7 +9,7 @@
         :emitDimensions="emitDimensions"
         :showFlameData="showFlameData"
         class="node-container"
-      ></x-core-task-node>
+      />
     </router-link>
     <x-core-task-node v-else
       :allowCollapse="allowCollapse"
@@ -17,7 +17,7 @@
       :toCollapse="toCollapse"
       :isLeaf="isLeaf"
       :emitDimensions="emitDimensions"
-    ></x-core-task-node>
+    />
   </div>
 </template>
 
