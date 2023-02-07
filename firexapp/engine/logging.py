@@ -1,4 +1,6 @@
 import logging
+import re
+import uuid
 
 import celery.utils.log
 from _socket import gethostname
@@ -82,7 +84,37 @@ class AddHtmlElementsToLogRecords(logging.Filter):
         except AttributeError:
             record.label_element = ''
 
+        # Add formatting to arguments in span class 'task_started'
+        if 'task_started' in span_classes or 'task_completed' in span_classes:
+            # Use label as unique identifier, if available
+            try:
+                label = record.label
+            except AttributeError:
+                label = uuid.uuid4()
+
+            # decorate multiline arguments
+            def decorate_argument(match):
+                arg_num = match.group(1)
+                lines = match.group(2).split('\n')
+                if len(lines) > 1:
+                    lines[0] = f"<div class='wrap-collapsible'><input id='col{label}-{arg_num}' name='collapsible' " \
+                               f"class='toggle' type='checkbox'/><label for='col{label}-{arg_num}' class='lbl-toggle'>" \
+                               f"</label><span>  {arg_num}. {html_escape(lines[0])}</span><div class='collapsible-content'>"
+                    for index in range(1, len(lines)):
+                        lines[index] = f"<span>{html_escape(lines[index])}</span>"
+                    lines[-1] += "</div></div>"
+                else:
+                    lines[0] = f"<span class='non-collapsing'>  {arg_num}. {html_escape(lines[0])}</span>"
+                return '\n'.join(lines)
+
+            record.msg = re.sub(r'  (\d+)\. (.+?)(?=\n  \d+\.|\n=+|\n\*+)',
+                                decorate_argument,
+                                record.msg, flags=re.DOTALL | re.MULTILINE)
+
+            record.html_escape = False
+
         return True
+
 
 class FireXFormatter(celery.utils.log.ColorFormatter):
     def __init__(self, fmt):
