@@ -9,6 +9,7 @@ from celery.utils.log import get_task_logger
 from firexapp.common import delimit2list
 from firexkit.task import REPLACEMENT_TASK_NAME_POSTFIX
 import importlib.util
+from celery import current_app
 
 logger = get_task_logger(__name__)
 PLUGGING_ENV_NAME = "firex_plugins"
@@ -71,15 +72,6 @@ def _worker_init_signal(*args, **kwargs):
         exit(-2)
 
 
-def _mark_plugin_module_tasks():
-    from celery import current_app
-    ext_mods = get_plugin_module_names_from_env()
-    for ext_mod in ext_mods:
-        ext_mod_tasks = [t for t in current_app.tasks if t.startswith(ext_mod)]
-        for ext_mod_task in ext_mod_tasks:
-            current_app.tasks[ext_mod_task].from_plugin = True
-
-
 # there is no way of copying the signals without coupling with the internals of celery signals
 # noinspection PyProtectedMember
 def _get_signals_with_connections():
@@ -120,9 +112,8 @@ def create_replacement_task(original, name_postfix, sigs):
                                                        "returns",
                                                        "flame",
                                                        "use_cache",
-                                                       "pending_child_strategy"] if key in dir(original)}
-
-    from celery import current_app
+                                                       "pending_child_strategy",
+                                                       "from_plugin"] if key in dir(original)}
     new_task = current_app.task(name=new_name,
                                 bind=bound,
                                 base=inspect.getmro(original.__class__)[1],
@@ -153,7 +144,6 @@ def create_replacement_task(original, name_postfix, sigs):
 
 def _unregister_duplicate_tasks():
     sigs = _get_signals_with_connections()
-    from celery import current_app
     becomes = identify_duplicate_tasks(current_app.tasks, get_plugin_module_names_from_env())
     for substitutions in becomes:
         prime_overrider = substitutions[-1]  # the last item in the list is the last override
@@ -217,12 +207,20 @@ def import_plugin_file(plugin_file):
         return _import_plugin(module_name, plugin_file)
 
 
-def import_plugin_files(plugin_files):
+def import_plugin_files(plugin_files) -> set[str]:
+    original_tasks = set(current_app.tasks)
+
     plugin_files = cdl2list(plugin_files)
-    if not plugin_files:
-        return
     for plugin_file in plugin_files:
         import_plugin_file(plugin_file)
+
+    new_tasks = set(current_app.tasks) - original_tasks
+    new_tasks_modules = {t.rsplit('.', 1)[0] for t in new_tasks}
+    print(f'{len(new_tasks)} new service{"s" if len(new_tasks)>1 else ""} imported '
+          f'from {len(new_tasks_modules)} plugin module{"s" if len(new_tasks_modules)>1 else ""} '
+          f'[{", ".join(new_tasks_modules)}]')
+
+    return new_tasks
 
 
 def set_plugins_env(plugin_files):
@@ -236,10 +234,12 @@ def get_active_plugins():
 
 def load_plugin_modules(plugin_files):
     set_plugins_env(plugin_files)
-    import_plugin_files(plugin_files)
+    new_tasks_imported = import_plugin_files(plugin_files)
+    # Mark the newly imported tasks with "from_plugin"
+    for t in new_tasks_imported:
+        current_app.tasks[t].from_plugin = True
     if plugin_files:
         _unregister_duplicate_tasks()
-        _mark_plugin_module_tasks()
 
 
 def load_plugin_modules_from_env():
