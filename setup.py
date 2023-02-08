@@ -35,7 +35,8 @@ setup(name='firexapp',
       ],
       extras_require={
           'test': [
-              'firex-keeper',
+                'firex-keeper',
+                'SQLAlchemy<2.',
           ],
           'flame': [
               'firex-flame'
