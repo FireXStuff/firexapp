@@ -30,7 +30,7 @@ setup(name='firexapp',
           "python-Levenshtein",
           "entrypoints",
           "colorlog==2.10.0",
-          "beautifulsoup4",
+          "beautifulsoup4==4.11.1",
           "detach3k",
       ],
       extras_require={
