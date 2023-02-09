@@ -208,9 +208,12 @@ def import_plugin_file(plugin_file):
 
 
 def import_plugin_files(plugin_files) -> set[str]:
+    plugin_files = cdl2list(plugin_files)
+    if not plugin_files:
+        return set()
+
     original_tasks = set(current_app.tasks)
 
-    plugin_files = cdl2list(plugin_files)
     for plugin_file in plugin_files:
         import_plugin_file(plugin_file)
 
@@ -244,7 +247,8 @@ def load_plugin_modules(plugin_files):
 
 def load_plugin_modules_from_env():
     plugin_files = get_active_plugins()
-    load_plugin_modules(plugin_files)
+    if plugin_files:
+        load_plugin_modules(plugin_files)
 
 
 def merge_plugins(*plugin_lists) -> []:
