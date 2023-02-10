@@ -39,7 +39,9 @@ def cdl2list(plugin_files):
     if not plugin_files:
         return []
 
-    plugin_files = [file.strip() for file in plugin_files.split(",")]
+    if not isinstance(plugin_files, list):
+        plugin_files = [file.strip() for file in plugin_files.split(",")]
+
     plugin_files = [find_plugin_file(file) for file in plugin_files if file]
     return plugin_files
 
