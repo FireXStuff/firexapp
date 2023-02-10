@@ -240,14 +240,19 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
         proc.terminate()
         try:
             proc.wait(timeout=60)
+
         except subprocess.TimeoutExpired:
             # Okay, kill not so gently
             proc.kill()
             try:
                 proc.wait(timeout=6)
-            except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired as e:
                 # Give up at this point. It is undead.
+                logger.exception(e)
                 pass
+
+        except PermissionError as e:  # Possible if the underlying process is running under sudo or the like
+            logger.exception(e)
 
     #################
     # Start of code #
