@@ -42,8 +42,13 @@ def get_pydev_command(cmd, setup=None, pydev=None, debug_host=None):
         setup, pydev = get_pydev_debug_setup()
     pydev_cmd = [sys.executable, pydev]
     client = str(setup['client'])
-    client = client if "127.0.0.1" not in client else (debug_host or gethostname())
-    pydev_cmd += ['--multiproc', '--client', client, '--port', str(setup['port']), '--file']
+
+    if "127.0.0.1" in client and debug_host and debug_host != gethostname():
+        #  This is broken on newer pycharm, since it binds pydev debugger only to 127.0.0.1:<port>
+        client = debug_host
+    proc_str = '--multiprocess' if setup.get('multiprocess') else '--multiproc'
+
+    pydev_cmd += [proc_str, '--client', client, '--port', str(setup['port']), '--file']
     if type(cmd) is str:
         cmd = [cmd]
     pydev_cmd += cmd
