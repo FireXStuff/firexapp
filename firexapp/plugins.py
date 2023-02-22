@@ -221,9 +221,12 @@ def import_plugin_files(plugin_files) -> set[str]:
 
     new_tasks = set(current_app.tasks) - original_tasks
     new_tasks_modules = {t.rsplit('.', 1)[0] for t in new_tasks}
-    print(f'{len(new_tasks)} new service{"s" if len(new_tasks)>1 else ""} imported '
-          f'from {len(new_tasks_modules)} plugin module{"s" if len(new_tasks_modules)>1 else ""} '
-          f'[{", ".join(new_tasks_modules)}]')
+    if new_tasks_modules:
+        print(f'{len(new_tasks)} new service{"s" if len(new_tasks)>1 else ""} imported '
+              f'from {len(new_tasks_modules)} plugin module{"s" if len(new_tasks_modules)>1 else ""} '
+              f'[{", ".join(new_tasks_modules)}]')
+    else:
+        print(f'No new tasks/services imported from {plugin_files}!')
 
     return new_tasks
 
