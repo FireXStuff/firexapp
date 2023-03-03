@@ -309,9 +309,15 @@ class SubmitBaseApp:
             uid.add_viewers(logs_url=self.install_configs.get_logs_root_url())
             logger.info(f'Logs URL: {uid.logs_url}')
 
+        # Mask out any password related env vars before dumping them in the environ.json
+        copy_of_os_environ = os.environ.copy()
+        for k in copy_of_os_environ:
+            if any(e in k.lower() for e in ['pwd', 'passwd', 'password']):
+                copy_of_os_environ[k] = '********'
+
         # Create an env file for debugging
         with open(FileRegistry().get_file(ENVIRON_FILE_REGISTRY_KEY, self.uid.logs_dir), 'w') as f:
-            json.dump(dict(os.environ), fp=f, skipkeys=True, sort_keys=True, indent=4)
+            json.dump(copy_of_os_environ, fp=f, skipkeys=True, sort_keys=True, indent=4)
 
         chain_args = self.convert_chain_args(chain_args)
 
