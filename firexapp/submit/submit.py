@@ -349,7 +349,7 @@ class SubmitBaseApp:
         # Mask  any password-related env vars before dumping them in the environ.json
         copy_of_os_environ = os.environ.copy()
         for k in copy_of_os_environ:
-            if any(e in k.lower() for e in ['pwd', 'passwd', 'password']):
+            if any(e in k.lower() for e in ['passwd', 'password']):
                 copy_of_os_environ[k] = '********'
 
         # Create an env file for debugging
