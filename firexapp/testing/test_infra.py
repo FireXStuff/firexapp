@@ -92,7 +92,11 @@ def main(default_results_dir, default_test_dir):
     # prepare logging directory
     results_directory = os.path.realpath(args.logs)
     if os.path.isdir(results_directory):
-        shutil.rmtree(results_directory)
+        try:
+            shutil.rmtree(results_directory)
+        except OSError:
+            print(f"Couldn't remove {results_directory!r}. Some process still owns files in that directory.")
+            raise
     os.umask(DEFAULT_UMASK)
     os.mkdir(results_directory)
 
