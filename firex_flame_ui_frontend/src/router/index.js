@@ -14,6 +14,7 @@ import XError from '@/components/XError.vue';
 import XLiveFileViewer from '@/components/XLiveFileViewer.vue';
 import XErrorsTable from '@/components/XErrorsTable.vue';
 import XDirectoryListing from '@/components/XDirectoryListing.vue';
+import XRunInputs from '@/components/XRunInputs.vue'
 import { getCookie, deleteCookie } from '../utils';
 
 Vue.use(Router);
@@ -131,6 +132,11 @@ const router = new Router({
               path: 'root/:rootUuid',
             },
           ],
+        },
+        {
+          path: 'inputs',
+          name: 'XRunInputs',
+          component: XRunInputs,
         },
         {
           path: 'logs/:logRelPath(.*)',

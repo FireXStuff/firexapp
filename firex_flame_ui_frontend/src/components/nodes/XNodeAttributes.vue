@@ -431,20 +431,6 @@ export default {
 
 <style scoped>
 
-.node-attributes-label {
-  font-weight: 700;
-}
-
-.node-attributes {
-  font-family: 'Source Code Pro', monospace;
-  font-size: 14px;
-  margin: 10px;
-  flex: 1;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-}
-
 .node-container {
   display: flex;
   align-items: center;

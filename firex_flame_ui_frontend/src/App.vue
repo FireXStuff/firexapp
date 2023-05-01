@@ -66,4 +66,18 @@ export default {
     flex-direction: column;
   }
 
+  .node-attributes-label {
+  font-weight: 700;
+}
+
+.node-attributes {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 14px;
+  margin: 10px;
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
 </style>

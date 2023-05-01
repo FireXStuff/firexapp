@@ -55,6 +55,7 @@ export default {
       showTaskDetailsHeaderEntry: 'header/showTaskDetailsHeaderEntry',
       liveUpdateToggleHeaderEntry: 'header/liveUpdateToggleHeaderEntry',
       killHeaderEntry: 'header/killHeaderEntry',
+      inputsViewHeaderEntry: 'header/inputsViewHeaderEntry',
     }),
     toggleStates() {
       return {
@@ -72,6 +73,7 @@ export default {
         this.showTaskDetailsHeaderEntry(
           () => this.$store.dispatch('graph/toggleShowTaskDetails'),
         ),
+        this.inputsViewHeaderEntry,
         this.listViewHeaderEntry,
         this.timeChartViewHeaderEntry,
         this.runLogsViewHeaderEntry,

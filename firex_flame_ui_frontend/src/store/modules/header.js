@@ -203,6 +203,15 @@ const headerGetters = {
     };
   },
 
+  inputsViewHeaderEntry(state, getters) {
+    return {
+      name: 'inputs',
+      to: getters.runRouteFromName('XRunInputs'),
+      icon: 'sign-in-alt',
+      title: 'Run Input Arguments',
+    };
+  },
+
   logsUrl(state, getters, rootState) {
     const logsPath = rootState.firexRunMetadata.logs_dir;
 
