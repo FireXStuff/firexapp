@@ -18,6 +18,9 @@
           :ordered-keys="infraInputKeys"
           :expandAll="true"/>
       </x-section>
+      <x-section v-if="submissionCmdStr" heading="Submission Command">
+        <pre style="white-space: pre;">{{ submissionCmdStr }}</pre>
+      </x-section>
     </div>
   </div>
 </template>
@@ -86,6 +89,36 @@ export default {
       return _.filter(
         infraKeys,
         k => !_.includes([null, ''], this.inputs[k]),
+      );
+    },
+    submissionCmdStr() {
+      return _.reduce(
+        _.get(this.runJson, 'submission_cmd', []),
+        (cmdAccumulated, arg) => {
+          const isExe = cmdAccumulated === '';
+          const isOption = arg.startsWith('-');
+          const isValue = !isExe && !isOption;
+
+          let sep;
+          if (isExe) {
+            sep = '';
+          } else if (isOption) {
+            sep = ' \\\n    ';
+          } else {
+            sep = ' ';
+          }
+
+          let finalArg;
+          if (isValue) {
+            const quoteChar = "'";
+            const escapedArg = _.replace(arg, quoteChar, `\\${quoteChar}`);
+            finalArg = `${quoteChar}${escapedArg}${quoteChar}`;
+          } else {
+            finalArg = arg;
+          }
+
+          return `${cmdAccumulated}${sep}${finalArg}`.trim();
+        }, '',
       );
     },
     headerLinks() {
