@@ -412,7 +412,7 @@ function fetchRunModelMetadata(firexId, modelPathTemplate) {
     { cache: "no-cache", mode: 'cors', headers: ACCEPT_JSON_HTTP_HEADER })
     .then(r => {
       if (!r.ok) {
-        throw Error("Run metadata now found.");
+        return Promise.reject(r);
       }
       return r.json()
     });

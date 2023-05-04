@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div style="border: 1px solid #ddd;">
     <div v-for="(key, i) in displayOrderedKeys" :key="key"
          :style="{'background-color': i % 2 === 0 ? '#f5f5f5': '#fafafa', 'padding': '4px' }">
       <label style="margin-right: 1em;">{{key}}:</label>

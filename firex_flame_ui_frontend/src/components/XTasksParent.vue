@@ -11,8 +11,8 @@
     <!-- Only show main panel after data is loaded. This guarantees safe access to api operations
     from child views, since the only way for tasks to be present is for the api accessor
     to be initialized. -->
-    <router-view v-if="hasTasks"></router-view>
-    <x-error v-else-if="errorDetailMessage" :message="errorDetailMessage"></x-error>
+    <router-view v-if="hasTasks"/>
+    <x-error v-else-if="errorDetailMessage" :message="errorDetailMessage"/>
   </div>
 </template>
 
@@ -162,8 +162,14 @@ export default {
           this.$store.commit('firexRunMetadata/setFlameRunMetadata', runMetadata);
           return runMetadata;
         },
-        () => {
-          this.errorDetailMessage = `Flame not started for ${this.taskDataKey}`;
+        (r) => {
+          if (r.status === 401) {
+            this.errorDetailMessage = 'Authentication failure; refresh your '
+            + 'browser or login via private/incognito window to update '
+            + 'authentication tokens.';
+          } else {
+            this.errorDetailMessage = `Flame not started for ${this.taskDataKey}`;
+          }
           return Promise.reject(this.errorDetailMessage);
         },
       );
