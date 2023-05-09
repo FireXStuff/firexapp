@@ -244,6 +244,9 @@ export default {
       if (task.first_started) {
         task.first_started = this.formatTime(task.first_started);
       }
+      if (task.latest_timestamp) {
+        task.latest_timestamp = this.formatTime(task.latest_timestamp);
+      }
 
       return task;
     },

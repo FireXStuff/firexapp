@@ -165,15 +165,48 @@ const actions = {
   },
 
   setInProgressTasksToIncomplete(context) {
-    const incompleteTaskUuids = _.map(
-      _.filter(_.values(context.state.allTasksByUuid), t => isTaskStateIncomplete(t.state)),
-      'uuid',
+    const incompleteTasksByUuid = _.pickBy(
+      context.state.allTasksByUuid,
+      t => isTaskStateIncomplete(t.state),
     );
-    const incompleteStateByUuid = _.mapValues(
-      _.keyBy(incompleteTaskUuids),
-      () => ({ state: 'task-incomplete' }),
+    const approxRuntimesByUuid = _.mapValues(
+      incompleteTasksByUuid,
+      (t) => {
+        if (t.first_started && t.latest_timestamp) {
+          return t.latest_timestamp - t.first_started;
+        }
+        return undefined;
+      },
     );
-    context.commit('addTasksData', incompleteStateByUuid);
+    const incompleteTaskUpdatesByUuid = _.mapValues(
+      incompleteTasksByUuid,
+      (t) => {
+        // Always set the state to task-incomplete.
+        const singleTaskUpdates = { state: 'task-incomplete' };
+        if (
+          !t.actual_runtime
+          && t.first_started
+          && t.latest_timestamp
+        ) {
+          const descendantEndTimes = _.map(
+            context.getters.descendantTasksByUuid(t.uuid),
+            (descTask) => {
+              const runtime = descTask.actual_runtime || _.get(approxRuntimesByUuid, descTask.uuid);
+              if (runtime && descTask.first_started) {
+                return descTask.first_started + runtime;
+              }
+              return null;
+            },
+          );
+          const maxEndTime = _.max(_.filter(descendantEndTimes));
+          if (maxEndTime) {
+            singleTaskUpdates.approx_runtime = maxEndTime - t.first_started;
+          }
+        }
+        return singleTaskUpdates;
+      },
+    );
+    context.commit('addTasksData', incompleteTaskUpdatesByUuid);
   },
 
   clearTaskData(context) {

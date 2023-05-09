@@ -51,8 +51,9 @@
           comp is pure overhead.-->
         <x-duration :runState="runState"
                     :firstStarted="firstStarted"
+                    :approxRuntime="approxRuntime"
                     :actualRuntime="actualRuntime"
-                    class="align-self-end"></x-duration>
+                    class="align-self-end"/>
       </div>
     </div>
   </div>
@@ -116,6 +117,9 @@ export default {
     },
     firstStarted() {
       return this.task.first_started;
+    },
+    approxRuntime() {
+      return this.task.approx_runtime;
     },
     chainDepth() {
       return this.task.chain_depth;

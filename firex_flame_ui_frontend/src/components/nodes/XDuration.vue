@@ -18,6 +18,7 @@ export default {
     runState: { required: true },
     firstStarted: { required: true },
     actualRuntime: { required: true },
+    approxRuntime: { required: true },
   },
   data() {
     const localLatestNow = Date.now() / 1000;
@@ -38,7 +39,13 @@ export default {
       let runtimeStr;
       if (this.runState === 'task-incomplete' && _.isNil(this.actualRuntime)) {
         // UI-side run-state kludging, no idea what actual runtime is.
-        runtimeStr = '?';
+        let approxRuntimeStr;
+        if (this.approxRuntime) {
+          approxRuntimeStr = durationString(this.approxRuntime);
+        } else {
+          approxRuntimeStr = '';
+        }
+        runtimeStr = `${approxRuntimeStr}?`;
       } else {
         let runtime;
         if (!isTaskStateIncomplete(this.runState) && this.actualRuntime) {
