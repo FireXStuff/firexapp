@@ -237,19 +237,19 @@ def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunn
                    extra={'span_class': 'command_output command_output_error' if error else 'command_output'})
 
     def _kill_proc_gently(proc):
-        proc.terminate()
         try:
-            proc.wait(timeout=60)
-
-        except subprocess.TimeoutExpired:
-            # Okay, kill not so gently
-            proc.kill()
+            proc.terminate()
             try:
-                proc.wait(timeout=6)
-            except subprocess.TimeoutExpired as e:
-                # Give up at this point. It is undead.
-                logger.exception(e)
-                pass
+                proc.wait(timeout=60)
+            except subprocess.TimeoutExpired:
+                # Okay, kill not so gently
+                proc.kill()
+                try:
+                    proc.wait(timeout=6)
+                except subprocess.TimeoutExpired as e:
+                    # Give up at this point. It is undead.
+                    logger.exception(e)
+                    pass
 
         except PermissionError as e:  # Possible if the underlying process is running under sudo or the like
             logger.exception(e)
