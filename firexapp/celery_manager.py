@@ -220,7 +220,8 @@ class CeleryManager(object):
         self.log('pid %d became active' % pid)
 
     def start(self, workername, queues=None, wait=True, timeout=15*60, concurrency=None, worker_log_level=None,
-              app=None, cap_concurrency=None, cwd=None, soft_time_limit=None, autoscale: tuple = None):
+              app=None, cap_concurrency=None, cwd=None, soft_time_limit=None, autoscale: tuple = None,
+              detach: bool = True):
 
         # Override defaults if applicable
         worker_log_level = worker_log_level if worker_log_level else self.worker_log_level
@@ -232,9 +233,17 @@ class CeleryManager(object):
         pid_file = self._get_pid_file(workername)
         self.pid_files[workername] = pid_file
 
-        cmd = '%s --app=%s worker --hostname=%s@%%h --loglevel=%s ' \
-              '--logfile=%s --pidfile=%s --events --without-gossip --without-heartbeat --without-mingle -Ofair' % \
-              (self.celery_bin, app, workername, worker_log_level, log_file, pid_file)
+        cmd = f'{self.celery_bin} ' \
+              f'--app={app} worker ' \
+              f'--hostname={workername}@%h ' \
+              f'--loglevel={worker_log_level} ' \
+              f'--logfile={log_file} ' \
+              f'--pidfile={pid_file} ' \
+              f'--events ' \
+              f'--without-gossip ' \
+              f'--without-heartbeat ' \
+              f'--without-mingle ' \
+              f'-Ofair'
         if queues:
             cmd += ' --queues=%s' % queues
 
@@ -262,7 +271,8 @@ class CeleryManager(object):
             pass
         else:
             cmd += " | ts '[%Y-%m-%d %H:%M:%S]'"
-        cmd += ' &'
+        if detach:
+            cmd += ' &'
 
         self.log('Starting %s on %s...' % (workername, self.hostname))
         self.log(cmd)
