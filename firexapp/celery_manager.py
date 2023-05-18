@@ -284,7 +284,7 @@ class CeleryManager(object):
             subprocess.check_call(cmd, shell=True, stdout=fp, stderr=subprocess.STDOUT, env=self.env,
                                   cwd=cwd)
 
-        if wait:
+        if detach and wait:
             self.wait_until_active(pid_file=pid_file, timeout=timeout, stdout_file=stdout_file, workername=workername)
 
     @staticmethod
