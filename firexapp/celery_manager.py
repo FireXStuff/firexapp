@@ -8,7 +8,7 @@ import psutil
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from socket import gethostname
 from firexapp.common import poll_until_file_not_empty, poll_until_dir_empty, find_procs
-from firexapp.plugins import PLUGGING_ENV_NAME, cdl2list
+from firexapp.plugins import PLUGINS_ENV_NAME, cdl2list
 from firexapp.fileregistry import FileRegistry
 from collections.abc import Iterable
 from firexapp.common import qualify_firex_bin
@@ -75,7 +75,7 @@ class CeleryManager(object):
     @staticmethod
     def get_plugins_env(plugins):
         plugin_files = cdl2list(plugins)
-        return {PLUGGING_ENV_NAME: ",".join(plugin_files)}
+        return {PLUGINS_ENV_NAME: ",".join(plugin_files)}
 
     @staticmethod
     def get_celery_logs_dir(logs_dir):

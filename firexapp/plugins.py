@@ -12,7 +12,7 @@ import importlib.util
 from celery import current_app
 
 logger = get_task_logger(__name__)
-PLUGGING_ENV_NAME = "firex_plugins"
+PLUGINS_ENV_NAME = "firex_plugins"
 
 
 class PluginLoadError(Exception):
@@ -233,11 +233,11 @@ def import_plugin_files(plugin_files) -> set[str]:
 
 def set_plugins_env(plugin_files):
     plugin_files = cdl2list(plugin_files)
-    os.environ[PLUGGING_ENV_NAME] = ",".join(plugin_files)
+    os.environ[PLUGINS_ENV_NAME] = ",".join(plugin_files)
 
 
 def get_active_plugins():
-    return os.environ.get(PLUGGING_ENV_NAME, "")
+    return os.environ.get(PLUGINS_ENV_NAME, "")
 
 
 def load_plugin_modules(plugin_files):

@@ -11,6 +11,7 @@ import tempfile
 import time
 import urllib.parse
 import uuid
+from typing import Union
 
 from celery.utils.log import get_task_logger
 
@@ -131,7 +132,7 @@ def _send_flame_subprocess_end(flame_subprocess_id, output, returncode, chars=No
     _send_flame_subprocess({flame_subprocess_id: {'result': subproc_result, 'end_time': time.time()}})
 
 
-def _subprocess_runner(cmd, runner_type: _SubprocessRunnerType = _SubprocessRunnerType.CHECK_OUTPUT,
+def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType = _SubprocessRunnerType.CHECK_OUTPUT,
                        extra_header=None, file=None, chars=32000, timeout=None, capture_output=True, check=False,
                        inactivity_timeout=30 * 60, log_level=logging.DEBUG, copy_file_path=None, shell=False, cwd=None,
                        env=None, remove_firex_pythonpath=True, logger=logger, stderr=subprocess.STDOUT, **kwargs):
