@@ -314,6 +314,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
 
                 if timeout and now - start_time > timeout:
                     # Process too slow. Kill it.
+                    logger.debug(f'Total timeout {timeout} exceeded, killing pid {p.pid}')
                     _kill_proc_gently(p)
                     slow_process = True
                     break
@@ -326,6 +327,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                     last_output_clock_time = time.time()
                 elif inactivity_timeout and now - last_output_time > inactivity_timeout:
                     # Process hung. Kill it.
+                    logger.debug(f'Activity (writing to stdout/stderr) timeout {inactivity_timeout} exceeded, killing pid {p.pid}')
                     _kill_proc_gently(p)
                     hung_process = True
                     break
