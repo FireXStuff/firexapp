@@ -123,7 +123,7 @@ class ResolvePathTests(unittest.TestCase):
 
     def test_resolve_list(self):
         current_dir = os.path.dirname(__file__)
-        files = [os.path.join(current_dir, f) for f in os.listdir(current_dir)]
+        files = [os.path.join(current_dir, f) for f in os.listdir(current_dir) if os.path.isfile(f)]
         self.assertEqual(len(files), len(cdl2list(",".join(files))))
         self.assertEqual([], cdl2list(None))
 
