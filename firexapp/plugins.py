@@ -26,12 +26,12 @@ def get_short_name(long_name: str) -> str:
 def find_plugin_file(file_path):
     # is it a full path?
     if os.path.isabs(file_path):
-        return file_path
-
-    # is it relative to the cwd?
-    in_cwd = os.path.abspath(file_path)
-    if os.path.isfile(in_cwd):
-        return in_cwd
+        plugin_file = file_path
+    else:
+        # Maybe it's relative?
+        plugin_file = os.path.abspath(file_path)
+    if os.path.isfile(plugin_file):
+        return plugin_file
     raise FileNotFoundError(file_path)
 
 
