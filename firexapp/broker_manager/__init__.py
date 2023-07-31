@@ -19,7 +19,7 @@ class BrokerManager(ABC):
         pass
 
     @abstractmethod
-    def is_alive(self) -> bool:
+    def is_alive(self, timeout=None) -> bool:
         pass
 
     @classmethod
