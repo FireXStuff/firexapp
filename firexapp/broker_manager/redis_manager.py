@@ -269,10 +269,10 @@ class RedisManager(BrokerManager):
             else:
                 break
 
-    def shutdown(self):
+    def shutdown(self, timeout=None):
         try:
             RedisManager.log('shutting down...')
-            self.cli('shutdown')
+            self.cli('shutdown', timeout=timeout)
         except subprocess.CalledProcessError:
             RedisManager.log('could not shutdown.')
 
@@ -287,11 +287,11 @@ class RedisManager(BrokerManager):
     def get_url(self) -> str:
         return self.broker_url
 
-    def is_alive(self, port=None):
+    def is_alive(self, port=None, timeout=None):
         port = self.port if port is None else port
         try:
             # including the host makes sure the current host can connect to itself via its hostname, like celery will.
-            output = self.cli('PING', port=port, include_host=True)
+            output = self.cli('PING', port=port, include_host=True, timeout=timeout)
         except subprocess.CalledProcessError:
             return False
         else:
@@ -320,11 +320,11 @@ class RedisManager(BrokerManager):
     def get_password_from_url(broker_url):
         return urlsplit(broker_url).password
 
-    def get(self, key):
-        return self.cli('GET %s' % key)
+    def get(self, key, timeout=None):
+        return self.cli('GET %s' % key, timeout=timeout)
 
-    def set(self, key, value):
-        rc = self.cli('SET %s %s' % (key, value))
+    def set(self, key, value, timeout=None):
+        rc = self.cli('SET %s %s' % (key, value), timeout=timeout)
         assert rc == 'OK', 'The return value was %s' % rc
 
     def monitor(self, monitor_file):
@@ -332,11 +332,13 @@ class RedisManager(BrokerManager):
         with open(monitor_file, 'w') as out:
             subprocess.check_call(cmd, shell=True, stdout=out, stderr=subprocess.STDOUT)
 
-    def cli(self, cmd, port=None, include_host=False):
+    def cli(self, cmd, port=None, include_host=False, timeout=None):
         port = self.port if port is None else port
-        null = open(os.devnull, 'w')
         cmd = self.get_redis_cli_cmd(port=port, include_host=include_host) + ' %s' % cmd
-        return subprocess.check_output(shlex.split(cmd), stderr=null).decode().strip()
+        with open(os.devnull, 'w') as null:
+            return subprocess.check_output(shlex.split(cmd),
+                                           stderr=null,
+                                           timeout=timeout).decode().strip()
 
     def __repr__(self):
         return self.broker_url
