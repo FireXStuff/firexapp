@@ -92,11 +92,10 @@ const graphGetters = {
   },
 
   flameDataDisplayOperationsByUuid: (state, getters, rootState, rootGetters) => {
-    const displayPath = ['flame_data', '_default_display', 'value'];
     // TODO: Each task can send updates that should override previous op entries for that task.
     //  Do that filtering here.
     const flameDataOps = _.flatMap(rootGetters['tasks/flameDataAndNameByUuid'],
-      n => _.get(n, displayPath, []));
+      n => _.get(n, ['flame_data', '_default_display', 'value'], []));
     const resolvedOpsByUuid = resolveDisplayConfigsToOpsByUuid(flameDataOps,
       rootGetters['tasks/flameDataAndNameByUuid']);
 

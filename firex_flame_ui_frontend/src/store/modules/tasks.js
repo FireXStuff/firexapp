@@ -61,7 +61,7 @@ const tasksGetters = {
     )),
 
   // TODO: further prune to flame_data._default_display
-  flameDataAndNameByUuid: state => _.mapValues(state.allTasksByUuid,
+  flameDataAndNameByUuid: (state, getters) => _.mapValues(getters.tasksByUuid,
     n => _.pick(n, ['flame_data', 'name', 'parent_id', 'uuid'])),
 
   additionalChildrenByUuid: state => _.mapValues(
@@ -82,7 +82,10 @@ const tasksGetters = {
   hasTasks: state => !_.isEmpty(state.allTasksByUuid),
 
   rootUuid: (state, getters, rootState) => {
-    if (!_.isNil(getters.selectedRoot) && _.has(state.allTasksByUuid, getters.selectedRoot)) {
+    if (
+      !_.isNil(getters.selectedRoot)
+      && _.has(state.allTasksByUuid, getters.selectedRoot)
+    ) {
       return getters.selectedRoot;
     }
     const metadataRootUuid = rootState.firexRunMetadata.root_uuid;

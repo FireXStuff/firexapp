@@ -86,9 +86,10 @@ export default {
     this.fetchFailedTaskDetails(
       _.map(
         _.filter(this.tasksByUuid,
-          t => t.state === 'task-failed' && !isChainInterrupted(t.exception),
-        ),
-        'uuid'));
+          t => t.state === 'task-failed' && !isChainInterrupted(t.exception)),
+        'uuid',
+      ),
+    );
   },
   computed: {
     ...mapState({
@@ -123,10 +124,10 @@ export default {
           const pluginTasks = _.filter(sameNameTasks, { from_plugin: true });
 
           let countedTasks;
-          if (origTasks.length){
-            countedTasks = [_.assign({task_count: origTasks.length}, _.first(origTasks))]
+          if (origTasks.length) {
+            countedTasks = [_.assign({ task_count: origTasks.length }, _.first(origTasks))];
           } else {
-            countedTasks = []
+            countedTasks = [];
           }
 
           // Keep all plugins & dedupe after we've fetched details and have long_name
