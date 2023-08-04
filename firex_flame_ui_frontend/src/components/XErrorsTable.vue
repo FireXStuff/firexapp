@@ -4,6 +4,13 @@
               :links="headerLinks">
     </x-header>
     <div style="width: 100%; padding: 2em;">
+      <div class="form-check">
+        <input type="checkbox" id="deduplicate" class="form-check-input"
+          v-model="deduplicateByName">
+        <label class="form-check-label" for="deduplicate">
+          Deduplicate by name
+        </label>
+      </div>
       <table style="width: 100%;" class="table">
         <thead>
           <tr>
@@ -14,33 +21,35 @@
           </tr>
         </thead>
         <tbody style="color: darkred;">
-          <tr v-for="(t, u) in failedTaskDetails" :key="u">
+          <tr v-for="task in maybeDeDuplicatedFailedTasksByUuid" :key="task.uuid">
             <td style="text-align: center;" class="align-middle">
-              <div>{{t.name}}{{ t.from_plugin ? ' (plugin)' : ''}}</div>
-              <div>{{longNameToModulePath(t.long_name)}}</div>
+              <div>{{task.name}}{{ task.from_plugin ? ' (plugin)' : ''}}</div>
+              <div>{{longNameToModulePath(task.long_name)}}</div>
+              <div v-if="task.task_count">
+                x{{task.task_count}}
+              </div>
             </td>
             <td>
               <x-expandable-content
                                     button-class="btn-outline-danger" name=""
-                                    :expand="shouldShowFull(displayTracebacksByUuid[t.uuid])"
+                                    :expand="shouldShowFull(displayTracebacksByUuid[task.uuid])"
                                     :unexpandedMaxHeight="collapseTracebackLinesThreshold">
-          <pre style="white-space: pre-line; color: darkred;"
-               v-html="createLinkedHtml(displayTracebacksByUuid[t.uuid], 'fake')">
-          </pre>
+              <pre style="white-space: pre-line; color: darkred;"
+               v-html="createLinkedHtml(displayTracebacksByUuid[task.uuid], 'fake')"/>
               </x-expandable-content>
             </td>
             <td style="text-align: center;">
-              {{errorContextByUuid[u]}}
+              {{errorContextByUuid[task.uuid]}}
             </td>
             <td style="text-align: center;">
               <div style="white-space: nowrap;">
-                <a :href="t.logs_url">
+                <a :href="task.logs_url">
                   <font-awesome-icon icon="file-alt"></font-awesome-icon>
                   View Log
                 </a>
               </div>
               <div style="white-space: nowrap;">
-                <router-link :to="taskRoute(u)">
+                <router-link :to="taskRoute(task.uuid)">
                   <font-awesome-icon icon="sitemap"></font-awesome-icon>
                   View Task
                 </router-link>
@@ -70,10 +79,16 @@ export default {
     return {
       failedTaskDetails: {},
       collapseTracebackLinesThreshold: 15,
+      deduplicateByName: true,
     };
   },
   created() {
-    this.fetchFailedTaskDetails(this.failedTaskUuidsSorted);
+    this.fetchFailedTaskDetails(
+      _.map(
+        _.filter(this.tasksByUuid,
+          t => t.state === 'task-failed' && !isChainInterrupted(t.exception),
+        ),
+        'uuid'));
   },
   computed: {
     ...mapState({
@@ -96,24 +111,32 @@ export default {
       return [this.graphViewHeaderEntry, this.timeChartViewHeaderEntry,
         this.runLogsViewHeaderEntry, this.helpViewHeaderEntry];
     },
-    failedTaskUuidsSorted() {
-      const failedTasks = _.filter(this.tasksByUuid,
-        t => t.state === 'task-failed' && !isChainInterrupted(t.exception));
+    maybeDeDuplicatedFailedTasksByUuid() {
+      let displayTasks;
+      if (this.deduplicateByName) {
+        displayTasks = _.flatMap(_.groupBy(this.failedTaskDetails, 'name'), (sameNameTasks) => {
+          // Never de-duplicate Warnings
+          if (_.first(sameNameTasks).name === 'Warning') {
+            return sameNameTasks;
+          }
+          const origTasks = _.filter(sameNameTasks, { from_plugin: false });
+          const pluginTasks = _.filter(sameNameTasks, { from_plugin: true });
 
-      const dedupedFailedTasks = _.flatMap(_.groupBy(failedTasks, 'name'), (sameNameTasks) => {
-        // Never de-duplicate Warnings
-        if (_.first(sameNameTasks).name === 'Warning') {
-          return sameNameTasks;
-        }
-        const origTasks = _.filter(sameNameTasks, { from_plugin: false });
-        const pluginTasks = _.filter(sameNameTasks, { from_plugin: true });
+          let countedTasks;
+          if (origTasks.length){
+            countedTasks = [_.assign({task_count: origTasks.length}, _.first(origTasks))]
+          } else {
+            countedTasks = []
+          }
 
-        // Keep all plugins & dedupe after we've fetched details and have long_name
-        // Only keep first orig task.
-        return _.concat(_.first(origTasks) || [], pluginTasks);
-      });
-
-      return _.map(dedupedFailedTasks, 'uuid');
+          // Keep all plugins & dedupe after we've fetched details and have long_name
+          // Only keep first orig task.
+          return _.concat(countedTasks, pluginTasks);
+        });
+      } else {
+        displayTasks = this.failedTaskDetails;
+      }
+      return _.sortBy(displayTasks, 'name');
     },
     errorContextByUuid() {
       return _.mapValues(this.failedTaskDetails, (t) => {

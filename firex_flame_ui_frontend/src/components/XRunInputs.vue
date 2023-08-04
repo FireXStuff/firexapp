@@ -44,6 +44,7 @@ const INFRA_KEYS = [
   'type',
   'submitter',
   'submit_app',
+  'starter_uuid',
 ];
 
 const HIDDEN_KEYS = [
