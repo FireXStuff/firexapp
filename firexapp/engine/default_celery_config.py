@@ -11,12 +11,11 @@ from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.engine.logging import add_hostname_to_log_records, add_custom_log_levels, PRINT_LEVEL_NAME
 from firexapp.discovery import find_firex_task_bundles
 import billiard.pool
-from billiard.five import values
 from kombu.transport.redis import QoS
 
 
 def _worker_active_monkey_patch(self, worker):
-    for job in values(self._cache):
+    for job in self._cache.values():
         worker_pids = job.worker_pids()
         # This crude fix would declare a worker busy if there were ANY jobs received but not ack'd
         # (i.e., were not assigned a worker pid yet)
@@ -89,6 +88,8 @@ task_format = "[%(task_id).8s-%(task_name)s]"
 message_format = ":</small> %(message)s"
 worker_log_format = timestamp_format + process_format + message_format
 worker_task_log_format = timestamp_format + process_format + task_format + message_format
+
+broker_connection_retry_on_startup = True
 
 logger = get_task_logger(__name__)
 
