@@ -32,6 +32,7 @@ setup(name='firexapp',
           "colorlog==2.10.0",
           "beautifulsoup4",
           "detach3k",
+          "pytz",
       ],
       extras_require={
           'test': [

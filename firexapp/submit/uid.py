@@ -9,7 +9,6 @@ import firexkit
 import shutil
 import re
 from typing import Optional
-from collections import namedtuple
 
 from firexapp.submit.arguments import whitelist_arguments
 from firexkit.permissions import DEFAULT_CHMOD_MODE
