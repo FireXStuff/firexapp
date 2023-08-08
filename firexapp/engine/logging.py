@@ -12,6 +12,7 @@ from firexapp.engine.celery import app
 from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
 from firexkit.firexkit_common import JINJA_ENV
 from celery._state import get_current_task
+from celery.utils import functional
 
 RAW_LEVEL_NAME = 'RAW'
 PRINT_LEVEL_NAME = 'PRINT'
@@ -158,6 +159,7 @@ def configure_task_logger(logger, loglevel, logfile, format, colorize, **_kwargs
     file_handler.addFilter(AddHtmlElementsToLogRecords())
     file_handler.setFormatter(FireXTaskFormatter(format))
 
+
 @after_setup_logger.connect
 def configure_main_logger(logger, loglevel, logfile, format, colorize, **_kwargs):
     # Find the WatchedFileHandler
@@ -181,3 +183,14 @@ def configure_main_logger(logger, loglevel, logfile, format, colorize, **_kwargs
         firex_id=app.conf.uid,
         logs_dir_url=logs_url)
     logger.raw(html_header)
+
+
+class TaskHeaderFilter(logging.Filter):
+    def filter(self, record):
+        if record.funcName == functional.head_from_fun.__name__:
+            return False
+        return True
+
+
+# Filter out useless debug messages printed in functional.head_from_fun()
+functional.logger.addFilter(TaskHeaderFilter())
