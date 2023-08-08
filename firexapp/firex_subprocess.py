@@ -227,14 +227,15 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
         else:
             f.seek(-chars, 2)
 
-        return f.read().decode(encoding='utf-8', errors='ignore')
+        return f.read().decode(encoding='utf-8', errors='replace')
 
     def _log_output(contents, error=False):
         if not chars or len(contents) < chars:
             log_msg = '%s Returned String:\n%s' % (log_header, contents)
         else:
             log_msg = '%s Last %d chars of Returned String:\n%s' % (log_header, chars, contents[-chars:])
-        logger.log(log_level, log_msg.encode(encoding='ascii', errors='namereplace').decode(errors='ignore'),
+        logger.log(log_level,
+                   log_msg,
                    extra={'span_class': 'command_output command_output_error' if error else 'command_output'})
 
     def _kill_proc_gently(proc):
