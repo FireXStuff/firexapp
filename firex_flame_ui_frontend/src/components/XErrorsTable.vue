@@ -86,7 +86,7 @@ export default {
     this.fetchFailedTaskDetails(
       _.map(
         _.filter(this.tasksByUuid,
-          t => t.state === 'task-failed' && !isChainInterrupted(t.exception)),
+          t => t.state === 'task-failed' && !isChainInterrupted(t)),
         'uuid',
       ),
     );

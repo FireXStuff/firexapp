@@ -64,7 +64,7 @@ import _ from 'lodash';
 import { mapGetters } from 'vuex';
 
 import {
-  getNodeBackground, eventHub, getTaskNodeBorderRadius,
+  getNodeBackground, eventHub, getTaskNodeBorderRadius, isChainInterrupted,
 } from '../../utils';
 import XDuration from './XDuration.vue';
 
@@ -127,9 +127,12 @@ export default {
     fromPlugin() {
       return this.task.from_plugin;
     },
+    isChainIntr() {
+      return isChainInterrupted(this.task);
+    },
     topLevelStyle() {
       const s = {
-        background: getNodeBackground(this.exception, this.runState),
+        background: getNodeBackground(this.isChainIntr, this.runState),
         'border-radius': getTaskNodeBorderRadius(this.chainDepth),
       };
       if (this.fromPlugin) {

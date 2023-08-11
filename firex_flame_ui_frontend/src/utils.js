@@ -7,6 +7,9 @@ const FIREX_ID_REGEX = new RegExp(FIREX_ID_REGEX_STR);
 
 const ACCEPT_JSON_HTTP_HEADER = { Accept: 'application/json' };
 
+const TASK_STATE_SUCCEEDED = 'task-succeeded';
+const TASK_STATE_FAILED = 'task-failed';
+
 function captureEventState(event, tasksByUuid, taskNum) {
   let isNew = false;
   if (!_.has(event, 'uuid')) {
@@ -104,18 +107,32 @@ function flatGraphToTree(tasksByUuid) {
   return root;
 }
 
-function isChainInterrupted(exception) {
-  if (!exception) {
-    return false;
-  }
-  return exception.trim().startsWith('ChainInterruptedException');
+function isFailed(task) {
+  return task.state === TASK_STATE_FAILED;
 }
 
-function runStatePredicate(runState) {
-  return (runState.state === 'task-failed'
+function isChainInterrupted(task) {
+  if (!isFailed(task)) {
+    return false;
+  }
+  if (task.exception_cause_uuid) {
+    return true;
+  }
+  // TODO: eventually phase our exception as indicating
+  // interrupt exception entirely since it can be big
+  // and therefore shouldn't be required.
+  if (!task.exception) {
+    return false;
+  }
+  return task.exception.trim().startsWith('ChainInterruptedException');
+}
+
+function runStatePredicate(task) {
+  return (
+    isFailed(task)
     // Show leaf nodes that are chain interrupted exceptions (e.g. RunChildFireX).
-    && (!isChainInterrupted(runState.exception) || runState.isLeaf))
-    || _.includes(['task-started', 'task-unblocked'], runState.state);
+    && (!isChainInterrupted(task) || task.isLeaf)
+  ) || _.includes(['task-started', 'task-unblocked'], task.state);
 }
 
 function createRunStateExpandOperations(runStateByUuid) {
@@ -240,8 +257,6 @@ function uuidv4() {
 /* eslint-disable */
 
 const successGreen = '#2A2';
-const TASK_STATE_SUCCEEDED = 'task-succeeded';
-const TASK_STATE_FAILED = 'task-failed';
 const statusToProps = {
   'task-received': {
     background: '#888',
@@ -290,10 +305,10 @@ const statusToProps = {
   },
 };
 
-function getNodeBackground(exception, state) {
+function getNodeBackground(isChainIntr, state) {
   // A task can fail (have an exception) then succeed on retry,
   // in which case we'ld like to show success.
-  if (state === TASK_STATE_FAILED && isChainInterrupted(exception)) {
+  if (state === TASK_STATE_FAILED && isChainIntr) {
     return 'repeating-linear-gradient(45deg,#888,#888 5px,#893C3C 5px,#F71818  10px)';
   }
   const defaultColor = '#888';
@@ -303,7 +318,7 @@ function getNodeBackground(exception, state) {
 function getPrioritizedTaskStateBackground(states) {
   const minState = _.minBy(states, s =>
     _.get(statusToProps, [s, 'priority'], 1000));
-  return getNodeBackground(null, minState);
+  return getNodeBackground(false, minState);
 }
 
 function getRunstateDisplayName(state) {

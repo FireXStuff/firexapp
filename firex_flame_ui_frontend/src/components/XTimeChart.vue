@@ -155,6 +155,7 @@ import XTaskNodeSearch from './XTaskNodeSearch.vue';
 import * as api from '../api';
 import {
   durationString, getNodeBackground, isTaskStateIncomplete, getRunstateDisplayName,
+  isChainInterrupted,
 } from '../utils';
 
 export default {
@@ -271,14 +272,17 @@ export default {
         t => ({
           // 'margin-left': `${this.fullTaskRectByUuid[t.uuid].offset}%`,
           width: `${this.fullTaskRectByUuid[t.uuid].duration}%`,
-          background: getNodeBackground(t.exception, t.state),
+          background: getNodeBackground(isChainInterrupted(t), t.state),
         }));
     },
     perStateRectByUuid() {
       return _.mapValues(this.perStateRectsByUuid, (statesRects, u) => _.map(
         statesRects, stateRect => ({
           width: `${stateRect.durationPercentage}%`,
-          background: getNodeBackground(this.displayTasks[u].exception, stateRect.state),
+          background: getNodeBackground(
+            isChainInterrupted(this.displayTasks[u]),
+            stateRect.state,
+          ),
           state: stateRect.state,
           timestamp: stateRect.timestamp,
           stateDuraion: stateRect.duration,
