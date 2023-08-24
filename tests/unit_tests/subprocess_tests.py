@@ -132,3 +132,53 @@ class SubprocessRunnerTests(unittest.TestCase):
             with self.assertRaises(firex_exceptions.FireXInactivityTimeoutExpired) as ee:
                 runner('cat', inactivity_timeout=1, capture_output=False)
             self.assertIsNone(ee.exception.stdout)
+
+    # Caution: very long-running test!
+    def test_stats(self):
+        runner = firexapp.firex_subprocess.run
+        stats = firexapp.firex_subprocess.ProcStats()
+        num_cpu = os.cpu_count()
+
+        cmd = 'seq {num_procs:d} | xargs -P0 -n1 timeout {timeout} md5sum /dev/zero'
+
+        # Test with 50% of cpu
+        if num_cpu != 1:
+            num_procs = round (num_cpu /2)
+            runner(cmd.format(num_procs=num_procs, timeout=5), shell=True, proc_stats=stats, timeout=10)
+            expected = 100 * num_procs / num_cpu
+            self.assertTrue(expected - 15 < stats.cpu_percent_used < expected + 15,
+                            f'Expected {expected}% CPU but got {stats.cpu_percent_used}')
+            self.assertNotEqual(0.0, stats.mem_mb_used)
+            self.assertNotEqual(0.0, stats.mem_mb_high_wm)
+
+
+        # 100% CPU
+        num_procs = num_cpu
+        runner(cmd.format(num_procs=num_procs, timeout=5), shell=True, proc_stats=stats, timeout=10)
+        expected = 100
+        self.assertTrue(expected - 25 < stats.cpu_percent_used < expected + 25,
+                        f'Expected {expected}% CPU but got {stats.cpu_percent_used}')
+        self.assertNotEqual(0, stats.mem_mb_used)
+        self.assertNotEqual(0, stats.mem_mb_high_wm)
+
+        # 200% CPU
+        mem_expected = stats.mem_mb_used * 2
+        mem_hw_expected = stats.mem_mb_high_wm * 2
+        num_procs = num_cpu * 2
+        # Need double time to let procs start / finnish
+        runner(cmd.format(num_procs=num_procs, timeout=10), shell=True, proc_stats=stats, timeout=20)
+        expected = 100  # CPU cannot go above 100%
+        self.assertTrue(expected - 25 < stats.cpu_percent_used < expected + 25,
+                        f'Expected {expected}% CPU but got {stats.cpu_percent_used}')
+        self.assertTrue(mem_expected * 0.75 < stats.mem_mb_used < mem_expected * 1.25,
+                        f'Expected {mem_expected} MB memory but got {stats.mem_mb_used}')
+        self.assertTrue(mem_hw_expected * 0.75 < stats.mem_mb_high_wm < mem_hw_expected * 1.25,
+                        f'Expected {mem_hw_expected} MB max memory but got {stats.mem_mb_high_wm}')
+
+        # zero running time
+        runner('/bin/echo hello', proc_stats=stats, timeout=10)
+        self.assertEqual(0, stats.elapsed_time)
+        self.assertEqual(0, stats.cpu_percent_used)
+        self.assertEqual(0, stats.mem_mb_used)
+        self.assertEqual(0, stats.mem_mb_high_wm)
+        self.assertNotEqual(0, stats.num_cpu)
