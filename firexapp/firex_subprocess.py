@@ -32,7 +32,7 @@ class ProcStats:
     collection_interval: int = 2  # Input: Seconds between stats sampling. Sampling isn't free, so
                                   # best not to be too aggressive. Note however that if the process
                                   # spawns children which rapidly blink in and out of existence,
-                                  # like some of our builds do, the default value will not capture much at all
+                                  # the default value will not capture much at all
 
     interval_increase: bool = True # Input: Increase collection interval by elapsed_time * collection_interval/120
                                    # up to a maximum of collection_interval * 30 seconds
