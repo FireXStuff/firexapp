@@ -1,32 +1,51 @@
 <template>
     <div style="display: flex; flex-direction: column;">
-      <div class="header header-row" style="height: 100%;">
-        <div>
-          <router-link :to="runRouteFromName('XGraph')">
-            <img style='height: 36px;' src="../assets/firex_logo.png" alt="firex logo">
-          </router-link>
+      <div class="header header-3-cols">
+
+        <!-- style="text-align: left; flex: 1; text-align: left;" -->
+        <div style="text-align: left;" >
+          <div style="display: flex; align-items: center;">
+            <router-link :to="runRouteFromName('XGraph')">
+              <img style='height: 36px;' src="../assets/firex_logo.png" alt="firex logo">
+            </router-link>
+            <div class="uid" >{{title}}</div>
+          </div>
         </div>
-        <div class="uid">{{title}}</div>
+
         <!-- Unfortuntate that this comp needs to know search is in the slot.-->
         <!-- TODO: find a better fix for when no space for search bar (i.e. long chain value)-->
-        <div v-if="chain && !isSearchOpen" class="flame-link" style="flex: 1;">
-          <b style="width: 100%;">{{centralTitle}}</b>
+        <div v-if="chain && !isSearchOpen"
+          class="flame-link"
+          style="text-align: center; margin: 0 auto;">
+          <b>{{centralTitle}}</b>
         </div>
 
-        <div style="margin-left: auto; display: flex; align-items: center; height: 100%;">
-
-          <slot name="prebuttons"></slot>
-
-          <template v-for="link in links">
-            <x-header-button :link="link" :key="link.name"></x-header-button>
-          </template>
+        <div class="right">
+            <!-- <div style="text-align: right; margin-right: 10px;">X1</div> -->
+            <!-- <div style="text-align: right;">X2</div> -->
+            <slot name="prebuttons"></slot>
+              <x-header-button
+                :link="link"
+                v-for="link in links"
+                :key="link.name"
+              />
         </div>
       </div>
+
+      <div v-if="formatRevokeTime"
+        class="header-row revoked-reason"
+      >
+          Run revoked (cancelled) at {{ formatRevokeTime }}
+          <template v-if="revokedReason">
+            with reason: &nbsp; <i> {{ revokedReason }} </i>
+          </template>
+      </div>
+
       <div v-if="finalShowCompletionReportLink" class="header-row"
            style="background: #d1ebf3; justify-content: center;">
           <a class="btn btn-primary" :href="completionReportUrl" role="button"
              style="margin: 0.5em;">
-            <font-awesome-icon icon="file-invoice"></font-awesome-icon>
+            <font-awesome-icon icon="file-invoice"/>
             View Completion Report
           </a>
       </div>
@@ -35,6 +54,7 @@
 
 <script>
 import _ from 'lodash';
+import { DateTime } from 'luxon';
 import { mapState, mapGetters } from 'vuex';
 
 import XHeaderButton from './XHeaderButton.vue';
@@ -61,6 +81,8 @@ export default {
     ...mapState({
       chain: state => state.firexRunMetadata.chain,
       logsDir: state => state.firexRunMetadata.logs_dir,
+      revokedReason: state => state.firexRunMetadata.revoke_reason,
+      revokeTimestamp: state => state.firexRunMetadata.revoke_timestamp,
       isSearchOpen: state => state.tasks.search.isOpen,
       uiConfig: state => state.header.uiConfig,
     }),
@@ -69,6 +91,13 @@ export default {
       // logsUrl: 'header/logsUrl',
       hasIncompleteTasks: 'tasks/hasIncompleteTasks',
     }),
+    formatRevokeTime() {
+      if (!this.revokeTimestamp) {
+        return null;
+      }
+      return DateTime.fromSeconds(this.revokeTimestamp)
+        .toLocaleString({...DateTime.DATETIME_SHORT, timeZoneName: 'short'});
+    },
     centralTitle() {
       return this.mainTitle ? this.mainTitle : this.chain;
     },
@@ -100,8 +129,15 @@ export default {
 }
 
 .header-row {
-  display: flex;
   flex-direction: row;
+  display: flex;
+  align-items: center;
+}
+
+.header-3-cols {
+  flex-direction: row;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
 }
 
@@ -117,5 +153,20 @@ export default {
   font-size: 20px;
   font-weight: normal;
 }
+
+.revoked-reason {
+  color: #FFF;
+  background: rgb(255, 68, 0);
+  justify-content: center;
+}
+
+.right {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    height: 100%;
+}
+
 
 </style>

@@ -8,13 +8,12 @@ const metaDataState = {
   logs_server: null,
   flame_url: null,
   run_complete: null,
+  revoke_reason: null,
+  revoke_timestamp: null,
 };
 
 // getters
-const getters = {
-
-
-};
+const getters = {};
 
 // actions
 const actions = {
@@ -28,10 +27,8 @@ const actions = {
 // mutations
 const mutations = {
   setFlameRunMetadata(state, firexRunMetadata) {
-    _.each(_.keys(state), (k) => {
-      if (_.has(firexRunMetadata, k)) {
-        state[k] = firexRunMetadata[k];
-      }
+    _.each(_.keys(metaDataState), (k) => {
+      state[k] = _.get(firexRunMetadata, k, null);
     });
   },
 };
