@@ -2,7 +2,6 @@
     <div style="display: flex; flex-direction: column;">
       <div class="header header-3-cols">
 
-        <!-- style="text-align: left; flex: 1; text-align: left;" -->
         <div style="text-align: left;" >
           <div style="display: flex; align-items: center;">
             <router-link :to="runRouteFromName('XGraph')">
@@ -21,14 +20,12 @@
         </div>
 
         <div class="right">
-            <!-- <div style="text-align: right; margin-right: 10px;">X1</div> -->
-            <!-- <div style="text-align: right;">X2</div> -->
             <slot name="prebuttons"></slot>
-              <x-header-button
-                :link="link"
-                v-for="link in links"
-                :key="link.name"
-              />
+            <x-header-button
+              :link="link"
+              v-for="link in links"
+              :key="link.name"
+            />
         </div>
       </div>
 
@@ -96,7 +93,7 @@ export default {
         return null;
       }
       return DateTime.fromSeconds(this.revokeTimestamp)
-        .toLocaleString({...DateTime.DATETIME_SHORT, timeZoneName: 'short'});
+        .toLocaleString({...DateTime.DATETIME_SHORT_WITH_SECONDS, timeZoneName: 'short'});
     },
     centralTitle() {
       return this.mainTitle ? this.mainTitle : this.chain;
