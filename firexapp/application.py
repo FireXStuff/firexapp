@@ -13,7 +13,7 @@ from firexkit.permissions import DEFAULT_UMASK
 logger = setup_console_logging(__name__)
 
 JSON_ARGS_PATH_ARG_NAME = '--json_args_path'
-
+RECEIVED_SIGNAL_MSG_PREFIX = 'Received signal '
 
 def main():
     os.umask(DEFAULT_UMASK)
@@ -192,7 +192,7 @@ class ExitSignalHandler:
         signal.signal(signal.SIGINT, handler)
         signal.signal(signal.SIGHUP, handler)
 
-    def __init__(self, app):
+    def __init__(self, app: FireXBaseApp):
         def first_exit_handler(signal_num, _):
             def last_exit_handler(_, __):
                 logger.error(self.last_warning)
@@ -205,6 +205,6 @@ class ExitSignalHandler:
             self._register_signal_handlers(second_exit_handler)
             signal_name = signal.Signals(signal_num).name
             logger.error(self.first_warning % signal_name)
-            app.main_error_exit_handler(reason=f"Received signal {signal_name}.")
+            app.main_error_exit_handler(reason=f"{RECEIVED_SIGNAL_MSG_PREFIX}{signal_name}.")
 
         self._register_signal_handlers(first_exit_handler)

@@ -8,6 +8,8 @@ import argparse
 import time
 import traceback
 from getpass import getuser
+import socket
+from typing import Optional
 
 from celery.signals import worker_ready
 from shutil import copyfile
@@ -28,7 +30,9 @@ from firexapp.submit.arguments import InputConverter, ChainArgException, get_cha
 from firexapp.submit.tracking_service import get_tracking_services, get_service_name
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
-from firexapp.application import import_microservices, get_app_tasks, get_app_task, JSON_ARGS_PATH_ARG_NAME
+from firexapp.application import (
+    import_microservices, get_app_tasks, get_app_task, JSON_ARGS_PATH_ARG_NAME, RECEIVED_SIGNAL_MSG_PREFIX
+)
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.submit.shutdown import launch_background_shutdown, DEFAULT_CELERY_SHUTDOWN_TIMEOUT
@@ -48,6 +52,7 @@ ENVIRON_FILE_REGISTRY_KEY = 'env'
 FileRegistry().register_file(ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'environ.json'))
 
 RUN_SOFT_TIME_LIMIT_KEY = 'run_soft_time_limit'
+ASYNC_SHUTDOWN_CELERY_EVENT_TYPE = 'firex-async-shutdown'
 
 class JsonFileAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -89,6 +94,17 @@ def safe_create_completed_run_json(chain_result, run_revoked, chain_args):
                                                            **chain_args)
     except Exception as e:
         logger.error(f'Failed to generate completion run JSON: {e}')
+
+
+def _safe_send_async_shutdown_if_signal(reason: Optional[str]) -> None:
+    if reason and reason.startswith(RECEIVED_SIGNAL_MSG_PREFIX):
+        try:
+            from celery import current_app
+            with current_app.events.default_dispatcher(
+                hostname=socket.gethostname()) as dispatcher:
+                dispatcher.send(ASYNC_SHUTDOWN_CELERY_EVENT_TYPE, shutdown_reason=reason)
+        except Exception as ex: # noqa
+            logger.debug(f'Failed to send {ASYNC_SHUTDOWN_CELERY_EVENT_TYPE} event: {ex}')
 
 
 def safe_create_initial_run_json(**kwargs):
@@ -562,6 +578,7 @@ class SubmitBaseApp:
             self.copy_submission_log()
 
     def self_destruct(self, chain_details=None, reason=None, run_revoked=False):
+        _safe_send_async_shutdown_if_signal(reason)
         if chain_details:
             chain_result, chain_args = chain_details
             safe_create_completed_run_json(chain_result, run_revoked, chain_args)
