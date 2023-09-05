@@ -11,12 +11,12 @@
           </div>
         </div>
 
-        <!-- Unfortuntate that this comp needs to know search is in the slot.-->
-        <!-- TODO: find a better fix for when no space for search bar (i.e. long chain value)-->
-        <div v-if="chain && !isSearchOpen"
-          class="flame-link"
-          style="text-align: center; margin: 0 auto;">
-          <b>{{centralTitle}}</b>
+        <div style="text-align: center; margin: 0 auto;">
+          <!-- Unfortuntate that this comp needs to know search is in the slot.-->
+          <!-- TODO: find a better fix for when no space for search bar (i.e. long chain value)-->
+          <div v-if="chain && !isSearchOpen" class="flame-link">
+            <b>{{centralTitle}}</b>
+          </div>
         </div>
 
         <div class="right">
