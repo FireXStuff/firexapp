@@ -170,7 +170,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                        extra_header=None, file=None, chars=32000, timeout=None, capture_output=True, check=False,
                        inactivity_timeout=30 * 60, log_level=logging.DEBUG, copy_file_path=None, shell=False, cwd=None,
                        env=None, remove_firex_pythonpath=True, logger=logger, stderr=subprocess.STDOUT,
-                       proc_stats: Optional[ProcStats] = None, **kwargs):
+                       proc_stats: Optional[ProcStats] = None, stdin=subprocess.PIPE, **kwargs):
     ##########################
     # Local Helper functions #
     ##########################
@@ -405,7 +405,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
         p = output = None
         try:
             # Run the command
-            p = psutil.Popen(cmd, stdin=subprocess.PIPE, stdout=f, stderr=stderr, shell=shell, cwd=cwd,
+            p = psutil.Popen(cmd, stdin=stdin, stdout=f, stderr=stderr, shell=shell, cwd=cwd,
                              env=env, **kwargs)
 
             start_time = time.monotonic()
