@@ -5,6 +5,7 @@ import time
 import shlex
 import subprocess
 from functools import partial
+from tempfile import TemporaryDirectory
 
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
@@ -243,7 +244,12 @@ class RedisManager(BrokerManager):
             cmd += ' --pidfile %s' % self.pid_file
         if self.log_file:
             cmd += ' --logfile %s' % self.log_file
-        subprocess.check_call(shlex.split(cmd))
+        with TemporaryDirectory() as tmpdir:
+            subprocess.check_call(
+                shlex.split(cmd),
+                cwd=tmpdir, # must be writeable or redis-server will fail.
+            )
+
         if not wait_until(os.path.exists, timeout, 0.1, self.pid_file):
             raise RedisDidNotBecomeActive(f'The Redis pid file {self.pid_file} did not exist within {timeout}s')
         self.wait_until_active(port=port, timeout=timeout)
