@@ -148,9 +148,10 @@ class InputConverter:
         if pre_load and cls.pre_load_was_run:
                 raise Exception("Pre-microservice conversion was already run")
 
-        cls.pre_load_was_run = True
-        return cls.instance().convert(pre_task=pre_load, **kwargs)
+        ret = cls.instance().convert(pre_task=pre_load, **kwargs)
 
+        cls.pre_load_was_run = True
+        return ret
 
 @InputConverter.register
 def convert_booleans(kwargs):
