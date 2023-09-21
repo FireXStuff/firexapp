@@ -31,16 +31,16 @@ class FlowTestInfra(unittest.TestCase):
 
         # noinspection PyTypeChecker
         cls.max_acceptable_failures = int((len(cls.test_configs) / 2.0) + 1)
-        print("Total tests: " + str(len(cls.test_configs)), file=sys.stderr)
+        print("Total tests: " + str(len(cls.test_configs)))
         for test_config in cls.test_configs:
             def sub_test(self, config=test_config):
-                    print("Running tests " + config.__class__.__name__, file=sys.stderr)
+                    print(f'\nTest: {config.__class__.__name__}')
                     try:
                         cls.config_interpreter.run_integration_test(config, self.results_dir)
                         self.assertTrue(True)
-                        print("\tPassed", file=sys.stderr)
+                        print("\tPassed")
                     except Exception as e:
-                        print("\tFailed", file=sys.stderr)
+                        print("\tFailed")
                         cls.failures += 1
                         raise e
 
@@ -51,9 +51,9 @@ class FlowTestInfra(unittest.TestCase):
 
     def tearDown(self):
         if self.failures > self.max_acceptable_failures:
-            print("-"*70, file=sys.stderr)
-            print("Run was terrible. Half have failed so far. Skipping the remaining test", file=sys.stderr)
-            print("", file=sys.stderr)
+            print("-"*70)
+            print("Run was terrible. Half have failed so far. Skipping the remaining test")
+            print("")
             self._outcome.result.shouldStop = True
 
 
@@ -84,7 +84,7 @@ def main(default_results_dir, default_test_dir):
             import eventlet
         except ModuleNotFoundError:
             print("eventlet is not installed. eventlet is necessary to get code coverage."
-                  "Please run again without the --coverage option", file=sys.stderr)
+                  "Please run again without the --coverage option")
             exit(-1)
     elif args.no_html:
         parser.error("--no_html cannot be used without --coverage")
@@ -131,7 +131,7 @@ def main(default_results_dir, default_test_dir):
         os.rename(orig_output,
                   os.path.join(args.logs, os.path.basename(args.xunit_file_name)))
     if args.coverage:
-        print("combining coverage files...", file=sys.stderr)
+        print("combining coverage files...")
         coverage_files = [f for f in os.listdir(results_directory) if f.startswith(".coverage")]
         import subprocess
         if coverage_files:
@@ -140,10 +140,10 @@ def main(default_results_dir, default_test_dir):
 
             if not args.no_html:
                 cov_report = os.path.join(results_directory, "coverage")
-                print("Generating Coverage Report...", file=sys.stderr)
+                print("Generating Coverage Report...")
                 subprocess.check_output(["coverage", "html", "-d", cov_report],
                                         cwd=results_directory)
-                print(cov_report, file=sys.stderr)
+                print(cov_report)
 
     sys.exit(not success)
 

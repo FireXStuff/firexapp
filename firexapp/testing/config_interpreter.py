@@ -176,10 +176,10 @@ def {0}(**kwargs):
         # print useful links
         test_src_file = inspect.getfile(flow_test_config.__class__)
         if hasattr(flow_test_config, 'logs_link'):
-            print("\tLogs:", self.document_viewer(flow_test_config.logs_link), file=sys.stderr)
-        print("\tTest source:", self.document_viewer(test_src_file), file=sys.stderr)
-        print("\tStdout:", self.document_viewer(flow_test_config.std_out), file=sys.stderr)
-        print("\tStderr:", self.document_viewer(flow_test_config.std_err), file=sys.stderr)
+            print("\tLogs:", self.document_viewer(flow_test_config.logs_link))
+        print("\tTest source:", self.document_viewer(test_src_file))
+        print("\tStdout:", self.document_viewer(flow_test_config.std_out))
+        print("\tStderr:", self.document_viewer(flow_test_config.std_err))
 
         elapsed_time = None
         verification_time = None
@@ -248,7 +248,7 @@ def {0}(**kwargs):
                     overhead = " +(%.1fs)" % verification_time
                     if overhead != " +(0.0s)":
                         msg += overhead
-                print(msg, file=sys.stderr)
+                print(msg)
 
     def cleanup_after_timeout(self, std_out, std_err):
         pass
@@ -262,13 +262,13 @@ def {0}(**kwargs):
                 std_out_content = std_out_f.read()
                 firex_id = get_firex_id_from_output(std_out_content)
                 if firex_id:
-                    print("\tFireX ID: " + firex_id, file=sys.stderr)
+                    print("\tFireX ID: " + firex_id)
                     if self.is_public:
                         install_configs = load_new_install_configs(firex_id,
                                                                    get_log_dir_from_output(std_out_content),
                                                                    get_cloud_ci_install_config_path())
-                        print(f'\tLogs URL: {install_configs.get_logs_root_url()}', file=sys.stderr)
-                        print(f"\tFlame: {install_configs.run_url}", file=sys.stderr)
+                        print(f'\tLogs URL: {install_configs.get_logs_root_url()}')
+                        print(f"\tFlame: {install_configs.run_url}")
         except Exception as e:
             print(e)
             pass
