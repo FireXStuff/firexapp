@@ -2,7 +2,7 @@ import json
 import pprint
 from socket import gethostname
 from tempfile import NamedTemporaryFile
-from firex_keeper.task_query import single_task_by_name
+from firex_keeper import task_query
 from firexapp.application import get_app_tasks
 from firexapp.common import poll_until_path_exist
 from firexapp.tasks.root_tasks import get_configured_root_task
@@ -61,10 +61,12 @@ class JsonReportsGetGenerated(FlowTestConfiguration):
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_path = get_log_dir_from_output(cmd_output)
 
-        VerifyInitialJsonReport_task = single_task_by_name(logs_path, VerifyInitialJsonReport.__name__)
+        assert task_query.wait_on_keeper_complete(logs_path), "Keeper database is not complete."
+
+        VerifyInitialJsonReport_task = task_query.single_task_by_name(logs_path, VerifyInitialJsonReport.__name__)
         common_json_data = VerifyInitialJsonReport_task.firex_result['common_json_data']
 
-        root_task = single_task_by_name(logs_path, get_configured_root_task().__name__)
+        root_task = task_query.single_task_by_name(logs_path, get_configured_root_task().__name__)
         results = root_task.firex_result
 
         expected = {'completed': True,

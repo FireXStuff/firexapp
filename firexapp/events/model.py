@@ -87,7 +87,30 @@ def get_task_data(input_dict):
     return {k: v for k, v in input_dict.items() if k in TASK_COLUMN_NAMES}
 
 
-FireXTask = namedtuple('FireXTask', [tc.value for tc in TaskColumn])
+FireXTask = namedtuple('FireXTask', [
+    # MUST BE SAME ORDER AS TaskColumn
+    "uuid",
+    "firex_id",
+    "chain_depth",
+    "firex_bound_args",
+    "firex_result",
+    "firex_default_bound_args",
+    "from_plugin",
+    "hostname",
+    "logs_url",
+    "long_name",
+    "name",
+    "actual_runtime",
+    "first_started",
+    "parent_id",
+    "retries",
+    "state",
+    "task_num",
+    "utcoffset",
+    "exception",
+    "traceback",
+    'exception_cause_uuid',
+])
 
 
 def is_chain_exception(task):

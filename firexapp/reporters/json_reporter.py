@@ -3,7 +3,7 @@ import os
 import getpass
 from socket import gethostname
 from dataclasses import dataclass, fields
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 from firexapp.application import get_app_tasks
 from firexapp.common import silent_mkdir, create_link
@@ -23,8 +23,9 @@ class FireXRunData:
     submission_host: str
     submission_dir: str
     submission_cmd: List[str]
-    viewers: Dict[str, str]
-    results: Optional[Dict] = None
+    viewers: dict[str, str]
+    inputs: dict[str, Any]
+    results: Optional[dict[str, Any]] = None
     revoked: bool = False
 
 

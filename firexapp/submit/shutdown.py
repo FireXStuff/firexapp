@@ -14,8 +14,8 @@ import kombu.exceptions
 from firexapp.celery_manager import CeleryManager
 from firexapp.submit.uid import Uid
 from firexapp.broker_manager.broker_factory import BrokerFactory, REDIS_BIN_ENV
-from firexkit.inspect import get_active, get_revoked, get_active_queues
 from firexapp.common import qualify_firex_bin, select_env_vars
+from firexkit.inspect import get_active, get_revoked, get_active_queues
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ MaybeCeleryActiveTasks = namedtuple('MaybeCeleryActiveTasks', ['celery_read_succ
 def _launch_shutdown_subprocess(shutdown_cmd: list[str]) -> int:
     shutdown_subprocess_env = select_env_vars([REDIS_BIN_ENV, 'PATH'])
     try:
-        import detach
+        import detach # noqa
     except ModuleNotFoundError:
         # don't break old installs that don't have detach
         return subprocess.Popen(
@@ -91,8 +91,8 @@ def _inspect_broker_safe(inspect_fn, broker, celery_app, **kwargs):
         return None
     try:
         return inspect_fn(inspect_retry_timeout=4, celery_app=celery_app, **kwargs)
-    except (redis.exceptions.ConnectionError, kombu.exceptions.DecodeError) as e:
-        logger.warning(e)
+    except (redis.exceptions.ConnectionError, kombu.exceptions.DecodeError) as ex:
+        logger.warning(ex)
         return None
 
 
@@ -161,8 +161,10 @@ def revoke_active_tasks(broker, celery_app,  max_revoke_retries=5, task_predicat
     elif len(maybe_active_tasks.active_tasks) == 0:
         logger.info("Confirmed no active tasks after revoke.")
     elif revoke_retries >= max_revoke_retries:
-        logger.warning("Exceeded max revoke retry attempts, %s active tasks may not be revoked."
-                       % len(maybe_active_tasks.active_tasks))
+        t_count = len(maybe_active_tasks.active_tasks)
+        logger.warning(
+            f"Exceeded max revoke retry attempts, {t_count} active tasks may not be revoked."
+        )
 
 
 def init():
