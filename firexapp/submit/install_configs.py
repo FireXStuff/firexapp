@@ -11,8 +11,9 @@ from firexapp.common import render_template
 INSTALL_CONFIGS_ENV_NAME = 'firex_install_config'
 INSTALL_CONFIGS_RUN_BASENAME = 'install-configs.json'
 
+
 class FireXViewerTemplates(NamedTuple):
-    viewer_base: str = ""
+    viewer_base: Optional[str] = ""
     run_path_template: str = ""
     task_path_template: str = ""
     run_logs_root_path_template: str = ""
