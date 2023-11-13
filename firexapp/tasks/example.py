@@ -17,7 +17,7 @@ def nop() -> None:
 
 
 @app.task
-def sleep(sleep: Optional[int]=None) -> None:
+def sleep(sleep: Optional[int] = None) -> None:
     if sleep:
         time.sleep(int(sleep))
     return
