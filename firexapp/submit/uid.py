@@ -98,10 +98,16 @@ class Uid(object):
     def resources_dir(self):
         return self.get_resources_path(self.logs_dir)
 
-    def create_logs_dir(self):
-        path = os.path.join(self.base_logging_dir, self.identifier)
-        os.makedirs(path)
+    def _create_logs_dir_from_base(self, base_logging_dir):
+        path = os.path.join(base_logging_dir, self.identifier)
+        try:
+            os.makedirs(path)
+        except FileExistsError:
+            pass
         return path
+
+    def create_logs_dir(self):
+        return self._create_logs_dir_from_base(self.base_logging_dir)
 
     def create_debug_dir(self):
         path = os.path.join(self.logs_dir, self.debug_dirname)
