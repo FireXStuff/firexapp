@@ -6,6 +6,7 @@ import shlex
 import subprocess
 from functools import partial
 from tempfile import TemporaryDirectory
+from typing import Optional
 
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
@@ -52,6 +53,14 @@ class RedisPasswordReadError(Exception):
     pass
 
 
+class RedisPidFileNotFound(FileNotFoundError):
+    pass
+
+
+class RedisPidNotFoundInPidFile(Exception):
+    pass
+
+
 class RedisManager(BrokerManager):
 
     _METADATA_BROKER_URL_KEY = 'broker_url'  # For reading old-style configurations, before the usage of passwords
@@ -69,6 +78,7 @@ class RedisManager(BrokerManager):
         self._password = str(password) if password else secrets.token_urlsafe(32).lstrip('-')
         self._log_file = None
         self._pid_file = None
+        self._pid = None
         self._metadata_file = None
         self._password_file = None
         self._redis_server_bin = os.path.join(redis_bin_base, 'redis-server')
@@ -128,6 +138,10 @@ class RedisManager(BrokerManager):
     @staticmethod
     def get_pid_file(logs_dir):
         return FileRegistry().get_file(REDIS_PID_REGISTRY_KEY, logs_dir)
+
+    @classmethod
+    def get_pid(cls, logs_dir) -> int:
+        return cls.get_pid_from_pid_file(cls.get_pid_file(logs_dir))
 
     @staticmethod
     def get_metadata_file(logs_dir):
@@ -196,6 +210,22 @@ class RedisManager(BrokerManager):
             self._pid_file = _pid_file
         return self._pid_file
 
+    @staticmethod
+    def get_pid_from_pid_file(pid_file: str) -> int:
+        if not pid_file or not os.path.exists(pid_file):
+            raise RedisPidFileNotFound(f'Redis pid file {pid_file!r} not found')
+        pid_value = Path(pid_file).read_text()
+        if pid_value:
+            return int(pid_value)
+        else:
+            raise RedisPidNotFoundInPidFile(f'No pid found in {pid_file!r}')
+
+    @property
+    def pid(self) -> int:
+        if not self._pid:
+            self._pid = self.get_pid_from_pid_file(self.pid_file)
+        return self._pid
+
     @property
     def metadata_file(self):
         if not self._metadata_file and self.logs_dir:
@@ -258,7 +288,7 @@ class RedisManager(BrokerManager):
         self.create_metadata_file()
         self.log('redis started.')
 
-    def start(self, max_retries=3):
+    def start(self, max_retries=3, log_memory_info: bool = True):
         max_trials = max_retries + 1
         trials = 0
 
@@ -273,22 +303,31 @@ class RedisManager(BrokerManager):
                     raise
                 self.log('Redis did not come up after %d trial(s) (max_trials=%d)' % (trials, max_trials), level=INFO)
             else:
+                if log_memory_info:
+                    self.log(f'Redis memory at start:\n{self.get_memory_info()}')
                 break
 
-    def shutdown(self, timeout=None):
+    def get_memory_info(self, timeout: Optional[int] = None) -> str:
         try:
-            RedisManager.log('shutting down...')
+            return self.cli('info memory', timeout=timeout)
+        except subprocess.CalledProcessError:
+            return ''
+
+    def shutdown(self, timeout=None, log_memory_info: bool = True):
+        if log_memory_info:
+            self.log(f'Redis memory before shutdown:\n{self.get_memory_info(timeout=2)}')
+        try:
             self.cli('shutdown', timeout=timeout)
         except subprocess.CalledProcessError:
-            RedisManager.log('could not shutdown.')
+            self.log('could not shutdown.')
 
     def force_kill(self):
         # noinspection PyBroadException
         try:
-            RedisManager.log('force killing...')
-            Process(int(Path(self.pid_file).read_text())).kill()
+            self.log('force killing...')
+            Process(self.pid).kill()
         except Exception:
-            RedisManager.log('could not force kill.')
+            self.log('could not force kill.')
 
     def get_url(self) -> str:
         return self.broker_url
