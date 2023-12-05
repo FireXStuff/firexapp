@@ -15,7 +15,7 @@ from firexapp.celery_manager import CeleryManager
 from firexapp.submit.uid import Uid
 from firexapp.broker_manager.broker_factory import BrokerFactory, REDIS_BIN_ENV
 from firexapp.common import qualify_firex_bin, select_env_vars
-from firexkit.inspect import get_active, get_revoked, get_active_queues
+from firexkit.inspect import get_active, get_revoked, ping
 
 logger = logging.getLogger(__name__)
 
@@ -103,10 +103,13 @@ def get_active_broker_safe(broker, celery_app):
                                 method_args=(True,))
 
 
-def is_celery_responsive(broker, celery_app):
-    # use get_active_queues instead of get_active to check Celery responsiveness
-    # because get_active can fail to deserialize its response (i.e. raise DecodeError)
-    return _inspect_broker_safe(get_active_queues, broker, celery_app)
+def is_celery_responsive(broker, celery_app) -> bool:
+    # use ping instead of get_active to check Celery responsiveness
+    # because get_active can fail to deserialize its response (i.e. raise DecodeError).
+    # Need some celery call that uses broadcast, since we'll call shutdown that uses
+    # broadcast.
+    r =  _inspect_broker_safe(ping, broker, celery_app)
+    return bool(r)
 
 
 def get_revoked_broker_safe(broker, celery_app):
@@ -202,8 +205,14 @@ def shutdown_run(logs_dir, celery_shutdown_timeout, reason='No reason provided')
         if is_celery_responsive(broker, celery_app):
             revoke_active_tasks(broker, celery_app)
 
-            logger.info("Found active Celery; sending Celery shutdown.")
-            celery_app.control.shutdown()
+            if is_celery_responsive(broker, celery_app):
+                # double check celery responsiveness since control.shutdown()
+                # can hang when broker is unresponsive, and broker might go
+                # down between is_celery_responsive
+                logger.info("Found active Celery; sending Celery shutdown.")
+                celery_app.control.shutdown()
+            else:
+                logger.info("Celery appears unresponsive")
 
             celery_shutdown_success = celery_manager.wait_for_shutdown(celery_shutdown_timeout)
             if not celery_shutdown_success:
