@@ -317,7 +317,7 @@ class RedisManager(BrokerManager):
         else:
             output += [f'Redis pid {self.pid} is using vms: {bytes2mebibytes(proc_memory_info.vms):.1f} MiB']
         try:
-            output += [self.cli('info memory', timeout=timeout)]
+            output += [f'Redis DB memory info:\n' + self.cli('info memory', timeout=timeout)]
         except subprocess.CalledProcessError:
             pass
         return '\n'.join(output)
