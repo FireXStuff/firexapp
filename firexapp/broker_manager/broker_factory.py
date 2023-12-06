@@ -28,14 +28,15 @@ class BrokerFactory:
         return RedisManager(*args, redis_bin_base=get_redis_bin_dir(), **kwargs)
 
     @classmethod
-    def broker_manager_from_env(cls) -> RedisManager:
+    def broker_manager_from_env(cls, logs_dir: str = None) -> RedisManager:
         existing_broker_url = cls.get_broker_url(assert_if_not_set=True)
         hostname, port = RedisManager.get_hostname_port_from_url(existing_broker_url)
         password = RedisManager.get_password_from_url(existing_broker_url)
         return RedisManager(redis_bin_base=get_redis_bin_dir(),
                             hostname=hostname,
                             port=port,
-                            password=password)
+                            password=password,
+                            logs_dir=logs_dir)
 
     @classmethod
     def broker_manager_from_logs_dir(cls, logs_dir, passwordless_fallback=False) -> RedisManager:

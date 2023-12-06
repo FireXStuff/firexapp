@@ -18,6 +18,7 @@ from pathlib import Path
 
 from firexapp.broker_manager import BrokerManager
 from firexapp.common import get_available_port, wait_until, silent_mkdir
+from firexkit.memory_utils import get_process_memory_info, bytes2mebibytes
 
 REDIS_DIR_REGISTRY_KEY = 'REDIS_DIR_REGISTRY_KEY'
 FileRegistry().register_file(REDIS_DIR_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'redis'))
@@ -308,10 +309,18 @@ class RedisManager(BrokerManager):
                 break
 
     def get_memory_info(self, timeout: Optional[int] = None) -> str:
+        output = []
         try:
-            return self.cli('info memory', timeout=timeout)
+            proc_memory_info = get_process_memory_info(self.pid)
+        except (RedisPidFileNotFound, RedisPidNotFoundInPidFile):
+            pass
+        else:
+            output += [f'Redis pid {self.pid} is using vms: {bytes2mebibytes(proc_memory_info.vms):.1f} MiB']
+        try:
+            output += [self.cli('info memory', timeout=timeout)]
         except subprocess.CalledProcessError:
-            return ''
+            pass
+        return '\n'.join(output)
 
     def shutdown(self, timeout=None, log_memory_info: bool = True):
         if log_memory_info:
