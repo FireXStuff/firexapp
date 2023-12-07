@@ -5,11 +5,11 @@
          v-on:keydown.esc="$store.commit('tasks/closeSearch')">
       <div class="search-pos">
         {{ searchResultCount === 0 ? 0 : selectedIndex + 1 }} / {{ searchResultCount }}
-      </div>
-      <input ref='search-input' type="text" :value="searchTerm"
+        <input ref='search-input' type="text" :value="searchTerm"
              @keyup.enter.exact="submitSearch($event.target.value.trim())"
              @keyup.enter.shift="$store.dispatch('tasks/previousSearchResult')"
              class="search" placeholder="Search">
+      </div>
     </div>
     <x-header-button :link="buttonLink" style="border-left: none;" ></x-header-button>
   </div>
@@ -66,8 +66,9 @@ export default {
     display: inline-block;
     font-size: 24px;
     vertical-align: top;
-    width: 300px;
+    max-width: 300px;
     padding: 0 2px;
+    margin-left: 2px;
 }
 
 .search-pos {
@@ -75,10 +76,11 @@ export default {
   color: #000;
   font-size: 20px;
   cursor: default;
-  padding: 0 5px;
+  padding: 0 3px;
   display: inline-flex;
   align-items: center;
   height: 100%;
+  text-wrap: nowrap;
 }
 
   /deep/ .flame-link {

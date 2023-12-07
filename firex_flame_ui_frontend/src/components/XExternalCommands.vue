@@ -25,7 +25,6 @@
       :id="'subsection' + displayCommand.id">
 
       <template v-slot:header>
-        <!-- v-if here breaks slot. -->
         <div
           v-show="displayCommand.remoteHost"
           style="display: inline; font-weight: bold;"

@@ -12,14 +12,13 @@
               :showCompletionReportLink="true"
               :links="headerParams.links">
       <template v-slot:prebuttons>
-        <x-task-node-search :findUncollapsedAncestor="true">
-        </x-task-node-search>
-        <x-collapse-buttons></x-collapse-buttons>
+        <x-task-node-search :findUncollapsedAncestor="true"/>
+        <x-collapse-buttons/>
       </template>
     </x-header>
     <!-- TODO: not sure where the best level to gate on UID is, but need UID to key on
         localStorage within x-graph-->
-    <x-graph v-if="runMetadata.uid"></x-graph>
+    <x-graph v-if="runMetadata.uid"/>
   </div>
 </template>
 

@@ -95,7 +95,7 @@ export default {
       return this.$store.state.graph.showTaskDetails;
     },
     displayHostname() {
-      return _.truncate(this.task.hostname, { length: 22 });
+      return _.truncate(this.task.hostname, { length: 38 });
     },
     retries() {
       return this.task.retries;
