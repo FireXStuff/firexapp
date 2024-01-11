@@ -18,7 +18,7 @@ from pathlib import Path
 
 from firexapp.broker_manager import BrokerManager
 from firexapp.common import get_available_port, wait_until, silent_mkdir
-from firexkit.memory_utils import get_process_memory_info, bytes2mebibytes
+from firexkit.memory_utils import get_process_memory_info, human_readable_bytes
 
 REDIS_DIR_REGISTRY_KEY = 'REDIS_DIR_REGISTRY_KEY'
 FileRegistry().register_file(REDIS_DIR_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'redis'))
@@ -360,7 +360,13 @@ class RedisManager(BrokerManager):
             except (RedisPidFileNotFound, RedisPidNotFoundInPidFile):
                 pass
             else:
-                output += [f'Redis pid {self.pid} is using vms: {bytes2mebibytes(proc_memory_info.vms):.1f} MiB']
+                output += [f'Redis pid {self.pid} is using:']
+                output += [f'{proc_memory_info}']
+
+                for memtype in proc_memory_info._fields:
+                    output += [f'{memtype}: {human_readable_bytes(getattr(proc_memory_info, memtype))}']
+                output += ['\n']
+
         try:
             db_memory_info = self.cli('info memory', timeout=timeout)
             if human_only:
