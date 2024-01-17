@@ -351,8 +351,7 @@ class RedisManager(BrokerManager):
 
     def get_memory_info(self,
                         timeout: Optional[int] = None,
-                        include_proc_memory: bool = True,
-                        human_only: bool = True) -> str:
+                        include_proc_memory: bool = True) -> str:
         output = []
         if include_proc_memory and gethostname() == self.host:
             try:
@@ -367,13 +366,13 @@ class RedisManager(BrokerManager):
                     output += [f'{memtype}: {human_readable_bytes(getattr(proc_memory_info, memtype))}']
                 output += ['\n']
 
-        try:
-            db_memory_info = self.cli('info memory', timeout=timeout)
-            if human_only:
-                db_memory_info = '\n'.join([l for l in db_memory_info.splitlines() if '_human' in l])
-            output += [f'Redis DB memory info:\n' + db_memory_info]
-        except subprocess.CalledProcessError:
-            pass
+        for cmd in ['INFO MEMORY', 'MEMORY STATS', 'MEMORY DOCTOR', 'MEMORY MALLOC-STATS']:
+            try:
+                cmd_output = self.cli(cmd, timeout=timeout)
+                output += [f'[{cmd}]\n' + cmd_output + '\n']
+            except subprocess.CalledProcessError:
+                pass
+
         return '\n'.join(output)
 
     def save_memory_info_to_file(self, filepath: str, **get_memory_info_kwargs):
@@ -445,6 +444,9 @@ class RedisManager(BrokerManager):
     def set(self, key, value, timeout=None):
         rc = self.cli('SET %s %s' % (key, value), timeout=timeout)
         assert rc == 'OK', 'The return value was %s' % rc
+
+    def purge(self, timeout=None):
+        return self.cli('MEMORY PURGE', timeout=timeout)
 
     def monitor(self, monitor_file):
         cmd = os.path.join(self.redis_bin_base, 'redis-cli') + ' -p %d -a %s MONITOR &' % (self.port, self._password)
