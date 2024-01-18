@@ -1,9 +1,12 @@
 import traceback
 from abc import ABC, abstractmethod
+
+from celery.result import AsyncResult
 from celery.states import SUCCESS
 from celery.utils.log import get_task_logger
 
 from firexkit.result import get_task_name_from_result
+from firexkit.task import get_current_reports_uids
 
 logger = get_task_logger(__name__)
 
@@ -58,8 +61,10 @@ class ReportersRegistry:
 
         if results:
             from celery import current_app
-            logger.debug("Processing results data for reports")
-            for task_result in recurse_results_tree(results):
+            report_uids = get_current_reports_uids(current_app.backend)
+            report_results = [AsyncResult(r, backend=current_app.backend) for r in report_uids]
+            logger.debug(f"Processing reports for {report_uids}")
+            for task_result in report_results:
                 try:
                     # only report on successful tasks
                     if task_result.state != SUCCESS:
@@ -70,10 +75,7 @@ class ReportersRegistry:
                         continue
 
                     task = current_app.tasks[task_name]
-                    report_entries = getattr(task, 'report_meta', None)
-                    if not report_entries:
-                        # this task does not have a report decorator
-                        continue
+                    report_entries = getattr(task, 'report_meta')
 
                     task_ret = task_result.result
                     for report_gen in cls.get_generators():
@@ -110,18 +112,6 @@ class ReportersRegistry:
                 logger.error(f'Error in the post_run_report for {report_gen}', exc_info=True)
 
 
-def recurse_results_tree(results):
-    yield results
-    try:
-        children = results.children or []
-    except AttributeError:
-        return
-
-    for child in children:
-        for child_result in recurse_results_tree(child):
-            yield child_result
-
-
 def report(key_name=None, priority=-1, **formatters):
     """ Use this decorator to indicate what returns to include in the report and how to format it """
 
@@ -136,7 +126,7 @@ def report(key_name=None, priority=-1, **formatters):
             'priority': priority,
             'formatters': formatters,
         }
-        if not hasattr(cls, 'report_meta'):
+        if not cls.has_report_meta():
             cls.report_meta = []
         cls.report_meta.append(report_entry)
         return cls
