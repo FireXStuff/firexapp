@@ -6,6 +6,7 @@ import time
 from psutil import Process, TimeoutExpired
 from collections import namedtuple
 from typing import Optional
+import tempfile
 
 from celery import Celery
 import redis.exceptions
@@ -24,17 +25,20 @@ DEFAULT_CELERY_SHUTDOWN_TIMEOUT = 5 * 60
 MaybeCeleryActiveTasks = namedtuple('MaybeCeleryActiveTasks', ['celery_read_success', 'active_tasks'])
 
 
-def _launch_shutdown_subprocess(shutdown_cmd: list[str]) -> int:
+def _launch_shutdown_subprocess(shutdown_cmd: list[str], logs_dir: str) -> int:
     shutdown_subprocess_env = select_env_vars([REDIS_BIN_ENV, 'PATH'])
     try:
         import detach # noqa
     except ModuleNotFoundError:
         # don't break old installs that don't have detach
+        shutdown_cwd = logs_dir if os.path.isdir(logs_dir) else tempfile.gettempdir()
         return subprocess.Popen(
             shutdown_cmd,
             close_fds=True,
             env=shutdown_subprocess_env,
             preexec_fn=os.setpgrp,
+            # Shutdown doesn't care about cwd, but Celery can crash with bad cwd :/
+            cwd=shutdown_cwd,
         ).pid
     else:
         return detach.call(
@@ -50,7 +54,7 @@ def launch_background_shutdown(logs_dir, reason, celery_shutdown_timeout=DEFAULT
                         "--celery_shutdown_timeout", str(celery_shutdown_timeout)]
         if reason:
             shutdown_cmd += ['--reason', reason]
-        pid = _launch_shutdown_subprocess(shutdown_cmd)
+        pid = _launch_shutdown_subprocess(shutdown_cmd, logs_dir)
     except Exception:
         logger.exception("SHUTDOWN PROCESS FAILED TO LAUNCH -- REDIS WILL LEAK.")
         raise
