@@ -89,7 +89,9 @@ class AdjustCeleryConcurrency(argparse.Action):
 
 def safe_create_completed_run_json(uid, chain_result, run_revoked, chain_args):
     if uid:
-        chain_args = chain_args or {}
+        chain_args = dict(chain_args or {})
+        for k in ['uid', 'root_id', 'run_revoked']:
+            chain_args.pop(k, None) # gotta love **chain_args
         try:
             FireXJsonReportGenerator.create_completed_run_json(
                 uid=uid,
