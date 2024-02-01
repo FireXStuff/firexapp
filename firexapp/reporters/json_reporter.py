@@ -29,6 +29,25 @@ class FireXRunData:
     revoked: bool = False
 
 
+def _get_common_run_data(uid, chain, submission_dir, argv, original_cli, inputs):
+    data = {
+        **uid.run_data,
+        'chain': [t.short_name for t in get_app_tasks(chain)],
+        'logs_path': uid.logs_dir,
+        'submission_host': app.conf.mc or gethostname(),
+        'submission_dir': submission_dir,
+        'submission_cmd': original_cli or list(argv),
+        'submitter': getpass.getuser(),
+        'inputs': inputs,
+    }
+
+    viewers = uid.viewers or {}
+    data.update(viewers)
+    data['viewers'] = viewers
+
+    return data
+
+
 class FireXJsonReportGenerator:
     formatters = ('json',)
 
@@ -38,29 +57,11 @@ class FireXJsonReportGenerator:
     report_link_filename = 'run.json'
 
     @staticmethod
-    def get_common_run_data(uid, chain, submission_dir, argv, original_cli, inputs):
-        data = {**uid.run_data,
-                'chain': [t.short_name for t in get_app_tasks(chain)],
-                'logs_path': uid.logs_dir,
-                'submission_host': app.conf.mc or gethostname(),
-                'submission_dir': submission_dir,
-                'submission_cmd': original_cli or list(argv),
-                'submitter': getpass.getuser(),
-                'inputs': inputs
-                }
-
-        viewers = uid.viewers or {}
-        data.update(viewers)
-        data['viewers'] = viewers
-
-        return data
-
-    @staticmethod
     def write_report_file(data, report_file):
         # Create the json_reporter dir if it doesn't exist
         silent_mkdir(os.path.dirname(report_file))
 
-        with open(report_file, 'w') as f:
+        with open(report_file, 'w', encoding='utf-8') as f:
             json.dump(convert_to_serializable(data),
                       fp=f,
                       skipkeys=True,
@@ -70,24 +71,26 @@ class FireXJsonReportGenerator:
     @staticmethod
     def create_initial_run_json(uid, chain, submission_dir, argv, original_cli=None, json_file=None,
                                 **inputs):
-        data = FireXJsonReportGenerator.get_common_run_data(uid=uid,
-                                                            chain=chain,
-                                                            submission_dir=submission_dir,
-                                                            argv=argv,
-                                                            original_cli=original_cli,
-                                                            inputs=inputs)
-        data['completed'] = False
-        data['revoked'] = False
-        report_file = os.path.join(uid.logs_dir, FireXJsonReportGenerator.reporter_dirname,
-                                   FireXJsonReportGenerator.initial_report_filename)
-        FireXJsonReportGenerator.write_report_file(data, report_file)
+        data = _get_common_run_data(
+            uid=uid,
+            chain=chain,
+            submission_dir=submission_dir,
+            argv=argv,
+            original_cli=original_cli,
+            inputs=inputs) | {
+                'completed': False,
+                'revoked': False,
+            }
+
+        initial_report_file = get_initial_run_json_path(uid)
+        FireXJsonReportGenerator.write_report_file(data, initial_report_file)
 
         report_link = os.path.join(uid.logs_dir, FireXJsonReportGenerator.report_link_filename)
         try:
-            create_link(report_file, report_link, delete_link=False)
+            create_link(initial_report_file, report_link, delete_link=False)
         except FileExistsError:
-            logger.debug(f'f{report_link} link already exist; post_run must have already run. '
-                         f'No need to link to f{report_file}')
+            logger.debug(f'f{report_link} link already exist. '
+                         f'No need to link to f{initial_report_file}')
 
         if json_file:
             try:
@@ -97,24 +100,34 @@ class FireXJsonReportGenerator:
                              f'post_run must have already created the link to {report_link}')
 
     @staticmethod
-    def create_completed_run_json(uid, chain, root_id, submission_dir, argv, run_revoked, original_cli=None,
+    def create_completed_run_json(uid, run_revoked, chain=None, root_id=None, submission_dir=None, argv=None, original_cli=None,
                                   json_file=None, **inputs):
-        data = FireXJsonReportGenerator.get_common_run_data(uid=uid,
-                                                            chain=chain,
-                                                            submission_dir=submission_dir,
-                                                            argv=argv,
-                                                            original_cli=original_cli,
-                                                            inputs=inputs)
-        data['completed'] = True
-        data['results'] = get_results(root_id)
-        data['revoked'] = run_revoked
-        report_file = os.path.join(uid.logs_dir, FireXJsonReportGenerator.reporter_dirname,
-                                   FireXJsonReportGenerator.completion_report_filename)
+        data = None
+        try:
+            with open(get_initial_run_json_path(uid), encoding='utf-8') as f:
+                data = json.load(fp=f)
+        except OSError:
+            logger.warning(f"Failed to read initial json for {uid}. Creating a minimal completion report.")
 
-        FireXJsonReportGenerator.write_report_file(data, report_file)
+        if not data:
+            # best effort -- not all termination contexts have access to all this data :/
+            data = _get_common_run_data(
+                uid=uid,
+                chain=chain,
+                submission_dir=submission_dir,
+                argv=argv,
+                original_cli=original_cli,
+                inputs=inputs)
+
+        data['completed'] = True
+        data['results'] = get_results(root_id) if root_id else None
+        data['revoked'] = run_revoked
+
+        completion_report_file = get_completion_run_json_path(uid)
+        FireXJsonReportGenerator.write_report_file(data, completion_report_file)
 
         report_link = os.path.join(uid.logs_dir, FireXJsonReportGenerator.report_link_filename)
-        create_link(report_file, report_link, relative=True)
+        create_link(completion_report_file, report_link, relative=True)
 
         if json_file:
             try:
@@ -131,7 +144,6 @@ def get_completion_report_data(logs_dir):
     with open(report_file) as f:
         return json.load(fp=f)
 
-
 def is_completed_report(json_file: str) -> bool:
     return os.path.basename(os.path.realpath(json_file)) == FireXJsonReportGenerator.completion_report_filename
 
@@ -146,3 +158,17 @@ def load_completion_report(json_file: str) -> FireXRunData:
     filtered_run_dict = {k: v for k, v in run_dict.items() if k in field_names}
     # TODO: consider using dacite library instead.
     return FireXRunData(**filtered_run_dict)
+
+
+def get_initial_run_json_path(uid):
+    return os.path.join(
+        uid.logs_dir,
+        FireXJsonReportGenerator.reporter_dirname,
+        FireXJsonReportGenerator.initial_report_filename)
+
+
+def get_completion_run_json_path(uid):
+    return os.path.join(
+        uid.logs_dir,
+        FireXJsonReportGenerator.reporter_dirname,
+        FireXJsonReportGenerator.completion_report_filename)

@@ -87,14 +87,19 @@ class AdjustCeleryConcurrency(argparse.Action):
         setattr(namespace, self.dest, concurrency)
 
 
-def safe_create_completed_run_json(chain_result, run_revoked, chain_args):
-    try:
-        FireXJsonReportGenerator.create_completed_run_json(root_id=chain_result,
-                                                           run_revoked=run_revoked,
-                                                           **chain_args)
-    except Exception as e:
-        logger.error(f'Failed to generate completion run JSON: {e}')
-
+def safe_create_completed_run_json(uid, chain_result, run_revoked, chain_args):
+    if uid:
+        chain_args = chain_args or {}
+        try:
+            FireXJsonReportGenerator.create_completed_run_json(
+                uid=uid,
+                root_id=chain_result,
+                run_revoked=run_revoked,
+                **chain_args)
+        except Exception as e:
+            logger.error(f'Failed to generate completion run JSON: {e}')
+    else:
+        logger.warning("No uid; run.json will not be updated.")
 
 def _safe_send_async_shutdown_if_signal(reason: Optional[str]) -> None:
     if reason and reason.startswith(RECEIVED_SIGNAL_MSG_PREFIX):
@@ -581,9 +586,12 @@ class SubmitBaseApp:
 
     def self_destruct(self, chain_details=None, reason=None, run_revoked=False):
         _safe_send_async_shutdown_if_signal(reason)
-        if chain_details:
+
+        if not chain_details:
+            safe_create_completed_run_json(self.uid, None, run_revoked, None)
+        else:
             chain_result, chain_args = chain_details
-            safe_create_completed_run_json(chain_result, run_revoked, chain_args)
+            safe_create_completed_run_json(self.uid, chain_result, run_revoked, chain_args)
             try:
                 logger.debug("Generating reports")
                 from firexapp.submit.reporting import ReportersRegistry

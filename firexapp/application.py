@@ -155,9 +155,9 @@ class FireXBaseApp:
             self.submit_app.submit_args_to_process = args_to_process
             arguments.func(arguments, others)
 
-    def main_error_exit_handler(self, reason=None):
+    def main_error_exit_handler(self, reason=None, run_revoked=False):
         if self.running_app and hasattr(self.running_app, self.main_error_exit_handler.__name__):
-            self.running_app.main_error_exit_handler(reason=reason)
+            self.running_app.main_error_exit_handler(reason=reason, run_revoked=run_revoked)
         exit(-1)
 
     def create_arg_parser(self, description=None)->ArgumentParser:
@@ -205,6 +205,10 @@ class ExitSignalHandler:
             self._register_signal_handlers(second_exit_handler)
             signal_name = signal.Signals(signal_num).name
             logger.error(self.first_warning % signal_name)
-            app.main_error_exit_handler(reason=f"{RECEIVED_SIGNAL_MSG_PREFIX}{signal_name}.")
+            app.main_error_exit_handler(
+                reason=f"{RECEIVED_SIGNAL_MSG_PREFIX}{signal_name}.",
+                # this kind of overloads "revoked", but completion must have indication of : success/fail/revoked
+                run_revoked=True,
+            )
 
         self._register_signal_handlers(first_exit_handler)

@@ -105,6 +105,14 @@ class NoBrokerLeakOnCtrlC(NoBrokerLeakBase):
     def initial_firex_options(self) -> list:
         return ["submit", "--chain", "kill_firexapp_main", "--pid", "tbd"]
 
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        super().assert_expected_firex_output(cmd_output, cmd_err)
+
+        assert self.run_data.completed, 'expected run.json to indicate completed'
+        assert self.run_data.revoked, 'expected run.json to indicate revoked'
+        assert isinstance(self.run_data.inputs['pid'], int), f'input not captured properly: {self.run_data.inputs["pid"]}'
+
+
     def expected_error(self):
         return "Exiting due to signal SIGHUP"
 
