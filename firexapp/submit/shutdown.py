@@ -27,11 +27,12 @@ MaybeCeleryActiveTasks = namedtuple('MaybeCeleryActiveTasks', ['celery_read_succ
 
 def _launch_shutdown_subprocess(shutdown_cmd: list[str], logs_dir: str) -> int:
     shutdown_subprocess_env = select_env_vars([REDIS_BIN_ENV, 'PATH'])
+    shutdown_cwd = logs_dir if os.path.isdir(logs_dir) else tempfile.gettempdir()
     try:
         import detach # noqa
     except ModuleNotFoundError:
         # don't break old installs that don't have detach
-        shutdown_cwd = logs_dir if os.path.isdir(logs_dir) else tempfile.gettempdir()
+
         return subprocess.Popen(
             shutdown_cmd,
             close_fds=True,
@@ -44,6 +45,7 @@ def _launch_shutdown_subprocess(shutdown_cmd: list[str], logs_dir: str) -> int:
         return detach.call(
             shutdown_cmd,
             env=shutdown_subprocess_env,
+            cwd=shutdown_cwd,
         )
 
 
