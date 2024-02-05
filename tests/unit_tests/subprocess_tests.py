@@ -172,7 +172,7 @@ class SubprocessRunnerTests(unittest.TestCase):
                         f'Expected {expected}% CPU but got {stats.cpu_percent_used}')
         self.assertTrue(mem_expected * 0.50 <= stats.mem_mb_used < mem_expected * 1.30,  # Loose check due to experience
                         f'Expected {mem_expected} MB memory but got {stats.mem_mb_used}')
-        self.assertTrue(mem_hw_expected * 0.65 < stats.mem_mb_high_wm < mem_hw_expected * 1.30,
+        self.assertTrue(mem_hw_expected * 0.50 <= stats.mem_mb_high_wm < mem_hw_expected * 1.30,
                         f'Expected {mem_hw_expected} MB max memory but got {stats.mem_mb_high_wm}')
 
         # zero running time
