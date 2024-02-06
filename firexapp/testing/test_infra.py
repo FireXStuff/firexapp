@@ -4,6 +4,9 @@ import os
 import shutil
 import argparse
 import unittest
+
+from xmlrunner.runner import XMLTestRunner
+
 from firexapp.testing.config_base import discover_tests
 from firexapp.testing.config_interpreter import ConfigInterpreter
 from firexkit.permissions import DEFAULT_UMASK
@@ -119,9 +122,8 @@ def main(default_results_dir, default_test_dir):
     if args.coverage:
         os.environ["COVERAGE_FILE"] = os.path.join(results_directory, ".coverage")
 
-    import xmlrunner
     success = unittest.main(module=FlowTestInfra.__module__,
-                            testRunner=xmlrunner.XMLTestRunner(output=args.logs, outsuffix="results", verbosity=2),
+                            testRunner=XMLTestRunner(output=args.logs, outsuffix="results", verbosity=2),
                             argv=sys.argv[:1],
                             exit=False,
                             verbosity=2).result.wasSuccessful()
