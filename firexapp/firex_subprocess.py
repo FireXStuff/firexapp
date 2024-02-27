@@ -100,7 +100,7 @@ def run(cmd, retries=0, retry_delay=3, **kwargs):
 
 
 def _sanitize_runner_kwargs(runner_type: _SubprocessRunnerType, kwargs: dict):
-    disallowed_keys = ['stdout', 'universal_newlines']
+    disallowed_keys = ['stdout', 'universal_newlines', 'text']
     if runner_type is _SubprocessRunnerType.RUN:
         disallowed_keys.extend(['input'])
     else:
@@ -170,7 +170,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                        extra_header=None, file=None, chars=32000, timeout=None, capture_output=True, check=False,
                        inactivity_timeout=30 * 60, log_level=logging.DEBUG, copy_file_path=None, shell=False, cwd=None,
                        env=None, remove_firex_pythonpath=True, logger=logger, stderr=subprocess.STDOUT,
-                       proc_stats: Optional[ProcStats] = None, stdin=subprocess.PIPE, **kwargs):
+                       proc_stats: Optional[ProcStats] = None, stdin=subprocess.PIPE, bufsize=0, **kwargs):
     ##########################
     # Local Helper functions #
     ##########################
@@ -383,9 +383,9 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
         env = _get_env_without_pythonpath(env)
 
     if file:
-        f = open(file, 'wb+')
+        f = open(file, 'wb+', buffering=0)
     else:
-        f = tempfile.NamedTemporaryFile(delete=False)
+        f = tempfile.NamedTemporaryFile(delete=False, buffering=0)
     filename = f.name
     open_og_rw_permissions(filename)
 
@@ -406,7 +406,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
         try:
             # Run the command
             p = psutil.Popen(cmd, stdin=stdin, stdout=f, stderr=stderr, shell=shell, cwd=cwd,
-                             env=env, **kwargs)
+                             env=env, bufsize=bufsize, **kwargs)
 
             start_time = time.monotonic()
 
