@@ -168,7 +168,7 @@ export default {
             + 'browser or login via private/incognito window to update '
             + 'authentication tokens.';
           } else {
-            this.errorDetailMessage = `Flame not started for ${this.taskDataKey}`;
+            this.errorDetailMessage = `Failed to find Flame data for ${this.taskDataKey}`;
           }
           return Promise.reject(this.errorDetailMessage);
         },
