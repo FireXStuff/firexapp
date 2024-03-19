@@ -30,9 +30,13 @@ class FireXRunData:
 
 
 def _get_common_run_data(uid, chain, submission_dir, argv, original_cli, inputs):
+    if chain:
+        chain = [t.short_name for t in get_app_tasks(chain)],
+    if not argv:
+        argv = []
     data = {
         **uid.run_data,
-        'chain': [t.short_name for t in get_app_tasks(chain)],
+        'chain': chain,
         'logs_path': uid.logs_dir,
         'submission_host': app.conf.mc or gethostname(),
         'submission_dir': submission_dir,
