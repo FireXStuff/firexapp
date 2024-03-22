@@ -204,14 +204,14 @@ class ReporterStep(bootsteps.StartStopStep):
 
     def __init__(self, parent, **kwargs):
         self._logs_dir = None
-        logfile = kwargs.get('logfile', '')
+        logfile = os.path.normpath(kwargs.get('logfile', '') or '')
 
         while (sp := os.path.split(logfile))[0] != logfile:
-            logfile = sp[0]
             m = FIREX_ID_REGEX.search(sp[1])
             if m:
-                self._logs_dir = os.path.join(sp[0], sp[1])
+                self._logs_dir = logfile
                 break
+            logfile = sp[0]
 
         super().__init__(parent, **kwargs)
 
