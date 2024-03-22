@@ -3,10 +3,15 @@ import os
 import getpass
 from socket import gethostname
 from dataclasses import dataclass, fields
-from typing import List, Dict, Optional, Any
+from tempfile import NamedTemporaryFile
+from typing import List, Optional, Any
+
+from celery import bootsteps
+from celery.worker.components import Hub
 
 from firexapp.application import get_app_tasks
 from firexapp.common import silent_mkdir, create_link
+from firexapp.submit.uid import FIREX_ID_REGEX
 from firexkit.result import get_results
 from firexkit.task import convert_to_serializable
 from celery.utils.log import get_task_logger
@@ -65,12 +70,22 @@ class FireXJsonReportGenerator:
         # Create the json_reporter dir if it doesn't exist
         silent_mkdir(os.path.dirname(report_file))
 
-        with open(report_file, 'w', encoding='utf-8') as f:
+        # Atomic write, because the completed_run_json can be written from various places, including
+        # celery poolworker which runs FireXRunner, celery mainprocess (as a last-resort backup in a bootstep),
+        # and in another process (in the sync case). And although the backup method should kick in only after
+        # other methods have failed, it's a theoretical possibility they will run concurrently depending
+        # on the order of kill signals, especially in the sync case.
+        with NamedTemporaryFile(mode='w', encoding='utf-8', dir=os.path.dirname(report_file), delete=False) as f:
             json.dump(convert_to_serializable(data),
                       fp=f,
                       skipkeys=True,
                       sort_keys=True,
                       indent=4)
+            f.flush()
+            os.fsync(f.fileno())
+
+        os.chmod(f.name, 0o644)
+        os.replace(f.name, report_file)
 
     @staticmethod
     def create_initial_run_json(uid, chain, submission_dir, argv, original_cli=None, json_file=None,
@@ -86,7 +101,7 @@ class FireXJsonReportGenerator:
                 'revoked': False,
             }
 
-        initial_report_file = get_initial_run_json_path(uid)
+        initial_report_file = get_initial_run_json_path(uid.logs_dir)
         FireXJsonReportGenerator.write_report_file(data, initial_report_file)
 
         report_link = os.path.join(uid.logs_dir, FireXJsonReportGenerator.report_link_filename)
@@ -104,16 +119,20 @@ class FireXJsonReportGenerator:
                              f'post_run must have already created the link to {report_link}')
 
     @staticmethod
-    def create_completed_run_json(uid, run_revoked, chain=None, root_id=None, submission_dir=None, argv=None, original_cli=None,
-                                  json_file=None, **inputs):
+    def create_completed_run_json(uid=None, run_revoked=True, chain=None, root_id=None, submission_dir=None, argv=None,
+                                  original_cli=None, json_file=None, logs_dir=None, **inputs):
+        if not logs_dir and uid is None:
+            raise ValueError(f'At least one of "logs_dir" or "uid" must be supplied')
+        logs_dir = uid.logs_dir if uid is not None else logs_dir
+
         data = None
         try:
-            with open(get_initial_run_json_path(uid), encoding='utf-8') as f:
+            with open(get_initial_run_json_path(logs_dir), encoding='utf-8') as f:
                 data = json.load(fp=f)
         except OSError:
-            logger.warning(f"Failed to read initial json for {uid}. Creating a minimal completion report.")
+            logger.warning(f"Failed to read initial json for {logs_dir}. Creating a minimal completion report.")
 
-        if not data:
+        if not data and uid:
             # best effort -- not all termination contexts have access to all this data :/
             data = _get_common_run_data(
                 uid=uid,
@@ -127,10 +146,10 @@ class FireXJsonReportGenerator:
         data['results'] = get_results(root_id) if root_id else None
         data['revoked'] = run_revoked
 
-        completion_report_file = get_completion_run_json_path(uid)
+        completion_report_file = get_completion_run_json_path(logs_dir)
         FireXJsonReportGenerator.write_report_file(data, completion_report_file)
 
-        report_link = os.path.join(uid.logs_dir, FireXJsonReportGenerator.report_link_filename)
+        report_link = os.path.join(logs_dir, FireXJsonReportGenerator.report_link_filename)
         create_link(completion_report_file, report_link, relative=True)
 
         if json_file:
@@ -164,15 +183,45 @@ def load_completion_report(json_file: str) -> FireXRunData:
     return FireXRunData(**filtered_run_dict)
 
 
-def get_initial_run_json_path(uid):
+def get_initial_run_json_path(logs_dir):
     return os.path.join(
-        uid.logs_dir,
+        logs_dir,
         FireXJsonReportGenerator.reporter_dirname,
         FireXJsonReportGenerator.initial_report_filename)
 
 
-def get_completion_run_json_path(uid):
+def get_completion_run_json_path(logs_dir):
     return os.path.join(
-        uid.logs_dir,
+        logs_dir,
         FireXJsonReportGenerator.reporter_dirname,
         FireXJsonReportGenerator.completion_report_filename)
+
+
+class ReporterStep(bootsteps.StartStopStep):
+
+    def include_if(self, parent):
+        return parent.hostname.startswith(app.conf.primary_worker_name + '@')
+
+    def __init__(self, parent, **kwargs):
+        self._logs_dir = None
+        logfile = kwargs.get('logfile', '')
+
+        while (sp := os.path.split(logfile))[0] != logfile:
+            logfile = sp[0]
+            m = FIREX_ID_REGEX.search(sp[1])
+            if m:
+                self._logs_dir = os.path.join(sp[0], sp[1])
+                break
+
+        super().__init__(parent, **kwargs)
+
+    def stop(self, parent):
+        if self._logs_dir and not os.path.exists(get_completion_run_json_path(logs_dir=self._logs_dir)):
+            # By now, the report should have been written! Write a default completion report
+            FireXJsonReportGenerator.create_completed_run_json(logs_dir=self._logs_dir)
+
+app.steps['worker'].add(ReporterStep)
+
+# We want this step to finish after Pool at least (because a poolworker writes this file in the async case),
+# but might as well finish after Hub too
+Hub.requires = Hub.requires + (ReporterStep,)
