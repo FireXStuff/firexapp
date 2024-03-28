@@ -274,7 +274,9 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                    extra={'span_class': 'command_output command_output_error' if error else 'command_output'})
 
     def _kill_proc_gently(proc):
+        children = None
         try:
+            children = proc.children(recursive=True)
             proc.terminate()
             try:
                 proc.wait(timeout=60)
@@ -287,10 +289,43 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                     # Give up at this point. It is undead.
                     logger.exception(e)
                     pass
-
         except (PermissionError, psutil.AccessDenied, psutil.NoSuchProcess) as e:
             # Possible if the underlying process is running under sudo or the like
             logger.exception(e)
+
+        if not children:
+            return #  <- we are done
+
+        # check if the process left children around after it had a chance to clean up, and kill those
+        # NOTE: if process spawned a child between children() and terminate() above, we are out of luck
+        _, alive = psutil.wait_procs(children, timeout=0)
+        if not alive:
+            return  # <- we are done
+
+        # first pass terminate
+        for live in alive:
+            try:
+                live.terminate()
+            except (psutil.AccessDenied, psutil.NoSuchProcess):
+                pass
+
+        _, alive = psutil.wait_procs(alive, timeout=60)
+        if not alive:
+            return  # <- we are done
+
+        # second pass kill
+        for live in alive:
+            try:
+                live.kill()
+            except (psutil.AccessDenied, psutil.NoSuchProcess):
+                pass
+
+        # third pass notify
+        _, alive = psutil.wait_procs(alive, timeout=6)
+        if not alive:
+            return  # <- we are done
+
+        logger.error(f'Failed to kill children of killed process. Children: {alive}')
 
     _cpu_stat_errors = set()
     _children_errors = set()
