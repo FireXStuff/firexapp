@@ -132,19 +132,14 @@ class FireXFormatter(celery.utils.log.ColorFormatter):
             return msg
         else:
             original_msg = record.msg
+            original_exc_text = record.exc_text
             if getattr(record, 'html_escape', True):
                 record.msg = html_escape(original_msg)
+                record.exc_text = html_escape(original_exc_text)
             msg = super().format(record)
             record.msg = original_msg
+            record.exc_text = original_exc_text
             return msg
-
-    def formatException(self, ei):
-        result = super().formatException(ei)
-        return html_escape(result)
-
-    def formatStack(self, stack_info):
-        result = super().formatStack(stack_info)
-        return html_escape(result)
 
 
 class FireXTaskFormatter(FireXFormatter):
