@@ -138,6 +138,14 @@ class FireXFormatter(celery.utils.log.ColorFormatter):
             record.msg = original_msg
             return msg
 
+    def formatException(self, ei):
+        result = super().formatException(ei)
+        return html_escape(result)
+
+    def formatStack(self, stack_info):
+        result = super().formatStack(stack_info)
+        return html_escape(result)
+
 
 class FireXTaskFormatter(FireXFormatter):
     def format(self, record):
