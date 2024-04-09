@@ -135,7 +135,7 @@ class FireXFormatter(celery.utils.log.ColorFormatter):
             original_exc_text = record.exc_text
             if getattr(record, 'html_escape', True):
                 record.msg = html_escape(original_msg)
-                record.exc_text = html_escape(original_exc_text)
+                record.exc_text = html_escape(original_exc_text) if original_exc_text else original_exc_text
             msg = super().format(record)
             record.msg = original_msg
             record.exc_text = original_exc_text
