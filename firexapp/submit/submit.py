@@ -573,7 +573,8 @@ class SubmitBaseApp:
     def wait_tracking_services_task_ready(self, timeout=5)->None:
         self.wait_tracking_services_pred(lambda s: s.ready_for_tasks(celery_app=app), 'ready for tasks', timeout)
 
-    def wait_tracking_services_release_console_ready(self, timeout=5)->None:
+    # increase timeout until Flame's 'recalc' at during shutdown can be removed.
+    def wait_tracking_services_release_console_ready(self, timeout=45)->None:
         self.wait_tracking_services_pred(lambda s: s.ready_release_console(), 'ready to release console', timeout)
 
     def main_error_exit_handler(self, chain_details=None, reason=None, run_revoked=False):
