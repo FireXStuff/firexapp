@@ -68,9 +68,44 @@ def TestConcat(self):
                                num_invocations_expected=2)
 
 
+@app.task(bind=True)
+def TestConcatDoesNotGetForgotten(self):
+    key_to_increment = str(uuid.uuid4())
+    sig = Concat1.s(key_to_increment=key_to_increment, a='a')
+    return_value_expected = {'ab': 'a'}
+
+    # Call a cache-enabled service, and attempt to forget its result
+    r1 = self.enqueue_child(sig, block=True, forget=True)
+    # It's result should not be forgotten, since it's cache-enabled
+    verify_caching_results(async_result=r1,
+                           redis_key_to_check=key_to_increment,
+                           return_value_expected=return_value_expected,
+                           num_invocations_expected=1)
+    # Call Concat1 again to make sure that we can retrieve the cached result
+    r2 = self.enqueue_child(sig, block=True)
+    verify_caching_results(async_result=r2,
+                           redis_key_to_check=key_to_increment,
+                           return_value_expected=return_value_expected,
+                           num_invocations_expected=1)
+    # but we should be okay to forget the second instance (r2)
+    self.forget_specific_children_results([r2])
+    assert r2.result is None
+
+
 class TestCaching(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
         return ['submit', '--chain', "TestConcat"]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        assert not cmd_err, "Errors are not expected"
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
+
+
+class TestCachingTaskDoesNotGetForgotten(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        return ['submit', '--chain', TestConcatDoesNotGetForgotten.name]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert not cmd_err, "Errors are not expected"
