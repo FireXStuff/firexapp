@@ -167,6 +167,7 @@ def get_completion_report_data(logs_dir):
     with open(report_file) as f:
         return json.load(fp=f)
 
+
 def is_completed_report(json_file: str) -> bool:
     return os.path.basename(os.path.realpath(json_file)) == FireXJsonReportGenerator.completion_report_filename
 
@@ -181,6 +182,12 @@ def load_completion_report(json_file: str) -> FireXRunData:
     filtered_run_dict = {k: v for k, v in run_dict.items() if k in field_names}
     # TODO: consider using dacite library instead.
     return FireXRunData(**filtered_run_dict)
+
+
+def get_run_json_path(logs_dir: str) -> str:
+    return os.path.join(
+        logs_dir,
+        FireXJsonReportGenerator.report_link_filename)
 
 
 def get_initial_run_json_path(logs_dir):
