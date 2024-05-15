@@ -45,6 +45,9 @@ const INFRA_KEYS = [
   'submitter',
   'submit_app',
   'starter_uuid',
+  'invoker_id',
+  'invoker_system',
+  'invoker_system_info',
 ];
 
 const HIDDEN_KEYS = [

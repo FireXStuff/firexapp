@@ -93,7 +93,7 @@ export default {
         return null;
       }
       return DateTime.fromSeconds(this.revokeTimestamp)
-        .toLocaleString({...DateTime.DATETIME_SHORT_WITH_SECONDS, timeZoneName: 'short'});
+        .toLocaleString({ ...DateTime.DATETIME_SHORT_WITH_SECONDS, timeZoneName: 'short' });
     },
     centralTitle() {
       return this.mainTitle ? this.mainTitle : this.chain;
