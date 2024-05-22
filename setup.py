@@ -33,6 +33,7 @@ setup(name='firexapp',
           "beautifulsoup4",
           "detach3k",
           "pytz",
+          "rapidfuzz==3.9.1",
       ],
       extras_require={
           'test': [
