@@ -33,7 +33,7 @@ setup(name='firexapp',
           "beautifulsoup4",
           "detach3k",
           "pytz",
-          "rapidfuzz==3.9.1",
+          "rapidfuzz==3.8.1",  # 3.9.1 is broken (seg faults)
       ],
       extras_require={
           'test': [
