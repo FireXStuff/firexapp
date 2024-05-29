@@ -172,8 +172,13 @@ def is_completed_report(json_file: str) -> bool:
     return os.path.basename(os.path.realpath(json_file)) == FireXJsonReportGenerator.completion_report_filename
 
 
+class RunJsonFileNotFound(AssertionError):
+    pass
+
+
 def load_completion_report(json_file: str) -> FireXRunData:
-    assert os.path.isfile(json_file), f"File doesn't exist: {json_file}"
+    if not os.path.isfile(json_file):
+        raise RunJsonFileNotFound(f"File doesn't exist: {json_file}")
 
     with open(json_file) as f:
         run_dict = json.load(fp=f)
