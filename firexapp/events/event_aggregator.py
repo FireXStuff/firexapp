@@ -230,7 +230,7 @@ class AbstractFireXEventAggregator:
             }
 
             if not incomplete_task.get(TaskColumn.ACTUAL_RUNTIME.value):
-                task_runtime = now - incomplete_task.get('first_started', now)
+                task_runtime = now - (incomplete_task.get('first_started') or now)
                 new_event[TaskColumn.ACTUAL_RUNTIME.value] = task_runtime
 
             new_events.append(new_event)
@@ -251,18 +251,20 @@ class AbstractFireXEventAggregator:
             return False
         return len(self._get_incomplete_tasks()) == 0
 
-    def _get_or_create_task(self, task_uuid):
+    def _get_or_create_task(self, task_uuid) -> tuple[dict[str, Any], bool]:
         if not self._task_exists(task_uuid):
-            task = {
-                'uuid': task_uuid,
-                'task_num': self.new_task_num,
-            }
-            self.new_task_num += 1
-            self._insert_new_task(task)
+            task = self._insert_new_task(
+                {
+                    'uuid': task_uuid,
+                    'task_num': self.new_task_num,
+                }
+            )
+            self.new_task_num += 1 # only update after insert succeeds.
             is_new = True
         else:
             task = self._get_task(task_uuid)
             is_new = False
+        assert task
         return task, is_new
 
     def _aggregate_event(self, event):
@@ -272,7 +274,8 @@ class AbstractFireXEventAggregator:
                 # Revoked events can be sent before any other, and we'll never get any data (name, etc) for that task.
                 # Therefore ignore events that are for a new UUID that have revoked type.
                 or (not self._task_exists(event['uuid'])
-                    and event.get('type', '') == REVOKED_EVENT_TYPE)):
+                    and event.get('type', '') == REVOKED_EVENT_TYPE)
+        ):
             return {}
 
         if event.get(TaskColumn.PARENT_ID.value, '__no_match') is None and self.root_uuid is None:
@@ -289,13 +292,17 @@ class AbstractFireXEventAggregator:
                                              new_task_data,
                                              self.aggregator_config.keep_initial_fields,
                                              self.aggregator_config.merge_fields)
-            task.update(changed_data)
+            if changed_data:
+                self._update_task(task_uuid, task, changed_data)
 
             # If we just created the task, we need to send the auto-initialized fields, as well as data from the event.
             # If this isn't a new event, we only need to send what has changed.
             changes_by_task_uuid[task_uuid] = dict(task) if is_new_task else dict(changed_data)
 
         return changes_by_task_uuid
+
+    def _update_task(self, task_uuid: str, full_task: dict[str, Any], changed_data: dict[str, Any]) -> None:
+        full_task.update(changed_data)
 
     def _task_exists(self, task_uuid):
         raise NotImplementedError("This should be implemented by concrete subclasses")
@@ -306,7 +313,7 @@ class AbstractFireXEventAggregator:
     def _get_incomplete_tasks(self) -> list[dict[str, Any]]:
         raise NotImplementedError("This should be implemented by concrete subclasses")
 
-    def _insert_new_task(self, task: dict[str, Any]) -> None:
+    def _insert_new_task(self, task: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError("This should be implemented by concrete subclasses")
 
 
@@ -332,8 +339,8 @@ class FireXEventAggregator(AbstractFireXEventAggregator):
                 or task.get('state') in INCOMPLETE_RUNSTATES
         ]
 
-    def _insert_new_task(self, task: dict[str, Any]) -> None:
+    def _insert_new_task(self, task: dict[str, Any]) -> dict[str, Any]:
         assert 'uuid' in task, f'Cannot insert task without uuid: {task}'
         assert not self._task_exists(task['uuid']), f'Task already exists, cannot insert: {task}'
         self.tasks_by_uuid[task['uuid']] = task
-
+        return task
