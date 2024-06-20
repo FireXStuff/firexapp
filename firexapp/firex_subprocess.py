@@ -13,6 +13,7 @@ import time
 import urllib.parse
 import uuid
 from typing import Union, Optional
+import glob
 
 import psutil
 from celery.utils.log import get_task_logger
@@ -168,8 +169,8 @@ def _send_flame_subprocess_end(flame_subprocess_id, output, returncode, chars=No
 
 def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType = _SubprocessRunnerType.CHECK_OUTPUT,
                        extra_header=None, file=None, chars=32000, timeout=None, capture_output=True, check=False,
-                       inactivity_timeout=30 * 60, log_level=logging.DEBUG, copy_file_path=None, shell=False, cwd=None,
-                       env=None, remove_firex_pythonpath=True, logger=logger, stderr=subprocess.STDOUT,
+                       inactivity_timeout=30 * 60, monitor_activity_files=None, log_level=logging.DEBUG, copy_file_path=None,
+                       shell=False, cwd=None, env=None, remove_firex_pythonpath=True, logger=logger, stderr=subprocess.STDOUT,
                        proc_stats: Optional[ProcStats] = None, stdin=subprocess.PIPE, bufsize=0, **kwargs):
     ##########################
     # Local Helper functions #
@@ -402,6 +403,19 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
         proc_stats.mem_mb_used = round(((1 - current_weight) * proc_stats.mem_mb_used) + (current_weight * mem_totals))
         # CPU totals will be calculated once after the main loop
 
+    def _find_matching_files(paths_and_patterns):
+        if isinstance(paths_and_patterns, str):
+            paths_and_patterns = [paths_and_patterns]
+        matching_files = []
+        for item in paths_and_patterns:
+            if os.path.isfile(item):
+                matching_files.append(item)
+            else:
+                glob_matches = glob.glob(item, recursive=True)
+                files_only = [match for match in glob_matches if os.path.isfile(match)]
+                matching_files.extend(files_only)
+        return matching_files
+
     #################
     # Start of code #
     #################
@@ -423,6 +437,11 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
         f = tempfile.NamedTemporaryFile(delete=False, buffering=0)
     filename = f.name
     open_og_rw_permissions(filename)
+
+    found_monitor_activity_files = []
+    if monitor_activity_files:
+        found_monitor_activity_files = _find_matching_files(monitor_activity_files)
+        logger.info(f"Monitoring for activity in the following files: {found_monitor_activity_files}")
 
     if log_level is not None:
         _send_flame_subprocess_start(flame_subprocess_id=subprocess_id, cmd=cmd, filename=filename, cwd=cwd_str,
@@ -492,6 +511,13 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
 
                 # Inactivity timeout check
                 current_output_size = os.fstat(f.fileno()).st_size
+                for file in found_monitor_activity_files:
+                    try:
+                        with open(file, 'r') as fp:
+                            current_output_size += os.fstat(fp.fileno()).st_size
+                    except Exception as e:
+                        logger.error(f"An error occurred while opening and reading {file} size: {e}")
+
                 if last_output_size != current_output_size:
                     # We have some activity!
                     last_output_size = current_output_size
