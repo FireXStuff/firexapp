@@ -57,7 +57,15 @@ class BrokerEventConsumerThread(threading.Thread):
 
     def _capture_events(self):
         try_interval = 1
-        while not self._is_root_complete():
+        while (
+            # if the root is not complete, it may be worth retrying to connect
+            # to the the broker.
+            not self._is_root_complete()
+
+            # Subclasses can stop Celery event receiving by setting this bool,
+            # so we don't want to reconnect to the broker.
+            and not getattr(self.celery_event_receiver, 'should_stop', False)
+        ):
             try:
                 try_interval *= 2
                 with self.celery_app.connection() as conn:
@@ -102,7 +110,7 @@ class BrokerEventConsumerThread(threading.Thread):
                 # can't be complete if the root is not complete.
                 and self._all_tasks_complete()
                 and self.celery_event_receiver):
-                logger.info(f"Stopping Celery event receiver because all tasks are complete.")
+                logger.info("Stopping Celery event receiver because all tasks are complete.")
                 self.celery_event_receiver.should_stop = True
         except Exception as e:
             logger.exception(e)
