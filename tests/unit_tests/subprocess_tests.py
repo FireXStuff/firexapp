@@ -1,6 +1,7 @@
 import os
 import subprocess
 import unittest
+import tempfile
 
 from firexkit import firex_exceptions
 import firexapp.firex_subprocess
@@ -74,6 +75,22 @@ class SubprocessRunnerTests(unittest.TestCase):
             env['PYTHONPATH'] = ''
             self.assertEqual(runner(f'/bin/echo $PYTHONPATH', shell=True, env=env).strip(),
                              '')
+
+        with self.subTest("No inactivity_timeout triggered when outputting to monitored file"):
+            tmp_dir = "/var/tmp"
+            with tempfile.NamedTemporaryFile(dir=tmp_dir, delete=True) as f:
+                cmd = f'bash -c "for v in {{1..{2}}};do echo \'{TEST_TEXT}\' >> {f.name};sleep 1;done"'
+                return_val = runner(cmd, inactivity_timeout=1, monitor_activity_files=[f"{tmp_dir}/*"])
+                self.assertEqual(return_val, "")
+                self.assertEqual(TEST_TEXT, f.readline().strip().decode('utf-8'))
+
+        with self.subTest("Trigger inactivity_timeout when outputting to unmonitored file"):
+            with self.assertRaises(firex_exceptions.FireXInactivityTimeoutExpired) as ee:
+                tmp_dir = "/var/tmp"
+                with tempfile.NamedTemporaryFile(dir=tmp_dir, delete=True) as f:
+                    cmd = f'bash -c "for v in {{1..{2}}};do echo \'{TEST_TEXT}\' >> {f.name};sleep 1;done"'
+                    runner(cmd, inactivity_timeout=1)
+            self.assertIsNotNone(ee.exception.stdout)
 
     def test_check_call(self):
         runner = firexapp.firex_subprocess.check_call
