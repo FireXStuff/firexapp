@@ -511,11 +511,14 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
 
                 # Inactivity timeout check
                 current_output_size = os.fstat(f.fileno()).st_size
+                already_logged_errors = set()
                 for monitor_activity_file in found_monitor_activity_files:
                     try:
                         current_output_size += os.stat(monitor_activity_file).st_size
                     except OSError as e:
-                        logger.error(f"An error occurred while getting the size of {monitor_activity_file}: {e}")
+                        if monitor_activity_file not in already_logged_errors:
+                            logger.error(f"An error occurred while getting the size of {monitor_activity_file}: {e}")
+                            already_logged_errors.add(monitor_activity_file)
 
                 if last_output_size != current_output_size:
                     # We have some activity!
