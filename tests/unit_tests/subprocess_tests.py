@@ -80,7 +80,7 @@ class SubprocessRunnerTests(unittest.TestCase):
             tmp_dir = "/var/tmp"
             with tempfile.NamedTemporaryFile(dir=tmp_dir, delete=True) as f:
                 cmd = f'bash -c "for v in {{1..{2}}};do echo \'{TEST_TEXT}\' >> {f.name};sleep 1;done"'
-                return_val = runner(cmd, inactivity_timeout=1, monitor_activity_files=[f"{tmp_dir}/*"])
+                return_val = runner(cmd, inactivity_timeout=1, monitor_activity_files=[f"./*"], cwd = tmp_dir)
                 self.assertEqual(return_val, "")
                 self.assertEqual(TEST_TEXT, f.readline().strip().decode('utf-8'))
 
