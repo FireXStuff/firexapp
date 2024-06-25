@@ -14,7 +14,7 @@ import urllib.parse
 import uuid
 from typing import Union, Optional
 import glob
-
+from pathlib import Path
 import psutil
 from celery.utils.log import get_task_logger
 
@@ -403,18 +403,31 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
         proc_stats.mem_mb_used = round(((1 - current_weight) * proc_stats.mem_mb_used) + (current_weight * mem_totals))
         # CPU totals will be calculated once after the main loop
 
-    def _find_matching_files(paths_and_patterns):
+    def _find_matching_files(paths_and_patterns, cwd):
+        if paths_and_patterns == None: return []
         if isinstance(paths_and_patterns, str):
             paths_and_patterns = [paths_and_patterns]
         matching_files = []
         for item in paths_and_patterns:
-            if os.path.isfile(item):
-                matching_files.append(item)
+            item_path = os.path.join(cwd, item) if not os.path.isabs(item) else item
+            if os.path.isfile(item_path):
+                matching_files.append(item_path)
             else:
-                glob_matches = glob.glob(item, recursive=True)
+                glob_matches = glob.glob(item_path, recursive=True)
                 files_only = [match for match in glob_matches if os.path.isfile(match)]
                 matching_files.extend(files_only)
         return matching_files
+
+    def _get_size_of_files(files, cwd):
+        files_size = 0
+        found_files = _find_matching_files(files, cwd)
+        logger.info(f"Checking for activity in the following files: {found_files}")
+        for found_file in found_files:
+            try:
+                files_size += os.stat(found_file).st_size
+            except OSError as e:
+                logger.error(f"An error occurred while reading the size of file '{found_file}': {e}")
+        return files_size
 
     #################
     # Start of code #
@@ -438,10 +451,6 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
     filename = f.name
     open_og_rw_permissions(filename)
 
-    found_monitor_activity_files = []
-    if monitor_activity_files:
-        found_monitor_activity_files = _find_matching_files(monitor_activity_files)
-        logger.info(f"Monitoring for activity in the following files: {found_monitor_activity_files}")
 
     if log_level is not None:
         _send_flame_subprocess_start(flame_subprocess_id=subprocess_id, cmd=cmd, filename=filename, cwd=cwd_str,
@@ -465,6 +474,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
             start_time = time.monotonic()
 
             last_output_size = 0
+            last_monitored_files_size = 0
             last_proc_stats = last_log_time = last_output_time = start_time
             last_output_clock_time = time.time()
             _sleep = 0.05
@@ -511,27 +521,26 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
 
                 # Inactivity timeout check
                 current_output_size = os.fstat(f.fileno()).st_size
-                already_logged_errors = set()
-                for monitor_activity_file in found_monitor_activity_files:
-                    try:
-                        current_output_size += os.stat(monitor_activity_file).st_size
-                    except OSError as e:
-                        if monitor_activity_file not in already_logged_errors:
-                            logger.error(f"An error occurred while getting the size of {monitor_activity_file}: {e}")
-                            already_logged_errors.add(monitor_activity_file)
-
                 if last_output_size != current_output_size:
                     # We have some activity!
                     last_output_size = current_output_size
                     last_output_time = now
                     last_output_clock_time = time.time()
                 elif inactivity_timeout and now - last_output_time > inactivity_timeout:
-                    # Process hung. Kill it.
-                    logger.debug(f'Activity (writing to stdout/stderr) timeout {inactivity_timeout} exceeded, '
-                                 f'killing pid {p.pid}')
-                    _kill_proc_gently(p)
-                    hung_process = True
-                    break
+                    # Check if any of the monitor activity files have been updated since the start or the last inactivity timeout
+                    current_monitored_files_size = _get_size_of_files(monitor_activity_files, cwd=cwd_str)
+                    if last_monitored_files_size != current_monitored_files_size:
+                        # monitor_activity_files had some activity. Reset inactivity timer
+                        last_monitored_files_size = current_monitored_files_size
+                        last_output_time = now
+                        last_output_clock_time = time.time()
+                    else:
+                        # Process hung. Kill it.
+                        logger.debug(f'Activity (writing to stdout/stderr or monitored file) timeout {inactivity_timeout} exceeded, '
+                                    f'killing pid {p.pid}')
+                        _kill_proc_gently(p)
+                        hung_process = True
+                        break
             # End wait-for-process loop
 
             if proc_stats is not None and proc_stats.elapsed_time:
