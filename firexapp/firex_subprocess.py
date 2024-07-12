@@ -508,7 +508,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                 if now - last_log_time > 10 * 60:  # Log every 10 minutes
                     time_str = datetime.datetime.fromtimestamp(last_output_clock_time).strftime('%Y-%m-%d %H:%M:%S')
                     logger.info(f'Waiting for command to finish...\n(Last command output was at {time_str}. '
-                                f'Total output size is {last_output_size} bytes.)')
+                                f'Total output size is {last_output_size+last_monitored_files_size} bytes.)')
                     last_log_time = now
 
                 # Hard timeout check
