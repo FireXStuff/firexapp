@@ -36,6 +36,9 @@ class FlowTestConfiguration(object):
     def cleanup(self):
         pass
 
+    @staticmethod
+    def get_extra_run_env():
+        return {}
 
 class InterceptFlowTestConfiguration(FlowTestConfiguration):
     __metaclass__ = abc.ABCMeta

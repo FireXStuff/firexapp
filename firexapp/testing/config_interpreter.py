@@ -189,7 +189,8 @@ def {0}(**kwargs):
             with open(flow_test_config.std_out, 'w') as std_out_f, open(flow_test_config.std_err, 'w') as std_err_f:
                 start_time = time.monotonic()
                 process = subprocess.Popen(cmd, stdout=std_out_f, stderr=std_err_f,
-                                           universal_newlines=True, shell=False, cwd=self.execution_directory)
+                                           universal_newlines=True, shell=False, cwd=self.execution_directory,
+                                           env=os.environ | flow_test_config.get_extra_run_env())
                 _, _ = process.communicate(timeout=getattr(flow_test_config, "timeout", None))
                 elapsed_time = time.monotonic() - start_time
 
