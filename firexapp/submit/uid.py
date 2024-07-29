@@ -16,6 +16,7 @@ from firexkit.permissions import DEFAULT_CHMOD_MODE
 BASE_LOGGING_DIR_ENV_VAR_KEY = 'firex_base_logging_dir'
 
 FIREX_ID_DATE_FMT = "%y%m%d-%H%M%S"
+ALL_FIREX_IDS_REGEX = re.compile(r'(FireX-\w+?-\d{6}-\d{6}-\d+)')
 FIREX_ID_REGEX = re.compile(r'^FireX-(?P<user>.*?)-(?P<datetime_str>\d{6}-\d{6})-(?P<random_int>\d+)$')
 
 
@@ -51,6 +52,18 @@ def get_firex_id_parts(maybe_firex_id: str) -> Optional[FireXIdParts]:
 
 def is_firex_id(maybe_firex_id: str) -> bool:
     return bool(get_firex_id_parts(maybe_firex_id))
+
+
+def find_all_firex_ids_from_str(input_str) -> list[str]:
+    if not input_str:
+        return []
+    # unique, keeping order from input.
+    return list(
+        {
+        fid: None
+        for fid in ALL_FIREX_IDS_REGEX.findall(input_str)
+        }.keys()
+    )
 
 
 class Uid(object):

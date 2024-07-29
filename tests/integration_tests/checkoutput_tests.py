@@ -1,7 +1,7 @@
 import os
 
 from firexapp.firex_subprocess import check_output
-from firexkit.proc_utils import kill_old_procs, find_recent_procs
+from firexkit.proc_utils import kill_procs_by_name_and_cmdline
 from firexapp.testing.config_base import assert_is_bad_run
 
 from firexapp.engine.celery import app
@@ -58,8 +58,7 @@ class CheckOutputKillChildSubprocessConfig(FlowTestConfiguration):
         return ['submit', '--chain', "run_this"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        processes = find_recent_procs("python", regexstr="just_hang", max_age=0)
-        kill_old_procs("python", regexstr="just_hang", keepalive=0)
+        processes = kill_procs_by_name_and_cmdline("python", "just_hang")
         assert not processes, "There is a orphaned child process"
 
     def assert_expected_return_code(self, ret_value):

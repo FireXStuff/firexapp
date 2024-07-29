@@ -315,7 +315,7 @@ class ShutdownDetachedFromParentProcess(NoBrokerLeakOnCeleryTerminated):
         assert shutdown_proc.name() == 'firex_shutdown', f'Unexpected shutdown proc name: {shutdown_proc.name()}'
 
         child_procs = Process().children(recursive=True)
-        assert shutdown_proc not in child_procs, f'Expected shutdown to not be a child of the current process'
+        assert shutdown_proc not in child_procs, 'Expected shutdown to not be a child of the current process'
         shutdown_proc.wait(20) # unfortunately can't confirm return code since it isn't a child.
 
         super().assert_expected_firex_output(cmd_output, cmd_err)
