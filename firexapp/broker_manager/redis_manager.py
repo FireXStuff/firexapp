@@ -4,6 +4,7 @@ import secrets
 import time
 import shlex
 import subprocess
+import platform
 from functools import partial
 from tempfile import TemporaryDirectory
 from typing import Optional
@@ -86,9 +87,14 @@ class RedisManager(BrokerManager):
     _BROKER_PASSWORD_KEY = 'broker_password'
     _BROKER_FAILED_AUTH_STR = 'NOAUTH Authentication required'  # Actual output from Redis
 
-    def __init__(self, redis_bin_base, hostname=gethostname(), port=None, logs_dir=None, password=None):
+    def __init__(self, redis_bin_base, hostname=None, port=None, logs_dir=None, password=None):
         self.redis_bin_base = redis_bin_base
-        self.host = hostname
+        self.platform = platform.system()
+        if hostname is None:
+            myhostname = gethostname()
+            self.host = f"{myhostname}.local" if self.platform == "Darwin" and not myhostname.endswith("local") else myhostname
+        else:
+            self.host = hostname
         self.port = port
         self.logs_dir = logs_dir
         self.redis_dir = self.get_redis_dir(logs_dir) if logs_dir else None
@@ -422,7 +428,7 @@ class RedisManager(BrokerManager):
             if self.is_alive(port=port):
                 return
             time.sleep(0.1)
-        raise RedisDidNotBecomeActive('Redis Server did not respond after %r seconds' % timeout)
+        raise RedisDidNotBecomeActive(f'Redis Server {self.host}:{port} did not respond after {timeout} seconds')
 
     @staticmethod
     def get_broker_url(port=6379, hostname=gethostname(), password=None):
