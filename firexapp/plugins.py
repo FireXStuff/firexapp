@@ -179,34 +179,55 @@ def identify_duplicate_tasks(all_tasks, priority_modules: list) -> [[]]:
     return overrides
 
 
-def import_plugin_file(plugin_file):
+def _should_import(module_name: str, plugin_file: str, replace: bool) -> bool:
+    if module_name in sys.modules:
+        # a module with this name is already loaded. See if we should replace it.
+        module_source = sys.modules[module_name].__file__
+        if module_source != plugin_file:
+            if not replace:
+                logger.error(f'Plugin module {module_name!r} was NOT imported from {plugin_file!r}. '
+                             f'A module with the same name was already imported from {module_source!r}')
+                should_import = False
+            else:
+                logger.warning(
+                    f'Plugin module {module_name!r} already loaded from {module_source!r}. '
+                    f'Will replace with module from {plugin_file!r}'
+                )
+                should_import = True
+        else:
+            logger.warning(f'Plugin module {module_name!r} was already imported from {module_source!r}.')
+            should_import = False
+    else:
+        # new module name, always import.
+        should_import = True
 
-    def _import_plugin(module_name, plugin_file):
-        spec = importlib.util.spec_from_file_location(module_name, plugin_file)
-        module = importlib.util.module_from_spec(spec)
-        module_directory = os.path.dirname(os.path.realpath(plugin_file))
-        if module_directory not in sys.path:
-            sys.path.append(module_directory)
-        mod = sys.modules[module_name] = module
-        try:
-            spec.loader.exec_module(module)
-        except BaseException:
-            raise PluginLoadError(f'Fatal Error loading plugin {plugin_file!r}')
-        print(f"Plugins module {module_name!r} imported from {plugin_file!r}")
-        return mod
+    return should_import
+
+
+def _import_plugin(module_name, plugin_file):
+    spec = importlib.util.spec_from_file_location(module_name, plugin_file)
+    module = importlib.util.module_from_spec(spec)
+    module_directory = os.path.dirname(os.path.realpath(plugin_file))
+    if module_directory not in sys.path:
+        sys.path.append(module_directory)
+    mod = sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        logger.exception(f'Failed to load {plugin_file}')
+        raise PluginLoadError(f'Fatal Error loading plugin {plugin_file!r}')
+    print(f"Plugins module {module_name!r} imported from {plugin_file!r}")
+    return mod
+
+
+def import_plugin_file(plugin_file, replace=False):
 
     plugin_file = find_plugin_file(plugin_file)
     module_name = get_plugin_module_name(plugin_file)
-
-    if module_name in sys.modules:
-        module_source = sys.modules[module_name].__file__
-        if module_source != plugin_file:
-            logger.error(f'Plugin module {module_name!r} was NOT imported from {plugin_file!r}. '
-                         f'A module with the same name was already imported from {module_source!r}')
-        else:
-            logger.warning(f'Plugin module {module_name!r} was already imported from {module_source!r}.')
-    else:
+    if _should_import(module_name, plugin_file, replace):
         return _import_plugin(module_name, plugin_file)
+
+    return None
 
 
 def import_plugin_files(plugin_files) -> set[str]:
