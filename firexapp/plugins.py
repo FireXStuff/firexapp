@@ -3,6 +3,8 @@ import sys
 import inspect
 import traceback
 from argparse import ArgumentParser, Action
+from types import ModuleType
+from typing import Optional
 
 from celery.signals import worker_init
 from celery.utils.log import get_task_logger
@@ -179,10 +181,12 @@ def identify_duplicate_tasks(all_tasks, priority_modules: list) -> [[]]:
     return overrides
 
 
-def _should_import(module_name: str, plugin_file: str, replace: bool) -> bool:
+def _should_import(module_name: str, plugin_file: str, replace: bool) -> tuple[bool, Optional[ModuleType]]:
+    already_loaded = None
     if module_name in sys.modules:
         # a module with this name is already loaded. See if we should replace it.
-        module_source = sys.modules[module_name].__file__
+        existing_mod = sys.modules[module_name]
+        module_source = existing_mod.__file__
         if module_source != plugin_file:
             if not replace:
                 logger.error(f'Plugin module {module_name!r} was NOT imported from {plugin_file!r}. '
@@ -197,11 +201,12 @@ def _should_import(module_name: str, plugin_file: str, replace: bool) -> bool:
         else:
             logger.warning(f'Plugin module {module_name!r} was already imported from {module_source!r}.')
             should_import = False
+            already_loaded = existing_mod
     else:
         # new module name, always import.
         should_import = True
 
-    return should_import
+    return should_import, already_loaded
 
 
 def _import_plugin(module_name, plugin_file):
@@ -220,14 +225,15 @@ def _import_plugin(module_name, plugin_file):
     return mod
 
 
-def import_plugin_file(plugin_file, replace=False):
+def import_plugin_file(plugin_file, replace=False) -> Optional[ModuleType]:
 
     plugin_file = find_plugin_file(plugin_file)
     module_name = get_plugin_module_name(plugin_file)
-    if _should_import(module_name, plugin_file, replace):
+    should_import, existing_module = _should_import(module_name, plugin_file, replace)
+    if should_import:
         return _import_plugin(module_name, plugin_file)
 
-    return None
+    return existing_module
 
 
 def import_plugin_files(plugin_files) -> set[str]:
