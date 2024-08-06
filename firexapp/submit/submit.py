@@ -157,6 +157,7 @@ class SubmitBaseApp:
             submission_log_handler.setFormatter(logging.Formatter(fmt=self.SUBMISSION_LOGGING_FORMATTER,
                                                                   datefmt="%Y-%m-%d %H:%M:%S"))
             submission_log_handler.setLevel(logging.NOTSET)
+            submission_log_handler.set_name('firex_submission_handler')
             root_logger = logging.getLogger()
             root_logger.addHandler(submission_log_handler)
         self.log_preamble()
