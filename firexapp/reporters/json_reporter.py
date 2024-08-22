@@ -33,6 +33,9 @@ class FireXRunData:
     results: Optional[dict[str, Any]] = None
     revoked: bool = False
 
+    def get_result(self, result_key, default=None):
+        return (self.results or {}).get('chain_results', {}).get(result_key, default)
+
 
 def _get_common_run_data(uid, chain, submission_dir, argv, original_cli, inputs):
     if chain:
