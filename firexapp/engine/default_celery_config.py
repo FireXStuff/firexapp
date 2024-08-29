@@ -2,7 +2,6 @@ from collections.abc import Iterable
 from time import time
 from functools import lru_cache
 
-import redis.connection
 import celery.worker.state as state
 from celery.worker.autoscale import Autoscaler
 from celery.utils.log import get_task_logger
@@ -31,45 +30,6 @@ def _worker_active_monkey_patch(self, worker):
 # This bug manifests itself in the following error:
 # "Task handler raised error: WorkerLostError('Worker exited prematurely: signal 15 (SIGTERM) Job: 628.')"
 billiard.pool.Pool._worker_active = _worker_active_monkey_patch
-# End of Monkey Patch
-
-
-def _send_packed_command_monkey_patch(self, command, check_health=True):
-    """Send an already packed command to the Redis server"""
-    if not self._sock:
-        self.connect()
-    # guard against health check recursion
-    if check_health:
-        self.check_health()
-    try:
-        if isinstance(command, str):
-            command = [command]
-        for item in command:
-            self._sock.sendall(item)
-    except redis.connection.socket.timeout:
-        self.disconnect()
-        raise TimeoutError("Timeout writing to socket")
-    except OSError as e:
-        self.disconnect()
-        if len(e.args) == 1:
-            errno, errmsg = "UNKNOWN", e.args[0]
-        else:
-            errno = e.args[0]
-            errmsg = e.args[1]
-
-        host_error = self._host_error()
-        raise ConnectionError(f"Error {errno} while writing to {host_error}. {errmsg}.")
-    except BaseException:
-        # BaseExceptions can be raised when a socket send operation is not
-        # finished, e.g. due to a timeout.  Ideally, a caller could then re-try
-        # to send un-sent data. However, the send_packed_command() API
-        # does not support it so there is no point in keeping the connection open.
-        self.disconnect()
-        raise
-
-
-# Monkey patch: add host_error debug to "Error {errno} while writing to"
-redis.connection.AbstractConnection.send_packed_command = _send_packed_command_monkey_patch
 # End of Monkey Patch
 
 
