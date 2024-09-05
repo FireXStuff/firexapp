@@ -411,7 +411,7 @@ class RedisManager(BrokerManager):
     def get_url(self) -> str:
         return self.broker_url
 
-    def is_alive(self, port=None, timeout=None):
+    def is_alive(self, port=None, timeout=None, allow_auth_errors: bool = True):
         port = self.port if port is None else port
         try:
             # including the host makes sure the current host can connect to itself via its hostname, like celery will.
@@ -419,13 +419,14 @@ class RedisManager(BrokerManager):
         except subprocess.CalledProcessError:
             return False
         else:
-            return output == 'PONG' or self.get_broker_failed_auth_str() in output
+            return (output == 'PONG'
+                    or (allow_auth_errors and self.get_broker_failed_auth_str() in output))
 
     def wait_until_active(self, timeout=60, port=None):
         port = self.port if port is None else port
         timeout_time = time.time() + timeout
         while time.time() < timeout_time:
-            if self.is_alive(port=port):
+            if self.is_alive(port=port, allow_auth_errors=False):
                 return
             time.sleep(0.1)
         raise RedisDidNotBecomeActive(f'Redis Server {self.host}:{port} did not respond after {timeout} seconds')
