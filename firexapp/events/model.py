@@ -50,6 +50,7 @@ class RunMetadataColumn(Enum):
     LOGS_DIR = "logs_dir"
     CHAIN = "chain"
     ROOT_UUID = "root_uuid"
+    FIREX_REQUESTER = "firex_requester"
 
 
 FireXRunMetadata = namedtuple('RunMetadata', [rmc.value for rmc in RunMetadataColumn])
