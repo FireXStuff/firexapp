@@ -70,9 +70,10 @@ class Uid(object):
     debug_dirname = 'firex_internal'
     _resources_dirname = os.path.join(debug_dirname, 'resources')
 
-    def __init__(self, identifier=None):
+    def __init__(self, identifier=None, firex_requester=None):
         self.timestamp = datetime.datetime.now(tz=pytz.utc)
         self.user = getuser()
+        self.firex_requester = firex_requester or self.user
         if identifier:
             self.identifier = identifier
         else:
