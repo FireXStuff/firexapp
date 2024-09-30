@@ -92,7 +92,8 @@ class RedisManager(BrokerManager):
         self.platform = platform.system()
         if hostname is None:
             myhostname = gethostname()
-            self.host = f"{myhostname}.local" if self.platform == "Darwin" and not myhostname.endswith("local") else myhostname
+            self.host = f"{myhostname}.local" if self.platform == "Darwin" and not myhostname.endswith("local") \
+                else myhostname
         else:
             self.host = hostname
         self.port = port
@@ -350,6 +351,7 @@ class RedisManager(BrokerManager):
                              (trials, max_trials), level=ERROR)
                     raise
                 self.log('Redis did not come up after %d trial(s) (max_trials=%d)' % (trials, max_trials), level=INFO)
+                self.port = None  # Clear port in case the reason is didn't come up is because port was in use
             else:
                 if log_memory_info:
                     self.save_memory_info_to_file(filepath=self.get_start_memory_file(self.logs_dir))

@@ -58,7 +58,7 @@ def poll_until_file_exist(file_path, timeout=10):
     assert os.path.isfile(file_path), f'{file_path} does not appear to be a file'
 
 
-def poll_until_existing_file_not_empty(file_path, timeout=10):
+def poll_until_existing_file_not_empty(file_path, timeout: float = 10):
     timeout_time = time.time() + timeout
     while os.stat(file_path).st_size == 0 and time.time() < timeout_time:
         time.sleep(0.1)
@@ -137,7 +137,7 @@ def find(keys, input_dict):
     for key in keys:
         try:
             result = result[key]
-        except Exception:
+        except (TypeError, KeyError):
             return None
     return result
 
@@ -157,9 +157,6 @@ def render_template(template_str, template_args):
 #                                the link to exist in most cases.)
 #
 def create_link(src, target, delete_link=None, relative=False):
-    done = False
-    attempts = 0
-
     if relative:
         src = os.path.relpath(src, os.path.dirname(target))
 
