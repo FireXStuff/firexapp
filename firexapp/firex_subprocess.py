@@ -410,6 +410,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
         matching_files = []
         for item in paths_and_patterns:
             item_path = os.path.join(cwd, item) if not os.path.isabs(item) else item
+            logger.info(f"Searching for: {item_path}")
             if os.path.isfile(item_path):
                 matching_files.append(item_path)
             else:
@@ -420,6 +421,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
 
     def _get_size_of_files(files, cwd):
         files_size = 0
+        logger.info(f"Finding matching files from paths and patterns: {files}")
         found_files = _find_matching_files(files, cwd)
         logger.info(f"Checking for activity in the following files: {found_files}")
         for found_file in found_files:
