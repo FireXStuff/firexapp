@@ -1,3 +1,4 @@
+import os
 import sys
 import logging
 import colorlog
@@ -63,10 +64,16 @@ class ChainInterruptedExceptionFilter(logging.Filter):
 
 def setup_console_logging(module=None,
                           stdout_logging_level=logging.INFO,
-                          console_logging_formatter='%(green)s[%(asctime)s]%(reset)s[%(hostname)s] %(log_color)s%(message)s',
+                          console_logging_formatter=None,
                           console_datefmt="%H:%M:%S",
                           stderr_logging_level=logging.ERROR,
                           module_logger_logging_level=None):
+
+    if console_logging_formatter is None:
+        if os.environ.get('NO_COLOR'):
+            console_logging_formatter = '[%(asctime)s]%(reset)s[%(hostname)s] %(message)s'
+        else:
+            console_logging_formatter = '%(green)s[%(asctime)s]%(reset)s[%(hostname)s] %(log_color)s%(message)s'
 
     formatter = FireXColoredConsoleFormatter(fmt=console_logging_formatter,
                                              datefmt=console_datefmt,
