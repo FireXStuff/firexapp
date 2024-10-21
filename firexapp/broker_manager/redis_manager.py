@@ -316,7 +316,8 @@ class RedisManager(BrokerManager):
                                                       '--timeout 0 ' \
                                                       '--client-output-buffer-limit slave 0 0 0 ' \
                                                       '--client-output-buffer-limit pubsub 0 0 0 ' \
-                                                      f'--dir {self.redis_dir}'
+                                                      f'--dir {self.redis_dir}' \
+                                                      '--maxclients 20000'
         if save_db is False:
             cmd += ' --save ""'
         if self.pid_file:
