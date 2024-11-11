@@ -112,3 +112,38 @@ class TestCachingTaskDoesNotGetForgotten(FlowTestConfiguration):
 
     def assert_expected_return_code(self, ret_value):
         assert_is_good_run(ret_value)
+
+@app.task(use_cache=True, returns='ret', flame='ret')
+def Abc(arg):
+    return arg
+
+@app.task(bind=True)
+def RunAbcConcurrently(self, num_runs=25):
+
+    parallel_chains_1 = [Abc.s(1)]*num_runs
+    parallel_chains_2 = [Abc.s(2)]*num_runs
+    parallel_chains_3 = [Abc.s(3)]*num_runs
+
+    results_1 = self.enqueue_in_parallel(parallel_chains_1, max_parallel_chains=25)
+    results_2 = self.enqueue_in_parallel(parallel_chains_2, max_parallel_chains=25)
+    results_3 = self.enqueue_in_parallel(parallel_chains_3, max_parallel_chains=25)
+
+    self.wait_for_children()
+    expected_return = 1
+    for group in [results_1, results_2, results_3]:
+        for r in group:
+            returned = get_results(r)
+            returned_val = returned.get('ret')
+            logger.debug(f'Got {returned}')
+            assert returned_val == expected_return, f'Should have returned {expected_return}, got {returned}'
+        expected_return += 1
+
+class TestCachingParallelInvocations(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        return ['submit', '--chain', RunAbcConcurrently.name]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        assert not cmd_err, "Errors are not expected"
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
