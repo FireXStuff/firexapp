@@ -1,9 +1,9 @@
 import time
-
 import os
 import psutil
 import re
 import socket
+from threading import get_native_id
 
 from jinja2 import Template
 from celery.utils.log import get_task_logger
@@ -170,7 +170,7 @@ def create_link(src, target, delete_link=None, relative=False):
                 raise
 
     # If we want to delete the link, we do a link-replace in an atomic manner
-    temp_target = target + f'.{os.getpid()}.tmp'
+    temp_target = target + f'.{get_native_id()}.tmp'
     try:
         # Avoid errors with possibly stale links
         os.remove(temp_target)
