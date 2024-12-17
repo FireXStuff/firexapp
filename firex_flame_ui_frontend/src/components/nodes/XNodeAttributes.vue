@@ -241,6 +241,13 @@ export default {
         task.runtime = durationString(task.actual_runtime);
       }
 
+      if (task.actual_runtime) {
+        task.runtime = durationString(task.actual_runtime);
+        if (task.first_started) {
+          task.end_time = this.formatTime(task.first_started + task.actual_runtime);
+        }
+      }
+
       if (task.first_started) {
         task.first_started = this.formatTime(task.first_started);
       }
@@ -367,11 +374,16 @@ export default {
     displayAttributes() {
       if (this.showAllAttributes) {
         return _.omit(this.displayNode,
-          ['firex_bound_args', 'firex_default_bound_args', 'exception', 'traceback',
-            'firex_result']);
+          ['firex_bound_args', 'firex_default_bound_args', 'exception', 'traceback', 'firex_result']);
       }
-      return _.pick(this.displayNode,
-        ['first_started', 'hostname', 'runtime', 'support_location', 'utcoffset', 'uuid']);
+
+      const attributes = ['first_started', 'hostname', 'runtime', 'support_location', 'utcoffset', 'uuid'];
+
+      if (this.displayNode.actual_runtime && this.displayNode.first_started) {
+        attributes.push('end_time');
+      }
+
+      return _.pick(this.displayNode, attributes);
     },
     someExternalCommandRunning() {
       return _.some(this.externalCommands, c => !_.has(c, 'result'));
