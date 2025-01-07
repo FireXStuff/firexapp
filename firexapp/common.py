@@ -1,3 +1,4 @@
+import threading
 import time
 import os
 import psutil
@@ -156,7 +157,12 @@ def render_template(template_str, template_args):
 #                                (optimized for cases where we don't expect
 #                                the link to exist in most cases.)
 #
-def create_link(src, target, delete_link=None, relative=False):
+def create_link(src, target, delete_link=None, relative=False, create_target_dir=False):
+    if create_target_dir:
+        target_dir = os.path.dirname(target)
+        if not os.path.isdir(target_dir):
+            silent_mkdir(target_dir)
+
     if relative:
         src = os.path.relpath(src, os.path.dirname(target))
 
@@ -189,6 +195,13 @@ def create_link(src, target, delete_link=None, relative=False):
 
         raise
 
+# Creating link is sometime slow (e.g. on NFS, so do it in a thread
+def create_link_async(src, target, **create_link_kwargs) -> threading.Thread:
+    thread = threading.Thread(target=create_link,
+                              args=(src, target),
+                              kwargs=create_link_kwargs)
+    thread.start()
+    return thread
 
 def dict2str(mydict, sort=False, sep='    ', usevrepr=True, line_prefix=''):
     if not mydict:
