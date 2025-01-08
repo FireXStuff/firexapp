@@ -12,12 +12,13 @@ from celery.worker.components import Hub
 from firexapp.application import get_app_tasks
 from firexapp.common import silent_mkdir, create_link
 from firexapp.submit.uid import FIREX_ID_REGEX
-from firexkit.result import get_results
+from firexkit.result import get_run_results_from_root_task_promise, RUN_RESULTS_NAME
 from firexkit.task import convert_to_serializable
 from celery.utils.log import get_task_logger
 from firexapp.engine.celery import app
 
 logger = get_task_logger(__name__)
+
 
 @dataclass
 class FireXRunData:
@@ -34,7 +35,7 @@ class FireXRunData:
     revoked: bool = False
 
     def get_result(self, result_key, default=None):
-        return (self.results or {}).get('chain_results', {}).get(result_key, default)
+        return (self.results or {}).get(RUN_RESULTS_NAME, {}).get(result_key, default)
 
 
 def _get_common_run_data(uid, chain, submission_dir, argv, original_cli, inputs):
@@ -125,7 +126,7 @@ class FireXJsonReportGenerator:
     def create_completed_run_json(uid=None, run_revoked=True, chain=None, root_id=None, submission_dir=None, argv=None,
                                   original_cli=None, json_file=None, logs_dir=None, **inputs):
         if not logs_dir and uid is None:
-            raise ValueError(f'At least one of "logs_dir" or "uid" must be supplied')
+            raise ValueError('At least one of "logs_dir" or "uid" must be supplied')
         logs_dir = uid.logs_dir if uid is not None else logs_dir
 
         data = None
@@ -146,7 +147,7 @@ class FireXJsonReportGenerator:
                 inputs=inputs)
 
         data['completed'] = True
-        data['results'] = get_results(root_id) if root_id else None
+        data['results'] = get_run_results_from_root_task_promise(root_id)
         data['revoked'] = run_revoked
 
         completion_report_file = get_completion_run_json_path(logs_dir)

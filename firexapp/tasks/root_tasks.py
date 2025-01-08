@@ -6,8 +6,7 @@ from celery.signals import task_postrun
 from celery.states import REVOKED, RETRY
 from celery.utils.log import get_task_logger
 from firexkit.chain import InjectArgs
-from firexkit.result import find_unsuccessful_in_chain
-from firexkit.result import get_results
+from firexkit.result import find_unsuccessful_in_chain, get_results, RUN_RESULTS_NAME, RUN_UNSUCCESSFUL_NAME
 
 from firexapp.application import get_app_tasks
 from firexapp.engine.celery import app
@@ -29,7 +28,7 @@ def backend_get_root_revoked():
      return app.backend.get(root_revoked_backend_key)
 
 # noinspection PyPep8Naming
-@app.task(bind=True, returns=('chain_results', 'unsuccessful_services'))
+@app.task(bind=True, returns=(RUN_RESULTS_NAME, RUN_UNSUCCESSFUL_NAME))
 def RootTask(self, chain, **chain_args):
     c = InjectArgs(chain=chain, **chain_args)
     for task in get_app_tasks(chain):
