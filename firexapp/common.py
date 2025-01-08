@@ -196,7 +196,7 @@ def create_link(src, target, delete_link=None, relative=False, create_target_dir
         raise
 
 # Creating link is sometime slow (e.g. on NFS, so do it in a thread
-def create_link_async(src, target, **create_link_kwargs) -> threading.Thread:
+def create_link_async(src: str, target: str, **create_link_kwargs) -> threading.Thread:
     thread = threading.Thread(target=create_link,
                               args=(src, target),
                               kwargs=create_link_kwargs)
