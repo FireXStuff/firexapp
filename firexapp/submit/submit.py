@@ -1,4 +1,5 @@
 import multiprocessing
+import pathlib
 import re
 import sys
 import json
@@ -50,6 +51,9 @@ FileRegistry().register_file(SUBMISSION_FILE_REGISTRY_KEY, os.path.join(Uid.debu
 
 ENVIRON_FILE_REGISTRY_KEY = 'env'
 FileRegistry().register_file(ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'environ.json'))
+
+RUN_COMPLETE_REGISTRY_KEY = 'RUN_COMPLETE_REGISTRY_KEY'
+FileRegistry().register_file(RUN_COMPLETE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'RUN_COMPLETE'))
 
 RUN_SOFT_TIME_LIMIT_KEY = 'run_soft_time_limit'
 ASYNC_SHUTDOWN_CELERY_EVENT_TYPE = 'firex-async-shutdown'
@@ -614,7 +618,23 @@ class SubmitBaseApp:
                     disable_async_result(chain_result)
 
         logger.debug("Running FireX self destruct")
-        launch_background_shutdown(self.uid.logs_dir, reason, getattr(self.submit_args, 'celery_shutdown_timeout', DEFAULT_CELERY_SHUTDOWN_TIMEOUT))
+        launch_background_shutdown(self.uid.logs_dir,
+                                   reason,
+                                   getattr(self.submit_args,
+                                           'celery_shutdown_timeout',
+                                           DEFAULT_CELERY_SHUTDOWN_TIMEOUT)
+                                   )
+
+        self.write_run_complete_file(self.uid.logs_dir)
+
+    @staticmethod
+    def write_run_complete_file(log_path: str):
+        completion_file = FileRegistry().get_file(RUN_COMPLETE_REGISTRY_KEY, log_path)
+        logger.debug(f'Writing {completion_file}')
+        try:
+            pathlib.Path(completion_file).touch()
+        except FileNotFoundError:
+            logger.debug(f"Couldn't write {completion_file}", exc_info=True)
 
     @classmethod
     def validate_argument_applicability(cls, chain_args, args, all_tasks):
