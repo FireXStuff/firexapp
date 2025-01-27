@@ -1,6 +1,5 @@
 import os
 import abc
-from psutil import Process
 import signal
 from time import sleep
 
@@ -9,11 +8,12 @@ from celery.utils.log import get_task_logger
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.broker_manager.redis_manager import RedisManager
+from firexapp.fileregistry import FileRegistry
 from firexapp.submit.arguments import InputConverter
 from firexapp.submit.reporting import ReportGenerator, report
 from firexapp.submit.tracking_service import TrackingService, get_tracking_services
 import firexapp.submit.tracking_service
-from firexapp.submit.submit import get_log_dir_from_output
+from firexapp.submit.submit import get_log_dir_from_output, RUN_COMPLETE_REGISTRY_KEY
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexapp.celery_manager import CeleryManager
 from firexapp.common import wait_until
@@ -277,6 +277,9 @@ class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
             existing_procs += CeleryManager.find_procs(os.path.join(celery_pids_dir, f))
 
         assert not existing_procs, "Expected no remaining celery processes, found: %s" % existing_procs
+
+        completion_file = FileRegistry().get_file(RUN_COMPLETE_REGISTRY_KEY, logs_dir)
+        assert os.path.exists(completion_file), f'RUN_COMPLETED is expected to be found in {completion_file}'
 
 
 class AsyncNoBrokerLeakOnCeleryTerminated(NoBrokerLeakOnCeleryTerminated):
