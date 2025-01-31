@@ -221,7 +221,6 @@ def _import_plugin(module_name, plugin_file):
     except BaseException:
         logger.exception(f'Failed to load {plugin_file}')
         raise PluginLoadError(f'Fatal Error loading plugin {plugin_file!r}')
-    print(f"Plugins module {module_name!r} imported from {plugin_file!r}")
     return mod
 
 
@@ -241,18 +240,25 @@ def import_plugin_files(plugin_files) -> set[str]:
     if not plugin_files:
         return set()
 
-    original_tasks = set(current_app.tasks)
-
+    imported_module_names = []
+    new_tasks = set()
+    previous_tasks = set(current_app.tasks)
     for plugin_file in plugin_files:
-        import_plugin_file(plugin_file)
+        mod = import_plugin_file(plugin_file)
+        current_tasks = set(current_app.tasks)
+        new_tasks_from_this_import = current_tasks - previous_tasks
+        new_tasks.update(new_tasks_from_this_import)
+        new_tasks_modules_from_this_import = {t.rsplit('.', 1)[0] for t in new_tasks_from_this_import}
+        imported_module_names += list(new_tasks_modules_from_this_import)
+        previous_tasks = current_tasks
+        print(f'{len(new_tasks_from_this_import)} new service{"s" if len(new_tasks_from_this_import)>1 else ""} '
+              f'imported from plugin modules {list(new_tasks_modules_from_this_import)} found in {mod.__file__}')
 
-    new_tasks = set(current_app.tasks) - original_tasks
-    new_tasks_modules = {t.rsplit('.', 1)[0] for t in new_tasks}
-    if new_tasks_modules:
-        print(f'{len(new_tasks)} new service{"s" if len(new_tasks)>1 else ""} imported '
-              f'from {len(new_tasks_modules)} plugin module{"s" if len(new_tasks_modules)>1 else ""} '
-              f'[{", ".join(new_tasks_modules)}]')
-    else:
+    if imported_module_names and len(plugin_files)>1:
+        print(f'--> {len(new_tasks)} total new service{"s" if len(new_tasks)>1 else ""} imported '
+              f'from {len(imported_module_names)} plugin module{"s" if len(imported_module_names)>1 else ""} '
+              f'{imported_module_names}')
+    elif not imported_module_names:
         print(f'No new tasks/services imported from {plugin_files}!')
 
     return new_tasks
