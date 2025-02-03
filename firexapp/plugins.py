@@ -251,15 +251,20 @@ def import_plugin_files(plugin_files) -> set[str]:
         new_tasks_modules_from_this_import = {t.rsplit('.', 1)[0] for t in new_tasks_from_this_import}
         imported_module_names += list(new_tasks_modules_from_this_import)
         previous_tasks = current_tasks
+        plugin_modules_info = f'{list(new_tasks_modules_from_this_import)}' + ' ' \
+            if new_tasks_modules_from_this_import \
+            else ""
         print(f'{len(new_tasks_from_this_import)} new service{"s" if len(new_tasks_from_this_import)>1 else ""} '
-              f'imported from plugin modules {list(new_tasks_modules_from_this_import)} found in {mod.__file__}')
+              f'imported from plugin modules {plugin_modules_info}'
+              f'found in {mod.__file__ if mod else plugin_file}')
 
-    if imported_module_names and len(plugin_files)>1:
-        print(f'--> {len(new_tasks)} total new service{"s" if len(new_tasks)>1 else ""} imported '
-              f'from {len(imported_module_names)} plugin module{"s" if len(imported_module_names)>1 else ""} '
-              f'{imported_module_names}')
-    elif not imported_module_names:
-        print(f'No new tasks/services imported from {plugin_files}!')
+    if len(plugin_files)>1:
+        if imported_module_names:
+            print(f'--> {len(new_tasks)} total new service{"s" if len(new_tasks)>1 else ""} imported '
+                  f'from {len(imported_module_names)} plugin module{"s" if len(imported_module_names)>1 else ""} '
+                  f'{imported_module_names}')
+        elif not imported_module_names:
+            print(f'No new services imported from {plugin_files}!')
 
     return new_tasks
 
