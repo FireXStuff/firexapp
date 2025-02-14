@@ -318,6 +318,11 @@ class SubmitBaseApp:
 
         return args, others
 
+    def create_chain_sentinel_files(self, chain: str):
+        top_level_chains = chain.split(',')
+        for c in top_level_chains:
+            pathlib.Path(self.uid.debug_dir + f'/{c}.chain').touch()
+
     def submit(self, args_from_first_pass: argparse.Namespace, other_args_from_first_pass: list):
         uid = Uid()
         self.uid = uid
@@ -344,6 +349,9 @@ class SubmitBaseApp:
         chain_args = self.convert_chain_args(chain_args)
 
         chain_args = self.start_engine(args=args, chain_args=chain_args, uid=uid)
+
+        # Write .chain sentinel files
+        self.create_chain_sentinel_files(chain_args['chain'])
 
         # Execute chain
         try:
