@@ -219,10 +219,10 @@ class AbstractFireXEventAggregator:
         new_events = []
         now = datetime.now().timestamp()
         for incomplete_task in self._get_incomplete_tasks():
-            if incomplete_task.get('state') in INCOMPLETE_RUNSTATES:
-                event_type = 'task-incomplete'
-            else:
+            if incomplete_task.get('state') in COMPLETE_RUNSTATES:
                 event_type = 'task-completed'
+            else:
+                event_type = 'task-incomplete'
 
             new_event = {
                 'uuid': incomplete_task['uuid'],
