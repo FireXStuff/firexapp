@@ -82,10 +82,11 @@ def poll_until_dir_empty(dir_path, timeout=15):
 
 def proc_matches(proc_info, pname, cmdline_regex, cmdline_contains):
     if proc_info['name'] == pname:
+        cmdline = proc_info['cmdline'] or []
         if cmdline_regex:
-            return any(cmdline_regex.search(item) for item in proc_info['cmdline'])
+            return any(cmdline_regex.search(item) for item in cmdline)
         elif cmdline_contains:
-            return any(cmdline_contains in item for item in proc_info['cmdline'])
+            return any(cmdline_contains in item for item in cmdline)
         else:
             return True
     else:
