@@ -321,7 +321,7 @@ class SubmitBaseApp:
     def create_chain_sentinel_files(self, chain: str):
         top_level_chains = chain.split(',')
         for c in top_level_chains:
-            pathlib.Path(self.uid.debug_dir + f'/{c}.chain').touch()
+            pathlib.Path(self.uid.debug_dir,    f'{c.lower()}.chain').touch()
 
     def submit(self, args_from_first_pass: argparse.Namespace, other_args_from_first_pass: list):
         uid = Uid()
