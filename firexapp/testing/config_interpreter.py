@@ -191,7 +191,7 @@ def {0}(**kwargs):
                 process = subprocess.Popen(cmd, stdout=std_out_f, stderr=std_err_f,
                                            universal_newlines=True, shell=False, cwd=self.execution_directory,
                                            env=os.environ | flow_test_config.get_extra_run_env())
-                _, _ = process.communicate(timeout=getattr(flow_test_config, "timeout", None))
+                _, _ = process.communicate(timeout=getattr(flow_test_config, "timeout", 30 * 60))
                 elapsed_time = time.monotonic() - start_time
 
             verification_start_time = time.monotonic()
