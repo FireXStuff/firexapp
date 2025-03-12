@@ -17,6 +17,9 @@ from celery.utils import functional
 RAW_LEVEL_NAME = 'RAW'
 PRINT_LEVEL_NAME = 'PRINT'
 
+RAW = logging.DEBUG - 5
+PRINT = logging.WARNING + 5
+DEBUG = logging.DEBUG
 
 def add_hostname_to_log_records():
     old_factory = logging.getLogRecordFactory()
@@ -38,11 +41,11 @@ def log_print(self, message, *args, **kwargs):
 
 
 def add_custom_log_levels():
-    logging.RAW = logging.DEBUG - 5
+    logging.RAW = RAW
     logging.addLevelName(logging.RAW, RAW_LEVEL_NAME)
     logging.Logger.raw = log_raw
 
-    logging.PRINT = logging.WARNING + 5
+    logging.PRINT = PRINT
     logging.addLevelName(logging.PRINT, PRINT_LEVEL_NAME)
     logging.Logger.print = log_print
 
@@ -197,3 +200,13 @@ class TaskHeaderFilter(logging.Filter):
 
 # Filter out useless debug messages printed in functional.head_from_fun()
 functional.logger.addFilter(TaskHeaderFilter())
+
+
+# This is fake, just to ignore attribute access errors.
+class FireXLogger(logging.Logger):
+
+    def print(self, *args, **kwargs):
+        pass
+
+def get_firex_logger(name: str) -> FireXLogger:
+    return celery.utils.log.get_task_logger(name) # noqa
