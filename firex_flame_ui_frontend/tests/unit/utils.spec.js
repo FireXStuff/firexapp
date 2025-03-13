@@ -1,7 +1,7 @@
 import _ from 'lodash';
 import {
   createLinkedHtml, createLinkifyRegex,
-} from '@/utils';
+} from '/src/utils';
 
 function makeLink(content) {
   return `<a href="${content}" class="subtle-link">${content}</a>`;

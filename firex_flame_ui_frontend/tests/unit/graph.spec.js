@@ -2,15 +2,14 @@ import _ from 'lodash';
 import { mount, createLocalVue } from '@vue/test-utils';
 import VueRouter from 'vue-router';
 import Vuex from 'vuex';
-import fetchMock from 'jest-fetch-mock';
 import { sync } from 'vuex-router-sync';
 
-import router from '@/router/index';
-import XGraph from '@/components/XGraph.vue';
-import XCollapseableTaskNode from '@/components/nodes/XCollapsableTaskNode.vue';
-import XSizeCapturingNodes from '@/components/nodes/XSizeCapturingNodes.vue';
-import XCoreTaskNode from '@/components/nodes/XCoreTaskNode.vue';
-import { defaultStoreOptions } from '../../src/store';
+import router from '/src/router/index';
+import XGraph from '/src/components/XGraph.vue';
+import XCollapseableTaskNode from '/src/components/nodes/XCollapsableTaskNode.vue';
+import XSizeCapturingNodes from '/src/components/nodes/XSizeCapturingNodes.vue';
+import XCoreTaskNode from '/src/components/nodes/XCoreTaskNode.vue';
+import { defaultStoreOptions } from '/src/store';
 
 // Mock for Vue unit tests.
 // eslint-disable-next-line no-global-assign
@@ -20,7 +19,6 @@ window = {
   },
 };
 
-fetchMock.enableMocks();
 const localVue = createLocalVue();
 localVue.use(VueRouter);
 localVue.use(Vuex);

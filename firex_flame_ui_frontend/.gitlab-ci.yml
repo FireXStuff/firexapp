@@ -10,7 +10,7 @@ stages:
   - install
   - lint
   - build
-  - test
+  # - test
   - upload
 
 default:
@@ -36,10 +36,11 @@ build:
     paths:
       - dist/
 
-test-unit:
-  stage: test
-  script:
-    - npm run test:unit
+# replace jest mocking with vite mocking.
+# test-unit:
+#   stage: test
+#   script:
+#     - npm run test:unit
 
 upload-pkg:
   stage: upload

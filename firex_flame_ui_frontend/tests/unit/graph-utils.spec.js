@@ -1,6 +1,6 @@
 import _ from 'lodash';
 
-import { getGraphDataByUuid } from '@/graph-utils';
+import { getGraphDataByUuid } from '/src/graph-utils';
 
 describe('utils.js', () => {
   const trivRoot = 1;

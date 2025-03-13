@@ -34,3 +34,4 @@ new Vue({
 
 // This can be used by fallback code to see if the flame UI has been fetched from central sources.
 window.flameUiLoadStarted = true;
+
