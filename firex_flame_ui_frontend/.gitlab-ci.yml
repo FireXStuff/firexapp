@@ -31,8 +31,6 @@ lint:
 build:
   stage: build
   script:
-    - pwd
-    - ls -lathr
     - git config --global --add safe.directory $CI_PROJECT_DIR
     - npm run build
   artifacts:
