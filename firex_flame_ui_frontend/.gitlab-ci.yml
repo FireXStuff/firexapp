@@ -14,7 +14,7 @@ stages:
   - upload
 
 default:
-  image: firexstuff/firex-alpine-build:mo
+  image: firexstuff/firex-alpine-build:latest
 
 install:
   stage: install
