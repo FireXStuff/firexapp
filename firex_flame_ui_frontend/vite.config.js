@@ -11,9 +11,13 @@ function createCommitHashFile() {
     name: 'commithash',
     apply: 'build',
     generateBundle() {
+      const distDir = path.resolve(__dirname, 'dist');
         writeFileSync(
-          path.resolve(__dirname, 'dist', 'COMMITHASH'),
+          path.resolve(distDir, 'COMMITHASH'),
           execSync('git rev-parse HEAD').toString().trim());
+        writeFileSync(
+            path.resolve(distDir, 'VERSION'),
+            execSync('git describe --tags --long --dirty --always').toString().trim());
     }
   };
 }
