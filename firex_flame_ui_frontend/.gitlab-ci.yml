@@ -31,7 +31,9 @@ lint:
 build:
   stage: build
   script:
-    - git config --add safe.directory /builds/FireXStuff/firex-flame-ui/
+    - pwd
+    - ls -lathr
+    - git config --global --add safe.directory $CI_PROJECT_DIR
     - npm run build
   artifacts:
     paths:
