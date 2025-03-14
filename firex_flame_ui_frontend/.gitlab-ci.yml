@@ -19,8 +19,8 @@ default:
 install:
   stage: install
   script:
-    - npm config set "@fortawesome:registry" https://npm.fontawesome.com/
-    - npm config set "//npm.fontawesome.com/:_authToken" $FONTAWESOME_TOKEN
+    # - npm config set "@fortawesome:registry" https://npm.fontawesome.com/
+    # - npm config set "//npm.fontawesome.com/:_authToken" $FONTAWESOME_TOKEN
     - npm ci
 
 lint:

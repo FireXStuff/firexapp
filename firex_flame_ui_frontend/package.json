@@ -13,12 +13,12 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
-    "@fortawesome/fontawesome-svg-core": "^1.2.36",
+    "@fortawesome/fontawesome-svg-core": "^6.7.2",
     "@fortawesome/free-regular-svg-icons": "^5.15.4",
     "@fortawesome/free-solid-svg-icons": "^5.15.4",
     "@fortawesome/pro-light-svg-icons": "^5.15.4",
     "@fortawesome/pro-regular-svg-icons": "^5.15.4",
-    "@fortawesome/vue-fontawesome": "0.1.10",
+    "@fortawesome/vue-fontawesome": "^2.0.10",
     "d3-flextree": "^2.1.1",
     "d3-selection": "^1.4.0",
     "d3-zoom": "^1.7.3",
