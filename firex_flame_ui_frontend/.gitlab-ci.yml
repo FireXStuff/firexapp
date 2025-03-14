@@ -31,7 +31,7 @@ lint:
 build:
   stage: build
   script:
-    - git config --add safe.directory '*'
+    - git config --add safe.directory .
     - npm run build
   artifacts:
     paths:
