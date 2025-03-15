@@ -3,13 +3,12 @@ import versioneer
 
 
 def drop_dirty_if_exact_tag(version):
-    if '+' not in version:
+    if '-' not in version:
         return version
     # '0.10', '0.gcb0a42d.dirty' = '0.10+0.gcb0a42d.dirty'.split('+')
-    tag, subversion = version.split('+')
+    tag, _ = version.split('-', maxsplit=1)
     # ['0', 'gcb0a42d'. 'dirty']
-    subversion_parts = subversion.split('.')
-    if subversion_parts[0] == '0':
+    if len(tag.split('.')) == 3:
         return tag
     return version
 
