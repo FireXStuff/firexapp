@@ -19,32 +19,6 @@ import { BASE_URL } from '/src/utils';
 
 Vue.use(VueRouter);
 
-
-function routeFragmentOrDefaultRoute(next) {
-  if (!_.isEmpty(window.location.hash)) {
-    /*
-     * Support legacy, hash (#) based urls
-     * by removing the #/ prefix.
-    */
-    const appPath = window.location.hash.slice(1)
-    window.location.hash = '';
-    // fake url just for parsing path and query parts.
-    const url = new URL(`http://fake.com${appPath}`);
-    const query = {};
-    (new URLSearchParams(url.search)).forEach(
-      (value, key) => {
-        query[key] = value;
-    });
-    next({
-      path: url.pathname,
-      query,
-      replace: true, // don't leave history state
-    });
-  } else {
-    next();
-  }
-}
-
 const router = new VueRouter({
   mode: 'history',
   base: BASE_URL,
@@ -53,9 +27,6 @@ const router = new VueRouter({
       path: '/find',
       name: 'FindFirexId',
       component: XFindFirexId,
-      beforeEnter: (to, from, next) => {
-        routeFragmentOrDefaultRoute(next);
-      },
     },
     {
       path: '/find/:inputFireXId(FireX-.*-\\d+)',
@@ -173,5 +144,34 @@ const router = new VueRouter({
     return { x: 0, y: 0 };
   },
 });
+
+router.beforeEach((to, from, next) => {
+  /*
+   * Support legacy, hash (#) based urls
+   * by removing the #/ prefix.
+  */
+  if (!_.isEmpty(window.location.hash)) {
+    const appPath = window.location.hash.slice(1);
+    window.location.hash = '';
+    routeToPath(appPath, next);
+  } else {
+    next();
+  }
+});
+
+function routeToPath(appPath, next) {
+  // fake url just for parsing path and query parts.
+  const url = new URL(`http://fake.com${appPath}`);
+  const query = {};
+  (new URLSearchParams(url.search)).forEach(
+    (value, key) => {
+      query[key] = value;
+  });
+  next({
+    path: url.pathname,
+    query,
+    replace: true, // don't leave history state
+  });
+}
 
 export default router;
