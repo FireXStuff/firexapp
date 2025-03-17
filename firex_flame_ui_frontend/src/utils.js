@@ -2,6 +2,8 @@ import _ from 'lodash';
 import Vue from 'vue';
 import { flextree } from 'd3-flextree';
 
+const BASE_URL = import.meta.env.BASE_URL;
+
 const FIREX_ID_REGEX_STR = 'FireX-.*-(\\d\\d)(\\d\\d)(\\d\\d)-\\d{6}-\\d+';
 const FIREX_ID_REGEX = new RegExp(FIREX_ID_REGEX_STR);
 
@@ -408,7 +410,8 @@ function supportsFindView(accessMode) {
 }
 
 function fetchUiConfig() {
-  return fetch('flame-ui-config.json', { headers: ACCEPT_JSON_HTTP_HEADER })
+  const sep = BASE_URL.endsWith('/') ? '' : '/';
+  return fetch(`${BASE_URL}${sep}flame-ui-config.json`, { headers: ACCEPT_JSON_HTTP_HEADER })
     .then((r) => {
         if (r.ok) {
           return r.json();
@@ -585,23 +588,6 @@ function arrayToPath(path) {
   return _.join(path, '/');
 }
 
-function getCookie(name) {
-  const matches = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-  if (matches) {
-    return matches.pop() || undefined;
-  }
-  return undefined;
-}
-
-function deleteCookie(name, path, domain) {
-  if(getCookie(name)) {
-    document.cookie = name + "=" +
-      ((path) ? ";path="+path:"")+
-      ((domain)?";domain="+domain:"") +
-      ";expires=Thu, 01 Jan 1970 00:00:01 GMT";
-  }
-}
-
 // See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
 const eventHub = new Vue();
 const isDebug = process.env.NODE_ENV !== 'production';
@@ -642,8 +628,7 @@ export {
   arrayToPath,
   pathStringToArray,
   getParentArray,
-  getCookie,
-  deleteCookie,
   isDebug,
   ACCEPT_JSON_HTTP_HEADER,
+  BASE_URL,
 };

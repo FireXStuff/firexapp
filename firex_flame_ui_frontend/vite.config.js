@@ -31,7 +31,7 @@ function createConfig(ctx) {
       vue(),
       createCommitHashFile(),
     ],
-    base: ctx.mode === 'dev-build' ? path.join(dirname, 'dist') : '/flame/',
+    base: ctx.mode === 'dev-build' ? path.join(dirname, 'dist/') : '/flame/',
     publicDir: './public',
   }
   return config;

@@ -1,5 +1,5 @@
 import Vue from 'vue';
-import Router from 'vue-router';
+import VueRouter from 'vue-router';
 import XTasksParent from '../components/XTasksParent.vue';
 import XHeaderedGraph from '../components/XHeaderedGraph.vue';
 import XList from '../components/XList.vue';
@@ -15,36 +15,46 @@ import XLiveFileViewer from '../components/XLiveFileViewer.vue';
 import XErrorsTable from '../components/XErrorsTable.vue';
 import XDirectoryListing from '../components/XDirectoryListing.vue';
 import XRunInputs from '../components/XRunInputs.vue';
-import { getCookie, deleteCookie } from '../utils';
+import { BASE_URL } from '/src/utils';
 
-Vue.use(Router);
+Vue.use(VueRouter);
 
-const CISCO_SSO_FRAGMENT_COOKIE_NAME = 'anchorvalue';
 
-function routeFromCiscoSsoCookieOrNext(next) {
-  const anchorValue = getCookie(CISCO_SSO_FRAGMENT_COOKIE_NAME);
-  const hasCiscoSsoCookie = anchorValue && anchorValue.startsWith('#/');
-  if (hasCiscoSsoCookie) {
-    const pathFromAnchorValue = anchorValue.slice(1); //  Remove '#" preceding the path.
-    // Delete the cookie to avoid future /find accesses incorrectly redirecting.
-    deleteCookie(CISCO_SSO_FRAGMENT_COOKIE_NAME, '/', '.cisco.com');
-    next(pathFromAnchorValue);
+function routeFragmentOrDefaultRoute(next) {
+  if (!_.isEmpty(window.location.hash)) {
+    /*
+     * Support legacy, hash (#) based urls
+     * by removing the #/ prefix.
+    */
+    const appPath = window.location.hash.slice(1)
+    window.location.hash = '';
+    // fake url just for parsing path and query parts.
+    const url = new URL(`http://fake.com${appPath}`);
+    const query = {};
+    (new URLSearchParams(url.search)).forEach(
+      (value, key) => {
+        query[key] = value;
+    });
+    next({
+      path: url.pathname,
+      query,
+      replace: true, // don't leave history state
+    });
   } else {
     next();
   }
 }
 
-const router = new Router({
+const router = new VueRouter({
+  mode: 'history',
+  base: BASE_URL,
   routes: [
     {
       path: '/find',
       name: 'FindFirexId',
       component: XFindFirexId,
-      // This is effectively the default route, so handle the fact Cisco SSO doesn't restore URL
-      // Fragments. It's instead made available via a cookie, so route & delete cookie here if
-      // it's present.
       beforeEnter: (to, from, next) => {
-        routeFromCiscoSsoCookieOrNext(next);
+        routeFragmentOrDefaultRoute(next);
       },
     },
     {
@@ -152,6 +162,10 @@ const router = new Router({
           props: true,
         },
       ],
+    },
+    {
+      path: '*',
+      redirect: '/find',
     },
   ],
   // always scroll to top.
