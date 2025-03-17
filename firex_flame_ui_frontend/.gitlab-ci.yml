@@ -53,6 +53,7 @@ upload-pkg:
     - cd dist
   script:
     - pip install keyrings.alt
+    - python3 setup.py version
     - python3 setup.py sdist
     - firex-build upload_pip
   only:
