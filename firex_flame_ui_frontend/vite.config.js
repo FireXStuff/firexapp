@@ -15,9 +15,9 @@ function createCommitHashFile() {
         writeFileSync(
           path.resolve(distDir, 'COMMITHASH'),
           execSync('git rev-parse HEAD').toString().trim());
-        writeFileSync(
-            path.resolve(distDir, 'VERSION'),
-            execSync('git describe --tags --long --dirty --always').toString().trim());
+        // writeFileSync(
+        //     path.resolve(distDir, 'VERSION'),
+        //     execSync('git describe --tags --long --dirty --always').toString().trim());
     }
   };
 }
@@ -32,6 +32,7 @@ function createConfig(ctx) {
       createCommitHashFile(),
     ],
     base: ctx.mode === 'dev-build' ? path.join(dirname, 'dist') : '/flame/',
+    publicDir: './public',
   }
   return config;
 }

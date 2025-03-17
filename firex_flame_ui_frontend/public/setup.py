@@ -2,15 +2,16 @@ from setuptools import setup
 import versioneer
 
 
-def drop_dirty_if_exact_tag(version):
-    if '+' not in version:
-        return version
-    # '0.10', '0.gcb0a42d.dirty' = '0.10+0.gcb0a42d.dirty'.split('+')
-    tag, subversion = version.split('+')
-    # ['0', 'gcb0a42d'. 'dirty']
-    subversion_parts = subversion.split('.')
-    if subversion_parts[0] == '0':
-        return tag
+def drop_dirty_if_exact_tag(version: str) -> str:
+    # 0.29.41+1.g086ea28.dirty -> 0.29.41
+    if '+' in version:
+        # '0.10', '0.gcb0a42d.dirty' = '0.10+0.gcb0a42d.dirty'.split('+')
+        version_parts = version.split('+', maxsplit=1)
+        if (
+            len(version_parts) > 1
+            and version_parts[-1].endswith('.dirty')
+        ):
+            return version_parts[0] # the git tag.
     return version
 
 
