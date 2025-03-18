@@ -6,13 +6,15 @@ import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { writeFileSync } from 'fs';
 
+const dirname = path.dirname(fileURLToPath(import.meta.url));
+
 function createCommitHashFile(isDev) {
   return {
     name: 'commithash',
     apply: 'build',
     generateBundle() {
       if (!isDev) {
-        const distDir = path.resolve(__dirname, 'dist');
+        const distDir = path.resolve(dirname, 'dist');
           writeFileSync(
             path.resolve(distDir, 'COMMITHASH'),
             execSync('git rev-parse HEAD').toString().trim());
@@ -23,8 +25,6 @@ function createCommitHashFile(isDev) {
     }
   };
 }
-
-const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function createConfig(ctx) {
   const isDev = ctx.mode === 'dev-build';
