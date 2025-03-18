@@ -6,18 +6,20 @@ import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { writeFileSync } from 'fs';
 
-function createCommitHashFile() {
+function createCommitHashFile(isDev) {
   return {
     name: 'commithash',
     apply: 'build',
     generateBundle() {
-      const distDir = path.resolve(__dirname, 'dist');
-        writeFileSync(
-          path.resolve(distDir, 'COMMITHASH'),
-          execSync('git rev-parse HEAD').toString().trim());
-        // writeFileSync(
-        //     path.resolve(distDir, 'VERSION'),
-        //     execSync('git describe --tags --long --dirty --always').toString().trim());
+      if (!isDev) {
+        const distDir = path.resolve(__dirname, 'dist');
+          writeFileSync(
+            path.resolve(distDir, 'COMMITHASH'),
+            execSync('git rev-parse HEAD').toString().trim());
+          writeFileSync(
+              path.resolve(distDir, 'VERSION'),
+              execSync('git describe --tags --always').toString().trim());
+      }
     }
   };
 }
@@ -25,13 +27,14 @@ function createCommitHashFile() {
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function createConfig(ctx) {
+  const isDev = ctx.mode === 'dev-build';
   const config = {
     define: {},
     plugins: [
       vue(),
-      createCommitHashFile(),
+      createCommitHashFile(isDev),
     ],
-    base: ctx.mode === 'dev-build' ? path.join(dirname, 'dist/') : '/flame/',
+    base: isDev ? path.join(dirname, 'dist/') : '/flame/',
     publicDir: './public',
   }
   return config;

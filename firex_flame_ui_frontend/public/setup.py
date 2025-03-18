@@ -1,26 +1,13 @@
+import pathlib
 from setuptools import setup
-import versioneer
 
-
-def drop_dirty_if_exact_tag(version: str) -> str:
-    # 0.29.41+1.g086ea28.dirty -> 0.29.41
-    if '+' in version:
-        # '0.10', '0.gcb0a42d.dirty' = '0.10+0.gcb0a42d.dirty'.split('+')
-        version_parts = version.split('+', maxsplit=1)
-        if (
-            len(version_parts) > 1
-            and version_parts[-1].endswith('.dirty')
-        ):
-            return version_parts[0] # the git tag.
-    return version
-
+version_path = pathlib.Path(pathlib.Path(__file__).resolve().parent, 'VERSION')
 
 setup(
     name='firex_flame_ui',
     # A built UI workspace is always dirty, since build artifacts are inside the git repo.
     # It's therefore necessary to treat the first dirty commit as a clean tag.
-    version=drop_dirty_if_exact_tag(versioneer.get_version()),
-    cmdclass=versioneer.get_cmdclass(),
+    version=version_path.read_text(encoding='utf-8').strip(),
     description='UI for FireX.',
     url='https://github.com/FireXStuff/firex-flame-ui',
     author='Core FireX Team',
@@ -38,4 +25,4 @@ setup(
         'firex_flame_ui': ['*.html', 'assets/*', 'COMMITHASH'],
     },
     entry_points={},
-    )
+)
