@@ -1,28 +1,16 @@
 import pathlib
-from setuptools import setup, Command
+from setuptools import setup
 
-version_path = pathlib.Path(pathlib.Path(__file__).resolve().parent, 'VERSION')
-VERSION = version_path.read_text(encoding='utf-8').strip()
-class Version(Command):
-    user_options = []
-
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
-
-    def run(self):
-        print(VERSION)
+VERSION = pathlib.Path(
+    pathlib.Path(__file__).resolve().parent,
+    'VERSION',
+).read_text(encoding='utf-8').strip()
 
 setup(
     name='firex_flame_ui',
     # A built UI workspace is always dirty, since build artifacts are inside the git repo.
     # It's therefore necessary to treat the first dirty commit as a clean tag.
     version=VERSION,
-    cmdclass={
-        'version': Version,
-    },
     description='UI for FireX.',
     url='https://github.com/FireXStuff/firex-flame-ui',
     author='Core FireX Team',
