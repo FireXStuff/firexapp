@@ -14,7 +14,6 @@ import urllib.parse
 import uuid
 from typing import Union, Optional
 import glob
-from pathlib import Path
 import psutil
 from celery.utils.log import get_task_logger
 
@@ -169,9 +168,10 @@ def _send_flame_subprocess_end(flame_subprocess_id, output, returncode, chars=No
 
 def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType = _SubprocessRunnerType.CHECK_OUTPUT,
                        extra_header=None, file=None, chars=32000, timeout=None, capture_output=True, check=False,
-                       inactivity_timeout=30 * 60, monitor_activity_files=None, log_level=logging.DEBUG, copy_file_path=None,
-                       shell=False, cwd=None, env=None, remove_firex_pythonpath=True, logger=logger, stderr=subprocess.STDOUT,
-                       proc_stats: Optional[ProcStats] = None, stdin=subprocess.PIPE, bufsize=0, **kwargs):
+                       inactivity_timeout=30 * 60, monitor_activity_files=None, log_level=logging.DEBUG,
+                       copy_file_path=None, shell=False, cwd=None, env=None, remove_firex_pythonpath=True,
+                       logger=logger, stderr=subprocess.STDOUT, proc_stats: Optional[ProcStats] = None,
+                       stdin=subprocess.PIPE, bufsize=0, **kwargs):
     ##########################
     # Local Helper functions #
     ##########################
@@ -403,13 +403,13 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
         proc_stats.mem_mb_used = round(((1 - current_weight) * proc_stats.mem_mb_used) + (current_weight * mem_totals))
         # CPU totals will be calculated once after the main loop
 
-    def _find_matching_files(paths_and_patterns, cwd):
-        if paths_and_patterns == None: return []
+    def _find_matching_files(paths_and_patterns, work_dir):
+        if paths_and_patterns is None: return []
         if isinstance(paths_and_patterns, str):
             paths_and_patterns = [paths_and_patterns]
         matching_files = []
         for item in paths_and_patterns:
-            item_path = os.path.join(cwd, item) if not os.path.isabs(item) else item
+            item_path = os.path.join(work_dir, item) if not os.path.isabs(item) else item
             logger.info(f"Searching for: {item_path}")
             if os.path.isfile(item_path):
                 matching_files.append(item_path)
@@ -419,11 +419,11 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                 matching_files.extend(files_only)
         return matching_files
 
-    def _get_size_of_files(files, cwd):
+    def _get_size_of_files(files, work_dir):
         files_size = 0
-        logger.info(f"Finding matching files from paths and patterns: {files}")
-        found_files = _find_matching_files(files, cwd)
-        logger.info(f"Checking for activity in the following files: {found_files}")
+        found_files = _find_matching_files(files, work_dir)
+        if found_files:
+            logger.debug(f"Checking for activity in: {found_files}")
         for found_file in found_files:
             try:
                 files_size += os.stat(found_file).st_size
@@ -476,8 +476,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
             start_time = time.monotonic()
 
             last_output_size = 0
-            last_monitored_files_size = 0
-            last_proc_stats = last_log_time = last_output_time = start_time
+            last_proc_stats = last_log_time = last_output_time = last_file_size_check = start_time
             last_output_clock_time = time.time()
             _sleep = 0.05
             # Wait for process to finish
@@ -510,7 +509,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                 if now - last_log_time > 10 * 60:  # Log every 10 minutes
                     time_str = datetime.datetime.fromtimestamp(last_output_clock_time).strftime('%Y-%m-%d %H:%M:%S')
                     logger.info(f'Waiting for command to finish...\n(Last command output was at {time_str}. '
-                                f'Total output size is {last_output_size+last_monitored_files_size} bytes.)')
+                                f'Total output size is {last_output_size} bytes.)')
                     last_log_time = now
 
                 # Hard timeout check
@@ -523,26 +522,22 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
 
                 # Inactivity timeout check
                 current_output_size = os.fstat(f.fileno()).st_size
+                if monitor_activity_files and now - last_file_size_check > 5 * 60:  # check size every 5 minutes:
+                    current_output_size += _get_size_of_files(monitor_activity_files, work_dir=cwd_str)
+                    last_file_size_check = now
+
                 if last_output_size != current_output_size:
                     # We have some activity!
                     last_output_size = current_output_size
                     last_output_time = now
                     last_output_clock_time = time.time()
                 elif inactivity_timeout and now - last_output_time > inactivity_timeout:
-                    # Check if any of the monitor activity files have been updated since the start or the last inactivity timeout
-                    current_monitored_files_size = _get_size_of_files(monitor_activity_files, cwd=cwd_str)
-                    if last_monitored_files_size != current_monitored_files_size:
-                        # monitor_activity_files had some activity. Reset inactivity timer
-                        last_monitored_files_size = current_monitored_files_size
-                        last_output_time = now
-                        last_output_clock_time = time.time()
-                    else:
-                        # Process hung. Kill it.
-                        logger.debug(f'Activity (writing to stdout/stderr or monitored file) timeout {inactivity_timeout} exceeded, '
-                                    f'killing pid {p.pid}')
-                        _kill_proc_gently(p)
-                        hung_process = True
-                        break
+                    # Process hung. Kill it.
+                    logger.debug(f'Activity (writing to stdout/stderr or monitored file) timeout {inactivity_timeout}'
+                                 f' exceeded, killing pid {p.pid}')
+                    _kill_proc_gently(p)
+                    hung_process = True
+                    break
             # End wait-for-process loop
 
             if proc_stats is not None and proc_stats.elapsed_time:
