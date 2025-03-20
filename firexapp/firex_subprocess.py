@@ -476,6 +476,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
             start_time = time.monotonic()
 
             last_output_size = 0
+            last_file_output_size = current_file_output_size = 0
             last_proc_stats = last_log_time = last_output_time = last_file_size_check = start_time
             last_output_clock_time = time.time()
             _sleep = 0.05
@@ -508,8 +509,9 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                 # Log
                 if now - last_log_time > 10 * 60:  # Log every 10 minutes
                     time_str = datetime.datetime.fromtimestamp(last_output_clock_time).strftime('%Y-%m-%d %H:%M:%S')
+                    mfs = f', and monitored files are {last_file_output_size} bytes.' if monitor_activity_files else '.'
                     logger.info(f'Waiting for command to finish...\n(Last command output was at {time_str}. '
-                                f'Total output size is {last_output_size} bytes.)')
+                                f'Output size is {last_output_size} bytes{mfs}')
                     last_log_time = now
 
                 # Hard timeout check
@@ -522,16 +524,19 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
 
                 # Inactivity timeout check
                 current_output_size = os.fstat(f.fileno()).st_size
-                if monitor_activity_files and now - last_file_size_check > 5 * 60:  # check size every 5 minutes:
-                    current_output_size += _get_size_of_files(monitor_activity_files, work_dir=cwd_str)
+                activity_timeout = inactivity_timeout and now - last_output_time > inactivity_timeout
+                if monitor_activity_files and (now - last_file_size_check > 5 * 60 or activity_timeout):
+                    # check size every 5 minutes, or just before we time out:
+                    current_file_output_size = _get_size_of_files(monitor_activity_files, work_dir=cwd_str)
                     last_file_size_check = now
 
-                if last_output_size != current_output_size:
+                if last_output_size != current_output_size or last_file_output_size != current_file_output_size:
                     # We have some activity!
                     last_output_size = current_output_size
+                    last_file_output_size = current_file_output_size
                     last_output_time = now
                     last_output_clock_time = time.time()
-                elif inactivity_timeout and now - last_output_time > inactivity_timeout:
+                elif activity_timeout:
                     # Process hung. Kill it.
                     logger.debug(f'Activity (writing to stdout/stderr or monitored file) timeout {inactivity_timeout}'
                                  f' exceeded, killing pid {p.pid}')
