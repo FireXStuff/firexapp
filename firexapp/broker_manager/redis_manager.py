@@ -304,7 +304,7 @@ class RedisManager(BrokerManager):
             with open(self.password_file, 'w',  opener=partial(os.open, mode=0o600)) as f:
                 json.dump(data, f, sort_keys=True, indent=2)
 
-    def _start(self, timeout=60, save_db: bool = False):
+    def _start(self, timeout=60, save_db: bool = False, redis_server_extra_opts: Optional[str]=None):
         try:
             port = self.port
         except RedisPortNotAssigned:
@@ -322,9 +322,13 @@ class RedisManager(BrokerManager):
         if save_db is False:
             cmd += ' --save ""'
         if self.pid_file:
-            cmd += ' --pidfile %s' % self.pid_file
+            cmd += f' --pidfile {self.pid_file}'
         if self.log_file:
-            cmd += ' --logfile %s' % self.log_file
+            cmd += f' --logfile {self.log_file}'
+        if redis_server_extra_opts:
+            self.log(f'Redis-server will be started with these extra opts: {redis_server_extra_opts}')
+            cmd += f' {redis_server_extra_opts}'
+
         with TemporaryDirectory() as tmpdir:
             subprocess.check_call(
                 shlex.split(cmd),
@@ -339,14 +343,15 @@ class RedisManager(BrokerManager):
         self.create_metadata_file()
         self.log('redis started.')
 
-    def start(self, max_retries=3, log_memory_info: bool = True, save_db: bool = False):
+    def start(self, max_retries=3, log_memory_info: bool = True, save_db: bool = False,
+              redis_server_extra_opts: Optional[str]=None):
         max_trials = max_retries + 1
         trials = 0
 
         while True:
             trials += 1
             try:
-                self._start(save_db=save_db)
+                self._start(save_db=save_db, redis_server_extra_opts=redis_server_extra_opts)
             except (subprocess.CalledProcessError, RedisDidNotBecomeActive):
                 if trials >= max_trials:
                     self.log('Redis did not come up after %d trial(s) (max_trials=%d)..Giving up!' %

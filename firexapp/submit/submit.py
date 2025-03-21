@@ -214,7 +214,9 @@ class SubmitBaseApp:
         submit_parser.add_argument('--save_redis_db',
                                    nargs='?', const=True, default=False, action=OptionalBoolean,
                                    help='Save the redis db to file', )
-
+        submit_parser.add_argument('--redis_server_extra_opts',
+                                   default=os.environ.get('redis_server_extra_opts'),
+                                   help='Extra options for redis-server')
         submit_parser.set_defaults(func=self.run_submit)
 
         for service in get_tracking_services():
@@ -512,7 +514,7 @@ class SubmitBaseApp:
     def start_broker(self, args):
         from firexapp.broker_manager.broker_factory import BrokerFactory
         self.broker = BrokerFactory.create_new_broker_manager(logs_dir=self.uid.logs_dir)
-        self.broker.start(save_db=args.save_redis_db)
+        self.broker.start(save_db=args.save_redis_db, redis_server_extra_opts=args.redis_server_extra_opts)
 
     def start_tracking_services(self, args, **chain_args) -> {}:
         assert self.enabled_tracking_services is None, "Cannot start tracking services twice."
