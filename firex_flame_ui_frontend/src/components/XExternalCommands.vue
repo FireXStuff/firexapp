@@ -107,7 +107,7 @@
 import { DateTime } from 'luxon';
 import _ from 'lodash';
 import { mapGetters } from 'vuex';
-import { durationString } from '../utils';
+import { durationString, isTaskStateIncomplete } from '../utils';
 import XSection from './XSection.vue';
 import XExternalCommandStatus from './XExternalCommandStatus.vue';
 
@@ -148,13 +148,13 @@ export default {
           host: c.host,
           file: c.output_file,
           cwd: c.cwd ? _.trim(c.cwd) : c.cwd,
-          remoteHost: this.displayRemoteHost(_.get(c, 'remote_host', null)),
+          remoteHost: this.displayRemoteHost(_.get(c, 'remote_host')),
         })),
         'startTimeEpoch',
       );
     },
     parentTaskComplete() {
-      return !_.isNull(this.parentTaskEndTime);
+      return !isTaskStateIncomplete(_.get(this.parentTask, 'state'));
     },
     parentTaskEndTime() {
       if (!this.parentTask.actual_runtime) {
@@ -270,8 +270,8 @@ export default {
       return shortCommand;
     },
     displayRemoteHost(remoteHost) {
-      if (!remoteHost) {
-        return remoteHost;
+      if (_.isEmpty(remoteHost)) {
+        return null;
       }
       if (remoteHost === 'localhost' && this.parentTaskHost) {
         return this.parentTaskHost;
