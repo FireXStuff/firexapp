@@ -7,24 +7,6 @@ from firex_keeper import task_query
 
 from firexapp.engine.celery import app
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
-from firexapp.tasks.root_tasks import  backend_get_root_revoked
-
-import firexapp.submit.shutdown
-
-# Save original launch_background_shutdown
-orig_launch_background_shutdown = firexapp.submit.shutdown.launch_background_shutdown
-
-# Monkey patch "launch_background_shutdown"
-def _launch_background_shutdown(logs_dir, reason,
-                                celery_shutdown_timeout=firexapp.submit.shutdown.DEFAULT_CELERY_SHUTDOWN_TIMEOUT):
-    revoked = backend_get_root_revoked()
-    if not revoked:
-        with open(os.path.join(logs_dir, 'test_fail_revoked_not_set'), 'w') as f:
-            f.write('Backend revoke flag not set.')
-
-    orig_launch_background_shutdown(logs_dir, reason, celery_shutdown_timeout)
-
-firexapp.submit.shutdown.launch_background_shutdown = _launch_background_shutdown
 
 @app.task()
 def revoke(root_uuid):
