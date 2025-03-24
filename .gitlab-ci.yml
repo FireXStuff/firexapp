@@ -1,7 +1,6 @@
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   firex_base_logging_dir: "$CI_PROJECT_DIR/flow_test_results"
-  redis_server_extra_opts: "--ignore-warnings ARM64-COW-BUG"
 
 cache:
   paths:
@@ -16,7 +15,7 @@ stages:
   - update-docs
 
 default:
-  image: firexstuff/firex-alpine-build:3.10.2-ads
+  image: firexstuff/firex-alpine-build:3.9.10
   before_script:
     - source venv/bin/activate
     - git config --global --add safe.directory /builds/FireXStuff/firexapp
