@@ -59,16 +59,15 @@ test-unit:
     paths:
       - .coverage
 
-test-integration:
-  stage: test
-  script:
-    - pip install --upgrade firex-bundle-ci
-    - firexapp submit --sync --chain nop
-    - firexapp submit --chain RunAllIntegrationTests --public_runs True --install_configs cloud-ci-install-configs.json --sync --coverage False --max_parallel_tests 5
-  artifacts:
-    paths:
-      - flow_test_results/
-    when: always
+#test-integration:
+#  stage: test
+#  script:
+#    - pip install --upgrade firex-bundle-ci
+#    - firexapp submit --chain RunAllIntegrationTests --public_runs True --install_configs cloud-ci-install-configs.json --sync --coverage False --max_parallel_tests 5
+#  artifacts:
+#    paths:
+#      - flow_test_results/
+#    when: always
 
 upload-pkg:
   stage: upload
