@@ -16,7 +16,7 @@ stages:
   - update-docs
 
 default:
-  image: firexstuff/firex-alpine-build:3.9.10-ads
+  image: firexstuff/firex-alpine-build:3.10.2-ads
   before_script:
     - source venv/bin/activate
     - git config --global --add safe.directory /builds/FireXStuff/firexapp
