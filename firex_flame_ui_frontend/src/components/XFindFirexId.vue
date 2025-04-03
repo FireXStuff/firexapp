@@ -8,7 +8,7 @@
       <h4>
         Failed to find {{ foundFirexId }}
       </h4>
-      Run age may exceed retention policy.
+      Run age may exceed retention policy. 
       <div>
         <a class="btn btn-primary" :href="restoreArchivedLogsUrl" role="button" style="margin: 0.5em;">
           <font-awesome-icon icon="box-open"/>
