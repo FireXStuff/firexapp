@@ -15,6 +15,7 @@ REL_COMPLETION_REPORT_PATH = 'completion_email.html'
 
 class ReportGenerator(ABC):
     formatters = tuple()
+    loaders = tuple()
 
     @staticmethod
     def pre_run_report(**kwarg):
@@ -23,6 +24,10 @@ class ReportGenerator(ABC):
 
     @abstractmethod
     def add_entry(self, key_name, value, priority, formatters, **extra):
+        pass
+
+    @abstractmethod
+    def load_data(self, key_name, value, loaders, **extra):
         pass
 
     @abstractmethod
@@ -38,6 +43,14 @@ class ReportGenerator(ABC):
         if not filtered_formatters:
             return None
         return filtered_formatters
+
+    def filter_loaders(self, all_loaders):
+        if not self.loaders:
+            return all_loaders
+        filtered_loaders = {l: all_loaders[l] for l in self.loaders if l in all_loaders}
+        if not filtered_loaders:
+            return None
+        return filtered_loaders
 
 
 class ReportersRegistry:
@@ -80,23 +93,45 @@ class ReportersRegistry:
                     task_ret = task_result.result
                     for report_gen in cls.get_generators():
                         for report_entry in report_entries:
-                            filtered_formatters = report_gen.filter_formatters(report_entry["formatters"])
-                            if filtered_formatters is None:
-                                continue
-
+                            formatters = report_entry.get("formatters", [])
+                            loaders = report_entry.get("loaders", [])
                             key_name = report_entry["key_name"]
-                            try:
-                                report_gen.add_entry(
-                                    key_name=key_name,
-                                    value=task_ret[key_name] if key_name else task_ret,
-                                    priority=report_entry["priority"],
-                                    formatters=filtered_formatters,
-                                    all_task_returns=task_ret,
-                                    task_name=task_name,
-                                    task_uuid=task_result.id)
-                            except Exception:
-                                logger.error(f'Error during report generation for task {task_name}...skipping', exc_info=True)
-                                continue
+                            if len(formatters) > 0:
+                                filtered_formatters = report_gen.filter_formatters(formatters)
+
+                                if filtered_formatters is None:
+                                    continue
+
+                                try:
+                                    report_gen.add_entry(
+                                        key_name=key_name,
+                                        value=task_ret[key_name] if key_name else task_ret,
+                                        priority=report_entry["priority"],
+                                        formatters=filtered_formatters,
+                                        all_task_returns=task_ret,
+                                        task_name=task_name,
+                                        task_uuid=task_result.id)
+                                except Exception:
+                                    logger.error(f'Error during report generation for task {task_name}...skipping', exc_info=True)
+                                    continue
+                            if len(loaders) > 0:
+                                filtered_loaders = report_gen.filter_loaders(loaders)
+
+                                if filtered_loaders is None:
+                                    continue
+
+                                try:
+                                    report_gen.load_data(
+                                        key_name=key_name,
+                                        value=task_ret[key_name] if key_name else task_ret,
+                                        loaders=filtered_loaders,
+                                        all_task_returns=task_ret,
+                                        task_name=task_name,
+                                        task_uuid=task_result.id
+                                    )
+                                except Exception:
+                                    logger.error(f'Error during report data loading for task {task_name}...skipping', exc_info=True)
+                                    continue
                 except Exception:
                     logger.error(f"Failed to add report entry for task result {task_result}", exc_info=True)
 
@@ -129,5 +164,25 @@ def report(key_name=None, priority=-1, **formatters):
         if not cls.has_report_meta():
             cls.report_meta = []
         cls.report_meta.append(report_entry)
+        return cls
+    return tag_with_report_meta_data
+
+
+def report_data(key_name=None, **loaders):
+    """ Use this decorator to indicate what returns to include in the report and how to load it """
+
+    def tag_with_report_meta_data(cls):
+        # guard: prevent bad coding by catching bad return key
+        if key_name and key_name not in cls.return_keys:
+            raise Exception("Task %s does not specify %s using the @returns decorator. "
+                            "It cannot be used in @report" % (cls.name, key_name))
+
+        report_data = {
+            "key_name": key_name,
+            'loaders': loaders,
+        }
+        if not cls.has_report_meta():
+            cls.report_meta = []
+        cls.report_meta.append(report_data)
         return cls
     return tag_with_report_meta_data
