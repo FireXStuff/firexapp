@@ -13,7 +13,7 @@ from firexapp.submit.arguments import InputConverter
 from firexapp.submit.reporting import ReportGenerator, report
 from firexapp.submit.tracking_service import TrackingService, get_tracking_services
 import firexapp.submit.tracking_service
-from firexapp.submit.submit import  RUN_COMPLETE_REGISTRY_KEY
+from firexapp.submit.submit import get_log_dir_from_output, RUN_COMPLETE_REGISTRY_KEY
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexapp.celery_manager import CeleryManager
 from firexapp.common import wait_until
@@ -28,7 +28,8 @@ logger = get_task_logger(__name__)
 
 test_data_dir = os.path.join(os.path.dirname(__file__), "data")
 
-def get_broker(logs_dir):
+def get_broker(cmd_output):
+    logs_dir = get_log_dir_from_output(cmd_output)
     file_exists = wait_until(lambda: os.path.exists(RedisManager.get_metadata_file(logs_dir)),
                              timeout=10,
                              sleep_for=0.5)
@@ -48,7 +49,7 @@ class NoBrokerLeakBase(FlowTestConfiguration):
         raise NotImplementedError("This is a base class")
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        broker = get_broker(self.run_data.logs_path)
+        broker = get_broker(cmd_output)
         broker_not_alive = wait_until_broker_not_alive(broker)
         assert broker_not_alive, "We are leaking a broker: " + str(broker)
         expected_error = self.expected_error()
@@ -269,7 +270,7 @@ class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         super().assert_expected_firex_output(cmd_output, cmd_err)
-        logs_dir = self.run_data.logs_path
+        logs_dir = get_log_dir_from_output(cmd_output)
         existing_procs = []
         celery_pids_dir = CeleryManager(logs_dir=logs_dir, broker=get_broker(cmd_output)).celery_pids_dir
         for f in os.listdir(celery_pids_dir):
@@ -308,7 +309,7 @@ class ShutdownDetachedFromParentProcess(NoBrokerLeakOnCeleryTerminated):
         return ["submit", "--chain", "Sleep", '--sleep', '20']
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        logs_dir = self.run_data.logs_path
+        logs_dir = get_log_dir_from_output(cmd_output)
         shutdown_pid = launch_background_shutdown(
             logs_dir,
             'terminating out-of-run for integration testing',
