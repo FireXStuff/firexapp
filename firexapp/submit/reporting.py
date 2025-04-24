@@ -175,6 +175,8 @@ def report(key_name=None, priority=-1, **formatters):
         if type(func) is PromiseProxy:
             return tag_with_report_meta_data(func)
 
+        logger.debug(f"Skipping applying @report since {func} is not a PromiseProxy type")
+
         return func
 
     return decorator
@@ -204,6 +206,8 @@ def report_data(key_name=None, **loaders):
 
         if type(func) is PromiseProxy:
             return tag_with_report_meta_data(func)
+
+        logger.debug(f"Skipping applying @report_data since {func} is not a PromiseProxy type")
 
         return func
 
