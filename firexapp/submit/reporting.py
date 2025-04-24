@@ -1,6 +1,8 @@
 import traceback
 from abc import ABC, abstractmethod
+from functools import wraps
 
+from celery.local import PromiseProxy
 from celery.result import AsyncResult
 from celery.states import SUCCESS
 from celery.utils.log import get_task_logger
@@ -150,39 +152,59 @@ class ReportersRegistry:
 def report(key_name=None, priority=-1, **formatters):
     """ Use this decorator to indicate what returns to include in the report and how to format it """
 
-    def tag_with_report_meta_data(cls):
-        # guard: prevent bad coding by catching bad return key
-        if key_name and key_name not in cls.return_keys:
-            raise Exception("Task %s does not specify %s using the @returns decorator. "
-                            "It cannot be used in @report" % (cls.name, key_name))
+    def decorator(func):
 
-        report_entry = {
-            "key_name": key_name,
-            'priority': priority,
-            'formatters': formatters,
-        }
-        if not cls.has_report_meta():
-            cls.report_meta = []
-        cls.report_meta.append(report_entry)
-        return cls
-    return tag_with_report_meta_data
+        @wraps(func)
+        def tag_with_report_meta_data(cls):
+
+            # guard: prevent bad coding by catching bad return key
+            if key_name and key_name not in cls.return_keys:
+                raise Exception("Task %s does not specify %s using the @returns decorator. "
+                                "It cannot be used in @report" % (cls.name, key_name))
+
+            report_entry = {
+                "key_name": key_name,
+                'priority': priority,
+                'formatters': formatters,
+            }
+            if not cls.has_report_meta():
+                cls.report_meta = []
+            cls.report_meta.append(report_entry)
+            return cls
+
+        if type(func) is PromiseProxy:
+            return tag_with_report_meta_data(func)
+
+        return func
+
+    return decorator
 
 
 def report_data(key_name=None, **loaders):
     """ Use this decorator to indicate what returns to include in the report and how to load it """
 
-    def tag_with_report_meta_data(cls):
-        # guard: prevent bad coding by catching bad return key
-        if key_name and key_name not in cls.return_keys:
-            raise Exception("Task %s does not specify %s using the @returns decorator. "
-                            "It cannot be used in @report" % (cls.name, key_name))
+    def decorator(func):
 
-        report_data = {
-            "key_name": key_name,
-            'loaders': loaders,
-        }
-        if not cls.has_report_meta():
-            cls.report_meta = []
-        cls.report_meta.append(report_data)
-        return cls
-    return tag_with_report_meta_data
+        @wraps(func)
+        def tag_with_report_meta_data(cls):
+
+            # guard: prevent bad coding by catching bad return key
+            if key_name and key_name not in cls.return_keys:
+                raise Exception("Task %s does not specify %s using the @returns decorator. "
+                                "It cannot be used in @report" % (cls.name, key_name))
+
+            report_data = {
+                "key_name": key_name,
+                'loaders': loaders,
+            }
+            if not cls.has_report_meta():
+                cls.report_meta = []
+            cls.report_meta.append(report_data)
+            return cls
+
+        if type(func) is PromiseProxy:
+            return tag_with_report_meta_data(func)
+
+        return func
+
+    return decorator
