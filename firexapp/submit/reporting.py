@@ -98,25 +98,9 @@ class ReportersRegistry:
                             formatters = report_entry.get("formatters", [])
                             loaders = report_entry.get("loaders", [])
                             key_name = report_entry["key_name"]
-                            if len(formatters) > 0:
-                                filtered_formatters = report_gen.filter_formatters(formatters)
-
-                                if filtered_formatters is None:
-                                    continue
-
-                                try:
-                                    report_gen.add_entry(
-                                        key_name=key_name,
-                                        value=task_ret[key_name] if key_name else task_ret,
-                                        priority=report_entry["priority"],
-                                        formatters=filtered_formatters,
-                                        all_task_returns=task_ret,
-                                        task_name=task_name,
-                                        task_uuid=task_result.id)
-                                except Exception:
-                                    logger.error(f'Error during report generation for task {task_name}...skipping', exc_info=True)
-                                    continue
+                            logger.debug(f"Processing report entry for task {task_name} with key_name {key_name}")
                             if len(loaders) > 0:
+                                logger.debug(f'Loading report data for task {task_name}')
                                 filtered_loaders = report_gen.filter_loaders(loaders)
 
                                 if filtered_loaders is None:
@@ -131,9 +115,31 @@ class ReportersRegistry:
                                         task_name=task_name,
                                         task_uuid=task_result.id
                                     )
+                                    logger.debug(f'Completed loading report data for task {task_name}')
                                 except Exception:
                                     logger.error(f'Error during report data loading for task {task_name}...skipping', exc_info=True)
                                     continue
+                            if len(formatters) > 0:
+                                logger.debug(f'Adding report entry for task {task_name}')
+                                filtered_formatters = report_gen.filter_formatters(formatters)
+
+                                if filtered_formatters is None:
+                                    continue
+
+                                try:
+                                    report_gen.add_entry(
+                                        key_name=key_name,
+                                        value=task_ret[key_name] if key_name else task_ret,
+                                        priority=report_entry["priority"],
+                                        formatters=filtered_formatters,
+                                        all_task_returns=task_ret,
+                                        task_name=task_name,
+                                        task_uuid=task_result.id)
+                                    logger.debug(f'Completed adding report entry for task {task_name}')
+                                except Exception:
+                                    logger.error(f'Error during report generation for task {task_name}...skipping', exc_info=True)
+                                    continue
+
                 except Exception:
                     logger.error(f"Failed to add report entry for task result {task_result}", exc_info=True)
 
