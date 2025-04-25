@@ -172,7 +172,7 @@ def report(key_name=None, priority=-1, **formatters):
             cls.report_meta.append(report_entry)
             return cls
 
-        if type(func) is PromiseProxy:
+        if hasattr(func, '__qualname__'):
             return tag_with_report_meta_data(func)
 
         logger.debug(f"Skipping applying @report since {func} is not a PromiseProxy type")
@@ -204,7 +204,7 @@ def report_data(key_name=None, **loaders):
             cls.report_meta.append(report_data)
             return cls
 
-        if type(func) is PromiseProxy:
+        if hasattr(func, '__qualname__'):
             return tag_with_report_meta_data(func)
 
         logger.debug(f"Skipping applying @report_data since {func} is not a PromiseProxy type")
