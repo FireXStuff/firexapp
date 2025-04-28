@@ -19,9 +19,6 @@ class CustomTestReportGenerator(ReportGenerator):
         with open(os.path.join(uid.logs_dir, "initial_success"), "w+"):
             pass
 
-    def load_data(self, key_name, value, loaders, **extra):
-        pass
-
     def add_entry(self, key_name, value, priority, formatters, **extra):
         assert key_name is None
         assert type(value) is dict
