@@ -121,6 +121,9 @@ class ExplodingReport(ReportGenerator):
     def __init__(self):
         self.primed = False
 
+    def load_data(self, key_name, value, loaders, **extra):
+        pass
+
     def add_entry(self, key_name, value, priority, formatters, task_name=None, **extra):
         if task_name.split(".")[-1] == the_bomb.__name__:
             self.primed = True
