@@ -89,6 +89,9 @@ def discover_tests(tests, config_filter="") -> list:
         filters = [config_filter.strip() for config_filter in config_filter.split(",")]
         configs = [config for config in configs if config.__class__.__name__ in filters]
 
+    if not configs:
+        raise Exception(f'No test configs found in {tests}')
+
     [print("Skipping " + config.__class__.__name__, file=sys.stderr) for config in configs if hasattr(config,
                                                                                                       "skip_test")]
     configs = [config for config in configs if not hasattr(config, "skip_test")]

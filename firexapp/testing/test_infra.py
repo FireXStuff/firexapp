@@ -28,9 +28,6 @@ class FlowTestInfra(unittest.TestCase):
     def populate_tests(cls):
         if not cls.results_dir:
             raise Exception("Results directory not set")
-        if not cls.test_configs:
-            raise Exception("Could not generate tests. No configurations defined\n"
-                            "Configs: %s" % str(cls.test_configs))
 
         # noinspection PyTypeChecker
         cls.max_acceptable_failures = int((len(cls.test_configs) / 2.0) + 1)
