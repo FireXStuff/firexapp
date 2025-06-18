@@ -105,6 +105,8 @@ def main(default_results_dir, default_test_dir):
     FlowTestInfra.config_interpreter.is_public = args.public_runs
     FlowTestInfra.results_dir = results_directory
     FlowTestInfra.test_configs = discover_tests(args.tests, args.config)
+    if not FlowTestInfra.test_configs:
+        sys.exit(0)
     FlowTestInfra.populate_tests()
 
     # if running a single suite, rename the test to reflect the suite
