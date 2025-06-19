@@ -436,6 +436,24 @@ function fetchRunModelMetadata(firexId, modelPathTemplate) {
     });
 }
 
+function fetchRunJson(firexId, modelPathTemplate) {
+  if (!isFireXIdValid(firexId)) {
+    return new Promise((u, reject) => reject());
+  }
+  const flameModelPath = templateFireXId(modelPathTemplate, firexId);
+  // hack
+  const pathParts = _.split(flameModelPath, '/').slice(0, -2);
+  const runJsonPath = _.join(_.concat(pathParts.slice(0, -2), 'run.json'), '/');
+  return fetchWithRetry(runJsonPath, 7,
+    { cache: "no-cache", mode: 'cors', headers: ACCEPT_JSON_HTTP_HEADER })
+    .then(r => {
+      if (!r.ok) {
+        return Promise.reject(r);
+      }
+      return r.json()
+    });
+}
+
 function tasksViewKeyRouteChange(to, from, next, setUiConfigFn) {
   fetchUiConfig().then(uiConfig => {
     if (isRequiredAccessModeDataPresent(uiConfig.access_mode, to)) {
@@ -619,6 +637,7 @@ export {
   fetchUiConfig,
   templateFireXId,
   fetchRunModelMetadata,
+  fetchRunJson,
   findRunPathSuffix,
   errorRoute,
   createLinkifyRegex,

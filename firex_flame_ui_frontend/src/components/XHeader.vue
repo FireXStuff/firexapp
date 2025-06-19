@@ -29,12 +29,15 @@
         </div>
       </div>
 
-      <div v-if="formatRevokeTime"
+      <div v-if="revokeDetails && revokeDetails.isRevoked"
         class="header-row revoked-reason"
       >
           Run revoked (cancelled) at {{ formatRevokeTime }}
-          <template v-if="revokedReason">
-            with reason: &nbsp; <i> {{ revokedReason }} </i>
+          <template v-if="revokeDetails.revokingUser">
+            by user {{ revokeDetails.revokingUser }}
+          </template>
+          <template v-if="revokeDetails.revokeReason">
+            with reason: &nbsp; <i> {{ revokeDetails.revokeReason }} </i>
           </template>
       </div>
 
@@ -78,8 +81,6 @@ export default {
     ...mapState({
       chain: state => state.firexRunMetadata.chain,
       logsDir: state => state.firexRunMetadata.logs_dir,
-      revokedReason: state => state.firexRunMetadata.revoke_reason,
-      revokeTimestamp: state => state.firexRunMetadata.revoke_timestamp,
       isSearchOpen: state => state.tasks.search.isOpen,
       uiConfig: state => state.header.uiConfig,
     }),
@@ -87,13 +88,21 @@ export default {
       runRouteFromName: 'header/runRouteFromName',
       // logsUrl: 'header/logsUrl',
       hasIncompleteTasks: 'tasks/hasIncompleteTasks',
+      revokeDetails: 'firexRunMetadata/revokeDetails',
     }),
     formatRevokeTime() {
-      if (!this.revokeTimestamp) {
+      const revokeTimestamp = this.revokeDetails.revokeTimestamp;
+      if (!revokeTimestamp) {
         return null;
       }
-      return DateTime.fromSeconds(this.revokeTimestamp)
-        .toLocaleString({ ...DateTime.DATETIME_SHORT_WITH_SECONDS, timeZoneName: 'short' });
+      let revokeDate;
+      if (_.isNumber(revokeTimestamp)) {
+        revokeDate = DateTime.fromSeconds(revokeTimestamp);
+      } else {
+        revokeDate = DateTime.fromISO(revokeTimestamp);
+      }
+      return revokeDate.toLocaleString(
+        { ...DateTime.DATETIME_SHORT_WITH_SECONDS, timeZoneName: 'short' });
     },
     centralTitle() {
       return this.mainTitle ? this.mainTitle : this.chain;

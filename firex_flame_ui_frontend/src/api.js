@@ -3,7 +3,10 @@ import io from 'socket.io-client';
 import { ungzip } from 'pako';
 import untar from 'js-untar';
 
-import { templateFireXId, fetchRunModelMetadata, ACCEPT_JSON_HTTP_HEADER } from './utils';
+import {
+  templateFireXId, fetchRunModelMetadata, ACCEPT_JSON_HTTP_HEADER,
+  fetchRunJson,
+} from './utils';
 
 const COMMON_FETCH_HEADERS = { headers: ACCEPT_JSON_HTTP_HEADER };
 
@@ -158,6 +161,8 @@ function createWebFileAccessor(firexId, modelPathTemplate) {
     // TODO: add failure, timeout, or auto-handle elsewhere.
     getFireXRunMetadata: () => fetchRunModelMetadata(firexId, modelPathTemplate),
 
+    getRunJson: () => fetchRunJson(firexId, modelPathTemplate),
+
     // TODO: add failure, timeout, or auto-handle elsewhere.
     getTaskGraph: () => fetch(graphUrl, COMMON_FETCH_HEADERS).then(r => r.json()),
 
@@ -222,17 +227,19 @@ function createWebFileAccessor(firexId, modelPathTemplate) {
 }
 
 let apiAccessor = null;
+let webAccessor = null;
 
 function setAccessor(apiType, apiTypeKey, options) {
   // Cleanup current accessor.
   if (!_.isNull(apiAccessor)) {
     apiAccessor.cleanup();
   }
+  webAccessor = createWebFileAccessor(apiTypeKey, options.modelPathTemplate)
 
   if (apiType === 'socketio') {
     apiAccessor = createSocketApiAccessor(apiTypeKey, options);
   } else if (apiType === 'dump-files') {
-    apiAccessor = createWebFileAccessor(apiTypeKey, options.modelPathTemplate);
+    apiAccessor = webAccessor;
   } else {
     throw Error(`Unknown API type: ${apiType}`);
   }
@@ -278,6 +285,10 @@ function stopLiveFileListen() {
   return apiAccessor.stopLiveFileListen();
 }
 
+function getRunJson() {
+  return webAccessor.getRunJson();
+}
+
 export {
   setAccessor,
   getFireXRunMetadata,
@@ -291,4 +302,5 @@ export {
   isLiveFileListenSupported,
   startLiveFileListen,
   stopLiveFileListen,
+  getRunJson,
 };

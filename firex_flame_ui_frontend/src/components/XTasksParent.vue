@@ -152,11 +152,14 @@ export default {
             }
           },
         );
-        this.displayMessage = { content: 'Waiting for celery...', color: 'deepskyblue' };
       }
     },
     setFlameRunMetadata() {
       // TODO: consider adding retries in file accessor since this is the first query per run.
+      api.getRunJson().then(
+        (runJson) => this.$store.commit('firexRunMetadata/setRunJson', runJson),
+        (err) => {},
+      );
       return api.getFireXRunMetadata().then(
         (runMetadata) => {
           this.$store.commit('firexRunMetadata/setFlameRunMetadata', runMetadata);
