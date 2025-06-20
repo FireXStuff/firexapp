@@ -2,9 +2,8 @@ import { defineConfig } from "vite";
 import { createVuePlugin as vue } from "vite-plugin-vue2"; //vue 2
 import path from 'path';
 import { fileURLToPath } from 'url';
-
 import { execSync } from 'child_process';
-import { writeFileSync } from 'fs';
+import fs from 'fs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -15,10 +14,10 @@ function createCommitHashFile(isDev) {
     generateBundle() {
       if (!isDev) {
         const distDir = path.resolve(dirname, 'dist');
-          writeFileSync(
+          fs.writeFileSync(
             path.resolve(distDir, 'COMMITHASH'),
             execSync('git rev-parse HEAD').toString().trim());
-          writeFileSync(
+          fs.writeFileSync(
               path.resolve(distDir, 'VERSION'),
               execSync('git describe --tags --always').toString().trim());
       }
@@ -36,6 +35,25 @@ function createConfig(ctx) {
     ],
     base: isDev ? path.join(dirname, 'dist/') : '/flame/',
     publicDir: './public',
+    server: {
+      proxy: {
+        '^/auto/firex-logs.*': {
+          target: 'http://localhost:3000',
+          configure: (proxy, options) => {
+            proxy.on('proxyReq', (proxyReq, req, res) => {
+              const filePath = req.url;
+              if (fs.existsSync(filePath)) {
+                res.writeHead(200);
+                fs.createReadStream(filePath).pipe(res);
+              } else {
+                res.writeHead(404);
+                res.end('File not found');
+              }
+            });
+          },
+        }
+      }
+    },
   }
   return config;
 }
