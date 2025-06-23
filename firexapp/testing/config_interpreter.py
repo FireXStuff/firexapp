@@ -7,8 +7,7 @@ from datetime import datetime
 from typing import Optional, List
 import tempfile
 
-from firexapp.common import wait_until
-from firexapp.reporters.json_reporter import load_completion_report
+from firexapp.reporters.json_reporter import FireXRunData
 from firexkit.resources import get_cloud_ci_install_config_path
 from firexapp.submit.submit import get_firex_id_from_output, get_log_dir_from_output
 from firexapp.submit.tracking_service import has_flame
@@ -19,13 +18,10 @@ from firexapp.testing.config_base import InterceptFlowTestConfiguration, FlowTes
 class ConfigInterpreter:
     execution_directory = None
 
-    tmp_json_file: Optional[str]
-
     def __init__(self):
         self.profile = False
         self.coverage = False
         self.is_public = False
-        self.tmp_json_file = None
 
     @staticmethod
     def is_submit_command(test_config: FlowTestConfiguration):
@@ -123,9 +119,6 @@ def {0}(**kwargs):
                 # TODO: should merge test-specific install_configs with ci-viewer configs,
                 #  since we usually want the ci URLs, even with a test's install_config specifies other stuff.
                 cmd += ['--install_configs', get_cloud_ci_install_config_path()]
-            if '--json_file' not in cmd:
-                self.tmp_json_file = tempfile.mktemp(prefix='firex_json_file_')
-                cmd += ['--json_file', self.tmp_json_file]
 
         return cmd
 
@@ -200,8 +193,12 @@ def {0}(**kwargs):
             if expected_return is not None:
                 raise Exception("assert_expected_return_code should not return. It should assert if needed")
 
-            if self.tmp_json_file and os.path.isfile(self.tmp_json_file):
-                flow_test_config.run_data = load_completion_report(self.tmp_json_file)
+            try:
+                flow_test_config.run_data = FireXRunData.load_from_logs_dir(
+                    flow_test_config.logs_link
+                )
+            except (OSError, AttributeError): # flow_test_config is badly implemented, so need AttributeError
+                flow_test_config.run_data = None
 
             if self.is_submit_command(flow_test_config) and process.returncode == 0 and \
                     self.is_instance_of_intercept(flow_test_config) and \
@@ -232,15 +229,14 @@ def {0}(**kwargs):
             print('\tException: {}: {}'.format(type(e).__name__, e), file=sys.stderr)
             raise
         finally:
-            self.on_test_exit(flow_test_config.std_out, flow_test_config.std_err)
 
             try:
-                flow_test_config.cleanup()
-            except Exception as cleanup_e:
-                print(f'Exception during flow test cleanup: {cleanup_e}')
-
-            if self.tmp_json_file and os.path.exists(self.tmp_json_file):
-                os.unlink(self.tmp_json_file)
+                self.on_test_exit(flow_test_config.std_out, flow_test_config.std_err)
+            finally:
+                try:
+                    flow_test_config.cleanup()
+                except Exception as cleanup_e:
+                    print(f'Exception during flow test cleanup: {cleanup_e}')
 
             # report on time
             if elapsed_time is not None:
@@ -272,4 +268,3 @@ def {0}(**kwargs):
                         print(f"\tFlame: {install_configs.run_url}")
         except Exception as e:
             print(e)
-            pass

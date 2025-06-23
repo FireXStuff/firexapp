@@ -33,11 +33,11 @@ def add_hostname_to_log_records():
 
 
 def log_raw(self, message, *args, **kwargs):
-    self._log(logging.RAW, message, args, **kwargs)
+    self._log(RAW, message, args, **kwargs)
 
 
 def log_print(self, message, *args, **kwargs):
-    self._log(logging.PRINT, message, args, **kwargs)
+    self._log(PRINT, message, args, **kwargs)
 
 
 def add_custom_log_levels():
@@ -56,10 +56,10 @@ def add_custom_log_levels():
 
 def add_print_custom_log_level_to_kombu():
     from kombu.log import LOG_LEVELS
-    LOG_LEVELS.setdefault(PRINT_LEVEL_NAME, logging.PRINT)
-    LOG_LEVELS.setdefault(logging.PRINT, PRINT_LEVEL_NAME)
-    LOG_LEVELS.setdefault(RAW_LEVEL_NAME, logging.RAW)
-    LOG_LEVELS.setdefault(logging.RAW, RAW_LEVEL_NAME)
+    LOG_LEVELS.setdefault(PRINT_LEVEL_NAME, PRINT)
+    LOG_LEVELS.setdefault(PRINT, PRINT_LEVEL_NAME)
+    LOG_LEVELS.setdefault(RAW_LEVEL_NAME, RAW)
+    LOG_LEVELS.setdefault(RAW, RAW_LEVEL_NAME)
 
 
 def html_escape(msg):

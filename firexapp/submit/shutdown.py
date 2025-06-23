@@ -118,12 +118,6 @@ def is_celery_responsive(broker, celery_app) -> bool:
     return bool(r)
 
 
-def get_revoked_broker_safe(broker, celery_app):
-    if not broker.is_alive():
-        return None
-    return get_revoked(inspect_retry_timeout=4, celery_app=celery_app)
-
-
 def _tasks_from_active(active, task_predicate) -> MaybeCeleryActiveTasks:
     if active is None:
         return MaybeCeleryActiveTasks(False, None)
