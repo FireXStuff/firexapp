@@ -4,7 +4,7 @@ import inspect
 import traceback
 from argparse import ArgumentParser, Action
 from types import ModuleType
-from typing import Optional, Union
+from typing import Optional
 
 from celery.signals import worker_init
 from celery.utils.log import get_task_logger
@@ -25,7 +25,7 @@ def get_short_name(long_name: str) -> str:
     return long_name.split('.')[-1]
 
 
-def find_plugin_file(file_path: str) -> str:
+def find_plugin_file(file_path):
     # is it a full path?
     if os.path.isabs(file_path):
         plugin_file = file_path
@@ -37,23 +37,22 @@ def find_plugin_file(file_path: str) -> str:
     raise FileNotFoundError(file_path)
 
 
-def cdl2list(plugin_files: Union[None, str, list[str]]) -> list[str]:
+def cdl2list(plugin_files):
     if not plugin_files:
         return []
 
     if not isinstance(plugin_files, list):
-        plugin_files = [
-            file.strip() for file in plugin_files.split(",")
-        ]
+        plugin_files = [file.strip() for file in plugin_files.split(",")]
 
-    return [find_plugin_file(file) for file in plugin_files if file]
+    plugin_files = [find_plugin_file(file) for file in plugin_files if file]
+    return plugin_files
 
 
 def get_plugin_module_name(plugin_file):
     return os.path.splitext(os.path.basename(plugin_file))[0]
 
 
-def get_plugin_module_names(plugin_files: Union[None, str, list[str]]) -> list[str]:
+def get_plugin_module_names(plugin_files):
     files = cdl2list(plugin_files)
     if not files:
         return []
@@ -275,7 +274,7 @@ def set_plugins_env(plugin_files):
     os.environ[PLUGINS_ENV_NAME] = ",".join(plugin_files)
 
 
-def get_active_plugins() -> str:
+def get_active_plugins():
     return os.environ.get(PLUGINS_ENV_NAME, "")
 
 

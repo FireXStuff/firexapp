@@ -66,15 +66,6 @@ def find_all_firex_ids_from_str(input_str) -> list[str]:
     )
 
 
-def find_single_firex_id_from_str(input_str) -> str:
-    firex_ids = find_all_firex_ids_from_str(input_str)
-    if len(firex_ids) != 1:
-        raise Exception(
-            f'Expected exactly one firex ID in {input_str}, found {len(firex_ids)}'
-        )
-    return firex_ids[0]
-
-
 class Uid(object):
     debug_dirname = 'firex_internal'
     _resources_dirname = os.path.join(debug_dirname, 'resources')
@@ -100,7 +91,7 @@ class Uid(object):
         return self._base_logging_dir
 
     @property
-    def logs_dir(self) -> str:
+    def logs_dir(self):
         if not self._logs_dir:
             self._logs_dir = self.create_logs_dir()
             self._debug_dir = self.create_debug_dir()
@@ -174,6 +165,11 @@ class Uid(object):
             return self.viewers['logs_url']
         except KeyError:
             return None
+
+    @property
+    def run_data(self):
+        return {'firex_id': self.identifier,
+                'logs_path': self.logs_dir}
 
 
 whitelist_arguments("uid")
