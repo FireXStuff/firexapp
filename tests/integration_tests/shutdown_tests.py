@@ -108,9 +108,9 @@ class NoBrokerLeakOnCtrlC(NoBrokerLeakBase):
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         super().assert_expected_firex_output(cmd_output, cmd_err)
 
-        assert self.completed_run.completed, 'expected run.json to indicate completed'
-        assert self.completed_run.revoked, 'expected run.json to indicate revoked'
-        assert isinstance(self.completed_run.inputs['pid'], int), f'input not captured properly: {self.completed_run.inputs["pid"]}'
+        assert self.run_data.completed, 'expected run.json to indicate completed'
+        assert self.run_data.revoked, 'expected run.json to indicate revoked'
+        assert isinstance(self.run_data.inputs['pid'], int), f'input not captured properly: {self.run_data.inputs["pid"]}'
 
 
     def expected_error(self):

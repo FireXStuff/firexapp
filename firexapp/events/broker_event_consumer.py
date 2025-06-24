@@ -22,12 +22,7 @@ class BrokerEventConsumerThread(threading.Thread):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(
-        self,
-        celery_app: Celery,
-        max_retry_attempts: Optional[int]=None,
-        receiver_ready_file: Optional[str]=None,
-    ):
+    def __init__(self, celery_app: Celery, max_retry_attempts: int = None, receiver_ready_file: str = None):
         threading.Thread.__init__(self)
         self.celery_app = celery_app
         self.max_try_interval = 2**max_retry_attempts if max_retry_attempts is not None else 32
@@ -39,7 +34,7 @@ class BrokerEventConsumerThread(threading.Thread):
         if receiver_ready_file:
             self.receiver_ready_file = Path(receiver_ready_file)
             assert not self.receiver_ready_file.exists(), \
-                f"Receiver ready file must not already exist: {self.receiver_ready_file}."
+                "Receiver ready file must not already exist: %s." % self.receiver_ready_file
         else:
             self.receiver_ready_file = None
 
@@ -122,11 +117,11 @@ class BrokerEventConsumerThread(threading.Thread):
             raise
 
     @abc.abstractmethod
-    def _is_root_complete(self) -> bool:
+    def _is_root_complete(self):
         """Return True only when the root task is complete and normal shutdown can occur."""
         pass
 
-    def _all_tasks_complete(self) -> bool:
+    def _all_tasks_complete(self):
         """Return True only when all tasks are complete and the event receiver can be stopped."""
         return False
 

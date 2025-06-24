@@ -110,22 +110,12 @@ def find_procs(name, cmdline_regex=None, cmdline_contains=None):
 
     return matching_procs
 
-from typing import Callable, TypeVar
 
-T = TypeVar('T')
-
-def wait_until(
-    predicate: Callable[..., T],
-    timeout: float,
-    sleep_for: float,
-    *args,
-    **kwargs,
-) -> T:
+def wait_until(predicate, timeout, sleep_for, *args, **kwargs):
     max_time = time.time() + timeout
     while time.time() < max_time:
-        r = predicate(*args, **kwargs)
-        if r:
-            return r
+        if predicate(*args, **kwargs):
+            return True
         time.sleep(sleep_for)
     return predicate(*args, **kwargs)
 

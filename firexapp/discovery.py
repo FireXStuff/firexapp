@@ -145,7 +145,7 @@ def _get_firex_bundle_package_locations(path=None) -> List[Tuple[str, str]]:
     return locations
 
 
-def discover_package_modules(current_path, root_path=None) -> list[str]:
+def discover_package_modules(current_path, root_path=None) -> [str]:
     if root_path is None:
         root_path = os.path.dirname(current_path)
 
@@ -170,7 +170,7 @@ def discover_package_modules(current_path, root_path=None) -> list[str]:
         return []
 
 
-def find_firex_task_bundles() -> list[str]:
+def find_firex_task_bundles() -> [str]:
     # look for task modules in dependant packages
     bundles = []
     locations = _get_firex_bundle_package_locations()

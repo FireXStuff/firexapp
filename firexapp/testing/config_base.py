@@ -21,13 +21,6 @@ class FlowTestConfiguration(object):
     def name(self):
         return self.__class__.__name__
 
-    @property
-    def completed_run(self) -> FireXRunData:
-        assert self.run_data
-        if self.run_data.completed:
-            return self.run_data
-        return self.run_data.reload()
-
     @abc.abstractmethod
     def initial_firex_options(self)->list:
         pass

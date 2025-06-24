@@ -13,6 +13,19 @@ from firexapp.engine.celery import app
 
 logger = get_task_logger(__name__)
 
+root_revoked_backend_key = 'ROOT_REVOKED'
+
+#
+# Set flag in backend DB (i.e.: Redis) to indicate root taks has been revoked
+#
+def backend_set_root_revoked():
+     app.backend.set(root_revoked_backend_key, 'True')
+
+#
+# Get flag in backend DB (i.e.: Redis) which indicates root taks has been revoked
+#
+def backend_get_root_revoked():
+     return app.backend.get(root_revoked_backend_key)
 
 # noinspection PyPep8Naming
 @app.task(bind=True, returns=(RUN_RESULTS_NAME, RUN_UNSUCCESSFUL_NAME))
@@ -54,6 +67,9 @@ def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_c
 
     result_state = result.state
     is_revoked = result_state in [REVOKED, RETRY] # Revoked can be in retry state with celery 5.1.0
+
+    if is_revoked:
+        backend_set_root_revoked()
 
     if sync and not is_revoked:
         logger.debug("Sync run has not been revoked. Cleanup skipped.")

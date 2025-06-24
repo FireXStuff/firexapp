@@ -3,7 +3,7 @@ import signal
 import tempfile
 from argparse import ArgumentParser, RawTextHelpFormatter
 import json
-from typing import List, Union, Optional
+from typing import List
 import sys
 
 from firexapp.plugins import load_plugin_modules, cdl2list
@@ -13,6 +13,7 @@ from firexkit.permissions import DEFAULT_UMASK
 logger = setup_console_logging(__name__)
 
 JSON_ARGS_PATH_ARG_NAME = '--json_args_path'
+RECEIVED_SIGNAL_MSG_PREFIX = 'Received signal '
 
 def main():
     os.umask(DEFAULT_UMASK)
@@ -26,10 +27,7 @@ def main():
         app.run(sys_argv=sys.argv[1:])
 
 
-def import_microservices(
-    plugins_files: Union[None, str, list[str]]=None,
-    imports: Optional[tuple[str,...]]=None,
-) -> list:
+def import_microservices(plugins_files=None, imports: tuple = None) -> []:
     for f in cdl2list(plugins_files):
         if not os.path.isfile(f):
             raise FileNotFoundError(f)
@@ -158,10 +156,7 @@ class FireXBaseApp:
             arguments.func(arguments, others)
 
     def main_error_exit_handler(self, reason=None, run_revoked=False):
-        if (
-            self.running_app
-            and hasattr(self.running_app, self.main_error_exit_handler.__name__)
-        ):
+        if self.running_app and hasattr(self.running_app, self.main_error_exit_handler.__name__):
             self.running_app.main_error_exit_handler(reason=reason, run_revoked=run_revoked)
         exit(-1)
 
@@ -210,10 +205,9 @@ class ExitSignalHandler:
             self._register_signal_handlers(second_exit_handler)
             signal_name = signal.Signals(signal_num).name
             logger.error(self.first_warning % signal_name)
-
             app.main_error_exit_handler(
-                reason=f"Received signal {signal_name}.",
-                # this kind of overloads "revoked", but completion must have indication of: success/fail/revoked
+                reason=f"{RECEIVED_SIGNAL_MSG_PREFIX}{signal_name}.",
+                # this kind of overloads "revoked", but completion must have indication of : success/fail/revoked
                 run_revoked=True,
             )
 
