@@ -63,7 +63,7 @@ The ``amplified_greet_guests`` service can be executed identically to before:
 
     firexapp submit --chain amplified_greet_guests --guests Li,Mohamed
 
-`View amplified_greet_guests with custom HTML in Flame. <http://www.firexstuff.com/flame/#/FireX-username-210201-181343-7523/>`_
+`View amplified_greet_guests with custom HTML in Flame. <http://www.firexstuff.com/flame/FireX-username-210201-181343-7523/>`_
 
 
 It's also possible to produce HTML based on all service input arguments and, after successful service completion,
@@ -100,7 +100,7 @@ and only produce the Flame HTML 'Planning to greet...' since the ``amplified_gre
 
     firexapp submit --chain amplified_greet_guests --guests Li
 
-`View Failed amplified_greet_guests with custom HTML in Flame. <http://www.firexstuff.com/flame/#/FireX-username-210201-181444-56719/>`_
+`View Failed amplified_greet_guests with custom HTML in Flame. <http://www.firexstuff.com/flame/FireX-username-210201-181444-56719/>`_
 
 Consider using the ``@flame('*', <formatter_function>)`` form when summarizing many inputs and outputs in a single
 HTML entry.
@@ -136,7 +136,7 @@ The ``amplified_greet_guests`` service can be executed identically to before:
 
     firexapp submit --chain amplified_greet_guests --guests Li,Mohamed
 
-`View amplified_greet_guests with collapsed tasks in Flame. <http://www.firexstuff.com/flame/#/FireX-username-210201-184333-62229>`__
+`View amplified_greet_guests with collapsed tasks in Flame. <http://www.firexstuff.com/flame/FireX-username-210201-184333-62229>`__
 
 
 .. _advanced_dataflow:
@@ -222,7 +222,7 @@ consumed by ``amplify``, they'll make their way down the chain:
 
     firexapp submit --chain amplified_greet_guests --guests Li,Dash --underline_char '=' --overline_char '-' --surround_str '***'
 
-`View amplified_greet_guests in Flame. <http://www.firexstuff.com/flame/#/FireX-username-210202-143222-25522>`__
+`View amplified_greet_guests in Flame. <http://www.firexstuff.com/flame/FireX-username-210202-143222-25522>`__
 
 The invoking context in this example is the CLI, so every argument from the CLI is included in the ``self.abog`` of ``amplified_greet_guests``.
 Specifically, the BoG enables arguments like ``underline_char`` to be received by ``amplify`` despite not being an explicit argument of
@@ -282,7 +282,7 @@ Similar to previous examples, we can greet Homer and Smithers by executing:
 
     firexapp submit --chain greet_springfield_power_plant_employees --employee_names "Homer Simpson,Waylon Smithers"
 
-`View greet_springfield_power_plant_employees in Flame. <http://www.firexstuff.com/flame/#/FireX-username-210202-161714-29033/>`__
+`View greet_springfield_power_plant_employees in Flame. <http://www.firexstuff.com/flame/FireX-username-210202-161714-29033/>`__
 
 Let us say a team called Monarchists comes along and loves the existing ``greet_springfield_power_plant_employees``, but they believe corporate
 titles are vastly inferior to titles in a monarchy. The team that owns the original service dislikes monarchies,
@@ -338,11 +338,11 @@ will be called when it is loaded by a ``firexapp`` invocation via the ``--plugin
         --employee_names "Homer Simpson,Waylon Smithers" \
         --plugins path/to/springfield_monarchy.py
 
-`View greet_springfield_power_plant_employees with overridden get_springfield_power_plant_job_title in Flame. <http://www.firexstuff.com/flame/#/FireX-username-210202-171421-40936/>`__
+`View greet_springfield_power_plant_employees with overridden get_springfield_power_plant_job_title in Flame. <http://www.firexstuff.com/flame/FireX-username-210202-171421-40936/>`__
 
 Take a particularly close look at a overridden ``get_springfield_power_plant_job_title``:
 
-http://www.firexstuff.com/flame/#/FireX-username-210202-171421-40936/tasks/41c3ab03-e4e8-48a6-a582-221ef499e719
+http://www.firexstuff.com/flame/FireX-username-210202-171421-40936/tasks/41c3ab03-e4e8-48a6-a582-221ef499e719
 
 Observe that Flame indicates that the service is from a plugin both in the service's name and by the dashed-outline.
 
