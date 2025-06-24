@@ -23,6 +23,7 @@ import { mapGetters, mapState } from 'vuex';
 import * as api from '../api';
 import {
   parseRecFileContentsToNodesByUuid, eventHub, twoDepthAssign, tasksViewKeyRouteChange,
+  fetchRunJson,
 } from '../utils';
 import XError from './XError.vue';
 
@@ -156,7 +157,7 @@ export default {
     },
     setFlameRunMetadata() {
       // TODO: consider adding retries in file accessor since this is the first query per run.
-      api.getRunJson().then(
+      fetchRunJson(this.inputFireXId, this.uiConfig.model_path_template).then(
         (runJson) => this.$store.commit('firexRunMetadata/setRunJson', runJson),
         () => {},
       );
