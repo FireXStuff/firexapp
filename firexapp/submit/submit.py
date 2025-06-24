@@ -32,7 +32,7 @@ from firexapp.submit.tracking_service import get_tracking_services, get_service_
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
 from firexapp.application import (
-    import_microservices, get_app_tasks, get_app_task, JSON_ARGS_PATH_ARG_NAME, RECEIVED_SIGNAL_MSG_PREFIX
+    import_microservices, get_app_tasks, get_app_task, JSON_ARGS_PATH_ARG_NAME
 )
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
@@ -56,7 +56,6 @@ RUN_COMPLETE_REGISTRY_KEY = 'RUN_COMPLETE_REGISTRY_KEY'
 FileRegistry().register_file(RUN_COMPLETE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'RUN_COMPLETE'))
 
 RUN_SOFT_TIME_LIMIT_KEY = 'run_soft_time_limit'
-ASYNC_SHUTDOWN_CELERY_EVENT_TYPE = 'firex-async-shutdown'
 
 class JsonFileAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -91,31 +90,22 @@ class AdjustCeleryConcurrency(argparse.Action):
         setattr(namespace, self.dest, concurrency)
 
 
-def safe_create_completed_run_json(uid, chain_result, run_revoked, chain_args):
+def _safe_create_completed_run_json(uid, chain_result, run_revoked, chain_args, shutdown_reason):
     if uid:
         chain_args = dict(chain_args or {})
-        for k in ['uid', 'root_id', 'run_revoked']:
+        for k in ['uid', 'root_id', 'run_revoked', 'shutdown_reason']:
             chain_args.pop(k, None) # gotta love **chain_args
         try:
             FireXJsonReportGenerator.create_completed_run_json(
                 uid=uid,
                 root_id=chain_result,
                 run_revoked=run_revoked,
+                shutdown_reason=shutdown_reason,
                 **chain_args)
         except Exception as e:
-            logger.error(f'Failed to generate completion run JSON: {e}')
+            logger.exception(f'Failed to generate completion run JSON: {e}')
     else:
         logger.warning("No uid; run.json will not be updated.")
-
-def _safe_send_async_shutdown_if_signal(reason: Optional[str]) -> None:
-    if reason and reason.startswith(RECEIVED_SIGNAL_MSG_PREFIX):
-        try:
-            from celery import current_app
-            with current_app.events.default_dispatcher(
-                hostname=socket.gethostname()) as dispatcher:
-                dispatcher.send(ASYNC_SHUTDOWN_CELERY_EVENT_TYPE, shutdown_reason=reason)
-        except Exception as ex: # noqa
-            logger.debug(f'Failed to send {ASYNC_SHUTDOWN_CELERY_EVENT_TYPE} event: {ex}')
 
 
 def safe_create_initial_run_json(**kwargs):
@@ -603,18 +593,21 @@ class SubmitBaseApp:
             self.copy_submission_log()
 
     def self_destruct(self, chain_details=None, reason=None, run_revoked=False):
-        _safe_send_async_shutdown_if_signal(reason)
-
         if not chain_details:
-            safe_create_completed_run_json(self.uid, None, run_revoked, None)
+            chain_result = chain_args = None
         else:
             chain_result, chain_args = chain_details
-            safe_create_completed_run_json(self.uid, chain_result, run_revoked, chain_args)
+
+        _safe_create_completed_run_json(
+            self.uid, chain_result, run_revoked, chain_args, reason
+        )
+        if chain_result:
             try:
                 logger.debug("Generating reports")
                 from firexapp.submit.reporting import ReportersRegistry
-                ReportersRegistry.post_run_report(results=chain_result,
-                                                  kwargs=chain_args)
+                ReportersRegistry.post_run_report(
+                    results=chain_result,
+                    kwargs=chain_args)
                 logger.debug('Reports successfully generated')
             except Exception:
                 # Under no circumstances should report generation prevent celery and broker cleanup
