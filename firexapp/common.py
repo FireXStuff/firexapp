@@ -170,7 +170,7 @@ def create_link(src, target, delete_link=None, relative=False, create_target_dir
     if not delete_link:
         try:
             os.symlink(src, target)
-            logger.debug('Symbolic link created: %s -> %s' % (src, target))
+            logger.debug(f'Symbolic link created: {target} -> {src}')
             return  # <-- Done!
         except FileExistsError:
             if delete_link is False:
