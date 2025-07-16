@@ -298,7 +298,21 @@ class FireXRunData:
             real_basename = os.path.basename(
                 os.path.realpath(run_json_path)
             )
-            return real_basename == FireXJsonReportGenerator.completion_report_filename
+            is_complete_basename = real_basename == FireXJsonReportGenerator.completion_report_filename
+            if is_complete_basename:
+                return True
+
+            if (
+                not os.path.islink(run_json_path)
+                and not logs_dir
+                and not firex_id
+            ):
+                # need to read the file if it's not a symlink that will change to completion_report_filename
+                try:
+                    return cls.load_run_json_file(run_json_path).completed
+                except OSError as e:
+                    logger.warning(f'Failed to read {run_json_path} while checking completeness: {e}')
+                    return False
         return os.path.exists(
             cls._get_completion_run_json_path(
                 logs_dir, firex_id,
