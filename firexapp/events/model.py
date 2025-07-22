@@ -2,6 +2,7 @@ from collections import namedtuple
 from enum import Enum
 import logging
 import re
+from typing import Optional, Any
 
 from firexkit.result import ChainInterruptedException
 
@@ -16,7 +17,6 @@ ADDITIONAL_CHILDREN_KEY = 'additional_children'
 EXTERNAL_COMMANDS_KEY = 'external_commands'
 
 
-
 class RunStates(Enum):
     RECEIVED = "task-received"
     STARTED = "task-started"
@@ -24,26 +24,138 @@ class RunStates(Enum):
     UNBLOCKED = "task-unblocked"
     SUCCEEDED = "task-succeeded"
     FAILED = "task-failed"
-    REVOKED = "task-revoked"
-    INCOMPLETE = "task-incomplete"
+    REVOKED = "task-revoked" # from celery, but "task-revoke-started" would be more accurate.
+    REVOKE_COMPLETED = 'task-revoke-completed'
+    INCOMPLETE = "task-incomplete" # fake "forced to be completed" state.
+
+    def get_priority(self) -> int:
+        #
+        # higher priority states are never overwritten by lower
+        # priority states.
+        # Newer equal priority states overwrite existing states.
+        #
+        return {
+            self.INCOMPLETE: 1,
+            self.REVOKED: 2,
+            self.REVOKE_COMPLETED: 3,
+            self.SUCCEEDED: 4,
+        }.get(
+            self,
+            # many priorities are equal because any change is allowed,
+            # including failure due to retries. Not great data modelling that failure is non-terminal.
+            0)
+
+    def is_complete(
+        self,
+        # There are gotchas here, FAILED isn't "really" terminal
+        # in the presence of retries, so allow callers to track
+        # total task completion independently if they want complete accuracy.
+        # by default failed is considered complete.
+        has_completed: Optional[bool]=None,
+    ):
+        complete_states = [
+            RunStates.SUCCEEDED,
+            RunStates.REVOKE_COMPLETED,
+            RunStates.INCOMPLETE,
+        ]
+        if has_completed is None:
+            complete_states.append(RunStates.FAILED)
+        elif has_completed is True:
+            complete_states += [RunStates.FAILED, RunStates.REVOKED]
+
+        return self in complete_states
+
+    def to_celery_event_type(self) -> str:
+        return self.value
+
+    def to_ui_state(self) -> str:
+        # task states are now the same as their corresponding Celery event types.
+        return self.to_celery_event_type()
+
+    def is_revoke(self) -> bool:
+        return self in [RunStates.REVOKE_COMPLETED, RunStates.REVOKED]
+
+    @staticmethod
+    def celery_event_type_to_ui_state(celery_event_type: Optional[str]) -> Optional[str]:
+        try:
+            state =  RunStates(celery_event_type)
+        except ValueError:
+            return None
+        else:
+            # THE UI treats revoke started and revoke completed the same,
+            # so we normalise revoke completed to revoke started.
+            if state == RunStates.REVOKE_COMPLETED:
+                state = RunStates.REVOKED
+
+            return state.to_celery_event_type()
+
+    @staticmethod
+    def is_complete_state(task_state: Any, has_completed: Optional[bool]=None) -> bool:
+        try:
+            return RunStates(task_state).is_complete(has_completed=has_completed)
+        except ValueError:
+            return False
+
+    @staticmethod
+    def is_incomplete_state(task_state: Any, has_completed: Optional[bool]=None) -> bool:
+        try:
+            return not RunStates(task_state).is_complete(has_completed=has_completed)
+        except ValueError:
+            return False
+
+    @staticmethod
+    def get_forced_complete_celery_event_type(
+        task_state: Any,
+        has_completed: Optional[bool]=None,
+    ) -> str:
+        try:
+            state = RunStates(task_state)
+        except ValueError:
+            state = RunStates.INCOMPLETE
+        else:
+            if state == RunStates.REVOKED:
+                state =  RunStates.REVOKE_COMPLETED
+            elif not state.is_complete(has_completed=has_completed):
+                state = RunStates.INCOMPLETE
+
+        return state.to_celery_event_type()
+
+    @staticmethod
+    def get_higher_priority_state(
+        existing_state_str: Optional[str],
+        new_state_str: Optional[str],
+    ) -> str:
+        try:
+            existing_state = RunStates(existing_state_str)
+        except ValueError:
+            existing_state = None
+
+        try:
+            new_state = RunStates(new_state_str)
+        except ValueError:
+            new_state = None
+
+        chosen_state : RunStates
+        if existing_state and new_state:
+            existing_prio = existing_state.get_priority()
+            new_prio = new_state.get_priority()
+            if new_prio >= existing_prio:
+                chosen_state = new_state
+            else:
+                chosen_state = existing_state
+        elif existing_state:
+            chosen_state = existing_state
+        elif new_state:
+            chosen_state = new_state
+        else:
+            return new_state_str or ''
+
+        return chosen_state.to_celery_event_type()
 
 
-ALL_RUNSTATES = {
-    RunStates.RECEIVED.value: {'terminal': False},
-    RunStates.STARTED.value: {'terminal': False},
-    RunStates.BLOCKED.value: {'terminal': False},
-    RunStates.UNBLOCKED.value: {'terminal': False},
-    RunStates.SUCCEEDED.value: {'terminal': True},
-
-    # There are gotchas here, failed isn't "really" terminal
-    # in the presence of retries.
-    RunStates.FAILED.value: {'terminal': True},
-    RunStates.REVOKED.value: {'terminal': True},
-    RunStates.INCOMPLETE.value: {'terminal': True},  # server-side kludge state to fix tasks that will never complete.
+COMPLETE_RUNSTATES = {
+    s.to_celery_event_type() for s in RunStates if s.is_complete()
 }
-COMPLETE_RUNSTATES = {s for s, v in ALL_RUNSTATES.items() if v['terminal']}
-INCOMPLETE_RUNSTATES = {s for s, v in ALL_RUNSTATES.items() if not v['terminal']}
-
 
 class RunMetadataColumn(Enum):
     FIREX_ID = "firex_id"

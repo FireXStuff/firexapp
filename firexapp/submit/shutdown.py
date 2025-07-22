@@ -191,7 +191,7 @@ def init():
     return logs_dir, args.reason, args.celery_shutdown_timeout
 
 
-def shutdown_run(logs_dir, celery_shutdown_timeout, reason='No reason provided'):
+def _shutdown_run(logs_dir, celery_shutdown_timeout, reason='No reason provided'):
     logger.info(f"Shutting down due to reason: {reason}")
     logger.info(f"Shutting down with logs: {logs_dir}.")
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
@@ -200,7 +200,6 @@ def shutdown_run(logs_dir, celery_shutdown_timeout, reason='No reason provided')
     celery_manager = CeleryManager(logs_dir=logs_dir, broker=broker)
     celery_app = Celery(broker=broker.broker_url,
                         accept_content=['pickle', 'json'])
-
     try:
         if is_celery_responsive(broker, celery_app):
             revoke_active_tasks(broker, celery_app)
@@ -239,7 +238,7 @@ def shutdown_run(logs_dir, celery_shutdown_timeout, reason='No reason provided')
 def main() -> None:
     logs_dir, reason, celery_shutdown_timeout = init()
     try:
-        shutdown_run(logs_dir, celery_shutdown_timeout, reason)
+        _shutdown_run(logs_dir, celery_shutdown_timeout, reason)
     except BaseException:
         logger.exception("Shutdown failed.")
         raise
