@@ -22,8 +22,7 @@ import { mapGetters, mapState } from 'vuex';
 
 import * as api from '../api';
 import {
-  parseRecFileContentsToNodesByUuid, eventHub, twoDepthAssign, tasksViewKeyRouteChange,
-  fetchRunJson,
+  eventHub, twoDepthAssign, tasksViewKeyRouteChange, fetchRunJson,
 } from '../utils';
 import XError from './XError.vue';
 
@@ -74,11 +73,6 @@ export default {
     eventHub.$on('graph-refresh', () => { this.updateFullTasksState(this.liveUpdate); });
   },
   methods: {
-    fetchNodesByUuidFromRecFile(recFileUrl) {
-      return fetch(recFileUrl)
-        .then(r => r.text())
-        .then(recFileContent => parseRecFileContentsToNodesByUuid(recFileContent));
-    },
     setNodesByUuid(newNodesByUuid) {
       this.newTaskDataToDispatch = {};
       this.$store.dispatch('tasks/setTasks', newNodesByUuid);

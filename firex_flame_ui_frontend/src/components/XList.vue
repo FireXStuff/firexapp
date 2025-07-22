@@ -95,10 +95,12 @@ export default {
       Failed: ['task-failed'],
       // Note: task-incomplete is a server-side cludge to fix states that will never become
       // terminal.
-      Completed: ['task-revoked', 'task-failed', 'task-incomplete', 'task-shutdown',
-        'task-succeeded'],
+      Completed: [
+        'task-revoked', 'task-failed', 'task-incomplete', 'task-shutdown', 'task-succeeded',
+        'task-revoke-completed',
+      ],
       'In-Progress': ['task-received', 'task-blocked', 'task-started'],
-      Revoked: ['task-revoked'],
+      Revoked: ['task-revoked', 'task-revoke-completed'],
     };
     return {
       selectedOptions: {

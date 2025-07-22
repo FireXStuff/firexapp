@@ -9,74 +9,8 @@ const FIREX_ID_REGEX = new RegExp(FIREX_ID_REGEX_STR);
 
 const ACCEPT_JSON_HTTP_HEADER = { Accept: 'application/json' };
 
-const TASK_STATE_SUCCEEDED = 'task-succeeded';
 const TASK_STATE_FAILED = 'task-failed';
 
-function captureEventState(event, tasksByUuid, taskNum) {
-  let isNew = false;
-  if (!_.has(event, 'uuid')) {
-    // log
-    return isNew;
-  }
-
-  const taskUuid = event.uuid;
-  let task;
-  if (!_.has(tasksByUuid, taskUuid)) {
-    isNew = true;
-    task = { uuid: taskUuid, task_num: taskNum };
-    tasksByUuid[taskUuid] = task;
-  } else {
-    task = tasksByUuid[taskUuid];
-  }
-
-  const copyFields = ['hostname', 'parent_id', 'type', 'retries', 'firex_bound_args', 'flame_additional_data',
-    'actual_runtime', 'support_location', 'utcoffset', 'type', 'code_url', 'firex_default_bound_args',
-    'from_plugin', 'chain_depth', 'firex_result', 'exception', 'traceback'];
-  copyFields.forEach((field) => {
-    if (_.has(event, field)) {
-      task[field] = event[field];
-    }
-  });
-
-  const fieldsToTransforms = {
-    name(e) {
-      return { name: _.last(e.name.split('.')), long_name: e.name };
-    },
-    type(e) {
-      const stateTypes = ['task-received', 'task-blocked', 'task-started', 'task-succeeded', 'task-shutdown',
-        'task-failed', 'task-revoked', 'task-incomplete', 'task-unblocked'];
-      if (_.includes(stateTypes, e.type)) {
-        return { state: e.type };
-      }
-      return {};
-    },
-    url(e) {
-      return { logs_url: e.url };
-    },
-  };
-
-  _.keys(fieldsToTransforms).forEach((field) => {
-    if (_.has(event, field)) {
-      tasksByUuid[taskUuid] = _.merge(tasksByUuid[taskUuid], fieldsToTransforms[field](event));
-    }
-  });
-
-  return isNew;
-}
-
-function parseRecFileContentsToNodesByUuid(recFileContents) {
-  let taskNum = 1;
-  const tasksByUuid = {};
-  recFileContents.split(/\r?\n/).forEach((line) => {
-    if (line && line.trim()) {
-      const isNewTask = captureEventState(JSON.parse(line), tasksByUuid, taskNum);
-      if (isNewTask) {
-        taskNum += 1;
-      }
-    }
-  });
-  return tasksByUuid;
-}
 
 function getRoot(tasksByUuid) {
   // TODO: error handling for not exactly 1 root
@@ -275,7 +209,7 @@ const statusToProps = {
     priority: 1,
     display: 'In-Progress',
   },
-  [[TASK_STATE_SUCCEEDED]]: {
+  'task-succeeded': {
     background: successGreen,
     priority: 9,
     display: 'Success',
@@ -291,6 +225,11 @@ const statusToProps = {
     display: 'Failed',
   },
   'task-revoked': {
+    background: '#F40',
+    priority: 4,
+    display: 'Revoked',
+  },
+  'task-revoke-completed': {
     background: '#F40',
     priority: 4,
     display: 'Revoked',
@@ -611,7 +550,6 @@ const eventHub = new Vue();
 const isDebug = process.env.NODE_ENV !== 'production';
 
 export {
-  parseRecFileContentsToNodesByUuid,
   eventHub,
   calculateNodesPositionByUuid,
   getCenteringTransform,
