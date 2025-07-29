@@ -1,5 +1,13 @@
 import _ from 'lodash';
 
+const EMPTY_RUN_JSON = Object.freeze(
+  {
+    firex_id: null,
+    revoked: null,
+    revoked_details: null,
+  }
+)
+
 const metaDataState = {
   uid: null,
   logs_dir: null,
@@ -10,7 +18,7 @@ const metaDataState = {
   run_complete: null,
   revoke_reason: null,
   revoke_timestamp: null,
-  revokedDetails: {},
+  run_json: EMPTY_RUN_JSON,
 };
 
 
@@ -18,8 +26,14 @@ const metaDataState = {
 const getters = {
 
   revokeDetails: state => {
-    if (_.get(state.revokedDetails, 'revokeTimestamp')) {
-      return state.revokedDetails;
+    const revoked_details = state.run_json.revoked_details;
+    if (!_.isEmpty(revoked_details)) {
+      return {
+        isRevoked: state.run_json.revoked,
+        revokeReason: revoked_details.reason,
+        revokeTimestamp: revoked_details.revoke_start_time,
+        revokingUser: revoked_details.revoking_user,
+      }
     }
     return { // legacy.
       isRevoked: Boolean(state.revoke_timestamp),
@@ -43,17 +57,16 @@ const actions = {
 // mutations
 const mutations = {
   setFlameRunMetadata(state, firexRunMetadata) {
-    _.each(_.keys(metaDataState), (k) => {
+    _.each(_.keys(firexRunMetadata), (k) => {
       state[k] = _.get(firexRunMetadata, k, null);
     });
   },
   setRunJson(state, runJson) {
     // TODO: get run complete from run.json too?
-    state.revokedDetails = {
-      isRevoked: _.get(runJson, 'revoked'),
-      revokeReason: _.get(runJson, 'revoked_details.reason'),
-      revokeTimestamp: _.get(runJson, 'revoked_details.revoke_start_time'),
-      revokingUser: _.get(runJson, 'revoked_details.revoking_user'),
+    state.run_json = {
+      firex_id: _.get(runJson, 'firex_id'),
+      revoked: _.get(runJson, 'revoked'),
+      revoked_details: _.get(runJson, 'revoked_details'),
     }
   }
 };
