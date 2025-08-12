@@ -61,9 +61,10 @@ def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_c
         return
 
     # Let this signal cause self-destruct
-    submit_app.self_destruct(chain_details=(result, kwargs),
-                             reason=f'Root task completion ({result.state}) detected via postrun signal.',
-                             run_revoked=is_revoked)
+    submit_app.self_destruct(
+        chain_details=(result, kwargs),
+        reason=f'Root task completion ({result.state}) detected via postrun signal.',
+        run_revoked=is_revoked)
 
     logger.info("Root task post run signal completed")
 

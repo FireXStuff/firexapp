@@ -12,6 +12,7 @@ from getpass import getuser
 
 from celery import bootsteps
 from celery.worker.components import Hub
+import celery.exceptions
 
 from firexapp.application import get_app_tasks
 from firexapp.common import silent_mkdir, create_link, wait_until
@@ -29,6 +30,15 @@ from firexapp.engine.firex_revoke import RevokeDetails
 logger = get_task_logger(__name__)
 
 T = TypeVar('T', bound='FireXRunData')
+
+
+def norm_chain_names(chain) -> list[str]:
+    try:
+        return [t.short_name for t in get_app_tasks(chain)]
+    except celery.exceptions.NotRegistered:
+        if isinstance(chain, str):
+            chain = chain.split(',')
+        return [s.strip().split('.')[-1] for s in chain]
 
 @dataclasses.dataclass
 class FireXRunData:
@@ -58,7 +68,7 @@ class FireXRunData:
         inputs: dict[str, Any],
     ) -> 'FireXRunData':
         if chain:
-            chain = [t.short_name for t in get_app_tasks(chain)]
+            chain = norm_chain_names(chain)
 
         viewers = uid.viewers or {}
         _extra_fields = dict(viewers) # backwards compat
@@ -176,6 +186,19 @@ class FireXRunData:
 
         return report_link
 
+    def write_update_input_args(self, inputs: dict[str, Any]):
+        self.inputs = {
+            k: v for k, v in inputs.items()
+            if k not in [
+                'uid', 'chain', 'submission_dir', 'argv',
+                'original_cli', 'json_file',
+            ]
+        }
+        try:
+            _write_run_json(self, _get_initial_run_json_path(self.logs_path))
+        except Exception as e:
+            logger.warning(f'Failed to update run.json with input args: {e}')
+
     def get_result(self, result_key, default=None):
         return (self.results or {}).get(RUN_RESULTS_NAME, {}).get(result_key, default)
 
@@ -266,6 +289,9 @@ class FireXRunData:
         self,
         query_services: Union[str, list[str]],
     ) -> bool:
+        if self.chain is None:
+            logger.debug(f'Run {self.firex_id} has no chain')
+            return False
         services = [query_services] if isinstance(query_services, str) else query_services
         lower_chain = [ s.lower() for s in self.chain]
         return any(
@@ -468,7 +494,7 @@ class FireXJsonReportGenerator:
         original_cli=None,
         json_file=None,
         **inputs,
-    ):
+    ) -> FireXRunData:
         run_info = FireXRunData.create_from_common_run_data(
             uid, chain, submission_dir, argv, original_cli, inputs,
         )
@@ -479,6 +505,8 @@ class FireXJsonReportGenerator:
             except FileExistsError:
                 logger.debug(f'{json_file} link already exist; '
                              f'post_run must have already created the link to {report_link}')
+
+        return run_info
 
     @classmethod
     def create_completed_run_json(

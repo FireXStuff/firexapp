@@ -295,7 +295,7 @@ def load_plugin_modules_from_env():
         load_plugin_modules(plugin_files)
 
 
-def merge_plugins(*plugin_lists) -> []:
+def merge_plugins(*plugin_lists) -> list[str]:
     """Merge  comma delimited lists of plugins into a single list. Right-handed most significant plugin"""
     combined_list = []
     for plugin_list in plugin_lists:

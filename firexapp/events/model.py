@@ -76,20 +76,6 @@ class RunStates(Enum):
         return self in [RunStates.REVOKE_COMPLETED, RunStates.REVOKED]
 
     @staticmethod
-    def celery_event_type_to_ui_state(celery_event_type: Optional[str]) -> Optional[str]:
-        try:
-            state =  RunStates(celery_event_type)
-        except ValueError:
-            return None
-        else:
-            # THE UI treats revoke started and revoke completed the same,
-            # so we normalise revoke completed to revoke started.
-            if state == RunStates.REVOKE_COMPLETED:
-                state = RunStates.REVOKED
-
-            return state.to_celery_event_type()
-
-    @staticmethod
     def is_complete_state(task_state: Any, has_completed: Optional[bool]=None) -> bool:
         try:
             return RunStates(task_state).is_complete(has_completed=has_completed)
