@@ -9,19 +9,21 @@ import enum
 import pytz
 from getpass import getuser
 
-
 from celery import bootsteps
 from celery.worker.components import Hub
 import celery.exceptions
+from celery.result import AsyncResult
 
 from firexapp.application import get_app_tasks
 from firexapp.common import silent_mkdir, create_link, wait_until
 from firexapp.submit.uid import FIREX_ID_REGEX, Uid
 from firexkit.result import (
-    get_run_results_from_root_task_promise,
+    create_unsuccessful_result,
     RUN_RESULTS_NAME,
     RUN_UNSUCCESSFUL_NAME,
+    get_results,
 )
+from celery.states import REVOKED, RETRY
 from firexkit.task import convert_to_serializable
 from celery.utils.log import get_task_logger
 from firexapp.engine.celery import app
@@ -479,7 +481,6 @@ def _run_json_link_path_from_logs_dir(logs_dir) -> str:
 
 
 class FireXJsonReportGenerator:
-    formatters = ('json',)
 
     reporter_dirname = 'json_reporter'
     initial_report_filename = 'initial_report.json'
@@ -512,7 +513,7 @@ class FireXJsonReportGenerator:
     def create_completed_run_json(
         cls,
         uid: Optional[Uid]=None,
-        run_revoked=True,
+        run_revoked: bool=True,
         chain=None,
         root_id=None,
         submission_dir=None,
@@ -520,7 +521,7 @@ class FireXJsonReportGenerator:
         original_cli=None,
         json_file=None,
         logs_dir: Optional[str]=None,
-        shutdown_reason=None,
+        shutdown_reason: Optional[str]=None,
         **inputs,
     ):
         if not logs_dir and uid is None:
@@ -544,7 +545,7 @@ class FireXJsonReportGenerator:
             )
 
         report_link = run_info.write_run_completed(
-            results=get_run_results_from_root_task_promise(root_id),
+            results=_get_run_results_from_root_task_promise(root_id, run_revoked, shutdown_reason),
             revoked=run_revoked and shutdown_reason,
             root_task_uuid=root_id.id if root_id else None,
         )
@@ -555,6 +556,29 @@ class FireXJsonReportGenerator:
                 create_link(report_link, json_file, delete_link=False, relative=True)
             except FileExistsError:
                 pass # This is expected for most cases
+
+
+def _get_run_results_from_root_task_promise(
+    root_task_ar: Optional[AsyncResult],
+    run_revoked: bool,
+    shutdown_reason: Optional[str],
+) -> dict[str, Any]:
+    if root_task_ar and root_task_ar.successful():
+        return get_results(root_task_ar)
+
+    failures = []
+    did_not_run = []
+    if run_revoked or (root_task_ar and root_task_ar.state in [REVOKED, RETRY]):
+        did_not_run = ['was revoked (i.e. cancelled)']
+    elif root_task_ar and root_task_ar.failed():
+        failures = [f"Run failed: {root_task_ar.result}"]
+    else:
+        failures = [f"Run failed before starting: {shutdown_reason or ''}"]
+
+    return {
+        RUN_RESULTS_NAME: {},
+        RUN_UNSUCCESSFUL_NAME: create_unsuccessful_result(failures, did_not_run)
+    }
 
 
 def _get_initial_run_json_path(logs_dir):
