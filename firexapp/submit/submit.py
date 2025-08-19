@@ -429,7 +429,7 @@ class SubmitBaseApp:
 
         # locate task objects
         try:
-            app_tasks = get_app_tasks(args.chain)
+            app_tasks = get_app_tasks(chain_args['chain'])
         except NotRegistered as e:
             reason = "Could not find task %s" % str(e)
             logger.error(reason)
