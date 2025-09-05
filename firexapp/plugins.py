@@ -178,7 +178,12 @@ def identify_duplicate_tasks(all_tasks, priority_modules: list) -> [[]]:
             return priority_modules.index(os.path.splitext(micro_name)[0])
         except ValueError:
             return -1
-    overrides = [sorted(long_names, key=priority_index) for long_names in unique_names.values() if len(long_names) > 1]
+
+    overrides = [
+        sorted(long_names, key=priority_index)
+        for long_names in unique_names.values()
+        if len(long_names) > 1
+    ]
     return overrides
 
 

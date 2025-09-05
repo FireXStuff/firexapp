@@ -8,6 +8,7 @@ import datetime
 import enum
 import pytz
 from getpass import getuser
+import psutil
 
 from celery import bootsteps
 from celery.worker.components import Hub
@@ -57,6 +58,7 @@ class FireXRunData:
     revoked: bool = False
     revoked_details: Optional['RevokeDetails'] = None
     completed_timestamp: Optional[datetime.datetime] = None
+    submit_proc_start_timestamp: Optional[datetime.datetime] = None
 
     _extra_fields: dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -68,6 +70,7 @@ class FireXRunData:
         argv,
         original_cli,
         inputs: dict[str, Any],
+        submit_proc_start_timestamp: Optional[datetime.datetime]=None,
     ) -> 'FireXRunData':
         if chain:
             chain = norm_chain_names(chain)
@@ -86,6 +89,7 @@ class FireXRunData:
             viewers=viewers,
             inputs=inputs,
             _extra_fields=_extra_fields,
+            submit_proc_start_timestamp=submit_proc_start_timestamp,
         )
 
     @classmethod
@@ -407,6 +411,19 @@ class FireXRunData:
             self.logs_path
         )
 
+    def get_proc_duration(self) -> Optional[float]:
+        if self.submit_proc_start_timestamp:
+            if self.completed_timestamp:
+                end_time = self.completed_timestamp
+            elif not self.completed:
+                end_time = datetime.datetime.now(datetime.timezone.utc)
+            else:
+                end_time = None
+
+            if end_time:
+                return (end_time - self.submit_proc_start_timestamp).total_seconds()
+        return None
+
 def _get_completed_revoke_details(
     logs_dir: str,
     shutdown_revoke_reason: str,
@@ -498,6 +515,10 @@ class FireXJsonReportGenerator:
     ) -> FireXRunData:
         run_info = FireXRunData.create_from_common_run_data(
             uid, chain, submission_dir, argv, original_cli, inputs,
+            submit_proc_start_timestamp=datetime.datetime.fromtimestamp(
+                psutil.Process().create_time(),
+                tz=datetime.timezone.utc
+            )
         )
         report_link = run_info.write_initial_run_json()
         if json_file:
@@ -569,7 +590,9 @@ def _get_run_results_from_root_task_promise(
     failures = []
     did_not_run = []
     if run_revoked or (root_task_ar and root_task_ar.state in [REVOKED, RETRY]):
-        did_not_run = ['was revoked (i.e. cancelled)']
+        did_not_run = [
+            f'was revoked (i.e. cancelled){f" due to: {shutdown_reason}" if shutdown_reason else ""}'
+        ]
     elif root_task_ar and root_task_ar.failed():
         failures = [f"Run failed: {root_task_ar.result}"]
     else:

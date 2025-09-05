@@ -217,7 +217,11 @@ class SubmitBaseApp:
 
     def convert_chain_args(self, chain_args) -> dict:
         with self.graceful_exit_on_failure("The arguments you provided have errors."):
-            return InputConverter.convert(**chain_args)
+            converted_args = InputConverter.convert(**chain_args)
+            chain_excluded_infra_args = ['json_file', 'json_args_path']
+            for a in chain_excluded_infra_args:
+                converted_args.pop(a, None)
+            return converted_args
 
     def run_submit(self, args, others):
         self.is_sync = args.sync
