@@ -218,7 +218,12 @@ class SubmitBaseApp:
     def convert_chain_args(self, chain_args) -> dict:
         with self.graceful_exit_on_failure("The arguments you provided have errors."):
             converted_args = InputConverter.convert(**chain_args)
-            chain_excluded_infra_args = ['json_file', 'json_args_path']
+            chain_excluded_infra_args = [
+                # 'json_file', # should be exlcuded too since just top-level infra (start/complete)
+                # should be reasoning with 'json_file', but it's embedded in chain_args. Ideally
+                # chain args would be the args received by the chain in --chain <chain>, but
+                # infra args are also in there.
+                'json_args_path']
             for a in chain_excluded_infra_args:
                 converted_args.pop(a, None)
             return converted_args
