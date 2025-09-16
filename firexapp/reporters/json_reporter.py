@@ -393,7 +393,7 @@ class FireXRunData:
         timeout: int=0,
     ) -> bool:
         return wait_until(
-            FireXRunData.is_run_json_complete,
+            cls.is_run_json_complete,
             logs_dir=logs_dir,
             firex_id=firex_id,
             timeout=timeout,
