@@ -54,7 +54,7 @@ class InterceptFlowTestConfiguration(FlowTestConfiguration):
         assert 0 == ret_value, "Expected return code of 0"
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        return cmd_err is None, "Intercept tests should not have errors"
+        assert not cmd_err, "Intercept tests should not have errors:\n{cmd_err}"
 
     @abc.abstractmethod
     def intercept_service(self)->str:

@@ -597,8 +597,7 @@ class SubmitBaseApp:
         if reason:
             mssg += '\n' + str(reason)
         logger.error(mssg)
-        if self.broker:
-            self.self_destruct(chain_details=chain_details, reason=reason, run_revoked=run_revoked)
+        self.self_destruct(chain_details=chain_details, reason=reason, run_revoked=run_revoked)
         if self.uid:
             self.copy_submission_log()
 
@@ -611,32 +610,34 @@ class SubmitBaseApp:
         _safe_create_completed_run_json(
             self.uid, chain_result, run_revoked, chain_args, reason
         )
-        if chain_result:
-            try:
-                logger.debug("Generating reports")
-                from firexapp.submit.reporting import ReportersRegistry
-                ReportersRegistry.post_run_report(
-                    results=chain_result,
-                    kwargs=chain_args)
-                logger.debug('Reports successfully generated')
-            except Exception:
-                # Under no circumstances should report generation prevent celery and broker cleanup
-                logger.error('Error in generating reports', exc_info=True)
-            finally:
-                # AsyncResult objects access self.backend when garbage collected. Since we're about to initiate a
-                # process to stop the backend, prevent all AsyncResult objects from accessing self.backend.
-                if is_async_result_monkey_patched_to_track():
-                    disable_all_async_results()
-                elif chain_result:
-                    disable_async_result(chain_result)
+        if self.broker:
+            if chain_result:
+                try:
+                    logger.debug("Generating reports")
+                    from firexapp.submit.reporting import ReportersRegistry
+                    ReportersRegistry.post_run_report(
+                        results=chain_result,
+                        kwargs=chain_args)
+                    logger.debug('Reports successfully generated')
+                except Exception:
+                    # Under no circumstances should report generation prevent celery and broker cleanup
+                    logger.error('Error in generating reports', exc_info=True)
+                finally:
+                    # AsyncResult objects access self.backend when garbage collected. Since we're about to initiate a
+                    # process to stop the backend, prevent all AsyncResult objects from accessing self.backend.
+                    if is_async_result_monkey_patched_to_track():
+                        disable_all_async_results()
+                    elif chain_result:
+                        disable_async_result(chain_result)
 
-        logger.debug("Running FireX self destruct")
-        launch_background_shutdown(self.uid.logs_dir,
-                                   reason,
-                                   getattr(self.submit_args,
-                                           'celery_shutdown_timeout',
-                                           DEFAULT_CELERY_SHUTDOWN_TIMEOUT)
-                                   )
+            logger.debug("Running FireX self destruct")
+            launch_background_shutdown(
+                self.uid.logs_dir,
+                reason,
+                getattr(
+                    self.submit_args,
+                    'celery_shutdown_timeout',
+                    DEFAULT_CELERY_SHUTDOWN_TIMEOUT))
 
         self.write_run_complete_file(self.uid.logs_dir)
 
