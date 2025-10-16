@@ -136,13 +136,17 @@ class RedisManager(BrokerManager):
             cmd += ' --host={self.host}'
         return cmd
 
+    # This property is not used, can remove it later
     @property
     def redis_server_cmd(self):
         return self.get_redis_server_cmd(self.port)
 
     def get_redis_server_cmd(self, port):
-        return self._redis_server_bin + ' --port %d --requirepass %s' \
-               % (port, self._password)
+        return [
+            self._redis_server_bin,
+            '--port', str(port),
+            '--requirepass', str(self._password)
+        ]
 
     @property
     def broker_url(self):
@@ -310,28 +314,34 @@ class RedisManager(BrokerManager):
         except RedisPortNotAssigned:
             port = get_available_port()
         self.log('Starting new process (port %d)...' % port)
-        cmd = self.get_redis_server_cmd(port) + ' ' + '--loglevel debug ' \
-                                                      '--protected-mode no ' \
-                                                      '--daemonize yes ' \
-                                                      '--timeout 0 ' \
-                                                      '--client-output-buffer-limit slave 0 0 0 ' \
-                                                      '--client-output-buffer-limit pubsub 0 0 0 ' \
-                                                      f'--dir {self.redis_dir} ' \
-                                                      '--maxclients 20000 ' \
-                                                      '--bind "*"'
+
+        # Build command as a list instead of a string to properly handle spaces
+        cmd = self.get_redis_server_cmd(port)
+        cmd.extend([
+            '--loglevel', 'debug',
+            '--protected-mode', 'no',
+            '--daemonize', 'yes',
+            '--timeout', '0',
+            '--client-output-buffer-limit', 'slave', '0', '0', '0',
+            '--client-output-buffer-limit', 'pubsub', '0', '0', '0',
+            '--dir', self.redis_dir,
+            '--maxclients', '20000',
+            '--bind', '*'
+        ])
+
         if save_db is False:
-            cmd += ' --save ""'
+            cmd.extend(['--save', ''])
         if self.pid_file:
-            cmd += f' --pidfile {self.pid_file}'
+            cmd.extend(['--pidfile', self.pid_file])
         if self.log_file:
-            cmd += f' --logfile {self.log_file}'
+            cmd.extend(['--logfile', self.log_file])
         if redis_server_extra_opts:
             self.log(f'Redis-server will be started with these extra opts: {redis_server_extra_opts}')
-            cmd += f' {redis_server_extra_opts}'
+            cmd.extend(shlex.split(redis_server_extra_opts))
 
         with TemporaryDirectory() as tmpdir:
             subprocess.check_call(
-                shlex.split(cmd),
+                cmd,
                 cwd=tmpdir,  # must be writeable or redis-server will fail.
             )
 
