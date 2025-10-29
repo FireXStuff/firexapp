@@ -29,21 +29,10 @@ def main():
 def import_microservices(
     plugins_files: Union[None, str, list[str]]=None,
     imports: Optional[tuple[str,...]]=None,
-) -> tuple[list, dict[str, str]]:
-    # Create mapping from original plugin paths to resolved full paths
-    plugin_path_mapping = {}
-    if plugins_files:
-        original_plugins = plugins_files.split(',') if isinstance(plugins_files, str) else plugins_files
-        resolved_plugins = cdl2list(plugins_files)
-        
-        # Build the mapping
-        for original, resolved in zip(original_plugins, resolved_plugins):
-            plugin_path_mapping[original.strip()] = resolved
-            
-        # Validate all resolved paths exist
-        for f in resolved_plugins:
-            if not os.path.isfile(f):
-                raise FileNotFoundError(f)
+) -> list:
+    for f in cdl2list(plugins_files):
+        if not os.path.isfile(f):
+            raise FileNotFoundError(f)
 
     from firexapp.engine.celery import app
 
@@ -55,7 +44,7 @@ def import_microservices(
 
     load_plugin_modules(plugins_files)
 
-    return app.tasks, plugin_path_mapping
+    return app.tasks
 
 
 def get_app_task(task_short_name: str, all_tasks=None):
