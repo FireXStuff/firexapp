@@ -37,7 +37,7 @@ def find_plugin_file(file_path: str) -> str:
     raise FileNotFoundError(file_path)
 
 
-def cdl2list(plugin_files: Union[None, str, list[str]]) -> list[str]:
+def convert_plugins_to_list(plugin_files: Union[None, str, list[str]]) -> list[str]:
     if not plugin_files:
         return []
 
@@ -46,6 +46,11 @@ def cdl2list(plugin_files: Union[None, str, list[str]]) -> list[str]:
             file.strip() for file in plugin_files.split(",")
         ]
 
+    return plugin_files
+
+
+def cdl2list(plugin_files: Union[None, str, list[str]]) -> list[str]:
+    plugin_files = convert_plugins_to_list(plugin_files)
     return [find_plugin_file(file) for file in plugin_files if file]
 
 

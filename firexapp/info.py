@@ -61,7 +61,7 @@ class InfoBaseApp:
 
     @staticmethod
     def print_available_microservices(plugins: str):
-        apps = import_microservices(plugins)
+        apps, _ = import_microservices(plugins)
         print()
         print("The following microservices are available:")
 
@@ -80,7 +80,7 @@ class InfoBaseApp:
 
     @staticmethod
     def print_argument_used(plugins: str):
-        all_tasks = import_microservices(plugins)
+        all_tasks, _ = import_microservices(plugins)
         print()
         print("The following arguments are used by microservices:")
         usage = get_argument_use(all_tasks)
@@ -107,7 +107,7 @@ class InfoBaseApp:
 
     def print_details(self, entity, plugins, all_tasks=None):
         if not all_tasks:
-            all_tasks = import_microservices(plugins)
+            all_tasks, _ = import_microservices(plugins)
 
         # Is this entity a microservice
         try:

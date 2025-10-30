@@ -425,7 +425,9 @@ class SubmitBaseApp:
 
             # IMPORT ALL THE MICROSERVICES
             # ONLY AFTER BROKER HAD STARTED
-            all_tasks = import_microservices(chain_args.get("plugins", args.plugins))
+            all_tasks, plugin_path_mapping = import_microservices(chain_args.get("plugins", args.plugins))
+            if plugin_path_mapping:
+                chain_args['plugin_path_mapping'] = plugin_path_mapping
         except FileNotFoundError as e:
             logger.error("\nError: FireX run failed. File %s is not found." % e)
             self.main_error_exit_handler(reason=str(e))
@@ -507,7 +509,7 @@ class SubmitBaseApp:
         chain_args['argv'] = sys.argv
         chain_args['json_file'] = args.json_file
 
-        whitelist_arguments(['submitter', 'submission_dir', 'argv'])
+        whitelist_arguments(['submitter', 'submission_dir', 'argv', 'plugin_path_mapping'])
 
         return chain_args
 

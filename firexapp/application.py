@@ -6,7 +6,7 @@ import json
 from typing import List, Union, Optional
 import sys
 
-from firexapp.plugins import load_plugin_modules, cdl2list
+from firexapp.plugins import convert_plugins_to_list, load_plugin_modules, cdl2list
 from firexapp.submit.console import setup_console_logging
 from firexkit.permissions import DEFAULT_UMASK
 
@@ -29,10 +29,17 @@ def main():
 def import_microservices(
     plugins_files: Union[None, str, list[str]]=None,
     imports: Optional[tuple[str,...]]=None,
-) -> list:
-    for f in cdl2list(plugins_files):
-        if not os.path.isfile(f):
-            raise FileNotFoundError(f)
+) -> tuple[list, dict[str, str]]:
+    original_plugins = convert_plugins_to_list(plugins_files)
+    resolved_plugins = cdl2list(original_plugins)
+    
+    # Create mapping from original plugin paths to resolved full paths
+    plugin_path_mapping = {}
+    # Build the mapping and validate files exist
+    for original, resolved in zip(original_plugins, resolved_plugins):
+        if not os.path.isfile(resolved):
+            raise FileNotFoundError(resolved)
+        plugin_path_mapping[original] = resolved
 
     from firexapp.engine.celery import app
 
@@ -44,7 +51,7 @@ def import_microservices(
 
     load_plugin_modules(plugins_files)
 
-    return app.tasks
+    return app.tasks, plugin_path_mapping
 
 
 def get_app_task(task_short_name: str, all_tasks=None):
