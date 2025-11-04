@@ -390,7 +390,7 @@ class FireXRunData:
         cls,
         logs_dir: Optional[str]=None,
         firex_id: Optional[str]=None,
-        timeout: int=0,
+        timeout: float=0,
     ) -> bool:
         return wait_until(
             cls.is_run_json_complete,
@@ -400,7 +400,7 @@ class FireXRunData:
             sleep_for=0.5,
         )
 
-    def wait(self, timeout: int) -> bool:
+    def wait(self, timeout: float) -> bool:
         return self.wait_for_run_json_complete(
             logs_dir=self.logs_path,
             timeout=timeout,

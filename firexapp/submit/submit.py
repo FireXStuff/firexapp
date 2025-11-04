@@ -216,7 +216,7 @@ class SubmitBaseApp:
         return submit_parser
 
     def convert_chain_args(self, chain_args) -> dict:
-        with self.graceful_exit_on_failure("The arguments you provided have errors."):
+        with self.graceful_exit_on_failure("The arguments you provided have errors:"):
             converted_args = InputConverter.convert(**chain_args)
             chain_excluded_infra_args = [
                 # 'json_file', # should be exlcuded too since just top-level infra (start/complete)
@@ -469,12 +469,12 @@ class SubmitBaseApp:
             self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
 
-        with self.graceful_exit_on_failure("Failed to start tracking service"):
+        with self.graceful_exit_on_failure("Failed to start tracking service:"):
             # Start any tracking services to monitor, track, and present the state of the run
             chain_args.update(self.start_tracking_services(args, **chain_args))
 
         # Start Celery
-        with self.graceful_exit_on_failure("Unable to start Celery."):
+        with self.graceful_exit_on_failure("Unable to start Celery:"):
             self.start_celery(args, chain_args.get("plugins", args.plugins))
         return chain_args
 
@@ -679,17 +679,18 @@ class SubmitBaseApp:
         try:
             yield
         except Exception as e:
-            logger.debug(traceback.format_exc())
+            logger.debug(e, exc_info=True)
             self.error_banner(e, banner_title=failure_caption)
-            self.main_error_exit_handler(reason=failure_caption)
+            self.main_error_exit_handler(reason=f'{failure_caption} {e}')
             sys.exit(-1)
 
 
-def get_firex_id_from_output(cmd_output: str)->str:
+def get_firex_id_from_output(cmd_output: str) -> Optional[str]:
     for line in cmd_output.splitlines():
         match = re.match('.*FireX ID: (.*)', line)
         if match:
             return match.group(1)
+    return None
 
 
 def get_log_dir_from_output(cmd_output: str)->str:

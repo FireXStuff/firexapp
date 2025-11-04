@@ -12,6 +12,7 @@ from firexapp.plugins import PLUGINS_ENV_NAME, cdl2list
 from firexapp.fileregistry import FileRegistry
 from collections.abc import Iterable
 from firexapp.common import qualify_firex_bin
+from typing import Optional
 
 logger = setup_console_logging(__name__)
 
@@ -219,9 +220,11 @@ class CeleryManager(object):
         pid = self.get_pid_from_file(pid_file)
         self.log('pid %d became active' % pid)
 
-    def start(self, workername, queues=None, wait=True, timeout=15*60, concurrency=None, worker_log_level=None,
-              app=None, cap_concurrency=None, cwd=None, soft_time_limit=None, autoscale: tuple = None,
-              detach: bool = True):
+    def start(self,
+        workername, queues=None, wait=True, timeout=15*60, concurrency=None, worker_log_level=None,
+        app=None, cap_concurrency=None, cwd=None, soft_time_limit=None, autoscale: Optional[tuple] = None,
+        detach: bool = True,
+    ):
 
         # Override defaults if applicable
         worker_log_level = worker_log_level if worker_log_level else self.worker_log_level
