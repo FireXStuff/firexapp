@@ -197,7 +197,7 @@ class NoBrokerLeakOnCeleryFailure(NoBrokerLeakBase):
         return ["submit", "--chain", "nop", "--plugin", bad_plugin]
 
     def expected_error(self):
-        return "Unable to start Celery."
+        return "Unable to start Celery"
 
     def assert_expected_return_code(self, ret_value):
         pass  # it's better if the test fails on the redis leak
