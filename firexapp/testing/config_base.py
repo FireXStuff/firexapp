@@ -32,13 +32,11 @@ class FlowTestConfiguration(object):
     def initial_firex_options(self)->list:
         pass
 
-    @abc.abstractmethod
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        pass
+        assert not cmd_err, f'Unexpected stderr: {cmd_err}'
 
-    @abc.abstractmethod
     def assert_expected_return_code(self, ret_value):
-        pass
+        assert_is_good_run(ret_value)
 
     def cleanup(self):
         pass
@@ -46,27 +44,6 @@ class FlowTestConfiguration(object):
     @staticmethod
     def get_extra_run_env():
         return {}
-
-class InterceptFlowTestConfiguration(FlowTestConfiguration):
-    __metaclass__ = abc.ABCMeta
-
-    def assert_expected_return_code(self, ret_value):
-        assert 0 == ret_value, "Expected return code of 0"
-
-    def assert_expected_firex_output(self, cmd_output, cmd_err):
-        assert not cmd_err, "Intercept tests should not have errors:\n{cmd_err}"
-
-    @abc.abstractmethod
-    def intercept_service(self)->str:
-        """
-            Name of the microservice that will be mocked into the validator capturing the options that get compared by
-            assertExpectedOptions()
-        """
-        pass
-
-    @abc.abstractmethod
-    def assert_expected_options(self, captured_kwargs):
-        pass
 
 
 def assert_is_bad_run(ret_value):
@@ -106,22 +83,23 @@ def discover_tests(tests, config_filter="") -> list:
     return configs
 
 
-def import_test_configs(path) -> []:
+def import_test_configs(path) -> list[FlowTestConfiguration]:
     # dynamically load module
     if not os.path.exists(path):
         raise FileNotFoundError(path)
-    if (__file__ in path or
-            "pycache" in path or  # We don't need to look at the cache
-            os.path.basename(path) == "data"):  # By convention, a "data" directory will contain artifacts for the tests
+    if (
+        __file__ in path or
+        "pycache" in path or  # We don't need to look at the cache
+        os.path.basename(path) == "data" # By convention, a "data" directory will contain artifacts for the tests
+    ):
         return []
 
     config_objects = []
-    if os.path.isfile(path):
-        if os.path.splitext(path)[1] != ".py":
-            return []
-        if os.path.basename(__file__) == os.path.basename(path):
-            return []
-
+    if (
+        path.endswith('.py')
+        and os.path.basename(__file__) != os.path.basename(path)
+        and os.path.isfile(path)
+    ):
         sys.path.append(os.path.dirname(os.path.abspath(path)))
         module = import_module(os.path.splitext(os.path.basename(path))[0])
 
@@ -135,8 +113,8 @@ def import_test_configs(path) -> []:
 
     elif os.path.isdir(path):
         results_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
-        if os.path.normpath(path) == os.path.normpath(results_folder):
-            return []
-        for sub_path in [os.path.join(path, f) for f in os.listdir(path)]:
-            config_objects += import_test_configs(sub_path)
+        if os.path.normpath(path) != os.path.normpath(results_folder):
+            for sub_path in [os.path.join(path, f) for f in os.listdir(path)]:
+                config_objects += import_test_configs(sub_path)
+
     return config_objects

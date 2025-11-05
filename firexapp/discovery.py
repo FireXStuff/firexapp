@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 from collections import OrderedDict, namedtuple
-from typing import Dict, List, Tuple
+from typing import Dict
 
 from entrypoints import EntryPoint
 
@@ -18,25 +18,13 @@ class PkgVersionInfo(namedtuple('PkgVersionInfo', ('pkg', 'version', 'commit'), 
         return f'{self.pkg}: {self.version or self.commit}'
 
 
-def _get_paths_without_cwd() -> [str]:
-    # This is needed because Celery temporarily adds the cwd into the sys.path via a context switcher,
-    # and our discovery takes place inside that context.
-    # Having cwd in the sys.path can slow down the discovery significantly without any benefit.
-    paths = list(sys.path)
-    try:
-        paths.remove(os.getcwd())
-    except ValueError:  # pragma: no cover
-        pass
-    return paths
-
-
 #
 # In case there are duplicate modules found, only keep one for each
 #   (name, module_name, object_name) tuple. This prevents duplicate
 #   arg registration failures when the sys.path causes the same service
 #   to be found twice.
 #
-def prune_duplicate_module_entry_points(entry_points) -> [EntryPoint]:
+def prune_duplicate_module_entry_points(entry_points) -> list[EntryPoint]:
     id_to_entry_points = OrderedDict()
 
     for e in entry_points:
@@ -50,7 +38,7 @@ def prune_duplicate_module_entry_points(entry_points) -> [EntryPoint]:
     return list(id_to_entry_points.values())
 
 
-def _get_entrypoints(name, prune_duplicates=True, path=None) -> [EntryPoint]:
+def _get_entrypoints(name, prune_duplicates=True, path=None) -> list[EntryPoint]:
     import entrypoints
     if path is not None and not isinstance(path, list):
         path = [path]
@@ -64,14 +52,14 @@ def loaded_firex_core_entry_points(path=None) -> Dict[EntryPoint, object]:
     return _load_firex_entry_points('firex.core', path=path)
 
 
-def loaded_firex_bundles_entry_points(path=None) -> Dict[EntryPoint, object]:
+def _loaded_firex_bundles_entry_points(path) -> dict[EntryPoint, object]:
     return _load_firex_entry_points('firex.bundles', path=path)
 
 
 def loaded_firex_entry_points(path=None):
     cores = loaded_firex_core_entry_points(path=path)
-    bundles = loaded_firex_bundles_entry_points(path=path)
-    return {**cores, **bundles}
+    bundles = _loaded_firex_bundles_entry_points(path=path)
+    return cores | bundles
 
 def _load_firex_entry_points(entrypoint_name, path=None) -> Dict[EntryPoint, object]:
     global _loaded_firex_bundles
@@ -133,9 +121,9 @@ def _find_bundle_pkg_root(path, namespace):
 # Return a list of two-element tuples
 # Where the 1st element is the path of package
 # and the 2nd element is the path of package's root
-def _get_firex_bundle_package_locations(path=None) -> List[Tuple[str, str]]:
+def _get_firex_bundle_package_locations(path=None) -> list[tuple[str, str]]:
     locations = []
-    loaded_entry_points = loaded_firex_bundles_entry_points(path=path)
+    loaded_entry_points = _loaded_firex_bundles_entry_points(path=path)
     for p in loaded_entry_points.values():
         namespace = p.__package__.split('.')[0]
         pkg_paths = p.__path__
@@ -173,8 +161,7 @@ def discover_package_modules(current_path, root_path=None) -> list[str]:
 def find_firex_task_bundles() -> list[str]:
     # look for task modules in dependant packages
     bundles = []
-    locations = _get_firex_bundle_package_locations()
-    for path, root_path in locations:
+    for path, root_path in _get_firex_bundle_package_locations():
         bundles += discover_package_modules(path, root_path)
     # look for task modules in env defined location
     if TASKS_DIRECTORY in os.environ:

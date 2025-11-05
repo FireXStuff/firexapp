@@ -9,6 +9,7 @@ import sys
 from firexapp.plugins import convert_plugins_to_list, load_plugin_modules, cdl2list
 from firexapp.submit.console import setup_console_logging
 from firexkit.permissions import DEFAULT_UMASK
+from firexkit.task import FireXTask
 
 logger = setup_console_logging(__name__)
 
@@ -29,10 +30,12 @@ def main():
 def import_microservices(
     plugins_files: Union[None, str, list[str]]=None,
     imports: Optional[tuple[str,...]]=None,
-) -> tuple[list, dict[str, str]]:
+) -> tuple[
+    dict[str, FireXTask],
+    dict[str, str]]:
     original_plugins = convert_plugins_to_list(plugins_files)
     resolved_plugins = cdl2list(original_plugins)
-    
+
     # Create mapping from original plugin paths to resolved full paths
     plugin_path_mapping = {}
     # Build the mapping and validate files exist
