@@ -465,6 +465,15 @@ class FireXRunStatus(str, enum.Enum):
     def is_revoked(self) -> bool:
         return self == FireXRunStatus.REVOKED
 
+    def is_failed(self) -> bool:
+        return self == FireXRunStatus.SOME_FAILED
+
+    def is_success(self) -> bool:
+        return self == FireXRunStatus.SUCCESS
+
+    def is_running(self) -> bool:
+        return self == FireXRunStatus.RUNNING
+
     def is_complete(self) -> bool:
         return self != FireXRunStatus.RUNNING
 

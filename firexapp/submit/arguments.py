@@ -205,6 +205,10 @@ def whitelist_arguments(argument_list: Union[str, list]):
     _global_argument_whitelist |= set(argument_list)
 
 
+def get_global_args_allowlist() -> frozenset[str]:
+    return frozenset(_global_argument_whitelist)
+
+
 def find_unused_arguments(chain_args: {}, ignore_list: [], all_tasks: []):
     """
     Function to detect any arguments that are not explicitly consumed by any microservice.
