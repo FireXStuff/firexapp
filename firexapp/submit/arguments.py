@@ -4,6 +4,7 @@ import re
 from firexkit.argument_conversion import ConverterRegister
 from typing import Union
 from firexapp.submit.console import setup_console_logging
+from firexapp.plugins import _plugins_has
 
 
 logger = setup_console_logging(__name__)
@@ -176,7 +177,7 @@ def auto_load_pydev_debugging_plugin(kwargs):
 
     logger.debug("Debug detected")
     plugins = kwargs.get("plugins", "")
-    if "pydev_debug_plugin.py" in plugins:
+    if _plugins_has(plugins, "pydev_debug_plugin.py"):
         logger.debug("Debug plugin already included")
         return
 

@@ -21,6 +21,10 @@ class PluginLoadError(Exception):
     pass
 
 
+def _plugins_has(plugins: str, query_basename: str) -> bool:
+    return plugins == query_basename or f'/{query_basename}' in plugins
+
+
 def get_short_name(long_name: str) -> str:
     return long_name.split('.')[-1]
 
