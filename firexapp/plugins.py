@@ -21,7 +21,7 @@ class PluginLoadError(Exception):
     pass
 
 
-def _plugins_has(plugins: str, query_basename: str) -> bool:
+def plugins_has(plugins: str, query_basename: str) -> bool:
     return plugins == query_basename or f'/{query_basename}' in plugins
 
 
