@@ -21,8 +21,23 @@ class PluginLoadError(Exception):
     pass
 
 
-def plugins_has(plugins: str, query_basename: str) -> bool:
-    return plugins == query_basename or f'/{query_basename}' in plugins
+def plugins_has(plugins: Union[str, list[str]], query_basename: str) -> bool:
+    """Check if a plugin basename is present in the plugins string or list.
+    
+    Args:
+        plugins: Either a comma-separated string of plugin paths or a list of plugin paths
+        query_basename: The basename of the plugin to search for (e.g., 'sparse_build.py')
+    
+    Returns:
+        True if the query_basename is found in plugins, False otherwise
+    """
+    if isinstance(plugins, list):
+        # Handle list of plugins
+        return any(
+            plugin == query_basename or plugin.endswith(f'/{query_basename}')
+            for plugin in plugins
+        )
+    return plugins == query_basename or plugins.endswith(f'/{query_basename}')
 
 
 def get_short_name(long_name: str) -> str:
