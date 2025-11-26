@@ -32,7 +32,7 @@ def get_service_name(service: TrackingService) -> str:
     return service.__class__.__name__
 
 
-def get_tracking_services() -> Optional[tuple[TrackingService]]:
+def get_tracking_services() -> tuple[TrackingService]:
     global _services
     if _services is None:
         entry_pts = get_firex_tracking_services_entry_points()

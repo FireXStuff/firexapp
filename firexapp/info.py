@@ -5,10 +5,10 @@ from celery.exceptions import NotRegistered
 
 from firexapp.discovery import get_all_pkg_versions_str
 from firexapp.plugins import plugin_support_parser
-from firexapp.application import import_microservices, get_app_task
-
+from firexapp.engine.firex_celery import FireXCelery
 
 class InfoBaseApp:
+
     def __init__(self):
         self._list_sub_parser = None
         self._info_sub_parser = None
@@ -59,9 +59,14 @@ class InfoBaseApp:
     def run_info(self, args):
         self.print_details(args.entity, args.plugins)
 
-    @staticmethod
-    def print_available_microservices(plugins: str):
-        apps, _ = import_microservices(plugins)
+    @classmethod
+    def get_app(cls) -> FireXCelery:
+        from firexapp.engine.celery import app
+        return app
+
+    @classmethod
+    def print_available_microservices(cls, plugins: str):
+        apps, _ = cls.get_app().import_services(plugins)
         print()
         print("The following microservices are available:")
 
@@ -78,9 +83,9 @@ class InfoBaseApp:
                 print(new, "->", old)
         print("\nUse the info sub-command for more details\n")
 
-    @staticmethod
-    def print_argument_used(plugins: str):
-        all_tasks, _ = import_microservices(plugins)
+    @classmethod
+    def print_argument_used(cls, plugins: str):
+        all_tasks, _ = cls.get_app().import_services(plugins)
         print()
         print("The following arguments are used by microservices:")
         usage = get_argument_use(all_tasks)
@@ -95,7 +100,7 @@ class InfoBaseApp:
             if not re.search(entity, task_name):
                 continue
             try:
-                task = get_app_task(task_name, all_tasks)
+                task = self.get_app().get_app_task(task_name, all_tasks)
             except NotRegistered:
                 continue
             else:
@@ -107,12 +112,12 @@ class InfoBaseApp:
 
     def print_details(self, entity, plugins, all_tasks=None):
         if not all_tasks:
-            all_tasks, _ = import_microservices(plugins)
+            all_tasks, _ = self.get_app().import_services(plugins)
 
         # Is this entity a microservice
         try:
             # Do we have a match on the full name?
-            task = get_app_task(entity, all_tasks)
+            task = self.get_app().get_app_task(entity, all_tasks)
         except NotRegistered:
             # Do we have a match on the partial name
             if self.print_partial_task_matches(entity, all_tasks):

@@ -12,11 +12,14 @@ from celery import Celery
 import redis.exceptions
 import kombu.exceptions
 
-from firexapp.celery_manager import CeleryManager
 from firexapp.submit.uid import Uid
 from firexapp.broker_manager.broker_factory import BrokerFactory, REDIS_BIN_ENV
 from firexapp.common import qualify_firex_bin, select_env_vars
-from firexkit.inspect import get_active, get_revoked, ping
+from firexkit.inspect import get_active, ping
+from firexapp.common import find_procs, wait_until
+from firexapp.engine.default_celery_config import RunEnvVars
+from firexapp.engine.firex_celery import FireXCelery
+
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +29,7 @@ MaybeCeleryActiveTasks = namedtuple('MaybeCeleryActiveTasks', ['celery_read_succ
 
 
 def _launch_shutdown_subprocess(shutdown_cmd: list[str], logs_dir: str) -> int:
-    shutdown_subprocess_env = select_env_vars([REDIS_BIN_ENV, 'PATH'])
+    shutdown_subprocess_env = select_env_vars([REDIS_BIN_ENV, 'PATH'] + RunEnvVars.env_var_names())
     shutdown_cwd = logs_dir if os.path.isdir(logs_dir) else tempfile.gettempdir()
     try:
         import detach # noqa
@@ -69,23 +72,6 @@ def launch_background_shutdown(logs_dir, reason, celery_shutdown_timeout=DEFAULT
         else:
             logger.error("SHUTDOWN PROCESS FAILED TO RUN -- REDIS WILL LEAK.")
             return None
-
-
-def wait_for_broker_shutdown(broker, timeout=15, force_kill=True):
-    logger.debug("Waiting for broker to shut down")
-    shutdown_wait_time = time.time() + timeout
-    while time.time() < shutdown_wait_time:
-        if not broker.is_alive():
-            break
-        time.sleep(0.1)
-
-    if not broker.is_alive():
-        logger.debug("Confirmed successful graceful broker shutdown.")
-    elif force_kill:
-        logger.debug(f"Warning! Broker was not shut down after {timeout} seconds. FORCE KILLING BROKER.")
-        broker.force_kill()
-
-    return not broker.is_alive()
 
 
 def _inspect_broker_safe(inspect_fn, broker, celery_app, **kwargs):
@@ -191,48 +177,37 @@ def init():
     return logs_dir, args.reason, args.celery_shutdown_timeout
 
 
-def _shutdown_run(logs_dir, celery_shutdown_timeout, reason='No reason provided'):
+def _shutdown_run(logs_dir: str, celery_shutdown_timeout, reason):
     logger.info(f"Shutting down due to reason: {reason}")
     logger.info(f"Shutting down with logs: {logs_dir}.")
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
     logger.info(f"Shutting down with broker: {broker.broker_url_safe_print}.")
 
-    celery_manager = CeleryManager(logs_dir=logs_dir, broker=broker)
-    celery_app = Celery(broker=broker.broker_url,
-                        accept_content=['pickle', 'json'])
+    fx_app = FireXCelery()
     try:
-        if is_celery_responsive(broker, celery_app):
-            revoke_active_tasks(broker, celery_app)
-
-            if is_celery_responsive(broker, celery_app):
-                # double check celery responsiveness since control.shutdown()
-                # can hang when broker is unresponsive, and broker might go
-                # down between is_celery_responsive
-                logger.info("Found active Celery; sending Celery shutdown.")
-                celery_app.control.shutdown()
-            else:
-                logger.info("Celery appears unresponsive")
-
-            celery_shutdown_success = celery_manager.wait_for_shutdown(celery_shutdown_timeout)
-            if not celery_shutdown_success:
-                logger.warning(f"Celery not shutdown after {celery_shutdown_timeout} secs, force killing instead.")
-                celery_manager.shutdown()
-            else:
-                logger.debug("Confirmed Celery shutdown successfully.")
-        elif celery_manager.find_all_procs():
-            logger.info("Celery not active, but found celery processes to force shutdown.")
-            celery_manager.shutdown()
-        else:
-            logger.info("No active Celery processes.")
+        FireXCelery().shutdown_firex_run(celery_shutdown_timeout=celery_shutdown_timeout)
     finally:
+        broker = fx_app.get_broker_mngr()
         if broker.is_alive():
             logger.info("Broker is alive; sending redis shutdown.")
             broker.shutdown()
-            wait_for_broker_shutdown(broker)
+
+            logger.debug("Waiting for broker to shut down")
+            broker_not_alive = wait_until(
+                lambda: not broker.is_alive(),
+                timeout=15,
+                sleep_for=0.1,
+            )
+            if broker_not_alive:
+                logger.debug("Confirmed successful graceful broker shutdown.")
         else:
             logger.info("No active Broker.")
 
     logger.info(f"Shutdown of {logs_dir} complete.")
+
+
+def _celery_procs_by_logs_dir(logs_dir: str) -> list:
+    return find_procs('celery', cmdline_contains=f'--logfile={logs_dir}')
 
 
 def main() -> None:

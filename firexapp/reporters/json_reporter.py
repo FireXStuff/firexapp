@@ -10,14 +10,11 @@ import pytz
 from getpass import getuser
 import psutil
 
-from celery import bootsteps
 from celery.worker.components import Hub
-import celery.exceptions
 from celery.result import AsyncResult
 
-from firexapp.application import get_app_tasks
 from firexapp.common import silent_mkdir, create_link, wait_until
-from firexapp.submit.uid import FIREX_ID_REGEX, Uid
+from firexapp.submit.uid import Uid
 from firexkit.result import (
     create_unsuccessful_result,
     RUN_RESULTS_NAME,
@@ -27,21 +24,12 @@ from firexkit.result import (
 from celery.states import REVOKED, RETRY
 from firexkit.task import convert_to_serializable
 from celery.utils.log import get_task_logger
-from firexapp.engine.celery import app
 from firexapp.engine.firex_revoke import RevokeDetails
+
 
 logger = get_task_logger(__name__)
 
 T = TypeVar('T', bound='FireXRunData')
-
-
-def norm_chain_names(chain) -> list[str]:
-    try:
-        return [t.short_name for t in get_app_tasks(chain)]
-    except celery.exceptions.NotRegistered:
-        if isinstance(chain, str):
-            chain = chain.split(',')
-        return [s.strip().split('.')[-1] for s in chain]
 
 @dataclasses.dataclass
 class FireXRunData:
@@ -65,15 +53,13 @@ class FireXRunData:
     @staticmethod
     def create_from_common_run_data(
         uid: Uid,
-        chain,
+        chain: list[str],
         submission_dir,
         argv,
         original_cli,
         inputs: dict[str, Any],
         submit_proc_start_timestamp: Optional[datetime.datetime]=None,
     ) -> 'FireXRunData':
-        if chain:
-            chain = norm_chain_names(chain)
 
         viewers = uid.viewers or {}
         _extra_fields = dict(viewers) # backwards compat
@@ -83,7 +69,7 @@ class FireXRunData:
             logs_path=uid.logs_dir,
             completed=False,
             chain=chain,
-            submission_host=app.conf.mc or gethostname(),
+            submission_host=gethostname(),
             submission_dir=submission_dir,
             submission_cmd=original_cli or list(argv or []),
             viewers=viewers,
@@ -192,7 +178,12 @@ class FireXRunData:
 
         return report_link
 
-    def write_update_input_args(self, inputs: dict[str, Any]):
+    def write_update_input_args(
+        self,
+        norm_chain: list[str],
+        inputs: dict[str, Any],
+    ):
+        self.chain = norm_chain
         self.inputs = {
             k: v for k, v in inputs.items()
             if k not in [
@@ -514,8 +505,8 @@ class FireXJsonReportGenerator:
 
     @staticmethod
     def create_initial_run_json(
-        uid,
-        chain,
+        uid: Uid,
+        chain: list[str],
         submission_dir,
         argv,
         original_cli=None,
@@ -544,7 +535,7 @@ class FireXJsonReportGenerator:
         cls,
         uid: Optional[Uid]=None,
         run_revoked: bool=True,
-        chain=None,
+        chain: Optional[list[str]]=None,
         root_id=None,
         submission_dir=None,
         argv=None,
@@ -571,7 +562,7 @@ class FireXJsonReportGenerator:
 
             # best effort -- not all termination contexts have access to all this data :/
             run_info = FireXRunData.create_from_common_run_data(
-                uid, chain, submission_dir, argv, original_cli, inputs,
+                uid, chain or [], submission_dir, argv, original_cli, inputs,
             )
 
         report_link = run_info.write_run_completed(
@@ -619,36 +610,3 @@ def _get_initial_run_json_path(logs_dir):
         FireXJsonReportGenerator.reporter_dirname,
         FireXJsonReportGenerator.initial_report_filename)
 
-
-class ReporterStep(bootsteps.StartStopStep):
-
-    def include_if(self, parent):
-        return parent.hostname.startswith(app.conf.primary_worker_name + '@')
-
-    def __init__(self, parent, **kwargs):
-        self._logs_dir = None
-        logfile = os.path.normpath(kwargs.get('logfile', '') or '')
-
-        while (sp := os.path.split(logfile))[0] != logfile:
-            m = FIREX_ID_REGEX.search(sp[1])
-            if m:
-                self._logs_dir = logfile
-                break
-            logfile = sp[0]
-
-        super().__init__(parent, **kwargs)
-
-    def stop(self, parent):
-        # By now, the report should have been written! Write a default completion report
-        if self._logs_dir:
-            FireXRunData.set_revoked_if_incomplete(
-                logs_dir=self._logs_dir,
-                shutdown_reason='Celery stop bootstep unexpectedly found incomplete run',
-            )
-
-
-app.steps['worker'].add(ReporterStep)
-
-# We want this step to finish after Pool at least (because a poolworker writes this file in the async case),
-# but might as well finish after Hub too
-Hub.requires = Hub.requires + (ReporterStep,)

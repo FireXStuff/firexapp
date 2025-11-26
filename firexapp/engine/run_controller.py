@@ -3,7 +3,6 @@ import logging
 
 from celery.app.base import Celery
 
-from firexapp.engine.celery import app
 from firexapp.reporters.json_reporter import RevokeDetails, FireXRunData
 
 logger = logging.getLogger(__name__)
@@ -13,7 +12,7 @@ class FireXRunController:
 
     def __init__(
         self,
-        celery_app: Celery=app,
+        celery_app: Celery,
         logs_dir: Optional[str]=None,
     ):
         assert celery_app or logs_dir, 'Must supply celery_app or logs_dir'
@@ -62,6 +61,10 @@ class FireXRunController:
         return FireXRunData.load_from_logs_dir(
             self.logs_dir,
         ).revoked
+
+    def get_worker_active_tasks(self, ) -> dict:
+        return {}
+
 
 _RUN_REVOKE_STARTED_KEY = 'ROOT_REVOKED'
 

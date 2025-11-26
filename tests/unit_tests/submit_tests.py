@@ -1,14 +1,15 @@
 import os
 import shutil
 import unittest
+import sys
 
-from celery import Celery
 from firexapp.application import FireXBaseApp, JSON_ARGS_PATH_ARG_NAME
 from firexapp.submit.arguments import get_chain_args, ChainArgException, InputConverter, convert_booleans, \
     find_unused_arguments, whitelist_arguments
 from firexapp.submit.uid import Uid
 from firexkit.argument_conversion import SingleArgDecorator
 from firexkit.task import FireXTask
+from firexapp.engine.firex_celery import FireXCelery
 
 
 class SubmitArgsTests(unittest.TestCase):
@@ -237,17 +238,24 @@ class InputConversionTests(unittest.TestCase):
         self.assertTrue(data["initial_arg"])
         self.assertTrue(data["first_dynamic_arg"])
 
+fa = FireXCelery.create_ut_fx_celery(sys.modules[__name__].__package__)
+
+
+@fa.task(bind=True)
+def micro_for_args_check_test(self, uid, ignored=True):
+    pass  # pragma: no cover
+
+@fa.task(bind=True)
+def micro_for_close_args_test(self, bypass_reason, short, ignored=True):
+    pass  # pragma: no cover
+
+arg_tasks = {
+    n: t for n, t in fa.tasks.items()
+    # ignore breaking service from other UT, need real task loading isolation :/
+    if n not in ['unit_tests.chain_tests.dup_return', 'unit_tests.chain_tests.double_return']
+}
 
 class ArgumentApplicabilityTests(unittest.TestCase):
-    test_app = Celery()
-
-    @test_app.task(base=FireXTask, bind=True)
-    def micro_for_args_check_test(self, uid, ignored=True):
-        pass  # pragma: no cover
-
-    @test_app.task(base=FireXTask, bind=True)
-    def micro_for_close_args_test(self, bypass_reason, short, ignored=True):
-        pass  # pragma: no cover
 
     @property
     def base_kwargs(self):
@@ -258,16 +266,16 @@ class ArgumentApplicabilityTests(unittest.TestCase):
         kwargs["uid"] = "valid stuff"
 
         kwargs["not_applicable"] = "invalid stuff"
-        unused, _ = find_unused_arguments(kwargs, ["chain"], self.test_app.tasks)
+        unused, _ = find_unused_arguments(kwargs, ["chain"], arg_tasks)
         self.assertEqual(len(unused), 1)
 
     def test_only_applicable(self):
-        unused, _ = find_unused_arguments({}, [], self.test_app.tasks)
+        unused, _ = find_unused_arguments({}, [], arg_tasks)
         self.assertEqual(len(unused), 0)
 
         kwargs = {'chain': 'noop',
                   'uid': 'FireX-mdelahou-161215-150725-21939'}
-        unused, _ = find_unused_arguments(kwargs, ["chain"], self.test_app.tasks)
+        unused, _ = find_unused_arguments(kwargs, ["chain"], arg_tasks)
         self.assertEqual(len(unused), 0)
 
     def test_white_list(self):
@@ -277,13 +285,13 @@ class ArgumentApplicabilityTests(unittest.TestCase):
                   'str_arg': "a str"}
         whitelist_arguments(["list_arg"])
         whitelist_arguments('str_arg')
-        unused, _ = find_unused_arguments(kwargs, ["chain", "anything"], self.test_app.tasks)
+        unused, _ = find_unused_arguments(kwargs, ["chain", "anything"], arg_tasks)
         self.assertEqual(len(unused), 0)
 
     def test_close_match(self):
         # Test for near match to 'bypass_reason' - ratio method
         kwargs = {'byepass_reason': 'True'}
-        unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
+        unused, close_matches = find_unused_arguments(kwargs, [], arg_tasks)
         self.assertEqual(len(unused), 1)
         self.assertEqual(list(unused.keys())[0], list(kwargs.keys())[0])
         self.assertEqual(len(close_matches), 1)
@@ -291,7 +299,7 @@ class ArgumentApplicabilityTests(unittest.TestCase):
 
         # Test for near match to 'short' - ratio method
         kwargs = {'sgort': 'True'}
-        unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
+        unused, close_matches = find_unused_arguments(kwargs, [], arg_tasks)
         self.assertEqual(len(unused), 1)
         self.assertEqual(list(unused.keys())[0], list(kwargs.keys())[0])
         self.assertEqual(len(close_matches), 1)
@@ -299,7 +307,7 @@ class ArgumentApplicabilityTests(unittest.TestCase):
 
         # Test for no near matches
         kwargs = {'a_completely_bogus_argument': 'doesnt_matter'}
-        unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
+        unused, close_matches = find_unused_arguments(kwargs, [], arg_tasks)
         self.assertEqual(len(unused), 1)
         self.assertEqual(list(unused.keys())[0], list(kwargs.keys())[0])
         self.assertEqual(len(close_matches), 0)

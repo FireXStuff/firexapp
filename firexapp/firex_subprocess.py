@@ -171,7 +171,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                        inactivity_timeout=30 * 60, monitor_activity_files=None, log_level=logging.DEBUG,
                        copy_file_path=None, shell=False, cwd=None, env=None, remove_firex_pythonpath=True,
                        logger=logger, stderr=subprocess.STDOUT, proc_stats: Optional[ProcStats] = None,
-                       stdin=subprocess.PIPE, bufsize=0, **kwargs):
+                       stdin=subprocess.PIPE, bufsize=0, file_mode='wb+', **kwargs):
     ##########################
     # Local Helper functions #
     ##########################
@@ -447,7 +447,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
         env = _get_env_without_pythonpath(env)
 
     if file:
-        f = open(file, 'wb+', buffering=0)
+        f = open(file, file_mode, buffering=0)
     else:
         f = tempfile.NamedTemporaryFile(delete=False, buffering=0)
     filename = f.name

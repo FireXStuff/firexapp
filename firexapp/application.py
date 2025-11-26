@@ -3,10 +3,9 @@ import signal
 import tempfile
 from argparse import ArgumentParser, RawTextHelpFormatter
 import json
-from typing import List, Union, Optional
+from typing import List
 import sys
 
-from firexapp.plugins import convert_plugins_to_list, load_plugin_modules, cdl2list
 from firexapp.submit.console import setup_console_logging
 from firexkit.permissions import DEFAULT_UMASK
 from firexkit.task import FireXTask
@@ -27,66 +26,10 @@ def main():
         app.run(sys_argv=sys.argv[1:])
 
 
-def import_microservices(
-    plugins_files: Union[None, str, list[str]]=None,
-    imports: Optional[tuple[str,...]]=None,
-) -> tuple[
-    dict[str, FireXTask],
-    dict[str, str]]:
-    original_plugins = convert_plugins_to_list(plugins_files)
-    resolved_plugins = cdl2list(original_plugins)
-
-    # Create mapping from original plugin paths to resolved full paths
-    plugin_path_mapping = {}
-    # Build the mapping and validate files exist
-    for original, resolved in zip(original_plugins, resolved_plugins):
-        if not os.path.isfile(resolved):
-            raise FileNotFoundError(resolved)
-        plugin_path_mapping[original] = resolved
-
-    from firexapp.engine.celery import app
-
-    if not imports:
-        imports = app.conf.imports
-
-    for module_name in imports:
-        __import__(module_name)
-
-    load_plugin_modules(plugins_files)
-
-    return app.tasks, plugin_path_mapping
-
-
-def get_app_task(task_short_name: str, all_tasks=None):
-    task_short_name = task_short_name.strip()
-    if all_tasks is None:
-        from firexapp.engine.celery import app
-        all_tasks = app.tasks
-
-    # maybe it isn't a short name, but a long one
-    if task_short_name in all_tasks:
-        return all_tasks[task_short_name]
-
-    # Search for an exact match first
-    for key, value in all_tasks.items():
-        if key.split('.')[-1] == task_short_name:
-            return value
-
-    # Let's do a case-insensitive search
-    task_name_lower = task_short_name.lower()
-    for key, value in all_tasks.items():
-        if key.split('.')[-1].lower() == task_name_lower:
-            return value
-
-    # Can't find a match
-    from celery.exceptions import NotRegistered
-    raise NotRegistered(task_short_name)
-
-
-def get_app_tasks(tasks, all_tasks=None):
-    if type(tasks) is str:
-        tasks = tasks.split(",")
-    return [get_app_task(task, all_tasks) for task in tasks]
+def get_app_task(task_short_name: str, all_tasks=None) -> FireXTask:
+    # kept for many legacy call-sites: always prefer method on FireXCelery
+    from firexapp.engine.firex_celery import FireXCelery
+    return FireXCelery.get_app_task(task_short_name, all_tasks)
 
 
 class JsonContentNotList(Exception):

@@ -8,10 +8,9 @@ from logging.handlers import WatchedFileHandler
 import html
 from celery.signals import after_setup_task_logger, after_setup_logger
 import os
-from firexapp.engine.celery import app
 from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
 from firexkit.firexkit_common import JINJA_ENV
-from celery._state import get_current_task
+
 from celery.utils import functional
 
 RAW_LEVEL_NAME = 'RAW'
@@ -147,6 +146,7 @@ class FireXFormatter(celery.utils.log.ColorFormatter):
 
 class FireXTaskFormatter(FireXFormatter):
     def format(self, record):
+        from celery._state import get_current_task
         task = get_current_task()
         if task and task.request:
             record.__dict__.update(task_id=task.request.id,
@@ -176,17 +176,19 @@ def configure_main_logger(logger, loglevel, logfile, format, colorize, **_kwargs
     # Deduce the worker name from the logfile, which is unfortunate
     worker_name = os.path.splitext(os.path.basename(logfile))[0]
     base_dir = os.path.dirname(logfile)
-    logs_url = app.conf.logs_url
+
+    from celery import current_app
+    logs_url = current_app.conf.logs_url
     if not logs_url:
-        logs_url = os.path.relpath(app.conf.logs_dir, base_dir)
+        logs_url = os.path.relpath(current_app.conf.logs_dir, base_dir)
 
     html_header = JINJA_ENV.get_template('log_template.html').render(
         worker_log=True,
-        firex_stylesheet=get_firex_css_filepath(app.conf.resources_dir, relative_from=base_dir),
-        logo=get_firex_logo_filepath(app.conf.resources_dir, relative_from=base_dir),
-        link_for_logo=app.conf.link_for_logo,
+        firex_stylesheet=get_firex_css_filepath(current_app.conf.resources_dir, relative_from=base_dir),
+        logo=get_firex_logo_filepath(current_app.conf.resources_dir, relative_from=base_dir),
+        link_for_logo=current_app.conf.link_for_logo,
         header_main_title=worker_name,
-        firex_id=app.conf.uid,
+        firex_id=current_app.conf.uid,
         logs_dir_url=logs_url)
     logger.raw(html_header)
 

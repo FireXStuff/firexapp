@@ -238,9 +238,8 @@ def find_unused_arguments(chain_args: {}, ignore_list: [], all_tasks: []):
 
     # build up used chain arg list
     used_chain_args = []
-    for _, task in all_tasks.items():
-        used_chain_args.extend(getattr(task, "required_args", []))
-        used_chain_args.extend(getattr(task, "optional_args", []))
+    for task in all_tasks.values():
+        used_chain_args.extend(task.required_args + list(task.optional_args.keys()))
 
     # Loop through used args and remove any found in unused list
     for used_arg in used_chain_args:

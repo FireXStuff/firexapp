@@ -15,10 +15,9 @@ from firexapp.submit.tracking_service import TrackingService, get_tracking_servi
 import firexapp.submit.tracking_service
 from firexapp.submit.submit import get_log_dir_from_output, RUN_COMPLETE_REGISTRY_KEY
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
-from firexapp.celery_manager import CeleryManager
 from firexapp.common import wait_until
 from firexapp.tasks.root_tasks import get_configured_root_task
-from firexapp.submit.shutdown import launch_background_shutdown
+from firexapp.submit.shutdown import launch_background_shutdown, _celery_procs_by_logs_dir
 
 
 from psutil import Process
@@ -55,9 +54,8 @@ class NoBrokerLeakBase(FlowTestConfiguration):
         expected_error = self.expected_error()
         assert expected_error in cmd_err, f"Different error expected; expected '{expected_error}', got '{cmd_err}'"
 
-    @abc.abstractmethod
     def expected_error(self):
-        pass
+        return ''
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
@@ -162,7 +160,7 @@ class FailingService(TrackingService):
             raise Exception("Failed to start service")
 
 
-existing_services = get_tracking_services()
+existing_services = [] #get_tracking_services()
 firexapp.submit.tracking_service._services = tuple(list(existing_services) + [FailingService()])
 
 
@@ -246,13 +244,14 @@ class AsyncNoBrokerLeakOnRootRevoke(NoBrokerLeakBase):
     def assert_expected_return_code(self, ret_value):
         assert_is_good_run(ret_value)
 
+from firexkit.firex_worker import FireXWorkerId, RunWorkerId
 
-@app.task
+@app.task()
 def terminate_celery(uid):
-    worker_name = app.conf.primary_worker_name
-    pid = CeleryManager.get_pid(uid.logs_dir, worker_name)
-    logger.info(f'Killing pid {pid} for {worker_name}')
-    Process(pid).kill()
+    RunWorkerId(
+        worker_id=FireXWorkerId.mc_id(),
+        logs_dir=uid.logs_dir,
+    ).terminate_pid_file(kill=True)
 
 
 class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
@@ -268,40 +267,21 @@ class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
     def assert_expected_return_code(self, ret_value):
         pass  # it's better if the test fails on the redis leak
 
-    def expected_error(self):
-        return ""
-
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         super().assert_expected_firex_output(cmd_output, cmd_err)
         logs_dir = get_log_dir_from_output(cmd_output)
-        existing_procs = []
-        celery_pids_dir = CeleryManager(logs_dir=logs_dir, broker=get_broker(cmd_output)).celery_pids_dir
-        for f in os.listdir(celery_pids_dir):
-            existing_procs += CeleryManager.find_procs(os.path.join(celery_pids_dir, f))
 
-        assert not existing_procs, "Expected no remaining celery processes, found: %s" % existing_procs
+        no_celery_procs = wait_until(lambda: not _celery_procs_by_logs_dir(logs_dir), 10, 0.5)
+        if not no_celery_procs:
+            existing_procs = _celery_procs_by_logs_dir(logs_dir)
+            assert not existing_procs, f"Expected no remaining celery processes, found: {existing_procs}"
 
         completion_file = FileRegistry().get_file(RUN_COMPLETE_REGISTRY_KEY, logs_dir)
         assert os.path.exists(completion_file), f'RUN_COMPLETED is expected to be found in {completion_file}'
 
 
 class AsyncNoBrokerLeakOnCeleryTerminated(NoBrokerLeakOnCeleryTerminated):
-    # TODO: note this test is slow because it deliberately waits 15s for normal celery shutdown.
-    # It might be worth making the celery shutdown timeout a parameter.
-
-    # It isn't completely clear why, but coverage causes the CI to hang after this test has completed.
-    no_coverage = True
     sync = False
-
-    def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "terminate_celery"]
-
-    def assert_expected_return_code(self, ret_value):
-        pass  # it's better if the test fails on the redis leak
-
-    def expected_error(self):
-        return ""
-
 
 class ShutdownDetachedFromParentProcess(NoBrokerLeakOnCeleryTerminated):
     # It isn't completely clear why, but coverage causes the CI to hang after this test has completed.

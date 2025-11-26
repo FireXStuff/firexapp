@@ -112,6 +112,7 @@ class Uid(object):
             self._logs_dir = self.create_logs_dir()
             self._debug_dir = self.create_debug_dir()
             self.copy_resources()
+            os.environ['firex_logs_dir'] = self.logs_dir
         return self._logs_dir
 
     @property

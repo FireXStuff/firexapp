@@ -1,15 +1,14 @@
 import os
 
 from importlib import import_module
-from celery import bootsteps
 from celery.signals import task_postrun
 from celery.states import REVOKED, RETRY
 from celery.utils.log import get_task_logger
 from firexkit.chain import InjectArgs
 from firexkit.result import find_unsuccessful_in_chain, get_results, RUN_RESULTS_NAME, RUN_UNSUCCESSFUL_NAME
 
-from firexapp.application import get_app_tasks
 from firexapp.engine.celery import app
+
 
 logger = get_task_logger(__name__)
 
@@ -18,7 +17,7 @@ logger = get_task_logger(__name__)
 @app.task(bind=True, returns=(RUN_RESULTS_NAME, RUN_UNSUCCESSFUL_NAME))
 def RootTask(self, chain, **chain_args):
     c = InjectArgs(chain=chain, **chain_args)
-    for task in get_app_tasks(chain):
+    for task in app.get_tasks_by_names(chain):
         c |= task.s()
     promise = self.enqueue_child(c, block=True, raise_exception_on_failure=False)
     chain_results = get_results(promise)
@@ -68,20 +67,3 @@ def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_c
 
     logger.info("Root task post run signal completed")
 
-
-class BrokerShutdown(bootsteps.StartStopStep):
-    """ This celery shutdown step will cleanup redis """
-    label = "Broker"
-
-    # noinspection PyMethodMayBeStatic
-    def shutdown(self, parent):
-        if parent.hostname.startswith(app.conf.primary_worker_name + "@"):
-            # shut down the broker
-            from firexapp.broker_manager.broker_factory import BrokerFactory
-            BrokerFactory.broker_manager_from_env(logs_dir=app.conf.get('logs_dir')).shutdown()
-            logger.debug("Broker shut down from boot step.")
-        else:
-            logger.debug("Not the primary celery instance. Broker will not be shut down.")
-
-
-app.steps['consumer'].add(BrokerShutdown)

@@ -93,8 +93,8 @@ def proc_matches(proc_info, pname, cmdline_regex, cmdline_contains):
         return False
 
 
-def find_procs(name, cmdline_regex=None, cmdline_contains=None):
-    matching_procs = []
+def find_procs(name, cmdline_regex=None, cmdline_contains=None) -> list[psutil.Process]:
+    matching_procs : list[psutil.Process] = []
     if cmdline_regex:
         cmdline_regex = re.compile(cmdline_regex)
     else:

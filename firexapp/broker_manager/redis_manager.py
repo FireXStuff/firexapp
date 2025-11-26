@@ -136,10 +136,6 @@ class RedisManager(BrokerManager):
             cmd += ' --host={self.host}'
         return cmd
 
-    @property
-    def redis_server_cmd(self):
-        return self.get_redis_server_cmd(self.port)
-
     def get_redis_server_cmd(self, port):
         return self._redis_server_bin + ' --port %d --requirepass %s' \
                % (port, self._password)
@@ -301,7 +297,7 @@ class RedisManager(BrokerManager):
             self.log('Creating %s' % self.password_file)
             data = {self._BROKER_PASSWORD_KEY: str(self._password)}
             # noinspection PyTypeChecker
-            with open(self.password_file, 'w',  opener=partial(os.open, mode=0o600)) as f:
+            with open(self.password_file, 'w', opener=partial(os.open, mode=0o600)) as f:
                 json.dump(data, f, sort_keys=True, indent=2)
 
     def _start(self, timeout=60, save_db: bool = False, redis_server_extra_opts: Optional[str]=None):
@@ -309,34 +305,42 @@ class RedisManager(BrokerManager):
             port = self.port
         except RedisPortNotAssigned:
             port = get_available_port()
-        self.log('Starting new process (port %d)...' % port)
-        cmd = self.get_redis_server_cmd(port) + ' ' + '--loglevel debug ' \
-                                                      '--protected-mode no ' \
-                                                      '--daemonize yes ' \
-                                                      '--timeout 0 ' \
-                                                      '--client-output-buffer-limit slave 0 0 0 ' \
-                                                      '--client-output-buffer-limit pubsub 0 0 0 ' \
-                                                      f'--dir {self.redis_dir} ' \
-                                                      '--maxclients 20000 ' \
-                                                      '--bind "*"'
+        self.log(f'Starting new process (port {port})...')
+
+        redis_server_cmd = [
+            self._redis_server_bin,
+            '--port', str(port),
+            '--requirepass', self._password,
+            '--loglevel', 'debug',
+            '--protected-mode', 'no',
+            '--daemonize', 'yes',
+            '--timeout', '0',
+            '--client-output-buffer-limit', 'slave', '0', '0', '0',
+            '--client-output-buffer-limit', 'pubsub', '0', '0', '0',
+            '--dir', self.redis_dir,
+            '--maxclients', '20000',
+            '--bind', '*',
+        ]
         if save_db is False:
-            cmd += ' --save ""'
+            redis_server_cmd += ['--save', '']
         if self.pid_file:
-            cmd += f' --pidfile {self.pid_file}'
+            redis_server_cmd += ['--pidfile', self.pid_file]
         if self.log_file:
-            cmd += f' --logfile {self.log_file}'
+            redis_server_cmd += ['--logfile', self.log_file]
         if redis_server_extra_opts:
-            self.log(f'Redis-server will be started with these extra opts: {redis_server_extra_opts}')
-            cmd += f' {redis_server_extra_opts}'
+            extra_opts_list = shlex.split(redis_server_extra_opts)
+            self.log(f'Redis-server will be started with these extra opts: {extra_opts_list}')
+            redis_server_cmd += extra_opts_list
 
         with TemporaryDirectory() as tmpdir:
             subprocess.check_call(
-                shlex.split(cmd),
-                cwd=tmpdir,  # must be writeable or redis-server will fail.
+                redis_server_cmd,
+                cwd=tmpdir, # must be writeable or redis-server will fail.
             )
 
         if not wait_until(os.path.exists, timeout, 0.1, self.pid_file):
             raise RedisDidNotBecomeActive(f'The Redis pid file {self.pid_file} did not exist within {timeout}s')
+
         self.wait_until_active(port=port, timeout=timeout)
         self.port = port
         self.create_password_file()
@@ -363,6 +367,7 @@ class RedisManager(BrokerManager):
                 if log_memory_info:
                     self.save_memory_info_to_file(filepath=self.get_start_memory_file(self.logs_dir))
                 break
+
 
     def get_memory_info(self,
                         timeout: Optional[int] = None,

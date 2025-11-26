@@ -18,6 +18,7 @@ class FireXViewerTemplates(NamedTuple):
     task_path_template: str = ""
     run_logs_root_path_template: str = ""
     run_logs_entry_path_template: str = ""
+    logs_root: str = ""
 
 
 # Data-only representation of the config. This is expected to EXACTLY reflect the contents of the config file.
