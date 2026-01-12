@@ -25,7 +25,7 @@ class RevokeDetails:
     # ensure loading is backwards compatible
     #
     logs_dir: str
-    reason: str
+    reason: Optional[str] # FIXME: try to make this always set.
     task_uuid: str
     root_revoke: bool
     revoking_user: Optional[str] = None
