@@ -76,11 +76,11 @@ def _load_firex_entry_points(entrypoint_name, path=None) -> Dict[EntryPoint, obj
         return loaded_eps
 
 
-def get_firex_tracking_services_entry_points() -> [EntryPoint]:
+def get_firex_tracking_services_entry_points() -> list[EntryPoint]:
     return _get_entrypoints('firex_tracking_service')
 
 
-def get_firex_dependant_package_versions() -> [PkgVersionInfo]:
+def get_firex_dependant_package_versions() -> list[PkgVersionInfo]:
     versions = list()
     for ep, loaded_pkg in loaded_firex_entry_points().items():
         try:
@@ -95,12 +95,12 @@ def get_firex_dependant_package_versions() -> [PkgVersionInfo]:
     return versions
 
 
-def get_all_pkg_versions() -> [PkgVersionInfo]:
+def get_all_pkg_versions() -> list[PkgVersionInfo]:
     from firexapp.submit.tracking_service import get_tracking_services_versions
     return get_tracking_services_versions() + get_firex_dependant_package_versions()
 
 
-def get_all_pkg_versions_as_dict() -> dict:
+def get_all_pkg_versions_as_dict() -> dict[str, PkgVersionInfo]:
     return {pkg_info.pkg: pkg_info for pkg_info in get_all_pkg_versions()}
 
 
