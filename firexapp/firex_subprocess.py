@@ -186,34 +186,34 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
         if isinstance(cmd, str) and not shell:
             cmd = shlex.split(cmd)
 
-    def _get_env_without_pythonpath(user_env):
-        try:
-            current_env_pythonpath = os.environ['PYTHONPATH']
-        except KeyError:
-            # if we don't have a PYTHONPATH in the current env, then we can't do anything
-            return user_env
-        else:
+    def _get_env_without_pythonpath(user_env: Optional[dict[str, str]]) -> Optional[dict[str, str]]:
+        result_env = user_env
+        if 'PYTHONPATH' in os.environ:
             if user_env is None:
-                # User didn't supply an env, so, we remove our PYTHONPATH
-                current_env_copy = os.environ.copy()
-                del current_env_copy['PYTHONPATH']
-                return current_env_copy
-            else:
-                # User provided a custom env
-                try:
-                    user_env_pythonpath = user_env['PYTHONPATH']
-                except KeyError:
-                    # If user provided custom env didn't have PYTHONPATH, then use as-is
-                    return user_env
-                else:
-                    # Remove our PYTHONPATH from the user's env PYTHONPATH
-                    current_env_pythonpath_items = current_env_pythonpath.split(':')
-                    user_env_pythonpath_items = user_env_pythonpath.split(':')
-                    new_pythonpath = [x for x in user_env_pythonpath_items if (x not in current_env_pythonpath_items)]
+                # User didn't supply an env
+                result_env = os.environ.copy()
+                del result_env['PYTHONPATH']
+            elif 'PYTHONPATH' in user_env:
+                # User provided a custom env.
+                # Remove the environ's PYTHONPATH from the user's env PYTHONPATH
+                current_env_pythonpath_items = os.environ['PYTHONPATH'].split(':')
+                new_pythonpath = [
+                    x for x in user_env['PYTHONPATH'].split(':')
+                    if x not in current_env_pythonpath_items
+                ]
+                result_env = user_env | {'PYTHONPATH': ':'.join(new_pythonpath)}
 
-                    user_env_copy = dict(user_env)
-                    user_env_copy['PYTHONPATH'] = ':'.join(new_pythonpath)
-                    return user_env_copy
+        if 'VIRTUAL_ENV' in os.environ:
+            if user_env is None:
+                if result_env is None:
+                    result_env = os.environ.copy()
+                result_env.pop('VIRTUAL_ENV')
+            elif user_env.get('VIRTUAL_ENV') == os.environ['VIRTUAL_ENV']:
+                if result_env is None:
+                    result_env = dict(user_env)
+                result_env.pop('VIRTUAL_ENV', None)
+
+        return result_env
 
     def _log_intro_msg(subprocess_uuid):
         msg = [f'{log_header} Executing the following command:']
