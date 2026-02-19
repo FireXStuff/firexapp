@@ -28,6 +28,12 @@ class RunStates(Enum):
     REVOKE_COMPLETED = 'task-revoke-completed'
     INCOMPLETE = "task-incomplete" # fake "forced to be completed" state.
 
+    @classmethod
+    def create(cls, v) -> 'RunStates':
+        if v == 'task-started-info':
+            v = 'task-started'
+        return RunStates(v)
+
     def get_priority(self) -> int:
         #
         # higher priority states are never overwritten by lower
@@ -78,14 +84,14 @@ class RunStates(Enum):
     @staticmethod
     def is_complete_state(task_state: Any, has_completed: Optional[bool]=None) -> bool:
         try:
-            return RunStates(task_state).is_complete(has_completed=has_completed)
+            return RunStates.create(task_state).is_complete(has_completed=has_completed)
         except ValueError:
             return False
 
     @staticmethod
     def is_incomplete_state(task_state: Any, has_completed: Optional[bool]=None) -> bool:
         try:
-            return not RunStates(task_state).is_complete(has_completed=has_completed)
+            return not RunStates.create(task_state).is_complete(has_completed=has_completed)
         except ValueError:
             return False
 
@@ -95,7 +101,7 @@ class RunStates(Enum):
         has_completed: Optional[bool]=None,
     ) -> str:
         try:
-            state = RunStates(task_state)
+            state = RunStates.create(task_state)
         except ValueError:
             state = RunStates.INCOMPLETE
         else:
@@ -112,12 +118,12 @@ class RunStates(Enum):
         new_state_str: Optional[str],
     ) -> str:
         try:
-            existing_state = RunStates(existing_state_str)
+            existing_state = RunStates.create(existing_state_str)
         except ValueError:
             existing_state = None
 
         try:
-            new_state = RunStates(new_state_str)
+            new_state = RunStates.create(new_state_str)
         except ValueError:
             new_state = None
 

@@ -89,7 +89,7 @@ def transform_task_state(
         transformed_data['has_completed'] = True
     else:
         try:
-            state = RunStates(event_type)
+            state = RunStates.create(event_type)
         except ValueError:
             pass
         else:

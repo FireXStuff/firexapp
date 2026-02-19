@@ -1,7 +1,8 @@
 from celery.utils.log import get_task_logger
-from firexkit.chain import FireXTask, InjectArgs
-from firexkit.task import flame, flame_collapse
+from firexkit.chain import InjectArgs
+from firexkit.task import flame, flame_collapse, FireXTask, PauseTasks
 
+from firexapp.submit.arguments import whitelist_arguments
 from firexapp.engine.celery import app
 
 logger = get_task_logger(__name__)
@@ -81,3 +82,18 @@ def ScheduleSubChain(self: FireXTask, chain, enqueue_args: dict = {}, catch_erro
             raise
 
     return results
+
+from firexapp.submit.uid import Uid
+
+whitelist_arguments(PauseTasks.get_pause_arg_names())
+
+@app.task(bind=True)
+def Pause(
+    self: FireXTask,
+    uid: Uid,
+    pause_hours: float,
+    # extra_email_txt=None,
+    send_pause_email_notification=True,
+):
+    import time
+    time.sleep(pause_hours * 60 * 60)

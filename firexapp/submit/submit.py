@@ -7,9 +7,7 @@ import logging
 import os
 import argparse
 import time
-import traceback
 from getpass import getuser
-import socket
 from typing import Optional
 
 from celery.signals import worker_ready
