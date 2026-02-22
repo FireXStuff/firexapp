@@ -9,9 +9,27 @@ logger = logging.getLogger(__name__)
 
 class FireXRunController:
 
-    def __init__(self, celery_app: Celery):
+    def __init__(
+        self,
+        celery_app: Optional[Celery]=None,
+        logs_dir: Optional[str]=None,
+    ):
+        #
+        # Celery apps are a nightmare, and sometimes we inspect from contexts where
+        # firex hasn't initialised the app, so sometimes it's illegal to inspect
+        # app.conf.logs_dir. Ideally everything would be initialised earlier, even
+        # if that means tracking the app's logs_dir seperately from app.conf init.
+        #
+        # This means it's unfortunately always possible some op might fair from
+        # FireXRunController.
+        #
+        if logs_dir:
+            self.logs_dir = logs_dir
+        elif celery_app:
+            self.logs_dir = celery_app.conf.logs_dir
+        else:
+            raise AssertionError('Must supply at least one of celery_app, logs_dir')
         self.celery_app = celery_app
-        self.logs_dir = self.celery_app.conf.logs_dir
         self._run_revoke_dir: Optional[str] = None
 
     def revoke_task(
@@ -40,12 +58,12 @@ class FireXRunController:
 
     def is_run_revoke_started(self) -> bool:
         return (
-            _backend_get_root_revoked(self.celery_app)
+            (self.celery_app and _backend_get_root_revoked(self.celery_app))
             or self.run_revoke_complete()
         )
 
     def get_current_run_revoke(self) -> Optional[RevokeDetails]:
-        if not _backend_get_root_revoked(self.celery_app):
+        if self.celery_app and _backend_get_root_revoked(self.celery_app):
             return None
         return RevokeDetails.load_latest_run_revoke_details(
             self.logs_dir,
@@ -61,11 +79,11 @@ _RUN_REVOKE_STARTED_KEY = 'ROOT_REVOKED'
 #
 # Set flag in backend DB (i.e.: Redis) to indicate root taks has been revoked
 #
-def _backend_set_root_revoked(celery_app):
+def _backend_set_root_revoked(celery_app: Celery):
     celery_app.backend.set(_RUN_REVOKE_STARTED_KEY, 'True')
 
 #
 # Get flag in backend DB (i.e.: Redis) which indicates root taks has been revoked
 #
-def _backend_get_root_revoked(celery_app):
+def _backend_get_root_revoked(celery_app: Celery):
     return celery_app.backend.get(_RUN_REVOKE_STARTED_KEY)

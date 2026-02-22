@@ -157,7 +157,10 @@ class RunMetadataColumn(Enum):
     FIREX_REQUESTER = "firex_requester"
 
 
-FireXRunMetadata = namedtuple('RunMetadata', [rmc.value for rmc in RunMetadataColumn])
+FireXRunMetadata = namedtuple(
+    'RunMetadata',
+    # must be in sync with RunMetadataColumn, including order.
+    ['firex_id', 'logs_dir', 'chain', 'root_uuid', 'firex_requester'])
 
 
 # Note field order matters. TaskColumn is the authority on field order.
