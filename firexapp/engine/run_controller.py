@@ -2,8 +2,6 @@ from typing import Optional
 import logging
 
 from celery.app.base import Celery
-
-from firexapp.engine.celery import app
 from firexapp.reporters.json_reporter import RevokeDetails, FireXRunData
 
 logger = logging.getLogger(__name__)
@@ -11,14 +9,9 @@ logger = logging.getLogger(__name__)
 
 class FireXRunController:
 
-    def __init__(
-        self,
-        celery_app: Celery=app,
-        logs_dir: Optional[str]=None,
-    ):
-        assert celery_app or logs_dir, 'Must supply celery_app or logs_dir'
+    def __init__(self, celery_app: Celery):
         self.celery_app = celery_app
-        self.logs_dir = logs_dir or self.celery_app.conf.logs_dir
+        self.logs_dir = self.celery_app.conf.logs_dir
         self._run_revoke_dir: Optional[str] = None
 
     def revoke_task(
