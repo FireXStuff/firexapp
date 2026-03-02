@@ -29,35 +29,18 @@ TASK_TYPE = dict[str, Any] # fixme should probably data model
 TASKS_BY_UUID_TYPE = dict[str, TASK_TYPE] # fixme should probably data model
 
 TASK_ARGS = 'firex_bound_args'
+_LATEST_TIMESTAMP_KEY = 'latest_timestamp'
 _FIRST_STARTED_KEY = 'first_started'
+_STARTED_INFO_TIMESTAMP_KEY = 'started_info_timestamp'
 
 CeleryEvent = dict[str, Any]
 
 
 def _times_from_event(event: dict[str, Any]) -> dict:
-    times = dict(latest_timestamp=event['local_received'])
+    times = {_LATEST_TIMESTAMP_KEY: event['local_received']}
     if event.get('type') == 'task-started-info':
-        # Note first_started is never overwritten by aggregation.
-        times['started_info_timestamp'] = event['local_received']
+        times[_STARTED_INFO_TIMESTAMP_KEY] = event['local_received']
     return times
-
-
-def _update_first_started_from_started_info(task: '_FlameTask', started_info_timestamp) -> dict[str, Any]:
-    updated_times = {}
-    # set first started time if its currently unset, or override with first
-    # task-started-info since some things (e.g. pauses) cause cause delays between
-    # first celery event and meaningful task start.
-    if task.get_field('retries', 0) == 0:
-        updated_times[_FIRST_STARTED_KEY] = started_info_timestamp
-    return updated_times
-
-
-def _update_first_started_from_latest_timestamp(task: '_FlameTask', latest_timestamp) -> dict[str, Any]:
-    updated_times = dict(latest_timestamp=latest_timestamp)
-    # use latest timestamp if no started time is set.
-    if not task.get_field(_FIRST_STARTED_KEY):
-        updated_times[_FIRST_STARTED_KEY] = latest_timestamp
-    return updated_times
 
 
 # config field options:
@@ -78,9 +61,6 @@ def _update_first_started_from_latest_timestamp(task: '_FlameTask', latest_times
 #   aggregate_merge - True if model updates should deep merge collection data types (lists, dicts, sets) instead of
 #                       overwriting.
 #
-#   callback_update - A callback function that accepts a _FlameTask and the data field.
-#                     Can be used to update fields based on the current task state.
-#                     This is one way of preventing overwriting, see also 'aggregate_merge'.
 #
 #
 FIELD_CONFIG = {
@@ -124,12 +104,6 @@ FIELD_CONFIG = {
             'name': e['name'].split('.')[-1],
             'long_name': e['name']},
     },
-    'called_as_orig': {
-        'copy_celery': True,
-    },
-    'first_started': {
-        'slim_field': True,
-    },
     'url': {
         # TODO: only for backwards compat. Can use log_filepath.
         'transform_celery': lambda e: {'logs_url': e['url']},
@@ -140,13 +114,11 @@ FIELD_CONFIG = {
     'local_received': {
         'transform_celery': _times_from_event,
     },
-    'started_info_timestamp': {
-        'callback_update': _update_first_started_from_started_info,
-    },
-    'states': {'aggregate_merge': True},
-    'exception_cause_uuid': {
-        'copy_celery': True,
+    _LATEST_TIMESTAMP_KEY: {
         'slim_field': True,
+    },
+    'states': {
+        'aggregate_merge': True,
     },
     EXTERNAL_COMMANDS_KEY: {
         'copy_celery': True,
@@ -157,16 +129,22 @@ FIELD_CONFIG = {
         'aggregate_merge': True,
         'slim_field': True,
     },
+    'exception_cause_uuid': {
+        'copy_celery': True,
+        'slim_field': True,
+    },
     'error_context': {
         'copy_celery': True,
         'slim_field': True,
     },
-    'cached_result_from': {
+    'called_as_orig': {
         'copy_celery': True,
     },
-    'latest_timestamp': {
+    _FIRST_STARTED_KEY: {
         'slim_field': True,
-        'callback_update': _update_first_started_from_latest_timestamp,
+    },
+    'cached_result_from': {
+        'copy_celery': True,
     },
     'pid': {
         'copy_celery': True,
@@ -186,12 +164,6 @@ COPY_FIELDS = _get_keys_with_true(FIELD_CONFIG, 'copy_celery')
 SLIM_FIELDS = _get_keys_with_true(FIELD_CONFIG, 'slim_field')
 
 AGGREGATE_MERGE_FIELDS = _get_keys_with_true(FIELD_CONFIG, 'aggregate_merge')
-_FIELD_TO_CALLBACK_UPDATE : dict[str, Callable[['_FlameTask', CeleryEvent], dict[str, Any]]] = {
-    k: v['callback_update'] for k, v in FIELD_CONFIG.items()
-    if 'callback_update' in v
-}
-AGGREGATE_NO_OVERWRITE_FIELDS = AGGREGATE_MERGE_FIELDS + list(_FIELD_TO_CALLBACK_UPDATE)
-
 FIELD_TO_CELERY_TRANSFORMS = {
     k: v['transform_celery'] for k, v in FIELD_CONFIG.items()
     if 'transform_celery' in v
@@ -338,6 +310,9 @@ class _FlameTask:
     def is_complete(self) -> bool:
         return is_task_dict_complete(self.always_loaded_task_data)
 
+    def is_field_set(self, field_name) -> bool:
+        return self.get_field(field_name, default=_TaskFieldSentile.UNSET) != _TaskFieldSentile.UNSET
+
     def get_field(self, field_name, default=_TaskFieldSentile.UNSET):
         return self.get_fields([field_name]).get(field_name, default)
 
@@ -371,6 +346,39 @@ class _FlameTask:
 
     def get_field_names(self):
         return list(self.always_loaded_task_data.keys()) + self._modelled.get_set_field_names()
+
+    def find_task_changes(self, new_task_data: dict[str, Any]) -> dict[str, Any]:
+        """
+            Note new_task_data is data from the Celery Event as specified by FIELD_CONFIG
+
+            This method does not apply changes to self, it just calculates changes to be made.
+        """
+
+        changed_data = {}
+        for new_field_name, new_field_value in new_task_data.items():
+            if new_field_name == _STARTED_INFO_TIMESTAMP_KEY:
+                # this timestamp should be kept once set; it's the most accurate.
+                if not self.get_field('retries', 0):
+                    changed_data[_FIRST_STARTED_KEY] = new_field_value
+            elif new_field_name == _LATEST_TIMESTAMP_KEY:
+                changed_data[_LATEST_TIMESTAMP_KEY] = new_field_value
+                # only accept latest as first_started timestamp if we have no started timestamp
+                if not self.is_field_set(_FIRST_STARTED_KEY):
+                    changed_data[_FIRST_STARTED_KEY] = new_field_value
+            elif new_field_name in AGGREGATE_MERGE_FIELDS:
+                existing_field_value = self.get_field(
+                    # default to empty instance of same type
+                    new_field_name, default=type(new_field_value)())
+                new_merged_value = deep_merge(existing_field_value, new_field_value)
+                if not self.is_field_set(new_field_name) or existing_field_value != new_merged_value:
+                    changed_data[new_field_name] = new_merged_value
+            else:
+                # Some fields overwrite whatever is present. Be permissive, since not all fields captured are from celery,
+                # so not all have entries in the field config.
+                if self.get_field(new_field_name) != new_field_value:
+                    changed_data[new_field_name] = new_field_value
+
+        return changed_data
 
 
 class FlameTaskGraph:
@@ -574,7 +582,7 @@ class FlameTaskGraph:
         else:
             self._tasks_by_uuid[uuid].dump_full(new_event_types)
 
-    def _get_task(self, uuid) -> _FlameTask:
+    def _get_task(self, uuid) -> Optional[_FlameTask]:
         # Everything outside this module should do get_full_task_dict instead of this.
         return self._tasks_by_uuid.get(uuid)
 
@@ -909,24 +917,8 @@ def find_data_changes(
     task: _FlameTask,
     new_task_data: dict[str, Any],
 ) -> dict[str, Any]:
-    # Some fields overwrite whatever is present. Be permissive, since not all fields captured are from celery,
-    # so not all have entries in the field config.
-    override_dict = {
-        k: v
-        for k, v in new_task_data.items()
-        if k not in AGGREGATE_NO_OVERWRITE_FIELDS
-    }
 
-    changed_data = {}
-    for new_data_key, new_data_val in override_dict.items():
-        if task.get_field(new_data_key) != new_data_val:
-            changed_data[new_data_key] = new_data_val
-
-    for field_name, callback_fn in _FIELD_TO_CALLBACK_UPDATE.items():
-        if field_name in new_task_data:
-            changed_data.update(
-                callback_fn(task, new_task_data[field_name])
-            )
+    changed_data = task.find_task_changes(new_task_data)
 
     # Some fields need to be accumulated across events, not overwritten from latest event.
     merged_fields_to_values = {
@@ -979,9 +971,9 @@ class FlameEventAggregator:
                 'uuid': task.get_uuid(),
                 'type': RunStates.get_forced_complete_celery_event_type(
                     task.get_field('state'),
-                    task.get_field('has_completed') ,
+                    task.get_field('has_completed', False),
                 ),
-                'actual_runtime': now - task.get_field('first_started', now)
+                'actual_runtime': now - task.get_field(_FIRST_STARTED_KEY, now)
             }
             for task in self._tasks_by_uuid.values()
             if not task.is_complete()
@@ -1018,7 +1010,7 @@ class FlameEventAggregator:
 
         task, is_new_task = self._get_or_create_task(task_uuid)
         new_task_data = _get_event_task_data(event)
-        changed_data = find_data_changes(task, new_task_data)
+        changed_data = task.find_task_changes(new_task_data)
         task.update(changed_data)
 
         return {
