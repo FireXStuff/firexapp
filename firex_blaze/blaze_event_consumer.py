@@ -33,7 +33,7 @@ TASK_EVENT_TO_STATE = {
 }
 
 BLAZE_SEND_EVENT_TYPES = tuple(
-    list(TASK_EVENT_TO_STATE.keys()) + ['task-completed', 'task-results', 'task-instrumentation']
+    list(TASK_EVENT_TO_STATE.keys()) + ['task-completed', 'task-results', 'task-instrumentation', 'task-args']
 )
 
 
