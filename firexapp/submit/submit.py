@@ -39,6 +39,7 @@ from firexapp.submit.install_configs import load_new_install_configs, FireXInsta
 from firexapp.submit.arguments import whitelist_arguments
 from firexapp.common import dict2str, silent_mkdir, create_link
 from firexapp.reporters.json_reporter import FireXJsonReportGenerator, FireXRunData
+from firexapp.run_revocation import is_root_revoked
 
 add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
@@ -90,6 +91,7 @@ class AdjustCeleryConcurrency(argparse.Action):
 
 def _safe_create_completed_run_json(uid, chain_result, run_revoked, chain_args, shutdown_reason):
     if uid:
+        run_revoked = run_revoked or is_root_revoked(app)
         chain_args = dict(chain_args or {})
         for k in ['uid', 'root_id', 'run_revoked', 'shutdown_reason']:
             chain_args.pop(k, None) # gotta love **chain_args

@@ -3,13 +3,13 @@ import os
 from importlib import import_module
 from celery import bootsteps
 from celery.signals import task_postrun
-from celery.states import REVOKED, RETRY
 from celery.utils.log import get_task_logger
 from firexkit.chain import InjectArgs
 from firexkit.result import find_unsuccessful_in_chain, get_results, RUN_RESULTS_NAME, RUN_UNSUCCESSFUL_NAME
 
 from firexapp.application import get_app_tasks
 from firexapp.engine.celery import app
+from firexapp.run_revocation import backend_set_root_revoked, is_root_revoked
 
 logger = get_task_logger(__name__)
 
@@ -53,7 +53,10 @@ def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_c
     sync = kwargs.get("sync", False)
 
     result_state = result.state
-    is_revoked = result_state in [REVOKED, RETRY] # Revoked can be in retry state with celery 5.1.0
+    is_revoked = is_root_revoked(task.app, result_state)
+
+    if is_revoked:
+        backend_set_root_revoked(task.app)
 
     if sync and not is_revoked:
         logger.debug("Sync run has not been revoked. Cleanup skipped.")
