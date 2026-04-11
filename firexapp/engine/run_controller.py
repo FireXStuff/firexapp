@@ -3,6 +3,7 @@ import logging
 
 from celery.app.base import Celery
 from firexapp.reporters.json_reporter import RevokeDetails, FireXRunData
+from firexapp.run_revocation import backend_get_root_revoked, backend_set_root_revoked
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ class FireXRunController:
 
         # revoke can be fast, so do data tracking setup before control.revoke()
         if is_root_task:
-            _backend_set_root_revoked(self.celery_app)
+            backend_set_root_revoked(self.celery_app)
 
         RevokeDetails(
             self.logs_dir,
@@ -58,12 +59,12 @@ class FireXRunController:
 
     def is_run_revoke_started(self) -> bool:
         return (
-            (self.celery_app and _backend_get_root_revoked(self.celery_app))
+            (self.celery_app and backend_get_root_revoked(self.celery_app))
             or self.run_revoke_complete()
         )
 
     def get_current_run_revoke(self) -> Optional[RevokeDetails]:
-        if self.celery_app and _backend_get_root_revoked(self.celery_app):
+        if self.celery_app and backend_get_root_revoked(self.celery_app):
             return None
         return RevokeDetails.load_latest_run_revoke_details(
             self.logs_dir,
@@ -73,17 +74,3 @@ class FireXRunController:
         return FireXRunData.load_from_logs_dir(
             self.logs_dir,
         ).revoked
-
-_RUN_REVOKE_STARTED_KEY = 'ROOT_REVOKED'
-
-#
-# Set flag in backend DB (i.e.: Redis) to indicate root taks has been revoked
-#
-def _backend_set_root_revoked(celery_app: Celery):
-    celery_app.backend.set(_RUN_REVOKE_STARTED_KEY, 'True')
-
-#
-# Get flag in backend DB (i.e.: Redis) which indicates root taks has been revoked
-#
-def _backend_get_root_revoked(celery_app: Celery):
-    return celery_app.backend.get(_RUN_REVOKE_STARTED_KEY)
