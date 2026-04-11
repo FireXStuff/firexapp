@@ -53,10 +53,10 @@ def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_c
     sync = kwargs.get("sync", False)
 
     result_state = result.state
-    is_revoked = is_root_revoked(app, result_state)
+    is_revoked = is_root_revoked(task.app, result_state)
 
     if is_revoked:
-        backend_set_root_revoked(app)
+        backend_set_root_revoked(task.app)
 
     if sync and not is_revoked:
         logger.debug("Sync run has not been revoked. Cleanup skipped.")
