@@ -89,7 +89,7 @@ class Uid(object):
     def __init__(self, identifier=None, firex_requester=None):
         self.timestamp = datetime.datetime.now(tz=pytz.utc)
         self.user = getuser()
-        self.firex_requester = firex_requester or self.user
+        self.firex_requester: str = firex_requester or self.user
         if identifier:
             self.identifier = identifier
         else:
@@ -130,10 +130,7 @@ class Uid(object):
 
     def _create_logs_dir_from_base(self, base_logging_dir):
         path = os.path.join(base_logging_dir, self.identifier)
-        try:
-            os.makedirs(path)
-        except FileExistsError:
-            pass
+        os.makedirs(path, exist_ok=True)
         return path
 
     def create_logs_dir(self):

@@ -55,7 +55,6 @@ class FireXRunController:
         self.celery_app.control.revoke(task_uuid, terminate=True)
         logger.info(f"Submitted revoke to celery for: {task_uuid}")
 
-
     def is_run_revoke_started(self) -> bool:
         return (
             (self.celery_app and _backend_get_root_revoked(self.celery_app))
@@ -63,10 +62,15 @@ class FireXRunController:
         )
 
     def get_current_run_revoke(self) -> Optional[RevokeDetails]:
-        if self.celery_app and _backend_get_root_revoked(self.celery_app):
+        if self.celery_app and not _backend_get_root_revoked(self.celery_app):
             return None
         return RevokeDetails.load_latest_run_revoke_details(
             self.logs_dir,
+        )
+
+    def get_task_revoke(self, task_uuid: str) -> Optional[RevokeDetails]:
+        return RevokeDetails.load_latest_revoke_details(
+            self.logs_dir, task_uuid=task_uuid,
         )
 
     def run_revoke_complete(self) -> bool:

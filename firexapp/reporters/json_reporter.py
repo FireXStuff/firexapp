@@ -205,8 +205,11 @@ class FireXRunData:
         except Exception as e:
             logger.warning(f'Failed to update run.json with input args: {e}')
 
+    def get_results(self) -> dict[str, Any]:
+        return (self.results or {}).get(RUN_RESULTS_NAME, {})
+
     def get_result(self, result_key, default=None):
-        return (self.results or {}).get(RUN_RESULTS_NAME, {}).get(result_key, default)
+        return self.get_results().get(result_key, default)
 
     def get_input(self, input_key: str, default=None):
         return self.inputs.get(input_key, default)

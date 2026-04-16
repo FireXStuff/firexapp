@@ -81,7 +81,11 @@ class RevokeDetails:
         return run_revoke_dir
 
     @staticmethod
-    def _find_revoke_request(logs_dir: str, run_revoked=None, task_uuid=None) -> list[Path]:
+    def _find_revoke_request(
+        logs_dir: str,
+        run_revoked=None,
+        task_uuid=None,
+    ) -> list[Path]:
         revoke_reqs_dir = Path(RevokeDetails._get_run_revoke_dir(logs_dir))
         if run_revoked is None:
             query_prefixes = ['run-revoke:', 'task-revoke:']
@@ -123,8 +127,20 @@ class RevokeDetails:
 
     @staticmethod
     def load_latest_run_revoke_details(logs_dir: str) -> Optional['RevokeDetails']:
-        run_revoke_req_files = RevokeDetails._find_revoke_request(
+        return RevokeDetails.load_latest_revoke_details(
             logs_dir, run_revoked=True,
+        )
+
+    @staticmethod
+    def load_latest_revoke_details(
+        logs_dir: str,
+        run_revoked=False,
+        task_uuid=None,
+    ) -> Optional['RevokeDetails']:
+        run_revoke_req_files = RevokeDetails._find_revoke_request(
+            logs_dir,
+            run_revoked=run_revoked,
+            task_uuid=task_uuid,
         )
         if run_revoke_req_files:
             latest_root_revoke_file = max(
