@@ -14,7 +14,10 @@ logger = get_task_logger(__name__)
 FIREX_BIN_DIR_ENV = 'firex_bin_dir'
 
 
-def delimit2list(str_to_split, delimiters=(',', ';', '|', ' ')) -> []:
+def delimit2list(
+    str_to_split,
+    delimiters=(',', ';', '|', ' '),
+) -> list[str]:
     if not str_to_split:
         return []
 
@@ -207,10 +210,16 @@ def create_link(src, target, delete_link=None, relative=False, create_target_dir
         raise
 
 # Creating link is sometime slow (e.g. on NFS, so do it in a thread
-def create_link_async(src: str, target: str, **create_link_kwargs) -> threading.Thread:
-    thread = threading.Thread(target=create_link,
-                              args=(src, target),
-                              kwargs=create_link_kwargs)
+def create_link_async(
+    src: str,
+    target: str,
+    **create_link_kwargs,
+) -> threading.Thread:
+    thread = threading.Thread(
+        target=create_link,
+        args=(src, target),
+        kwargs=create_link_kwargs,
+    )
     thread.start()
     return thread
 

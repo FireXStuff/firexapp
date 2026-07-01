@@ -2,7 +2,7 @@ import os
 import sys
 import re
 from firexkit.argument_conversion import ConverterRegister
-from typing import Union
+from typing import Union, Any
 from firexapp.submit.console import setup_console_logging
 from firexapp.plugins import plugins_has
 
@@ -154,6 +154,7 @@ class InputConverter:
         cls.pre_load_was_run = True
         return ret
 
+
 @InputConverter.register
 def convert_booleans(kwargs):
     """Converts standard true/false/none values to bools and None"""
@@ -168,7 +169,6 @@ def convert_booleans(kwargs):
             value = None
         kwargs[key] = value
     return kwargs
-
 
 @InputConverter.register
 def auto_load_pydev_debugging_plugin(kwargs):
@@ -210,7 +210,7 @@ def get_global_args_allowlist() -> frozenset[str]:
     return frozenset(_global_argument_whitelist)
 
 
-def find_unused_arguments(chain_args: {}, ignore_list: [], all_tasks: []):
+def find_unused_arguments(chain_args: dict[str, Any], ignore_list: list, all_tasks: list):
     """
     Function to detect any arguments that are not explicitly consumed by any microservice.
 

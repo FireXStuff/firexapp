@@ -641,7 +641,9 @@ class SubmitBaseApp:
                     'celery_shutdown_timeout',
                     DEFAULT_CELERY_SHUTDOWN_TIMEOUT))
 
-        self.write_run_complete_file(self.uid.logs_dir)
+        # FIXME: not good this object can be partially initialised.
+        if self.uid:
+            self.write_run_complete_file(self.uid.logs_dir)
 
     @staticmethod
     def write_run_complete_file(log_path: str):
@@ -659,9 +661,10 @@ class SubmitBaseApp:
         if isinstance(args, dict):
             args = list(args.keys())
 
-        unused_chain_args, matches = find_unused_arguments(chain_args=chain_args,
-                                                           ignore_list=args,
-                                                           all_tasks=all_tasks)
+        unused_chain_args, matches = find_unused_arguments(
+            chain_args=chain_args,
+            ignore_list=args,
+            all_tasks=all_tasks)
         if not unused_chain_args:
             # everything is used. Good job!
             return True

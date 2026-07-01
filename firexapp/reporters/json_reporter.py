@@ -380,8 +380,7 @@ class FireXRunData:
             if run_data.completed_timestamp:
                 return run_data.completed_timestamp
             else:
-                completed_json = cls._get_completion_run_json_path(
-                        logs_dir=logs_dir)
+                completed_json = cls._get_completion_run_json_path(logs_dir=logs_dir)
                 return pytz.utc.localize(
                     datetime.datetime.fromtimestamp(
                         os.path.getmtime(completed_json)),

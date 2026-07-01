@@ -15,13 +15,13 @@ from firexkit.permissions import DEFAULT_CHMOD_MODE
 
 BASE_LOGGING_DIR_ENV_VAR_KEY = 'firex_base_logging_dir'
 
-FIREX_ID_DATE_FMT = "%y%m%d-%H%M%S"
+_FIREX_ID_DATE_FMT = "%y%m%d-%H%M%S"
 ALL_FIREX_IDS_REGEX = re.compile(r'(FireX-\w+?-\d{6}-\d{6}-\d+)')
 FIREX_ID_REGEX = re.compile(r'^FireX-(?P<user>.*?)-(?P<datetime_str>\d{6}-\d{6})-(?P<random_int>\d+)$')
 
 
 def firex_id_str(user: str, timestamp: datetime.datetime, random_int: int) -> str:
-    return f'FireX-{user}-{timestamp.strftime(FIREX_ID_DATE_FMT)}-{random_int}'
+    return f'FireX-{user}-{timestamp.strftime(_FIREX_ID_DATE_FMT)}-{random_int}'
 
 
 @dataclass(frozen=True)
@@ -48,7 +48,7 @@ def get_firex_id_parts(maybe_firex_id: str) -> Optional[FireXIdParts]:
         try:
              tz_unaware_datetime = datetime.datetime.strptime(
                 parts['datetime_str'],
-                FIREX_ID_DATE_FMT)
+                _FIREX_ID_DATE_FMT)
         except ValueError:
             pass # invalidate date format.
         else:
@@ -61,7 +61,7 @@ def is_firex_id(maybe_firex_id: str) -> bool:
     return bool(get_firex_id_parts(maybe_firex_id))
 
 
-def find_all_firex_ids_from_str(input_str) -> list[str]:
+def find_all_firex_ids_from_str(input_str: Optional[str]) -> list[str]:
     if not input_str:
         return []
     # unique, keeping order from input.
@@ -82,7 +82,7 @@ def find_single_firex_id_from_str(input_str) -> str:
     return firex_ids[0]
 
 
-class Uid(object):
+class Uid:
     debug_dirname = 'firex_internal'
     _resources_dirname = os.path.join(debug_dirname, 'resources')
 
@@ -99,6 +99,8 @@ class Uid(object):
         self._logs_dir = None
         self._debug_dir = None
         self._viewers = {}
+
+
 
     @property
     def base_logging_dir(self):

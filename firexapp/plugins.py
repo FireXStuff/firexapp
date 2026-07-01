@@ -23,11 +23,11 @@ class PluginLoadError(Exception):
 
 def plugins_has(plugins: Union[str, list[str]], query_basename: str) -> bool:
     """Check if a plugin basename is present in the plugins string or list.
-    
+
     Args:
         plugins: Either a comma-separated string of plugin paths or a list of plugin paths
         query_basename: The basename of the plugin to search for (e.g., 'sparse_build.py')
-    
+
     Returns:
         True if the query_basename is found in plugins, False otherwise
     """

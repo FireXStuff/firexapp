@@ -31,11 +31,18 @@ class CeleryWorkerStartFailed(Exception):
     pass
 
 
-class CeleryManager(object):
-    celery_bin_name = 'celery'
+class CeleryManager:
 
-    def __init__(self, plugins=None, logs_dir=None, worker_log_level='debug', cap_concurrency=None,
-                 app='firexapp.engine', env=None, broker=None):
+    def __init__(
+        self,
+        plugins=None,
+        logs_dir=None,
+        worker_log_level='debug',
+        cap_concurrency=None,
+        app='firexapp.engine',
+        env=None,
+        broker=None,
+    ):
 
         if not broker:
             self.broker = BrokerFactory.get_broker_url(assert_if_not_set=True)
@@ -52,14 +59,14 @@ class CeleryManager(object):
         if env:
             self.update_env(env)
 
-        self.pid_files = dict()
+        self.pid_files: dict[str, str] = dict()
         self._celery_logs_dir = None
         self._celery_pids_dir = None
         self._workers_logs_dir = None
 
     @property
     def celery_bin(self):
-        return qualify_firex_bin(self.celery_bin_name)
+        return qualify_firex_bin('celery')
 
     @classmethod
     def log(cls, msg, header=None, level=DEBUG):
@@ -213,7 +220,7 @@ class CeleryManager(object):
             if deleted_pids.stderr:
                 extra_err_info += f'\nstderr: {deleted_pids.stderr}'
 
-            raise CeleryWorkerStartFailed(f'The worker{workername}@{self.hostname} did not come up after'
+            raise CeleryWorkerStartFailed(f'The worker {workername}@{self.hostname} did not come up after'
                                           f' {timeout} seconds.\n'
                                           f'Please look into {stdout_file!r} for details.'
                                           f'{extra_err_info}')
@@ -221,9 +228,18 @@ class CeleryManager(object):
         self.log('pid %d became active' % pid)
 
     def start(self,
-        workername, queues=None, wait=True, timeout=15*60, concurrency=None, worker_log_level=None,
-        app=None, cap_concurrency=None, cwd=None, soft_time_limit=None, autoscale: Optional[tuple] = None,
-        detach: bool = True,
+        workername,
+        queues=None,
+        wait=True,
+        timeout=15*60,
+        concurrency=None,
+        worker_log_level=None,
+        app=None,
+        cap_concurrency=None,
+        cwd=None,
+        soft_time_limit=None,
+        autoscale: Optional[tuple]=None,
+        detach: bool=True,
     ):
 
         # Override defaults if applicable
@@ -284,15 +300,25 @@ class CeleryManager(object):
             self.log('cwd=%s' % cwd)
 
         with open(stdout_file, 'ab') as fp:
-            subprocess.check_call(cmd, shell=True, stdout=fp, stderr=subprocess.STDOUT, env=self.env,
-                                  cwd=cwd)
+            subprocess.check_call(
+                cmd,
+                shell=True,
+                stdout=fp,
+                stderr=subprocess.STDOUT,
+                env=self.env,
+                cwd=cwd)
 
         if detach and wait:
-            self.wait_until_active(pid_file=pid_file, timeout=timeout, stdout_file=stdout_file, workername=workername)
+            self.wait_until_active(
+                pid_file=pid_file,
+                timeout=timeout,
+                stdout_file=stdout_file,
+                workername=workername,
+            )
 
     @staticmethod
     def find_procs(pid_file):
-        return find_procs('celery', cmdline_contains='--pidfile=%s' % pid_file)
+        return find_procs('celery', cmdline_contains=f'--pidfile={pid_file}')
 
     def find_all_procs(self):
         procs = []
@@ -321,10 +347,13 @@ class CeleryManager(object):
         else:
             # self.pid_files is only populated when starting celery, so if this manager didn't start the celery
             # instance being operated on, fallback to the pid directory.
-            name_to_pid_file = {pf: os.path.join(self.celery_pids_dir, pf) for pf in os.listdir(self.celery_pids_dir)}
+            name_to_pid_file = {
+                pf: os.path.join(self.celery_pids_dir, pf)
+                for pf in os.listdir(self.celery_pids_dir)
+            }
 
         for name, pid_file in name_to_pid_file.items():
-            self.log('Attempting shutdown of %s' % name)
+            self.log(f'Attempting shutdown of {name}')
             try:
                 pid = self.get_pid_from_file(pid_file)
             except Exception as e:
@@ -338,4 +367,7 @@ class CeleryManager(object):
                     self.log(e)
 
     def wait_for_shutdown(self, timeout=15):
-        return poll_until_dir_empty(self.celery_pids_dir, timeout=timeout)
+        return poll_until_dir_empty(
+            self.celery_pids_dir,
+            timeout=timeout,
+        )
