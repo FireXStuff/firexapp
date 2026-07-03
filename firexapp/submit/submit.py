@@ -640,9 +640,8 @@ class SubmitBaseApp:
                     self.submit_args,
                     'celery_shutdown_timeout',
                     DEFAULT_CELERY_SHUTDOWN_TIMEOUT))
-     
-        if self.uid is not None:                        
-            self.write_run_complete_file(self.uid.logs_dir)
+
+        self.write_run_complete_file(self.uid.logs_dir)
 
     @staticmethod
     def write_run_complete_file(log_path: str):
