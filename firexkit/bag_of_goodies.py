@@ -86,11 +86,11 @@ class _FireXArgParameters:
                 p.kind == p.VAR_KEYWORD for p in self.parameters.values())
         return self._has_var_keyword
 
-    def get_unbound_params(self, unbound_arg_names: set[str]) -> dict[str, inspect.Parameter]:
+    def get_unbound_params(self, supplied_arg_names: set[str]) -> dict[str, inspect.Parameter]:
         return {
             k: v
             for k, v in self.parameters.items()
-            if k not in unbound_arg_names
+            if k not in supplied_arg_names
         }
 
 
@@ -234,7 +234,7 @@ class BagOfGoodies:
 
     @property
     def args(self) -> tuple[Any, ...]:
-        args = []
+        args : list[Any] = []
         for k, v in self.bound_pos_args.items():
             if self.fx_params.is_var_pos_arg(k):
                 # flatten VAR_POSITIONAL
@@ -247,16 +247,20 @@ class BagOfGoodies:
     def _get_accepted_supplied_args(self) -> dict[str, Any]:
         return self.kwargs | self.bound_pos_args
 
-    def get_unsupplied_default_args(self) -> dict[str, Any]:
-        default_bound_args = {}
+    def get_unsupplied_args(self) -> dict[str, inspect.Parameter]:
         supplied_args = self._get_accepted_supplied_args()
-        for param in self.fx_params.parameters.values():
-            if (
-                param.name not in supplied_args
-                and param.default != param.empty
-            ):
-                default_bound_args[param.name] = param.default
-        return default_bound_args
+        return {
+            param.name: param
+            for param in self.fx_params.parameters.values()
+            if param.name not in supplied_args
+        }
+
+    def get_unsupplied_default_args(self) -> dict[str, Any]:
+        return {
+            n: p.default
+            for n, p in self.get_unsupplied_args().items()
+            if p.default != p.empty
+        }
 
     def get_accepted_supplied_and_default_args(self) -> dict[str, Any]:
         return  self._get_accepted_supplied_args() | self.get_unsupplied_default_args()
@@ -296,7 +300,7 @@ class BagOfGoodies:
                 indirect_keys_to_arg_names[i_key] = set()
             indirect_keys_to_arg_names[i_key].add(arg_name)
 
-        cur_done_args_names = set()
+        cur_done_args_names : set[str] = set()
         indirect_key_updates = {}
         args_names_to_resolve = dict(args_to_indirect_keys)
         # keep resolving until a loop resolves no arg names.
