@@ -124,32 +124,41 @@ def create_replacement_task(original, name_postfix, sigs):
     new_name = original.name + name_postfix
     bound = inspect.ismethod(original.undecorated)
     func = original.run if not bound else original.run.__func__
-    options = {key: getattr(original, key) for key in ["acks_late",
-                                                       "default_retry_delay",
-                                                       "expires",
-                                                       "ignore_result",
-                                                       "max_retries",
-                                                       "reject_on_worker_lost",
-                                                       "resultrepr_maxsize",
-                                                       "soft_time_limit",
-                                                       "store_errors_even_if_ignored",
-                                                       "soft_time_limit",
-                                                       "time_limit",
-                                                       "track_started",
-                                                       "trail",
-                                                       "typing",
-                                                       "returns",
-                                                       "flame",
-                                                       "use_cache",
-                                                       "pending_child_strategy",
-                                                       "from_plugin"] if key in dir(original)}
-    new_task = current_app.task(name=new_name,
-                                bind=bound,
-                                base=inspect.getmro(original.__class__)[1],
-                                check_name_for_override_posfix=False,
-                                **options)(fun=func)
-    if hasattr(original, "orig"):
-        new_task.orig = original.orig
+    options = {
+        key: getattr(original, key)
+        for key in [
+            "acks_late",
+            "default_retry_delay",
+            "expires",
+            "ignore_result",
+            "max_retries",
+            "reject_on_worker_lost",
+            "resultrepr_maxsize",
+            "soft_time_limit",
+            "store_errors_even_if_ignored",
+            "soft_time_limit",
+            "time_limit",
+            "track_started",
+            "trail",
+            "typing",
+            "returns",
+            "flame",
+            "use_cache",
+            "pending_child_strategy",
+            "from_plugin",
+            "pydantic_validate", # FIXME: shouldn't need to duplicate.
+        ]
+        if key in dir(original)
+    }
+    new_task = current_app.task(
+        name=new_name,
+        bind=bound,
+        base=inspect.getmro(original.__class__)[1],
+        check_name_for_override_posfix=False,
+        **options
+    )(fun=func)
+
+    new_task.orig = getattr(original, "orig", None)
     if hasattr(original, "report_meta"):
         new_task.report_meta = original.report_meta
 
