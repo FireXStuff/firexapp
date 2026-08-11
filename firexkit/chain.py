@@ -1,6 +1,5 @@
 import inspect
 from typing import Optional, Any
-import types
 
 from celery.canvas import Signature
 from celery.result import AsyncResult
@@ -44,9 +43,9 @@ def verify_chain_arguments(sig: 'SignatureX'):
 
 
 class InvalidChainArgsException(Exception):
-    def __init__(self, msg, wrong_args: Optional[dict]=None):
+    def __init__(self, msg, wrong_args: dict):
         super(InvalidChainArgsException, self).__init__(msg)
-        self.wrong_args = wrong_args or {}
+        self.wrong_args = wrong_args
 
 
 def _simulate_chain_args_kwargs(
@@ -54,10 +53,7 @@ def _simulate_chain_args_kwargs(
     task_pos_args: tuple,
     task_kwargs: dict[str, Any],
     chain_depth: int,
-) -> tuple[
-    tuple[Any, ...],
-    dict[str, Any],
-]:
+) -> tuple[ tuple[Any, ...], dict[str, Any] ]:
     simulated_pos_args = task_pos_args
     if prev_task_return_args is not None and chain_depth:
         simulated_pos_args = tuple(
@@ -73,68 +69,6 @@ def _simulate_chain_args_kwargs(
     return simulated_pos_args, simulated_kwargs
 
 
-def _merged_python_signature(task_obj):
-    py_sig = getattr(task_obj, 'sig', inspect.signature(task_obj.run))
-
-    # FullArgSpec = namedtuple('FullArgSpec',
-    # 'args, varargs, varkw, defaults, kwonlyargs, kwonlydefaults, annotations')
-    merged_params : dict[str, inspect.Parameter] = dict(py_sig.parameters)
-    orig_task = getattr(task_obj, 'orig', None)
-    while orig_task:
-        orig_task_py_sig = getattr(orig_task, 'sig', inspect.signature(orig_task.run))
-        for orig_arg, orig_param in orig_task_py_sig.parameters.items():
-            # auto-inject args must not have defaults since it makes
-            # priority resolution too complicated for the user.
-            if not BagOfGoodies.get_auto_inject_type(orig_param.annotation):
-                if orig_arg not in merged_params:
-                    # hack avoid # non-default argument follows default argument
-                    if orig_param.default != orig_param.empty:
-                        new_default = orig_param.default
-                    else:
-                        new_default = None
-                    merged_params[orig_arg] = orig_param.replace(default=new_default)
-                else:
-                    existing_param = merged_params[orig_arg]
-                    if (
-                        existing_param.default == existing_param.empty
-                        and orig_param.default != orig_param.empty
-                    ):
-                        merged_params[orig_arg] = existing_param.replace(
-                            default=orig_param.default
-                        )
-        orig_task = getattr(orig_task, 'orig', None)
-
-    return py_sig.replace(
-        parameters=list(merged_params.values())
-    )
-
-def _fake_validation_bog(
-    task_obj,
-    simulated_pos_args: tuple[Any, ...],
-    simulated_kwargs: dict[str, Any],
-):
-    from firexkit.task import FireXTask # FIXME: bad relationship between core abstractions
-    task_obj : FireXTask
-    bog = BagOfGoodies(
-        # there is something insane in UT here where the base class isn't set.
-        # I think this is due to the wrong app being used due to module-level init.
-        # this means the UT is very low-fidelity.
-        # getattr(task_obj, 'sig', inspect.signature(task_obj.run)),
-        _merged_python_signature(task_obj),
-        simulated_pos_args,
-        simulated_kwargs,
-        pydantic_validate=task_obj.get_pydantic_validate(),
-    )
-    bog.update(
-        # add fake stuff that can be generated.
-        {
-            k: True  # we ignore falsy values when resolving????
-            for k in bog.get_post_pydantic_convert_supplied_arg_names()
-        }
-    )
-    return bog
-
-
 class SignatureX(Signature):
     """
         Fake class to make intended support of monkey-patched celery.Signature
@@ -143,24 +77,30 @@ class SignatureX(Signature):
         monkey patching.
     """
 
-    def verify_args(self) -> None:
-        from firexkit.task import FireXTask # FIXME: bad relationship between core abstractions
+    def verify_args(self):
+        from firexkit.task import FireXTask
 
         prev_task_return_args : Optional[dict[str, Any]] = None
         task_names_to_missing_required_arg_names : dict[str, set[str]] = {}
         chain_depth = 0
         for task_sig in self.get_sigs():
+            task_pos_args: tuple = task_sig.args
+            task_kwargs: dict[str, Any] = task_sig.kwargs
+
             simulated_pos_args, simulated_kwargs = _simulate_chain_args_kwargs(
-                prev_task_return_args,
-                task_sig.args,
-                task_sig.kwargs,
-                chain_depth,
+                prev_task_return_args, task_pos_args, task_kwargs, chain_depth,
             )
 
             # I think task_sig/task_obj is bound/unbound distinction, or maybe something
             # to do with plugins, but it's not clear.
             task_obj : FireXTask = self.app.tasks[task_sig.task]
-            task_bog = _fake_validation_bog(task_obj, simulated_pos_args, simulated_kwargs)
+            task_bog = BagOfGoodies(
+                # there is something insane in UT here where the base class isn't set.
+                # I think this is due to the wrong app being used due to module-level init.
+                # this means the UT is very low-fidelity.
+                getattr(task_obj, 'sig', inspect.signature(task_obj.run)),
+                simulated_pos_args,
+                simulated_kwargs)
             chain_depth += 1
 
             unbound_required_arg_names = task_bog.get_unbound_required_arg_names()
@@ -175,14 +115,13 @@ class SignatureX(Signature):
             if undefined_indirect:
                 txt = "\n".join([f"{k}: {v}" for k, v in undefined_indirect.items()])
                 raise InvalidChainArgsException(
-                    msg=f'Service {task_obj.name} indirectly references the following unavailable parameters: \n{txt}',
-                    wrong_args=undefined_indirect,
-                )
+                    f'Service {task_obj.name} indirectly references the following unavailable parameters: \n{txt}',
+                    undefined_indirect)
 
             prev_task_return_args = dict(
                 task_bog.all_supplied_args()
                 | {
-                    rk: True # we ignore falsy values when resolving???
+                    rk: True # we ignore falsy values when resolving?
                     for rk in task_obj.return_keys
                 }
             )
@@ -193,8 +132,8 @@ class SignatureX(Signature):
                 service_msgs.append(f' {", ".join(arg_names)} \t required by {task_name}')
             msg = "\n".join(service_msgs)
             raise InvalidChainArgsException(
-                msg=f'Missing mandatory arguments: \n{msg}',
-                wrong_args=task_names_to_missing_required_arg_names,
+                f'Missing mandatory arguments: \n{msg}',
+                task_names_to_missing_required_arg_names,
             )
 
     def injectArgs(self, **kwargs):
