@@ -4,13 +4,10 @@ import inspect
 import typing
 import types
 import dataclasses
-import enum
-import pydantic
 
 from celery.utils.log import get_task_logger
 
 from firexkit.result import RETURN_KEYS_KEY
-from typing_extensions import is_typeddict, Self
 
 logger = get_task_logger(__name__)
 
@@ -97,12 +94,6 @@ class _FireXArgParameters:
         }
 
 
-class ValidateArgs(enum.Enum):
-    DISABLED = enum.auto()
-    ATTEMPT = enum.auto()
-    REQUIRE = enum.auto()
-
-
 class BagOfGoodies:
     """
         This class attempts to avoid runtime errors by avoiding sending
@@ -146,16 +137,12 @@ class BagOfGoodies:
         sig: inspect.Signature,
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
-        # FIXME: default just for UT, should always be explicit.
-        pydantic_validate: ValidateArgs=ValidateArgs.DISABLED,
     ):
 
         self.fx_params = _FireXArgParameters(sig.parameters)
-        self.pydantic_validate = pydantic_validate
 
         # If the first positional argument is a dict and we're in a chain, extract
         # data from previous task results
-        unaccepted_args : dict[str, Any]
         if args and isinstance(args[0], dict) and kwargs.get('chain_depth', 0) > 0:
             prev_task_result : dict[str, Any] = dict(args[0])
             # Remove the RETURN_KEYS_KEY entry since results are in prev_task_result
@@ -178,7 +165,7 @@ class BagOfGoodies:
         else:
             self.bound_pos_args = sig.bind_partial(*args).arguments
             resolved_kwargs = dict(kwargs)
-            unaccepted_args = {}
+            unaccepted_args : dict[str, Any] = {}
 
         # remove keys from kwargs that are bound by the positional args
         for k, v in dict(resolved_kwargs).items():
@@ -260,7 +247,7 @@ class BagOfGoodies:
     def _get_accepted_supplied_args(self) -> dict[str, Any]:
         return self.kwargs | self.bound_pos_args
 
-    def get_unsupplied_arg_params(self) -> dict[str, inspect.Parameter]:
+    def get_unsupplied_args(self) -> dict[str, inspect.Parameter]:
         supplied_args = self._get_accepted_supplied_args()
         return {
             param.name: param
@@ -271,7 +258,7 @@ class BagOfGoodies:
     def get_unsupplied_default_args(self) -> dict[str, Any]:
         return {
             n: p.default
-            for n, p in self.get_unsupplied_arg_params().items()
+            for n, p in self.get_unsupplied_args().items()
             if p.default != p.empty
         }
 
@@ -347,51 +334,8 @@ class BagOfGoodies:
     def get_optional_args_to_default_values(self):
         return self.fx_params.get_optional_args_to_default_values()
 
-    def get_post_pydantic_convert_supplied_arg_names(self) -> set[str]:
-        convertible: set[str] = set()
-        arg_names_to_validatable_names = self._get_arg_names_to_pydantic_convertible_names()
-        all_args = set(self.all_supplied_args())
-        for unbound_name in self.get_unsupplied_arg_params().keys():
-            if validatable_args := arg_names_to_validatable_names.get(unbound_name):
-                if validatable_args < all_args:
-                    convertible.add(unbound_name) # we can create this
-                else:
-                    logger.debug(f'cannot create {unbound_name}')
-
-            is_hoistable = any(
-                {
-                    unbound_name in model_field_names
-                    and model_arg in all_args
-                }
-                for model_arg, model_field_names in arg_names_to_validatable_names.items()
-            )
-            if is_hoistable:
-                # we can pull this up to the bog from a modelled arg.
-                # for backwards compatibility
-                convertible.add(unbound_name)
-            else:
-                logger.debug(f'cannot hoist {unbound_name} from: {arg_names_to_validatable_names}')
-
-        return convertible
-
     def get_unbound_required_arg_names(self) -> set[str]:
         return self.get_required_arg_names() - set(self.get_accepted_supplied_and_default_args())
-
-    def _get_arg_names_to_pydantic_convertible_names(self) -> dict[str, set[str]]:
-        arg_names_to_validatable_names: dict[str, set[str]] = {}
-        for arg_name, param in self.fx_params.parameters.items():
-            if fx_model_cls := _is_pydantic_model_annotation(param):
-                arg_names_to_validatable_names[arg_name] = set(
-                    fx_model_cls.model_fields.keys()
-                )
-        return arg_names_to_validatable_names
-
-    def get_pydantic_convertible_arg_names(self) -> set[str]:
-        convertible : set[str] = set()
-        if self.pydantic_validate != ValidateArgs.DISABLED:
-            for names in self._get_arg_names_to_pydantic_convertible_names().values():
-                convertible.update(names)
-        return convertible
 
     def get_args_to_indirect_value_keys(self) -> dict[str, str]:
         args_to_indirect_value_keys = {}
@@ -431,167 +375,6 @@ class BagOfGoodies:
 
     def has_auto_reg(self) -> bool:
         return AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY in self.all_supplied_args()
-
-    def update_validated_args(self):
-        if self.pydantic_validate != ValidateArgs.DISABLED:
-            updates = _pydantic_validate_args(
-                self.pydantic_validate,
-                fx_params=self.fx_params,
-                input_service_args=self.get_public_supplied_args(),
-            )
-            self.update(updates)
-            hoisted_updates = _pydantic_hoist_modelled_fields(
-                self.get_unsupplied_arg_params(),
-                self.get_public_supplied_args(),
-            )
-            self.update(hoisted_updates)
-
-    @staticmethod
-    def get_auto_inject_type(annotation) -> typing.Optional[typing.Type]:
-        if (
-            typing.get_origin(annotation) is typing.Annotated
-            and annotation.__metadata__[0] == 'FireXAutoInject'
-        ):
-            return annotation.__origin__
-        return None
-
-
-def _pydantic_hoist_modelled_fields(
-    unsupplied_args: dict[str, inspect.Parameter],
-    input_service_args: typing.Mapping[str, Any]
-) -> dict[str, Any]:
-    #
-    # see if an accepted but unsupplied arg can be supplied via a datamodelled field
-    # that matches types.
-    hoisted_from_modelled_updates : dict[str, Any] = {}
-    for unsupplied_arg_name, unsupplied_arg_param in unsupplied_args.items():
-        for supplied_arg_name, supplied_arg_val in input_service_args.items():
-            if (
-                isinstance(supplied_arg_val, FireXBaseBaseModel)
-                and (
-                    unsupplied_arg_name in supplied_arg_val.__dict__
-                    or unsupplied_arg_name in supplied_arg_val.__pydantic_computed_fields__
-                )
-            ):
-                # we have the arg by name, check type match
-                if (
-                    not unsupplied_arg_param.annotation
-                    or unsupplied_arg_param.annotation == unsupplied_arg_param.empty
-                ):
-                    type_match = True
-                elif f_info := supplied_arg_val.__class__.model_fields.get(unsupplied_arg_name):
-                    type_match = unsupplied_arg_param.annotation == f_info.annotation
-                elif cf_info := supplied_arg_val.__class__.model_computed_fields.get(unsupplied_arg_name):
-                    type_match = unsupplied_arg_param.annotation == cf_info.return_type
-                else:
-                    type_match = False
-
-                if type_match:
-                    logger.debug(f'hoisting in to arg {unsupplied_arg_name} from {supplied_arg_name}.{unsupplied_arg_name}')
-                    if unsupplied_arg_name in supplied_arg_val.__dict__:
-                        hoisted_val = supplied_arg_val.__dict__[unsupplied_arg_name]
-                    elif unsupplied_arg_name in supplied_arg_val.__pydantic_computed_fields__:
-                        hoisted_val = getattr(supplied_arg_val, unsupplied_arg_name)
-                    else:
-                        assert False, f'{unsupplied_arg_name} must be in model: {supplied_arg_val}'
-                    hoisted_from_modelled_updates[unsupplied_arg_name] = hoisted_val
-
-    return hoisted_from_modelled_updates
-
-
-def _get_base_type(annotation):
-    origin = typing.get_origin(annotation)
-    if origin is typing.Union or origin is types.UnionType:
-        args = typing.get_args(annotation)
-        inner_types = [arg for arg in args if arg is not type(None)]
-        return inner_types[0] if inner_types else None
-
-    return annotation
-
-
-# Sorry for silly "BaseBase", temporary while internal Cisco implementation
-# is iterated on. Final version will be upstreamed.
-class FireXBaseBaseModel(pydantic.BaseModel):
-
-    @classmethod
-    def firex_load(cls, data) -> Self:
-        try:
-            return cls.model_validate(data, strict=False)
-        except pydantic.ValidationError as e:
-            for e_entry in e.errors():
-                logger.error(e_entry)
-            raise e
-
-
-def _is_pydantic_model_annotation(
-    param: inspect.Parameter,
-) -> typing.Optional[typing.Type[FireXBaseBaseModel]]:
-    if param.annotation and param.annotation != param.empty:
-        maybe_class = _get_base_type(param.annotation)
-        if (
-            inspect.isclass(maybe_class)
-            and issubclass(maybe_class, FireXBaseBaseModel)
-        ):
-            return maybe_class
-    return None
-
-
-def _pydantic_validate_args(
-    pydantic_validate: ValidateArgs,
-    fx_params: _FireXArgParameters,
-    input_service_args: types.MappingProxyType[str, Any],
-) -> dict[str, Any]:
-    adapter_updates : dict[str, Any] = {}
-    for arg_name, param in fx_params.parameters.items():
-        if (
-            param.annotation
-            and param.annotation != param.empty
-        ):
-            try:
-                if arg_name in input_service_args:
-                    init_value = input_service_args[arg_name]
-                    adapted_value = _pydantic_adapt_type(init_value, param.annotation)
-                elif fx_model_cls := _is_pydantic_model_annotation(param):
-                    # if the parameter is a FireXBaseModel and wasn't explicitly
-                    # suppplied by name, see if it can be constructed from the abog.
-                    logger.info(f'Attempting to populate firex modelled arg {arg_name} ({fx_model_cls.__name__}) from bog: ')
-                    init_value = dict(input_service_args)
-                    adapted_value = fx_model_cls.firex_load(init_value)
-                else:
-                    adapted_value = init_value = input_service_args # noop
-            except ValueError as e:
-                msg = f'Failed to convert arg {arg_name} to {param.annotation}'
-                if pydantic_validate == ValidateArgs.REQUIRE:
-                    raise ValueError(msg) from e
-                logger.warning(msg) # FIXME: bump to error
-            else:
-                if init_value != adapted_value:
-                    logger.debug(f'Pydantic converted {arg_name} to {param.annotation} value: {adapted_value}')
-                    adapter_updates[arg_name] = adapted_value
-    return adapter_updates
-
-
-def _pydantic_adapt_type(init_value: Any, annotation):
-    if _arbitrary_types_allowed(init_value, annotation):
-        pydantic_config=pydantic.ConfigDict(
-            arbitrary_types_allowed=True
-        )
-    else:
-        pydantic_config=None
-    # FIXME: creating typadapters is expensive so they should be cached
-    return pydantic.TypeAdapter(
-        annotation,
-        config=pydantic_config,
-    ).validate_python(init_value)
-
-
-def _arbitrary_types_allowed(init_value: Any, annotation) -> bool:
-    return bool(
-        not isinstance(init_value, pydantic.BaseModel)
-        and not dataclasses.is_dataclass(init_value)
-        and not isinstance(init_value, type)
-        and not is_typeddict(annotation)
-    )
 
 
 def _validate_var_pos_arg(var_pos_name: str, var_pos_value) -> tuple[Any, ...]:
@@ -634,6 +417,15 @@ def _resolve_indirect_prev_results_and_split_accepted_args(
 
 A = typing.TypeVar('A')
 AutoInject = typing.Annotated[A, 'FireXAutoInject']
+
+def _get_auto_inject_type(annotation) -> typing.Optional[typing.Type]:
+    if (
+        typing.get_origin(annotation) is typing.Annotated
+        and annotation.__metadata__[0] == 'FireXAutoInject'
+    ):
+        return annotation.__origin__
+    return None
+
 
 T = typing.TypeVar('T')
 
@@ -738,7 +530,7 @@ class AutoInjectRegistry:
             for k, p in unbound_parameters.items()
             # does the receiving task declare any unbound AutoInject
             # args that should be auto-injected?
-            if BagOfGoodies.get_auto_inject_type(p.annotation)
+            if _get_auto_inject_type(p.annotation)
         }
         for auto_inject_name, param in possible_auto_injectable_params.items():
             if param.default != param.empty:
@@ -749,7 +541,7 @@ class AutoInjectRegistry:
                 # needless defensive coding.
                 raise Exception(f'AutoInject arg {auto_inject_name} has a default value.')
 
-            auto_inject_type = BagOfGoodies.get_auto_inject_type(param.annotation)
+            auto_inject_type = _get_auto_inject_type(param.annotation)
             if auto_inject_type:
                 spec = self._get_spec_by_name_and_type(auto_inject_name, auto_inject_type)
                 if spec:
