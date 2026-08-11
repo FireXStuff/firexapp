@@ -18,7 +18,8 @@ setup(name='firexkit',
       install_requires=[
             "celery==5.3.1",
             "jinja2",
-            "pydantic==2.12.0",
+            "pydantic==2.13.0",
+            "typing_extensions==4.14.1",
       ],
       entry_points={
             'firex.core': 'firexkit = firexkit'
