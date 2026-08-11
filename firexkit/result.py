@@ -244,7 +244,11 @@ def is_result_ready(result: AsyncResult, timeout=15*60, retry_delay=1):
     return handle_broker_timeout(result.ready, timeout=timeout, retry_delay=retry_delay)
 
 
-def find_all_unsuccessful(result: AsyncResult, ignore_non_ready=False, depth=0) -> {}:
+def find_all_unsuccessful(
+    result: AsyncResult,
+    ignore_non_ready=False,
+    depth=0,
+) -> {}:
     name = get_result_logging_name(result)
     state_str = '-'*depth*2 + '->%s: ' % name
 
@@ -482,8 +486,9 @@ def wait_for_running_tasks_from_results(results, max_wait=2*60, sleep_between_it
 
 @_send_block_task_states_to_caller_task
 def wait_on_async_results(
-    results: Union[AsyncResult, list[AsyncResult], None], # FIXME: crazy type sig
-    max_wait=None,
+    # FIXME: crazy type sig
+    results: Union[AsyncResult, list[AsyncResult], None],
+    max_wait: Optional[float]=None,
     callbacks: Iterable[WaitLoopCallBack] = tuple(),
     sleep_between_iterations=0.05,
     check_task_worker_frequency=600,
@@ -504,7 +509,7 @@ def wait_on_async_results(
     for result in results:
         logging_name = get_result_logging_name(result)
         if log_msg:
-            logger.debug('-> Waiting for %s to complete' % logging_name)
+            logger.debug(f'-> Waiting for {logging_name} to complete')
 
         result_state = None
         try:
