@@ -28,9 +28,7 @@ from celery.local import PromiseProxy
 from celery.utils.log import get_task_logger, get_logger
 import celery.signals
 
-from firexkit.bag_of_goodies import (
-    BagOfGoodies, AutoInjectRegistry, AutoInjectSpec, AutoInject, ValidateArgs,
-)
+from firexkit.bag_of_goodies import BagOfGoodies, AutoInjectRegistry, AutoInjectSpec, AutoInject
 from firexkit.argument_conversion import ConverterRegister
 from firexkit.result import (
     get_tasks_names_from_results, wait_for_any_results,
@@ -76,14 +74,15 @@ def _nop():
 
 
 def _empty_bog() -> BagOfGoodies:
-    return BagOfGoodies(inspect.signature(_nop), tuple(), {}, ValidateArgs.DISABLED)
+    return BagOfGoodies(inspect.signature(_nop), tuple(), {})
 
 
 @dataclasses.dataclass
 class TaskContext:
-    bog: BagOfGoodies = dataclasses.field(default_factory=_empty_bog)
+    bog: BagOfGoodies
     flame_configs: dict = dataclasses.field(default_factory=dict)
     enqueued_children: dict[AsyncResult, dict] = dataclasses.field(default_factory=dict)
+    bog: BagOfGoodies = dataclasses.field(default_factory=_empty_bog)
 
     _auto_in_reg: Optional[AutoInjectRegistry] = None
     _pause_tasks: Optional['PauseTasks'] = None
@@ -111,6 +110,7 @@ class PendingChildStrategy(Enum):
     Block = 0, "Default"
     Revoke = 1
     Continue = 2
+
 
 
 class IllegalTaskNameException(Exception):
@@ -279,7 +279,6 @@ class FireXTask(Task):
 
     # prevent clients from needing to know about bag_of_goodes module.
     AutoInject = AutoInject
-    Validate : typing.ClassVar[typing.Type[ValidateArgs]] = ValidateArgs
 
     def __init__(self):
 
@@ -288,7 +287,7 @@ class FireXTask(Task):
             raise IllegalTaskNameException(f'Task names should never end with {REPLACEMENT_TASK_NAME_POSTFIX!r}')
 
         self.undecorated = undecorate(self)
-        self.sig : inspect.Signature = inspect.signature(self.run)
+        self.sig = inspect.signature(self.run)
 
         _task_return_keys = self._get_task_return_keys()
         _decorated_return_keys = getattr(self.undecorated, "_decorated_return_keys", None)
@@ -310,7 +309,7 @@ class FireXTask(Task):
         self.code_filepath = self.get_module_file_location()
 
         self._from_plugin = False
-        self.context : TaskContext = self.initialize_context()
+        self.context : TaskContext = TaskContext(BagOfGoodies(self.sig, tuple(), {}))
         self.name : str
 
         # when this task is overriden, this is the most immediately preceding overridden task,
@@ -349,7 +348,6 @@ class FireXTask(Task):
             # since we bind the args/kwargs/runtime options with the ovverriden service
             # but might end up executing in a context that doesn't have it.
             self.name = self.root_orig.name_without_orig
-
         try:
             res = super(FireXTask, self).apply_async(*args, **kwargs)
         finally:
@@ -378,12 +376,12 @@ class FireXTask(Task):
                 # Might make more sense to rework that to avoid flame data on context.
                 flame_configs=self._get_task_flame_configs(),
                 # Organise the input args by creating a BagOfGoodies
-                bog=self._create_bog(args, kwargs),
+                bog=BagOfGoodies(self.sig, args, kwargs)
             )
             yield
         finally:
             # restore empty context to avoid pointless defensive coding.
-            self.context = self.initialize_context()
+            self.context = TaskContext(BagOfGoodies(self.sig, tuple(), {}))
 
     @property
     def from_plugin(self):
@@ -410,31 +408,10 @@ class FireXTask(Task):
     def from_plugin(self, value):
         self._from_plugin = value
 
-    def initialize_context(
-        self,
-        flame_configs: Optional[dict]=None,
-        bog: Optional[BagOfGoodies]=None,
-    ) -> TaskContext:
+    def initialize_context(self, flame_configs: dict, bog: BagOfGoodies) -> TaskContext:
         return TaskContext(
-            flame_configs=flame_configs or {},
-            bog=bog or self._create_bog(),
-        )
-
-    def _create_bog(self, args: tuple[Any,...]=tuple(), kwargs: Optional[dict]=None) -> BagOfGoodies:
-        if kwargs is None:
-            kwargs = {}
-        return BagOfGoodies(
-            self.sig,
-            args,
-            kwargs,
-            pydantic_validate=self.get_pydantic_validate(),
-        )
-
-    def get_pydantic_validate(self) -> ValidateArgs:
-        return get_attr_unwrapped(
-            self,
-            'pydantic_validate',
-            ValidateArgs.DISABLED,
+            flame_configs=flame_configs,
+            bog=bog,
         )
 
     def get_module_file_location(self):
@@ -809,7 +786,6 @@ class FireXTask(Task):
             return self.real_call()
 
     def _process_arguments_and_run(self, *args, **kwargs) -> dict[str, Any]:
-        self.context.bog.update_validated_args()
 
         # run any "pre" converters attached to this task
         self.context.bog.update(
@@ -900,8 +876,8 @@ class FireXTask(Task):
         return self.context.bog.get_unsupplied_default_args()
 
     def map_args(self, *args, **kwargs) -> dict:
-        return self._create_bog(
-            args, kwargs,
+        return BagOfGoodies(
+            self.sig, args, kwargs,
         ).get_accepted_supplied_and_default_args()
 
     @property
@@ -1016,7 +992,7 @@ class FireXTask(Task):
         if isinstance(child_results, AsyncResult):
             child_results = [child_results]
         if child_results:
-            logger.debug(f'Waiting for enqueued children: {get_tasks_names_from_results(child_results)}')
+            logger.debug('Waiting for enqueued children: %r' % get_tasks_names_from_results(child_results))
             try:
                 wait_on_async_results_and_maybe_raise(
                     child_results,
@@ -1525,7 +1501,7 @@ class FireXTask(Task):
                 for k in sent_on_next_keys:
                     self.context.flame_configs[k]['on_next'] = False
 
-    def send_firex_event_raw(self, data: dict[str, Any]):
+    def send_firex_event_raw(self, data):
         self.send_event('task-send-flame', **data)
 
     def send_firex_html(self, **kwargs):
@@ -1567,15 +1543,6 @@ class FireXTask(Task):
     def has_dynamic_returns(self) -> bool:
         # If any of the previous keys has a dynamic return, then we can't do any validation
         return any(FireXTask.is_dynamic_return(k) for k in self.return_keys)
-
-    def get_pydantic_convertible_arg_names(self) -> set[str]:
-        arg_names = self.context.bog.get_pydantic_convertible_arg_names()
-        if self.orig:
-            arg_names.update(
-                self.orig.get_pydantic_convertible_arg_names()
-            )
-        return arg_names
-
 
 def undecorate_func(func):
     undecorated_func = func
