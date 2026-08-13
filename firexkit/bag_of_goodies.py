@@ -380,7 +380,7 @@ class BagOfGoodies:
     def _get_arg_names_to_pydantic_convertible_names(self) -> dict[str, set[str]]:
         arg_names_to_validatable_names: dict[str, set[str]] = {}
         for arg_name, param in self.fx_params.parameters.items():
-            if fx_model_cls := _is_pydantic_model_annotation(param):
+            if fx_model_cls := _get_fx_model_subclass(param):
                 arg_names_to_validatable_names[arg_name] = set(
                     fx_model_cls.model_fields.keys()
                 )
@@ -501,7 +501,10 @@ def _pydantic_hoist_modelled_fields(
 
 def _get_base_type(annotation):
     origin = typing.get_origin(annotation)
-    if origin is typing.Union or origin is types.UnionType:
+    if (
+        origin is typing.Union
+        or origin is types.UnionType
+    ):
         args = typing.get_args(annotation)
         inner_types = [arg for arg in args if arg is not type(None)]
         return inner_types[0] if inner_types else None
@@ -523,7 +526,7 @@ class FireXBaseBaseModel(pydantic.BaseModel):
             raise e
 
 
-def _is_pydantic_model_annotation(
+def _get_fx_model_subclass(
     param: inspect.Parameter,
 ) -> typing.Optional[typing.Type[FireXBaseBaseModel]]:
     if param.annotation and param.annotation != param.empty:
@@ -532,6 +535,8 @@ def _is_pydantic_model_annotation(
             inspect.isclass(maybe_class)
             and issubclass(maybe_class, FireXBaseBaseModel)
         ):
+            if typing.get_origin(param.annotation) is typing.Annotated:
+                return param.annotation
             return maybe_class
     return None
 
@@ -548,10 +553,21 @@ def _pydantic_validate_args(
             and param.annotation != param.empty
         ):
             try:
-                if arg_name in input_service_args:
+                fx_model_cls = _get_fx_model_subclass(param)
+                if (
+                    arg_name in input_service_args
+                    and not (
+                        # if it's a firex model that has a default value of None,
+                        # and the current value is None, try to populate from abog
+                        # instead of native pydantic conversion being done here.
+                        fx_model_cls
+                        and input_service_args[arg_name] is None
+                        and fx_model_cls.__pydantic_fields__[arg_name].default is None
+                    )
+                ):
                     init_value = input_service_args[arg_name]
                     adapted_value = _pydantic_adapt_type(init_value, param.annotation)
-                elif fx_model_cls := _is_pydantic_model_annotation(param):
+                elif fx_model_cls:
                     # if the parameter is a FireXBaseModel and wasn't explicitly
                     # suppplied by name, see if it can be constructed from the abog.
                     logger.info(f'Attempting to populate firex modelled arg {arg_name} ({fx_model_cls.__name__}) from bog: ')
