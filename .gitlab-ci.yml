@@ -6,7 +6,6 @@ cache:
     - .cache/pip
     - venv/
 
-
 stages:
   - build
   - test
