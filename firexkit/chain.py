@@ -25,6 +25,10 @@ class InjectArgs(Signature):
     def __str__(self):
         return f'InjectArgs({", ".join(self.kwargs.keys())})'
 
+    @property
+    def options(self):
+        return dict()
+
     def __or__(self, other):
         if isinstance(other, InjectArgs):
             r = InjectArgs(**(self.kwargs | other.kwargs))
@@ -151,7 +155,7 @@ class SignatureX(Signature):
         prev_task_return_args : Optional[dict[str, Any]] = None
         task_names_to_missing_required_arg_names : dict[str, set[str]] = {}
         chain_depth = 0
-        for task_sig in self.get_sigs():
+        for task_sig in [t for t in self._get_sigs()]:
             simulated_pos_args, simulated_kwargs = _simulate_chain_args_kwargs(
                 prev_task_return_args,
                 task_sig.args,
@@ -212,11 +216,35 @@ class SignatureX(Signature):
         except AttributeError:
             return self # This might be a signature
 
-    def get_sigs(self) -> list['SignatureX']:
+    def _get_sigs(self) -> list['SignatureX']:
         try:
-            return self.tasks
+            tasks : list['SignatureX'] = self.tasks
         except AttributeError:
             return [self]
+        else:
+            if len(tasks) > 1:
+                return [
+                    t for t in tasks
+                    # one of many hacks needed due to InjectArgs hack.
+                    if t.name is not None
+                ]
+            return tasks
+
+    def remove_inject_args(self):
+        if (
+            self._is_chain()
+            and len( tasks := self.tasks ) > 1
+        ):
+            for s in tasks:
+                if s.name is None:
+                    logger.error(
+                        f'removing {s} with name {s.name}'
+                    )
+            self.tasks = [
+                s for s in tasks
+                # one of many hacks need due to InjectArgs hack.
+                if s.name is not None
+            ]
 
     def enqueue(
         self,
@@ -228,6 +256,7 @@ class SignatureX(Signature):
         soft_time_limit: Optional[int]=None,
     ) -> AsyncResult:
 
+        self.remove_inject_args()
         self.verify_args()
 
         if queue:
@@ -248,39 +277,47 @@ class SignatureX(Signature):
             )
         return result_promise
 
+    def _set(self, **kwargs):
+        # one of many hacks needed for InjectArgs
+        if self.options is not None:
+            Signature.set(self, **kwargs)
+
     def set_use_cache(self, use_cache: bool):
         """Set the :attr:`use_cache` execution option in every task in :attr:`sig`"""
-        for s in self.get_sigs():
-            s.set(use_cache=use_cache)
+        for s in self._get_sigs():
+            s._set(use_cache=use_cache)
 
     def set_priority(self, priority: int):
         """Set the :attr:`priority` execution option in every task in :attr:`sig`"""
-        for s in self.get_sigs():
-            s.set(priority=priority)
+        for s in self._get_sigs():
+            s._set(priority=priority)
 
     def set_queue(self, queue):
         """Set the :attr:`queue` execution option in every task in :attr:`sig`"""
-        for s in self.get_sigs():
-            s.set(queue=queue)
+        for s in self._get_sigs():
+            s._set(queue=queue)
 
     def set_soft_time_limit(self, soft_time_limit):
         """Set the :attr:`soft_time_limit` execution option in every task in :attr:`sig`"""
-        for s in self.get_sigs():
-            s.set(soft_time_limit=soft_time_limit)
+        for s in self._get_sigs():
+            s._set(soft_time_limit=soft_time_limit)
 
     def set_label(self, label):
         self.set(label=label)
 
     def get_label(self):
         try:
-            return self.options['label']
+            if self.options:
+                return self.options['label']
         except KeyError:
-            return '|'.join([s.name for s in self.get_sigs()])
+            pass
+        return '|'.join([s.name for s in self._get_sigs()])
 
     def _is_chain(self) -> bool:
         return hasattr(self, 'tasks')
 
     def apply_async_x(self, auto_inject_reg: Optional[AutoInjectRegistry]) -> AsyncResult:
+        self.remove_inject_args()
         first_sig = self.get_first_sig()
         if (
             auto_inject_reg
@@ -290,7 +327,7 @@ class SignatureX(Signature):
 
         if self._is_chain():
             chain_depth = 0
-            for chain_sig in self.get_sigs():
+            for chain_sig in self._get_sigs():
                 chain_sig.kwargs['chain_depth'] = chain_depth
                 chain_depth += 1
 
@@ -299,7 +336,9 @@ class SignatureX(Signature):
         # args & kwargs are expected to be set by prior kludges
         return self.apply_async()
 
-
+#
+# FIXME: use normal inheritance. Stop monkey patching.
+#
 Signature.injectArgs = SignatureX.injectArgs
 Signature.set_priority = SignatureX.set_priority
 Signature.set_use_cache = SignatureX.set_use_cache
@@ -310,7 +349,9 @@ Signature.get_label = SignatureX.get_label
 Signature.enqueue = SignatureX.enqueue
 Signature.verify_args = SignatureX.verify_args
 Signature.get_first_sig = SignatureX.get_first_sig
-Signature.get_sigs = SignatureX.get_sigs
+Signature._get_sigs = SignatureX._get_sigs
 Signature.apply_async_x = SignatureX.apply_async_x
 Signature._is_chain = SignatureX._is_chain
+Signature.remove_inject_args = SignatureX.remove_inject_args
+Signature._set = SignatureX._set
 
