@@ -21,9 +21,8 @@ def RootTask(self, chain, **chain_args):
     for task in get_app_tasks(chain):
         c |= task.s()
     promise = self.enqueue_child(c, block=True, raise_exception_on_failure=False)
-    chain_results = get_results(promise)
     unsuccessful_services = find_unsuccessful_in_chain(promise)
-    return chain_results, unsuccessful_services
+    return get_results(promise), unsuccessful_services
 
 
 def get_configured_root_task():
