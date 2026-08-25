@@ -84,6 +84,11 @@ release = [
 [tool.setuptools]
 include-package-data = true
 zip-safe = true
+# Preserve the legacy ``setup.py develop`` import-path behavior for editable
+# installs.  Without an explicit root package directory, setuptools may use a
+# meta-path finder for PEP 660 installs.  That finder runs after PathFinder and
+# can be shadowed by stale package directories left by an in-place upgrade.
+package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
 where = ["."]
