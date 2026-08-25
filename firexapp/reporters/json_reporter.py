@@ -25,7 +25,6 @@ from firexkit.result import (
     get_results,
 )
 from celery.states import REVOKED, RETRY
-from firexkit.result import FxAsyncResult
 from firexkit.task import convert_to_serializable
 from celery.utils.log import get_task_logger
 from firexapp.engine.celery import app
@@ -592,7 +591,7 @@ class FireXJsonReportGenerator:
 
 
 def _get_run_results_from_root_task_promise(
-    root_task_ar: Optional[FxAsyncResult],
+    root_task_ar: Optional[AsyncResult],
     run_revoked: bool,
     shutdown_reason: Optional[str],
 ) -> dict[str, Any]:
