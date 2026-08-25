@@ -780,7 +780,7 @@ test = [{ name = "coverage", specifier = "==5.5" }]
 
 [[package]]
 name = "firexkit"
-version = "5.2.47"
+version = "5.2.48"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "celery" },
@@ -788,9 +788,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b0/29/4c9a70f4aaff6f06bef12b9a6532d70c5a0a85315229469bc4af366afb22/firexkit-5.2.47.tar.gz", hash = "sha256:c05376070777dfb61a89d0887905fbae4c1b71a66c185f2a7ceb54d3bc83828b", size = 84790, upload-time = "2026-08-25T17:04:32.042Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6a/b5/184df4ff3f41f8e799d63ed5a7ecd8a61bea550b6b94e5db65dac3e77a32/firexkit-5.2.48.tar.gz", hash = "sha256:498929659bd1d7c486abbd442137256d6b515124de4d79db48334f27ea1267d8", size = 79836, upload-time = "2026-08-25T22:14:32.182Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c6/f3/253727bf4b8e2ad16ebb3b585559fd1cb0e87de5d416ac13a95fce6e1a97/firexkit-5.2.47-py2.py3-none-any.whl", hash = "sha256:44cff087dea94415b93d12039cf139999e91e217feed39188e67ebcd067a4223", size = 69787, upload-time = "2026-08-25T17:04:30.806Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/7a/f29315e108f0685f85fcd928814b3932a76f4d03fc30b2c8dd97da69519c/firexkit-5.2.48-py2.py3-none-any.whl", hash = "sha256:60e21e303ba675cbedb6a73d062589788eba8a92ad5cf98bab313fd19e970b34", size = 64174, upload-time = "2026-08-25T22:14:31.12Z" },
 ]
 
 [[package]]
