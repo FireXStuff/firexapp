@@ -1,9 +1,10 @@
 import os
 import unittest
+from unittest.mock import patch
 
-from firexapp.plugins import identify_duplicate_tasks, find_plugin_file, cdl2list, get_plugin_module_names, \
+from firexapp.plugins import _identify_duplicate_tasks, find_plugin_file, cdl2list, get_plugin_module_names, \
     get_active_plugins, set_plugins_env, load_plugin_modules, merge_plugins, \
-    plugin_support_parser, get_plugin_module_names_from_env, load_plugin_modules_from_env
+    plugin_support_parser, _get_plugin_module_names_from_env, load_plugin_modules_from_env
 from firexkit.task import FireXTask
 
 
@@ -11,7 +12,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
     def test_identify_duplicate_tasks(self):
         all_tasks = ["microservice.tasks.joey",
                      "external.joey"]
-        results = identify_duplicate_tasks(all_tasks, ["external"])
+        results = _identify_duplicate_tasks(all_tasks, ["external"])
 
         self.assertTrue(len(results) == 1)
         this, that = tuple(results[0])
@@ -21,25 +22,25 @@ class DuplicateIdentificationTests(unittest.TestCase):
     def test_identify_duplicate_tasks_no_dups(self):
         all_tasks = ["microservice.tasks.joey",
                      "external.chandler"]
-        results = identify_duplicate_tasks(all_tasks, [])
+        results = _identify_duplicate_tasks(all_tasks, [])
         self.assertTrue(len(results) == 0)
 
         # We make sure a sub string is not caught
         all_tasks = ["microservice.tasks.joey",
                      "microservice.tasks.joey_different"]
-        results = identify_duplicate_tasks(all_tasks, [])
+        results = _identify_duplicate_tasks(all_tasks, [])
         self.assertTrue(len(results) == 0)
 
         # Now we reverse the order to make sure the result is the same
         all_tasks = ["microservice.tasks.joey",
                      "microservice.tasks.joey_different"]
-        results = identify_duplicate_tasks(all_tasks, [])
+        results = _identify_duplicate_tasks(all_tasks, [])
         self.assertTrue(len(results) == 0)
 
     def test_identify_duplicate_tasks_prioritize(self):
         all_tasks = ["microservice.tasks.joey",
                      "external.joey"]
-        results = identify_duplicate_tasks(all_tasks, ["external"])
+        results = _identify_duplicate_tasks(all_tasks, ["external"])
         self.assertTrue(len(results) == 1)
         this, that = tuple(results[0])
         self.assertEqual(this, "microservice.tasks.joey")
@@ -48,7 +49,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
         # Switch the priority, different result
         all_tasks = ["microservice.tasks.joey",
                      "external.joey"]
-        results = identify_duplicate_tasks(all_tasks, ["microservice.tasks"])
+        results = _identify_duplicate_tasks(all_tasks, ["microservice.tasks"])
         self.assertTrue(len(results) == 1)
         this, that = tuple(results[0])
         self.assertEqual(this, "external.joey")
@@ -57,7 +58,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
         # Now we reverse the order to make sure the result is the same
         all_tasks = ["external.joey",
                      "microservice.tasks.joey"]
-        results = identify_duplicate_tasks(all_tasks, ["microservice.tasks"])
+        results = _identify_duplicate_tasks(all_tasks, ["microservice.tasks"])
         self.assertTrue(len(results) == 1)
         this, that = tuple(results[0])
         self.assertEqual(this, "external.joey")
@@ -65,14 +66,14 @@ class DuplicateIdentificationTests(unittest.TestCase):
 
         # Multiple priority modules. Last is highest priority
         all_tasks = ['celery_queues_tests.success_test_worker', 'RunOnMcAndWorkerTestConfig_mock.success_test_worker']
-        results = identify_duplicate_tasks(all_tasks, ['celery_queues_tests', 'RunOnMcAndWorkerTestConfig_mock'])
+        results = _identify_duplicate_tasks(all_tasks, ['celery_queues_tests', 'RunOnMcAndWorkerTestConfig_mock'])
         this, that = tuple(results[0])
         self.assertEqual(this, "celery_queues_tests.success_test_worker")
         self.assertEqual(that, "RunOnMcAndWorkerTestConfig_mock.success_test_worker")
 
         # Multiple priority modules. Last is highest priority, even if the order of the tasks is reversed
         all_tasks.reverse()
-        results = identify_duplicate_tasks(all_tasks, ['celery_queues_tests', 'RunOnMcAndWorkerTestConfig_mock'])
+        results = _identify_duplicate_tasks(all_tasks, ['celery_queues_tests', 'RunOnMcAndWorkerTestConfig_mock'])
         this, that = tuple(results[0])
         self.assertEqual(this, "celery_queues_tests.success_test_worker")
         self.assertEqual(that, "RunOnMcAndWorkerTestConfig_mock.success_test_worker")
@@ -83,7 +84,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
                      "second.external.joey"]
         for x in range(0, 2):
             with self.subTest(str(x)):
-                results = identify_duplicate_tasks(all_tasks, ['first.external', 'second.external'])
+                results = _identify_duplicate_tasks(all_tasks, ['first.external', 'second.external'])
                 self.assertEqual(len(results), 1)
                 self.assertEqual(len(results[0]), 3)
                 self.assertTrue("original" in results[0][0])
@@ -96,7 +97,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
                      "microservice.tasks.joey_different",
                      "microservice.tasks.different_joey",
                      "external.joey"]
-        results = identify_duplicate_tasks(all_tasks, ["external"])
+        results = _identify_duplicate_tasks(all_tasks, ["external"])
 
         self.assertTrue(len(results) == 1)
         this, that = tuple(results[0])
@@ -134,8 +135,9 @@ class ResolvePathTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             self.assertFalse(get_plugin_module_names("complete/gibberish.py"))
 
+    @patch.dict(os.environ, {'firex_plugins': ''})
     def test_plugin_env(self):
-        self.assertFalse(get_plugin_module_names_from_env())
+        self.assertFalse(_get_plugin_module_names_from_env())
         set_plugins_env("")
         self.assertFalse(load_plugin_modules_from_env())
         set_plugins_env(__file__)

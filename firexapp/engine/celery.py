@@ -6,7 +6,6 @@ from celery import platforms
 # to hang since broker will remain up.
 platforms.set_pdeathsig = lambda n: None
 
-from celery.app.base import Celery
 from firexkit.task import FireXTask, get_time_from_task_start, convert_to_serializable
 from celery.states import REVOKED as CELERY_REVOKED
 from celery.utils.log import get_task_logger
@@ -14,14 +13,16 @@ from celery.signals import celeryd_init, task_postrun, task_revoked
 from firexapp.submit.install_configs import install_config_path_from_logs_dir, load_existing_install_configs
 from firexapp.engine.firex_revoke import RevokeDetails
 from firexapp.events.model import RunStates
-
-
+from firexkit.firex_celery import FireXCelery
 
 logger = get_task_logger(__name__)
 
-firex_app_name = '.'.join(__name__.split(".")[:-1])
-app = Celery(strict_typing=False, task_cls='%s:%s' % (FireXTask.__module__, FireXTask.__name__))
-app.config_from_object(firex_app_name + '.default_celery_config')
+
+app = FireXCelery(
+    strict_typing=False,
+    task_cls=f'{FireXTask.__module__}:{FireXTask.__name__}',
+)
+app.config_from_object(( '.'.join(__name__.split(".")[:-1]) ) + '.default_celery_config')
 
 
 @celeryd_init.connect

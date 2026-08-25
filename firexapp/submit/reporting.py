@@ -1,13 +1,10 @@
-import traceback
 from abc import ABC, abstractmethod
 from functools import wraps
 
-from celery.local import PromiseProxy
-from celery.result import AsyncResult
 from celery.states import SUCCESS
 from celery.utils.log import get_task_logger
 
-from firexkit.result import get_task_name_from_result
+from firexkit.result import FxAsyncResult
 from firexkit.task import get_current_reports_uids
 
 logger = get_task_logger(__name__)
@@ -77,7 +74,10 @@ class ReportersRegistry:
         if results:
             from celery import current_app
             report_uids = get_current_reports_uids(current_app.backend)
-            report_results = [AsyncResult(r, backend=current_app.backend) for r in report_uids]
+            report_results = [
+                FxAsyncResult(r, backend=current_app.backend)
+                for r in report_uids
+            ]
             logger.debug(f"Processing reports for {report_uids}")
             for task_result in report_results:
                 try:
@@ -85,7 +85,7 @@ class ReportersRegistry:
                     if task_result.state != SUCCESS:
                         continue
 
-                    task_name = get_task_name_from_result(task_result)
+                    task_name = task_result.fx_get_name()
                     if task_name not in current_app.tasks:
                         continue
 
