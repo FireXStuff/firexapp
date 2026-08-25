@@ -8,6 +8,7 @@ from logging.handlers import WatchedFileHandler
 import html
 from celery.signals import after_setup_task_logger, after_setup_logger
 import os
+from firexapp.engine.celery import app
 from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
 from firexkit.firexkit_common import JINJA_ENV
 from celery._state import get_current_task
@@ -175,7 +176,6 @@ def configure_main_logger(logger, loglevel, logfile, format, colorize, **_kwargs
     # Deduce the worker name from the logfile, which is unfortunate
     worker_name = os.path.splitext(os.path.basename(logfile))[0]
     base_dir = os.path.dirname(logfile)
-    from firexapp.engine.celery import app
     logs_url = app.conf.logs_url
     if not logs_url:
         logs_url = os.path.relpath(app.conf.logs_dir, base_dir)

@@ -37,7 +37,6 @@ dependencies = [
     "detach3k",
     "pytz",
     "rapidfuzz==3.8.1",
-    "pydantic==2.13.0",
 ]
 
 [project.optional-dependencies]
