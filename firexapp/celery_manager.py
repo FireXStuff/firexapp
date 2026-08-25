@@ -159,7 +159,7 @@ class CeleryManager:
             with open(pid_file) as f:
                 pid = f.read().strip()
         except FileNotFoundError:
-            cls.log('No pid file found in %s' % pid_file, level=WARNING)
+            cls.log(f'No pid file found in {pid_file}', level=WARNING)
             raise
         else:
             if pid:
@@ -212,18 +212,22 @@ class CeleryManager:
                 extra_err_info += '\nFound the following errors:\n' + '\n'.join(err_list)
 
             extra_err_info += '\nAttempting to delete the invocation pids'
-            deleted_pids = subprocess.run(['/bin/pkill', '-e', '-f', pid_file],
-                                          capture_output=True,
-                                          text=True)
+            deleted_pids = subprocess.run(
+                ['/bin/pkill', '-e', '-f', pid_file],
+                capture_output=True,
+                text=True,
+            )
             if deleted_pids.stdout:
                 extra_err_info += f'\nstdout: {deleted_pids.stdout}'
             if deleted_pids.stderr:
                 extra_err_info += f'\nstderr: {deleted_pids.stderr}'
 
-            raise CeleryWorkerStartFailed(f'The worker {workername}@{self.hostname} did not come up after'
-                                          f' {timeout} seconds.\n'
-                                          f'Please look into {stdout_file!r} for details.'
-                                          f'{extra_err_info}')
+            raise CeleryWorkerStartFailed(
+                f'The worker {workername}@{self.hostname} did not come up after'
+                f' {timeout} seconds.\n'
+                f'Please look into {stdout_file!r} for details.'
+                f'{extra_err_info}'
+            )
         pid = self.get_pid_from_file(pid_file)
         self.log('pid %d became active' % pid)
 
@@ -336,7 +340,7 @@ class CeleryManager:
 
     @classmethod
     def terminate(cls, pid, timeout=60):
-        cls.log('Terminating pid %d' % pid, level=INFO)
+        cls.log(f'Terminating pid {pid}', level=INFO)
         p = psutil.Process(pid)
         p.terminate()
         p.wait(timeout=timeout)
