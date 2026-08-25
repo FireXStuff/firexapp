@@ -4,7 +4,9 @@ import re
 from datetime import datetime
 import dataclasses
 import os
+import sys
 import tarfile
+from collections import OrderedDict
 from pathlib import Path
 from enum import Enum
 import json
@@ -21,9 +23,9 @@ from firex_flame.model_dumper import get_all_tasks_dir, get_tasks_slim_file, get
 from gevent.lock import BoundedSemaphore
 
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
-LIST_PATH_ENTRY = re.compile(r'^\[(\d+)\]$')
+LIST_PATH_ENTRY: re.Pattern[str] = re.compile(r'^\[(\d+)\]$')
 
 TASK_TYPE = dict[str, Any] # fixme should probably data model
 TASKS_BY_UUID_TYPE = dict[str, TASK_TYPE] # fixme should probably data model
@@ -37,7 +39,7 @@ CeleryEvent = dict[str, Any]
 
 
 def _times_from_event(event: dict[str, Any]) -> dict:
-    times = {_LATEST_TIMESTAMP_KEY: event['local_received']}
+    times: dict[str, Any] = {_LATEST_TIMESTAMP_KEY: event['local_received']}
     if event.get('type') == 'task-started-info':
         times[_STARTED_INFO_TIMESTAMP_KEY] = event['local_received']
     return times
@@ -159,11 +161,11 @@ def _get_keys_with_true(input_dict, key):
     return [k for k, v in input_dict.items() if v.get(key, False)]
 
 
-COPY_FIELDS = _get_keys_with_true(FIELD_CONFIG, 'copy_celery')
+COPY_FIELDS: list[str] = _get_keys_with_true(FIELD_CONFIG, 'copy_celery')
 # These are the minimum fields required to render the graph.
-SLIM_FIELDS = _get_keys_with_true(FIELD_CONFIG, 'slim_field')
+SLIM_FIELDS: list[str] = _get_keys_with_true(FIELD_CONFIG, 'slim_field')
 
-AGGREGATE_MERGE_FIELDS = _get_keys_with_true(FIELD_CONFIG, 'aggregate_merge')
+AGGREGATE_MERGE_FIELDS: list[str] = _get_keys_with_true(FIELD_CONFIG, 'aggregate_merge')
 FIELD_TO_CELERY_TRANSFORMS = {
     k: v['transform_celery'] for k, v in FIELD_CONFIG.items()
     if 'transform_celery' in v
@@ -176,25 +178,30 @@ class _TaskFieldSentile(Enum):
 
 @dataclasses.dataclass
 class _ModelledFlameTask:
+    # Only fields declared here are ever unloaded from memory (see unload_fields()). Any field that is
+    # copy_celery in FIELD_CONFIG but not also listed here will be kept in memory for the life of the
+    # server, so large/rare fields (like tracebacks) belong here too.
     firex_bound_args: Union[dict, _TaskFieldSentile] = _TaskFieldSentile.UNSET
     firex_default_bound_args: Union[dict, _TaskFieldSentile] = _TaskFieldSentile.UNSET
     firex_result: Union[dict, _TaskFieldSentile] = _TaskFieldSentile.UNSET
     external_commands: Union[dict, _TaskFieldSentile] = _TaskFieldSentile.UNSET
+    traceback: Union[str, _TaskFieldSentile] = _TaskFieldSentile.UNSET
+    exception: Union[str, _TaskFieldSentile] = _TaskFieldSentile.UNSET
 
-    def as_dict(self):
+    def as_dict(self) -> dict[str, Any]:
         return {
             field_name: getattr(self, field_name)
             for field_name in self.unloadable_field_names()
             if not isinstance(getattr(self, field_name), _TaskFieldSentile)
         }
 
-    def get_set_field_names(self):
+    def get_set_field_names(self) -> list[str]:
         return [
             field_name for field_name in self.unloadable_field_names()
             if getattr(self, field_name) != _TaskFieldSentile.UNSET
         ]
 
-    def unloadable_field_names(self):
+    def unloadable_field_names(self) -> list[str]:
         return [f.name for f in dataclasses.fields(self)]
 
     def any_unloaded(self, field_names=None) -> bool:
@@ -205,7 +212,7 @@ class _ModelledFlameTask:
             for f in field_names
         )
 
-    def unload_fields(self):
+    def unload_fields(self) -> None:
         for field_name in self.unloadable_field_names():
             field_val = getattr(self, field_name)
             if not isinstance(field_val, _TaskFieldSentile):
@@ -213,7 +220,7 @@ class _ModelledFlameTask:
                 setattr(self, field_name, _TaskFieldSentile.UNLOADED)
                 del field_val
 
-    def update(self, update_dict):
+    def update(self, update_dict) -> None:
         for k in self.unloadable_field_names():
             if k in update_dict:
                 setattr(self, k, update_dict[k])
@@ -231,10 +238,13 @@ class _FlameTask:
     _modelled : _ModelledFlameTask
     always_loaded_task_data: dict[str, Any]
     model_dumper : 'FlameModelDumper'
-    _lock = BoundedSemaphore()
+    # NOTE: must have a type annotation + default_factory so dataclass creates one lock per instance.
+    # Without this, all _FlameTask instances share a single class-level BoundedSemaphore, serializing
+    # full-task load/dump/unload across every task in the run.
+    _lock: BoundedSemaphore = dataclasses.field(default_factory=BoundedSemaphore, compare=False, repr=False)
 
     @staticmethod
-    def create_task(task_uuid, task_num, model_dumper : 'FlameModelDumper'):
+    def create_task(task_uuid, task_num, model_dumper : 'FlameModelDumper') -> '_FlameTask':
         return _FlameTask(
             _ModelledFlameTask(),
             always_loaded_task_data={
@@ -267,7 +277,7 @@ class _FlameTask:
         if self._modelled.any_unloaded(field_names):
             modeled_dict = self._load_from_full_task_file()
         else:
-            modeled_dict = self._modelled.as_dict()
+            modeled_dict: dict[str, Any] = self._modelled.as_dict()
         return modeled_dict | self.always_loaded_task_data
 
     def get_full_task_dict(self):
@@ -277,8 +287,8 @@ class _FlameTask:
     def get_uuid(self):
         return self.always_loaded_task_data['uuid']
 
-    def dump_full(self, new_event_types: set[str]):
-        should_dump = (
+    def dump_full(self, new_event_types: set[str]) -> None:
+        should_dump: bool = (
             # dump when we receive args
             'task-started-info' in new_event_types
 
@@ -319,7 +329,7 @@ class _FlameTask:
     def get_fields(self, field_names):
         if set(field_names).isdisjoint(self._modelled.unloadable_field_names()):
             # no need to load unloaded data.
-            task_dict = self.always_loaded_task_data
+            task_dict: dict[str, Any] = self.always_loaded_task_data
         else:
             with self._lock: # unloaded field requested
                 task_dict = self._already_locked_get_full_task_dict(field_names)
@@ -330,7 +340,7 @@ class _FlameTask:
             if k in task_dict
         }
 
-    def update(self, update_dict: dict[str, Any]):
+    def update(self, update_dict: dict[str, Any]) -> None:
         self._modelled.update(
             {
                 k: v for k, v in update_dict.items()
@@ -344,7 +354,7 @@ class _FlameTask:
             }
         )
 
-    def get_field_names(self):
+    def get_field_names(self) -> list[str]:
         return list(self.always_loaded_task_data.keys()) + self._modelled.get_set_field_names()
 
     def find_task_changes(self, new_task_data: dict[str, Any]) -> dict[str, Any]:
@@ -387,11 +397,11 @@ class FlameTaskGraph:
         self,
         tasks_by_uuid: Optional[TASKS_BY_UUID_TYPE] = None,
         model_dumper: Optional['FlameModelDumper'] = None,
-    ):
+    ) -> None:
         self.root_uuid : Optional[str] = None
 
         self._tasks_by_uuid : dict[str, _FlameTask] = {}
-        self.model_dumper = model_dumper
+        self.model_dumper: FlameModelDumper | None = model_dumper
         self._event_aggregator = FlameEventAggregator(
             self._tasks_by_uuid, # Must share instance.
             self.model_dumper)
@@ -436,7 +446,7 @@ class FlameTaskGraph:
             self._child_to_parents_uuids,
         )
 
-    def _add_parent_and_child(self, parent_uuid, child_uuid):
+    def _add_parent_and_child(self, parent_uuid, child_uuid) -> None:
         if parent_uuid not in self._parent_to_children_uuids:
             self._parent_to_children_uuids[parent_uuid] = set()
         self._parent_to_children_uuids[parent_uuid].add(child_uuid)
@@ -445,7 +455,7 @@ class FlameTaskGraph:
             self._child_to_parents_uuids[child_uuid] = set()
         self._child_to_parents_uuids[child_uuid].add(parent_uuid)
 
-    def _maybe_set_root_uuid(self, events):
+    def _maybe_set_root_uuid(self, events) -> None:
         for event in events:
             if self.root_uuid is None:
                 if (
@@ -458,7 +468,7 @@ class FlameTaskGraph:
                     # since other events reference the root UUID via root_id.
                     self.root_uuid = event['root_id']
 
-    def _update_graph_from_task_data(self, task_uuid, event):
+    def _update_graph_from_task_data(self, task_uuid, event) -> None:
         if task_uuid:
             parent_id = event.get('parent_id')
             if parent_id:
@@ -501,18 +511,18 @@ class FlameTaskGraph:
             match_descendant_criteria=False)
 
     def is_root_started(self) -> bool:
-        task = self._tasks_by_uuid.get(self.root_uuid)
+        task: _FlameTask | None = self._tasks_by_uuid.get(self.root_uuid)
         if task is None:
             return False
         return task.get_task_state() not in [None, RunStates.RECEIVED]
 
     def is_root_complete(self) -> bool:
-        task = self._tasks_by_uuid.get(self.root_uuid)
+        task: _FlameTask | None = self._tasks_by_uuid.get(self.root_uuid)
         if task is None:
             return False
         return task.is_complete()
 
-    def all_tasks_complete(self):
+    def all_tasks_complete(self) -> bool:
         if not self._tasks_by_uuid:
             # do not want "no tasks received yet"
             # to look like "all tasks complete"
@@ -529,24 +539,24 @@ class FlameTaskGraph:
         )
 
     def get_full_task_dict(self, uuid) -> Optional[dict[str, dict[str, Any]]]:
-        maybe_full_task = self._tasks_by_uuid.get(uuid)
+        maybe_full_task: _FlameTask | None = self._tasks_by_uuid.get(uuid)
         if maybe_full_task is None:
             return None
         return maybe_full_task.get_full_task_dict()
 
     def get_slim_task_dict(self, uuid) -> Optional[dict[str, dict[str, Any]]]:
-        task = self._tasks_by_uuid.get(uuid)
+        task: _FlameTask | None = self._tasks_by_uuid.get(uuid)
         if task is None:
             return None
         return task.get_fields(SLIM_FIELDS)
 
     def get_task_field(self, uuid, field_name, default=None):
-        task = self._tasks_by_uuid.get(uuid)
+        task: _FlameTask | None = self._tasks_by_uuid.get(uuid)
         if task is None:
             return default
         return task.get_field(field_name, default)
 
-    def get_all_task_uuids(self):
+    def get_all_task_uuids(self) -> set[str]:
         return set(self._tasks_by_uuid.keys())
 
     def get_slim_tasks_by_uuid(self):
@@ -576,7 +586,7 @@ class FlameTaskGraph:
 
         return new_data_by_task_uuid, slim_update_data_by_uuid
 
-    def dump_full_task(self, uuid: str, new_event_types: set[str]):
+    def dump_full_task(self, uuid: str, new_event_types: set[str]) -> None:
         if uuid not in self._tasks_by_uuid:
             logger.warning(f'Ignoring request to dump non-existant tast {uuid}')
         else:
@@ -587,7 +597,7 @@ class FlameTaskGraph:
         return self._tasks_by_uuid.get(uuid)
 
     def was_revoked(self, uuid) -> bool:
-        task = self._get_task(uuid)
+        task: _FlameTask | None = self._get_task(uuid)
         if task is None:
             return False
         return task.get_field('was_revoked', False)
@@ -597,7 +607,7 @@ def _slim_tasks_by_uuid(tasks_by_uuid):
                    if k in SLIM_FIELDS}
             for uuid, task_data in tasks_by_uuid.items()}
 
-def _validate_task_queries(task_representation):
+def _validate_task_queries(task_representation) -> bool:
     if not isinstance(task_representation, list):
         return False
 
@@ -616,17 +626,17 @@ def _normalize_criteria_key(k):
     return k[1:] if k.startswith('?') else k
 
 
-def _matches_equal_criteria(task: _FlameTask, eq_criteria: dict[str, Any]):
+def _matches_equal_criteria(task: _FlameTask, eq_criteria: dict[str, Any]) -> bool:
     # TODO: if more adjusting qualifiers are added, this needs to be reworked.
-    required_keys = {k for k in eq_criteria.keys() if not k.startswith('?')}
-    optional_keys = {_normalize_criteria_key(k) for k in eq_criteria.keys() if k.startswith('?')}
+    required_keys: set[str] = {k for k in eq_criteria.keys() if not k.startswith('?')}
+    optional_keys: set[str] = {_normalize_criteria_key(k) for k in eq_criteria.keys() if k.startswith('?')}
 
-    task_fields = task.get_field_names()
+    task_fields: list[str] = task.get_field_names()
     if not required_keys.issubset(task_fields):
         return False # task is missing required keys, can't match.
 
-    queried_field_names = required_keys.union(optional_keys)
-    normalized_criteria = {_normalize_criteria_key(k): v for k, v in eq_criteria.items()}
+    queried_field_names: set[str] = required_keys.union(optional_keys)
+    normalized_criteria: dict[str, Any] = {_normalize_criteria_key(k): v for k, v in eq_criteria.items()}
     for task_field in task_fields: # ordered to avoid loading unloadable fields
         if (
             task_field in queried_field_names
@@ -635,7 +645,7 @@ def _matches_equal_criteria(task: _FlameTask, eq_criteria: dict[str, Any]):
             return False
     return True
 
-def _matches_has_key_criteria(task: _FlameTask, key_path):
+def _matches_has_key_criteria(task: _FlameTask, key_path) -> bool:
     if isinstance(key_path, str):
         key_path = key_path.split('.')
 
@@ -659,7 +669,7 @@ def _matches_has_key_criteria(task: _FlameTask, key_path):
     return False
 
 
-def task_matches_criteria(task: _FlameTask, criteria: dict):
+def task_matches_criteria(task: _FlameTask, criteria: dict) -> bool:
     if criteria['type'] == 'all':
         return True
 
@@ -677,27 +687,27 @@ def task_matches_criteria(task: _FlameTask, criteria: dict):
     return False
 
 
-def _add_path_to_container(container, path_list, val):
+def _add_path_to_container(container, path_list, val) -> None:
     if not path_list:
         return
     if len(path_list) == 1:
         final_key = path_list[0]
-        is_list = LIST_PATH_ENTRY.match(final_key)
+        is_list: re.Match[str] | None = LIST_PATH_ENTRY.match(final_key)
         if is_list:
             container.append(val)
         else:
             container[final_key] = val
     else:
         cur_key = path_list.pop(0)
-        is_cur_list = LIST_PATH_ENTRY.match(cur_key)
+        is_cur_list: re.Match[str] | None = LIST_PATH_ENTRY.match(cur_key)
         if is_cur_list:
             cur_key = int(is_cur_list.group(1))
 
-def _add_path_to_container(top_container: dict[str, Any], path_list: tuple[Union[str,int]], val):
-    latest_container = top_container
+def _add_path_to_container(top_container: dict[str, Any], path_list: tuple[Union[str,int]], val) -> None:
+    latest_container: dict[str, Any] = top_container
     for i, cur_key in enumerate(path_list):
-        is_last_key = i == len(path_list) - 1
-        is_latest_list = isinstance(latest_container, list)
+        is_last_key: bool = i == len(path_list) - 1
+        is_latest_list: bool = isinstance(latest_container, list)
 
         if is_latest_list:
             latest_cont_keys = range(len(latest_container))
@@ -713,7 +723,7 @@ def _add_path_to_container(top_container: dict[str, Any], path_list: tuple[Union
         else:
             # not last key, find or create next container.
             if cur_key not in latest_cont_keys:
-                is_next_list = isinstance(path_list[i+1], int)
+                is_next_list: bool = isinstance(path_list[i+1], int)
                 if is_next_list:
                     next_container = []
                 else:
@@ -729,7 +739,7 @@ def _add_path_to_container(top_container: dict[str, Any], path_list: tuple[Union
 
 
 def _int_index_or_key(json_key_part_str):
-    m = LIST_PATH_ENTRY.match(json_key_part_str)
+    m: re.Match[str] | None = LIST_PATH_ENTRY.match(json_key_part_str)
     if m:
         return int(m.group(1))
     return json_key_part_str
@@ -763,7 +773,7 @@ def _jsonpath_get_paths(jsonpath_exprs, task_dict):
 
 
 def _get_descendants_for_criteria(select_paths, descendant_criteria, ancestor_uuid, task_graph: FlameTaskGraph):
-    ancestor_descendants = task_graph.get_descendants_of_uuid(ancestor_uuid)
+    ancestor_descendants: list[_FlameTask] = task_graph.get_descendants_of_uuid(ancestor_uuid)
     matched_descendants_by_uuid = {}
     for criteria in descendant_criteria:
         for descendant in ancestor_descendants:
@@ -864,7 +874,7 @@ def _query_task(
 
 def _select_data_for_matches(task_uuid, task_queries, task_graph: FlameTaskGraph, match_descendant_criteria):
     result_tasks_by_uuid = {}
-    task = task_graph._get_task(task_uuid)
+    task: _FlameTask | None = task_graph._get_task(task_uuid)
     if task is not None:
         query_result = _query_task(task, task_queries, task_graph)
         if query_result is not None:
@@ -897,6 +907,20 @@ def _query_flame_tasks(task_graph: FlameTaskGraph, task_uuids_to_query, task_que
     return result_tasks_by_uuid
 
 
+# Fields with few distinct values repeated across many tasks (e.g. every instance of a given task type
+# shares the same name/hostname). Interning keeps only one string object per distinct value in memory
+# instead of one per task.
+_INTERNABLE_FIELDS = ('name', 'long_name', 'hostname', 'state', 'from_plugin')
+
+
+def _intern_str_fields(task_data: dict[str, Any]) -> dict[str, Any]:
+    for field in _INTERNABLE_FIELDS:
+        value: Any | None = task_data.get(field)
+        if isinstance(value, str):
+            task_data[field] = sys.intern(value)
+    return task_data
+
+
 # Event data extraction/transformation without current state context.
 def _get_event_task_data(event: CeleryEvent) -> dict[str, Any]:
     new_task_data = {}
@@ -910,7 +934,7 @@ def _get_event_task_data(event: CeleryEvent) -> dict[str, Any]:
         if field in event:
             new_task_data.update(transform(event))
 
-    return new_task_data
+    return _intern_str_fields(new_task_data)
 
 
 def find_data_changes(
@@ -918,7 +942,7 @@ def find_data_changes(
     new_task_data: dict[str, Any],
 ) -> dict[str, Any]:
 
-    changed_data = task.find_task_changes(new_task_data)
+    changed_data: dict[str, Any] = task.find_task_changes(new_task_data)
 
     # Some fields need to be accumulated across events, not overwritten from latest event.
     merged_fields_to_values = {
@@ -943,8 +967,8 @@ def find_data_changes(
 class FlameEventAggregator:
     """ Aggregates many events in to the task data model. """
 
-    def __init__(self, tasks_by_uuid, model_dumper: Optional['FlameModelDumper']=None):
-        self.model_dumper = model_dumper
+    def __init__(self, tasks_by_uuid, model_dumper: Optional['FlameModelDumper']=None) -> None:
+        self.model_dumper: FlameModelDumper | None = model_dumper
         self._tasks_by_uuid : dict[str, _FlameTask] = tasks_by_uuid
         self.new_task_num : int = len(tasks_by_uuid) + 1
 
@@ -965,7 +989,7 @@ class FlameEventAggregator:
         that is generated here so that the UI can show a non-incomplete runstate.
         :return:
         """
-        now = datetime.now().timestamp()
+        now: float = datetime.now().timestamp()
         return [
             {
                 'uuid': task.get_uuid(),
@@ -981,7 +1005,7 @@ class FlameEventAggregator:
 
     def _get_or_create_task(self, task_uuid) -> tuple[_FlameTask, bool]:
         if task_uuid not in self._tasks_by_uuid:
-            task = _FlameTask.create_task(
+            task: _FlameTask = _FlameTask.create_task(
                 task_uuid,
                 self.new_task_num,
                 self.model_dumper)
@@ -1009,8 +1033,8 @@ class FlameEventAggregator:
             return {}
 
         task, is_new_task = self._get_or_create_task(task_uuid)
-        new_task_data = _get_event_task_data(event)
-        changed_data = task.find_task_changes(new_task_data)
+        new_task_data: dict[str, Any] = _get_event_task_data(event)
+        changed_data: dict[str, Any] = task.find_task_changes(new_task_data)
         task.update(changed_data)
 
         return {
@@ -1022,11 +1046,14 @@ class FlameEventAggregator:
 
 class FlameModelDumper:
 
-    def __init__(self, firex_logs_dir=None, root_model_dir: Optional[str]=None):
+    # Bounds the read-cache below so it can't become an unbounded memory sink itself.
+    _FULL_TASK_CACHE_MAX_SIZE = 500
+
+    def __init__(self, firex_logs_dir=None, root_model_dir: Optional[str]=None) -> None:
         assert bool(firex_logs_dir) ^ bool(root_model_dir), \
             "Dumper needs exclusively either logs dir or root model dir."
         if firex_logs_dir:
-            self.root_model_dir = get_flame_model_dir(firex_logs_dir)
+            self.root_model_dir: str = get_flame_model_dir(firex_logs_dir)
         else:
             assert root_model_dir
             self.root_model_dir = root_model_dir
@@ -1036,23 +1063,44 @@ class FlameModelDumper:
         os.makedirs(self.full_tasks_dir, exist_ok=True)
         self.slim_tasks_file = get_tasks_slim_file(root_model_dir=self.root_model_dir)
 
+        # Small bounded LRU cache of recently written/read full task dicts. Once a task's big fields are
+        # unloaded from the in-memory model, every full-task query re-reads and re-parses its JSON file
+        # from disk; this avoids that cost for tasks queried repeatedly (e.g. a UI re-inspecting the same
+        # failed task), without holding on to every task's full data indefinitely.
+        self._full_task_cache: OrderedDict[str, dict] = OrderedDict()
+
     def dump_metadata(self, run_metadata, root_complete, flame_complete):
         metadata_model_file = get_run_metadata_file(root_model_dir=self.root_model_dir)
         complete = {'run_complete': root_complete, 'flame_recv_complete': flame_complete}
         atomic_write_json(metadata_model_file, run_metadata | complete)
         return metadata_model_file
 
-    def _get_full_task_file_path(self, uuid):
+    def _get_full_task_file_path(self, uuid) -> str:
         return os.path.join(self.full_tasks_dir, f'{uuid}.json')
 
-    def dump_full_task(self, uuid, task):
+    def _cache_full_task(self, uuid, task) -> None:
+        self._full_task_cache[uuid] = task
+        self._full_task_cache.move_to_end(uuid)
+        if len(self._full_task_cache) > self._FULL_TASK_CACHE_MAX_SIZE:
+            self._full_task_cache.popitem(last=False)
+
+    def dump_full_task(self, uuid, task) -> None:
         atomic_write_json(self._get_full_task_file_path(uuid), task)
+        # Keep the cache authoritative so a later load_full_task() can't return stale data.
+        self._cache_full_task(uuid, task)
 
     def load_full_task(self, uuid):
-        with open(self._get_full_task_file_path(uuid), encoding='utf-8') as fp:
-            return json.load(fp)
+        cached_task = self._full_task_cache.get(uuid)
+        if cached_task is not None:
+            self._full_task_cache.move_to_end(uuid)
+            return cached_task
 
-    def dump_slim_tasks(self, slim_tasks_by_uuid: dict[str, dict[str, Any]]):
+        with open(self._get_full_task_file_path(uuid), encoding='utf-8') as fp:
+            task = json.load(fp)
+        self._cache_full_task(uuid, task)
+        return task
+
+    def dump_slim_tasks(self, slim_tasks_by_uuid: dict[str, dict[str, Any]]) -> None:
         atomic_write_json(
             self.slim_tasks_file,
             slim_tasks_by_uuid)
@@ -1062,7 +1110,7 @@ class FlameModelDumper:
         task_graph: FlameTaskGraph,
         run_metadata=None,
         dump_task_jsons=True,
-    ):
+    ) -> None:
         logger.info("Starting to dump complete Flame model.")
 
         if dump_task_jsons:
@@ -1079,8 +1127,8 @@ class FlameModelDumper:
             # Write metadata file.
             # Note that since a flame can terminate (e.g. via timeout) before a run, there is no guarantee
             # that the run_metadata model file will ever have root_complete: true.
-            root_uuid = task_graph.root_uuid
-            root_complete = task_graph.is_root_complete()
+            root_uuid: str | None = task_graph.root_uuid
+            root_complete: bool = task_graph.is_root_complete()
             run_metadata_with_root = {**run_metadata, 'root_uuid': root_uuid}
             metadata_model_file = self.dump_metadata(run_metadata_with_root, root_complete, flame_complete=True)
             paths_to_compress.append(metadata_model_file)
@@ -1097,10 +1145,10 @@ class FlameModelDumper:
         tasks_representation: dict[str, Any],
         force=False,
         min_age_change=0,
-    ):
-        out_file = os.path.join(self.root_model_dir, model_file_name)
+    ) -> None:
+        out_file: str = os.path.join(self.root_model_dir, model_file_name)
         try:
-            should_write = (
+            should_write: bool = (
                 force
                 or not os.path.exists(out_file)
                 or time.time() - os.path.getmtime(out_file) > min_age_change
@@ -1117,29 +1165,29 @@ class FlameModelDumper:
 
 class NoWritngModelDumper(FlameModelDumper):
 
-    def __init__(self, firex_logs_dir):
+    def __init__(self, firex_logs_dir) -> None:
         super().__init__(firex_logs_dir)
 
-    def dump_full_task(self, *args, **kwargs):
+    def dump_full_task(self, *args, **kwargs) -> None:
         pass
 
-    def dump_slim_tasks(self, *args, **kwargs):
+    def dump_slim_tasks(self, *args, **kwargs) -> None:
         pass
 
-    def dump_complete_data_model(self, *args, **kwargs):
+    def dump_complete_data_model(self, *args, **kwargs) -> None:
         pass
 
-    def dump_task_representation(self, *args, **kwargs):
+    def dump_task_representation(self, *args, **kwargs) -> None:
         pass
 
 
 def _dump_full_task_state_archive(
     root_model_dir,
     paths_to_compress
-):
+) -> None:
     logger.info("Starting to create full task state archive.")
     full_state_gz_basename = 'full-run-state.tar.gz'
-    tar_bin = shutil.which('tar')
+    tar_bin: str | None = shutil.which('tar')
     if tar_bin:
         rel_paths_to_compress = [os.path.relpath(p, root_model_dir) for p in paths_to_compress]
         try:
