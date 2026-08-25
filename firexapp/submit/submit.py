@@ -10,7 +10,6 @@ import time
 from getpass import getuser
 from typing import Optional
 
-from celery.signals import worker_ready
 from shutil import copyfile
 from contextlib import contextmanager
 
@@ -19,9 +18,9 @@ from firexapp.discovery import get_all_pkg_versions_str
 from firexapp.engine.default_celery_config import primary_worker_minimum_concurrency
 from firexapp.engine.logging import add_hostname_to_log_records
 
-from firexkit.result import wait_on_async_results, disable_async_result, ChainRevokedException, \
-    mark_queues_ready, get_results, get_task_name_from_result, ChainRevokedPreRunException, \
-    monkey_patch_async_result_to_track_instances, is_async_result_monkey_patched_to_track, disable_all_async_results
+from firexkit.result import wait_on_async_results, ChainRevokedException, \
+    get_results, ChainRevokedPreRunException, \
+    FxAsyncResult
 from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
@@ -30,7 +29,7 @@ from firexapp.submit.tracking_service import get_tracking_services, get_service_
 from firexapp.plugins import plugin_support_parser
 from firexapp.submit.console import setup_console_logging
 from firexapp.application import (
-    import_microservices, get_app_tasks, get_app_task, JSON_ARGS_PATH_ARG_NAME
+    get_app_tasks, get_app_task, JSON_ARGS_PATH_ARG_NAME
 )
 from firexapp.engine.celery import app
 from firexapp.broker_manager.broker_factory import BrokerFactory
@@ -275,8 +274,10 @@ class SubmitBaseApp:
                 # Only in this case do we do the shutdown here; in the regular sync revoke case we do
                 # the shutdown in root_task post_run signal, so that we have time to cleanup (cleanup code
                 # may still run in a finally: clause even when result is marked ready and state == REVOKED)
-                self.main_error_exit_handler(chain_details=(root_task_result_promise, chain_args),
-                                             reason='Sync run: ChainRevokedException from root task')
+                self.main_error_exit_handler(
+                    chain_details=(root_task_result_promise, chain_args),
+                    reason='Sync run: ChainRevokedException from root task',
+                )
             logger.debug('Root task revoked; cleanup will be done on root task completion')
             self.copy_submission_log()
             sys.exit(-1)
@@ -366,11 +367,7 @@ class SubmitBaseApp:
         self.wait_tracking_services_task_ready()
 
         safe_create_initial_run_json(**chain_args)
-        # AsyncResult objects cannot be in memory after the broker (i.e. backend) shutdowns, otherwise errors are
-        # produced when they are garbage collected. We therefore monkey patch AsyncResults to track all instances
-        # (e.g. from unpickle, instantiated directly, etc) so that disable_all_async_results can disable their
-        # references to the backend.
-        monkey_patch_async_result_to_track_instances()
+
         root_task_result_promise = root_task.s(submit_app=self, **chain_args).delay()
 
         self.copy_submission_log()
@@ -396,7 +393,7 @@ class SubmitBaseApp:
 
     def check_for_failures(self, root_task_result_promise, unsuccessful_services):
         if unsuccessful_services:
-            msg, rc = format_unsuccessful_services(unsuccessful_services)
+            msg, rc = _format_unsuccessful_services(unsuccessful_services)
             raise FireXReturnCodeException(msg, rc)
 
     def set_broker_in_app(self):
@@ -423,7 +420,9 @@ class SubmitBaseApp:
 
             # IMPORT ALL THE MICROSERVICES
             # ONLY AFTER BROKER HAD STARTED
-            all_tasks, plugin_path_mapping = import_microservices(chain_args.get("plugins", args.plugins))
+            all_tasks, plugin_path_mapping = app.import_microservices(
+                chain_args.get("plugins", args.plugins)
+            )
             if plugin_path_mapping:
                 chain_args['plugin_path_mapping'] = plugin_path_mapping
                 # Trump the plugins from the argv and use the resolved values in plugin_path_mapping instead
@@ -625,12 +624,7 @@ class SubmitBaseApp:
                     # Under no circumstances should report generation prevent celery and broker cleanup
                     logger.error('Error in generating reports', exc_info=True)
                 finally:
-                    # AsyncResult objects access self.backend when garbage collected. Since we're about to initiate a
-                    # process to stop the backend, prevent all AsyncResult objects from accessing self.backend.
-                    if is_async_result_monkey_patched_to_track():
-                        disable_all_async_results()
-                    elif chain_result:
-                        disable_async_result(chain_result)
+                    FxAsyncResult.disable_all_ar_backends()
 
             logger.debug("Running FireX self destruct")
             launch_background_shutdown(
@@ -720,12 +714,15 @@ class FireXReturnCodeException(Exception):
         return self.error_msg + '\n' + f'[RC {self.firex_returncode}]'
 
 
-def get_unsuccessful_items(list_of_tasks, filters=None):
+def get_unsuccessful_items(
+    list_of_tasks: list[FxAsyncResult],
+    filters=None,
+):
     if not filters:
         filters = []
     failures_by_name = {}
-    for task_async_result in list_of_tasks:
-        task_name = get_task_name_from_result(task_async_result)
+    for ar in list_of_tasks:
+        task_name = ar.fx_get_name()
         try:
             failures_by_name[task_name] += 1
         except KeyError:
@@ -748,7 +745,7 @@ def get_unsuccessful_items(list_of_tasks, filters=None):
     return formatted_list
 
 
-def format_unsuccessful_services(unsuccessful_services):
+def _format_unsuccessful_services(unsuccessful_services):
     items = []
     returncode = -1
     failed = unsuccessful_services.get('failed')
@@ -766,9 +763,3 @@ def format_unsuccessful_services(unsuccessful_services):
             items += get_unsuccessful_items(not_run)
     return '\n'.join(items), returncode
 
-
-@worker_ready.connect()
-def celery_worker_ready(sender, **_kwargs):
-    queue_names = [queue.name for queue in sender.task_consumer.queues]
-    if queue_names:
-        mark_queues_ready(*queue_names)
