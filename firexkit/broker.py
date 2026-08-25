@@ -1,20 +1,11 @@
 import time
-from typing import Callable, Any, TypeVar
-
 from celery.utils.log import get_task_logger
 logger = get_task_logger(__name__)
 
-R = TypeVar('R')
 
-def handle_broker_timeout(
-    callable_func: Callable[..., R],
-    args=(),
-    kwargs=None,
-    timeout=15*60,
-    retry_delay=1,
-    reraise_on_timeout=True,
-) -> R:
-    kwargs = kwargs or {}
+def handle_broker_timeout(callable_func, args=(), kwargs=None, timeout=15*60, retry_delay=1, reraise_on_timeout=True):
+    if kwargs is None:
+        kwargs = {}
     maximum_retry_delay = retry_delay * 10
     timeout_time = time.monotonic() + timeout if timeout else None
     tries = 0
@@ -31,17 +22,13 @@ def handle_broker_timeout(
                 raise
 
             current_time = time.monotonic()
-            if (
-                timeout_time is not None
-                and current_time >= timeout_time
-            ):
+            if timeout_time is not None and current_time >= timeout_time:
+
                 logger.error(f'Reached max timeout of {timeout}s...giving up '
                              f'(last call took {(current_time - func_start_time) * 1000:.2f}ms)')
                 try:
-                    send_task_instrumentation_event(
-                        instrumentation_label='handle_broker_timeout-failure',
-                        broker_timeout_tries=tries,
-                    )
+                    send_task_instrumentation_event(instrumentation_label='handle_broker_timeout-failure',
+                                                    broker_timeout_tries=tries)
                 except Exception as e:
                     logger.debug('Cannot send instrumentation event', exc_info=e)
 
@@ -58,18 +45,15 @@ def handle_broker_timeout(
 
             time.sleep(retry_delay)
             # Exponential backoff
-            if retry_delay * 1.1 < maximum_retry_delay:
-                retry_delay = retry_delay * 1.1
-            else:
-                retry_delay = maximum_retry_delay
+            retry_delay = retry_delay * 1.1 \
+                if retry_delay * 1.1 < maximum_retry_delay else maximum_retry_delay
+
         else:
             # callable_func() returned successfully
             if tries > 1:
                 try:
-                    send_task_instrumentation_event(
-                        instrumentation_label='handle_broker_timeout-success',
-                        broker_timeout_tries=tries,
-                    )
+                    send_task_instrumentation_event(instrumentation_label='handle_broker_timeout-success',
+                                                    broker_timeout_tries=tries)
                 except Exception as e:
                     logger.debug('Cannot send instrumentation event', exc_info=e)
 
