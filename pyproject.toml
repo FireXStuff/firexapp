@@ -1,5 +1,104 @@
 [build-system]
-requires = ["setuptools", 
-            "versioneer",
-            "fastentrypoints"]
+requires = [
+    "setuptools==84.0.0",
+    "versioneer[toml]==0.29",
+    "fastentrypoints==0.12",
+    "tomli==2.4.1; python_version < '3.11'",
+]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "firexapp"
+dynamic = ["version"]
+description = "Core firex application libraries"
+requires-python = ">=3.10"
+license = { text = "BSD-3-Clause" }
+authors = [
+    { name = "Core FireX Team", email = "firex-dev@gmail.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: BSD License",
+]
+dependencies = [
+    "distlib",
+    "firexkit",
+    "tqdm<=4.29.1",
+    "unittest-xml-reporting",
+    "redis",
+    "hiredis",
+    "celery[redis]==5.3.1",
+    "psutil",
+    "python-Levenshtein",
+    "entrypoints",
+    "colorlog==2.10.0",
+    "beautifulsoup4",
+    "detach3k",
+    "pytz",
+    "rapidfuzz==3.8.1",
+]
+
+[project.optional-dependencies]
+test = ["firex-keeper"]
+flame = ["firex-flame"]
+
+[project.urls]
+Homepage = "https://github.com/FireXStuff/firexapp"
+
+[project.scripts]
+firexapp = "firexapp.application:main"
+flow_tests = "firexapp.testing.test_infra:default_main"
+firex_shutdown = "firexapp.submit.shutdown:main"
+
+[project.entry-points."firex.core"]
+firexapp = "firexapp"
+
+[dependency-groups]
+build-legacy = [
+    "firexbuilder",
+    "keyrings.alt",
+    # firexbuilder shells out to pip3; uv-created environments are otherwise
+    # intentionally not seeded with pip.
+    "pip",
+]
+test = [
+    "coverage==5.5",
+    "firexbuilder",
+]
+docs = [
+    "firexbuilder",
+    "sphinx",
+    "sphinx-rtd-theme",
+    "sphinx-sitemap",
+]
+integration = [
+    "firex-bundle-ci",
+]
+release = [
+    "firexbuilder",
+    "keyrings.alt",
+    "twine",
+]
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["firexapp*"]
+
+[tool.setuptools.package-data]
+firexapp = ["testing/cloud-ci-install-configs.json"]
+
+[tool.uv]
+required-version = "==0.11.*"
+
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "firexapp/_version.py"
+versionfile_build = "firexapp/_version.py"
+tag_prefix = ""
+parentdir_prefix = "firexapp-"

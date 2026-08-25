@@ -1,11 +1,13 @@
 variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+  UV_PYTHON: "3.10"
+  UV_PYTHON_DOWNLOADS: "never"
+  UV_SYNC_ARGS: ""
   firex_base_logging_dir: "$CI_PROJECT_DIR/flow_test_results"
 
 cache:
   paths:
-    - .cache/pip
-    - venv/
+    - .cache/uv/
 
 stages:
   - build
@@ -15,65 +17,95 @@ stages:
   - update-docs
 
 default:
-  image: firexstuff/firex-alpine-build:3.10.9
+  image: firexstuff/firex-alpine-build:3.10.20-uv0.11.19
   before_script:
-    - source venv/bin/activate
     - git config --global --add safe.directory /builds/FireXStuff/firexapp
+    - uv --version
+    - uv sync --locked $UV_SYNC_ARGS
 
 build:
   stage: build
-  before_script:
-    - python -m venv venv
-    - source venv/bin/activate
-    - pip install --upgrade pip
-    - pip install --upgrade firexbuilder
-    - git config --global --add safe.directory /builds/FireXStuff/firexapp
+  variables:
+    UV_SYNC_ARGS: "--group release --no-sources"
   script:
-    - pip install keyrings.alt
-    - firex-build build --install_test_reqs --install_flame
+    - uv build --clear --no-create-gitignore
+    - uv run --locked --group release twine check dist/*
   artifacts:
     paths:
       - dist/
 
+# Keep the previous builder as a comparison and rollback path during Phase 1.
+# The uv-built artifacts above are the only artifacts eligible for upload.
+build-legacy:
+  stage: build
+  variables:
+    UV_SYNC_ARGS: "--group build-legacy --all-extras"
+  script:
+    - uv run --locked --group build-legacy --all-extras firex-build build --install_test_reqs --install_flame
+    - mv dist legacy-dist
+  artifacts:
+    paths:
+      - legacy-dist/
+
 build-firexkit-from-tip:
   stage: build-firexkit-from-tip
+  variables:
+    UV_SYNC_ARGS: "--all-extras"
   script:
-    - pip install git+https://gitlab.com/FireXStuff/firexkit.git
+    - uv pip install --python .venv/bin/python git+https://gitlab.com/FireXStuff/firexkit.git
+    - uv pip check --python .venv/bin/python
   rules:
     - if: '$CI_PIPELINE_SOURCE == "pipeline"'
 
 build-docs:
   stage:  test
+  variables:
+    UV_SYNC_ARGS: "--group docs"
   script:
-    - firex-build docs
+    - uv run --locked --group docs firex-build docs
   artifacts:
     paths:
       - html/
 
 test-unit:
   stage: test
+  variables:
+    UV_SYNC_ARGS: "--group test --extra test"
   script:
-    - firex-build unit_tests
+    - uv run --locked --group test --extra test firex-build unit_tests
   artifacts:
     paths:
       - .coverage
 
 test-integration:
   stage: test
+  variables:
+    UV_SYNC_ARGS: "--group integration --all-extras"
   script:
-    - pip install --upgrade firex-bundle-ci
-    - firexapp submit --sync --chain nop
-    - firexapp submit --chain RunAllIntegrationTests --public_runs True --install_configs cloud-ci-install-configs.json --sync --coverage False --max_parallel_tests 5
+    - uv run --locked --group integration --all-extras firexapp submit --sync --chain nop
+    - uv run --locked --group integration --all-extras firexapp submit --chain RunAllIntegrationTests --public_runs True --install_configs cloud-ci-install-configs.json --sync --coverage False --max_parallel_tests 5
   artifacts:
     paths:
       - flow_test_results/
     when: always
 
+compare-build-artifacts:
+  stage: test
+  needs:
+    - job: build
+      artifacts: true
+    - job: build-legacy
+      artifacts: true
+  script:
+    - uv run --locked python tools/compare_build_artifacts.py legacy-dist dist
+
 upload-pkg:
   stage: upload
+  variables:
+    UV_SYNC_ARGS: "--group release"
   script:
-    - pip install keyrings.alt
-    - firex-build upload_pip
+    - uv run --locked --group release twine check dist/*
+    - uv run --locked --group release firex-build upload_pip
   only:
     - tags
 

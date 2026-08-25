@@ -74,8 +74,8 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# pyenv
-.python-version
+# uv uses this checked-in pin for the Phase 1 Python 3.10 environment.
+!.python-version
 
 # celery beat schedule file
 celerybeat-schedule
