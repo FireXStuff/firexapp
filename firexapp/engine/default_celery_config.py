@@ -1,12 +1,14 @@
+from collections.abc import Iterable
+from time import time
+from functools import lru_cache
+
+import celery.worker.state as state
+from celery.worker.autoscale import Autoscaler
 from celery.utils.log import get_task_logger
+from firexkit.result import get_task_postrun_info, get_task_prerun_info
 
 from firexapp.broker_manager.broker_factory import BrokerFactory
-from firexapp.engine.autoscaler import FireXAutoscaler
-from firexapp.engine.logging import (
-    add_hostname_to_log_records,
-    add_custom_log_levels,
-    PRINT_LEVEL_NAME,
-)
+from firexapp.engine.logging import add_hostname_to_log_records, add_custom_log_levels, PRINT_LEVEL_NAME
 from firexapp.discovery import find_firex_task_bundles
 import billiard.pool
 from kombu.transport.redis import QoS
@@ -31,8 +33,89 @@ billiard.pool.Pool._worker_active = _worker_active_monkey_patch
 # End of Monkey Patch
 
 
-# prevent tasks from running again if a worker receives SIGHUP
+# Monkey Patch: prevent tasks from running again if a worker receives SIGHUP
 QoS.restore_at_shutdown = False
+
+
+# End of Monkey Patch
+
+
+# Below code needed to monkey-patch the autoscaler's qty() property
+@lru_cache(maxsize=4096)
+def _get_task_postrun_info(result, _call_time=None):
+    # NOTE: _call_time arg is just used to invalidate the cache
+    return get_task_postrun_info(result)
+
+# Caution: Unstarted tasks can change status so it is unsafe to cache this info.
+# However, this cached function is and should "only" be used to check if a Revoked
+# task did not start yet. Otherwise, set _call_time to invalidate the cache and
+# get the most up-to-date info.
+@lru_cache(maxsize=4096)
+def _get_task_prerun_info(result, _call_time=None):
+    # NOTE: _call_time arg is just used to invalidate the cache
+    return get_task_prerun_info(result)
+
+
+class _MemorizedTasksDone:
+    def __init__(self, check_freq=63):
+        self._check_freq = check_freq
+        self._tasks_done = set()
+
+    def tasks_done(self, results):
+        call_time = int(time()) // self._check_freq
+        if isinstance(results, (str, bytes)) or not isinstance(results, Iterable):
+            results = [results]
+        results = {str(result) for result in results}
+
+        not_done = results - self._tasks_done
+        done = {result for result in not_done if _get_task_postrun_info(result, call_time)}
+        self._tasks_done.update(done)
+        return frozenset(self._tasks_done)
+
+
+_mtd = _MemorizedTasksDone()
+
+
+class _MemorizedTasksNotStarted:
+    def __init__(self, check_freq=63):
+        self._check_freq = check_freq
+        self._tasks_not_started = set()
+
+    def tasks_not_started(self, results):
+        call_time = int(time()) // self._check_freq
+        if isinstance(results, (str, bytes)) or not isinstance(results, Iterable):
+            results = [results]
+        results = {str(result) for result in results}
+
+        not_checked = results - self._tasks_not_started
+        not_started = {result for result in not_checked if not _get_task_prerun_info(result, call_time)}
+        self._tasks_not_started.update(not_started)
+        return frozenset(self._tasks_not_started)
+
+
+_mtns = _MemorizedTasksNotStarted()
+
+
+# We need to make the autoscaler count revoked tasks if they are still running; otherwise
+# it may never scale up if a revoked task schedules another task (from a finally: block, for example)
+# Celery counts revoked tasks as DONE, and therefore it will not know these tasks are still running
+# and using a worker process
+def _monkey_patch_autoscaler_qty(_self):
+
+    # Optimization: First check which Revoked tasks haven't started
+    tasks_not_started_set = _mtns.tasks_not_started(state.revoked)
+
+    # Only check for done tasks among those that actually started
+    # (no need to check if a task is done if it never started)
+    revoked_set = {str(r) for r in state.revoked}
+    tasks_that_started = revoked_set - tasks_not_started_set
+    tasks_done_set = _mtd.tasks_done(tasks_that_started)
+
+    return len(state.reserved_requests) + len(state.revoked) - len(tasks_done_set) - len(tasks_not_started_set)
+
+
+setattr(Autoscaler, 'qty', property(_monkey_patch_autoscaler_qty))
+# End monkey-patching qty()
 
 
 add_custom_log_levels()
@@ -69,7 +152,6 @@ imports = tuple(bundles) + tuple(["firexapp.tasks.example",
                                   ])
 
 root_task = "firexapp.tasks.root_tasks.RootTask"
-worker_autoscaler = FireXAutoscaler
 
 accept_content = ['pickle', 'json']
 task_serializer = 'pickle'

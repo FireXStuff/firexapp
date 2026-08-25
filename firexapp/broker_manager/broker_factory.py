@@ -1,6 +1,7 @@
 import os
 
 from firexapp.broker_manager.redis_manager import RedisManager, RedisPasswordReadError
+from firexapp.engine.celery import app
 
 REDIS_BIN_ENV = "redis_bin_dir"
 
@@ -9,8 +10,6 @@ def get_redis_bin_dir():
     redis_bin_dir = os.environ.get(REDIS_BIN_ENV, "")
     if not redis_bin_dir:
         try:
-            #FIXME: fix core relationships
-            from firexapp.engine.celery import app
             redis_bin_dir = app.conf.redis_bin_dir
         except AttributeError:
             pass
