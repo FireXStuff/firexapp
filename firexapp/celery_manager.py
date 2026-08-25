@@ -159,7 +159,7 @@ class CeleryManager:
             with open(pid_file) as f:
                 pid = f.read().strip()
         except FileNotFoundError:
-            cls.log('No pid file found in %s' % pid_file, level=WARNING)
+            cls.log(f'No pid file found in {pid_file}', level=WARNING)
             raise
         else:
             if pid:
@@ -336,7 +336,7 @@ class CeleryManager:
 
     @classmethod
     def terminate(cls, pid, timeout=60):
-        cls.log('Terminating pid %d' % pid, level=INFO)
+        cls.log(f'Terminating pid {pid}', level=INFO)
         p = psutil.Process(pid)
         p.terminate()
         p.wait(timeout=timeout)
