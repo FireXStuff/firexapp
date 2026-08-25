@@ -1,42 +1,17 @@
 import inspect
-from typing import Optional, Any
-import types
+import socket
+from typing import Optional, Any, Union, Sequence
 
 from celery.canvas import Signature
-from celery.result import AsyncResult
 from celery.utils.log import get_task_logger
 
-from firexkit.result import wait_on_async_results_and_maybe_raise, FireXResults
+from firexkit.result import wait_on_async_results_and_maybe_raise, FireXResults, FxAsyncResult
 from firexkit.bag_of_goodies import BagOfGoodies, AutoInjectRegistry
 
 logger = get_task_logger(__name__)
 
 # this is where most code import from!!
 returns = FireXResults.returns
-
-
-class InjectArgs(Signature):
-
-    def __init__(self, *args, **kwargs):
-        assert not args, f'Inject args accepts no positional args.'
-        self.args = ()
-        self.kwargs = kwargs
-
-    def __str__(self):
-        return f'InjectArgs({", ".join(self.kwargs.keys())})'
-
-    @property
-    def options(self):
-        return dict()
-
-    def __or__(self, other):
-        if isinstance(other, InjectArgs):
-            r = InjectArgs(**(self.kwargs | other.kwargs))
-        else:
-            r = other.clone()
-            # chains and signatures are both handled by this
-            SignatureX.injectArgs(r, **self.kwargs)
-        return r
 
 
 def verify_chain_arguments(sig: 'SignatureX'):
@@ -149,6 +124,18 @@ class SignatureX(Signature):
         monkey patching.
     """
 
+    def clone(self, args=None, kwargs=None, **opts) -> 'SignatureX':
+        cloned = super().clone(args=args, kwargs=kwargs, **opts)
+        return type(self)(
+            task=self.type,
+            args=cloned.args,
+            kwargs=cloned.kwargs,
+            options=cloned.options,
+            subtask_type=cloned.subtask_type,
+            immutable=cloned.immutable,
+            app=self.app,
+        )
+
     def verify_args(self) -> None:
         from firexkit.task import FireXTask # FIXME: bad relationship between core abstractions
 
@@ -250,11 +237,10 @@ class SignatureX(Signature):
         self,
         block: bool = False,
         raise_exception_on_failure: bool = True,
-        caller_task: Optional[Signature]=None,
         queue: Optional[str]=None,
         priority: Optional[int]=None,
         soft_time_limit: Optional[int]=None,
-    ) -> AsyncResult:
+    ) -> FxAsyncResult:
 
         self.remove_inject_args()
         self.verify_args()
@@ -268,12 +254,11 @@ class SignatureX(Signature):
         if soft_time_limit:
             self.set_soft_time_limit(soft_time_limit)
 
-        result_promise = self.delay()
+        result_promise : FxAsyncResult = self.delay()
         if block:
             wait_on_async_results_and_maybe_raise(
                 results=result_promise,
                 raise_exception_on_failure=raise_exception_on_failure,
-                caller_task=caller_task,
             )
         return result_promise
 
@@ -292,7 +277,7 @@ class SignatureX(Signature):
         for s in self._get_sigs():
             s._set(priority=priority)
 
-    def set_queue(self, queue):
+    def set_queue(self, queue: str):
         """Set the :attr:`queue` execution option in every task in :attr:`sig`"""
         for s in self._get_sigs():
             s._set(queue=queue)
@@ -316,7 +301,10 @@ class SignatureX(Signature):
     def _is_chain(self) -> bool:
         return hasattr(self, 'tasks')
 
-    def apply_async_x(self, auto_inject_reg: Optional[AutoInjectRegistry]) -> AsyncResult:
+    def apply_async_x(
+        self,
+        auto_inject_reg: Optional[AutoInjectRegistry],
+    ) -> FxAsyncResult:
         self.remove_inject_args()
         first_sig = self.get_first_sig()
         if (
@@ -334,11 +322,65 @@ class SignatureX(Signature):
         self.verify_args()
 
         # args & kwargs are expected to be set by prior kludges
-        return self.apply_async()
+        fx_r : FxAsyncResult = self.apply_async()
+        return fx_r
 
-#
-# FIXME: use normal inheritance. Stop monkey patching.
-#
+    def enqueue_and_extract(
+        self,
+        queue: Optional[str]=None,
+        return_keys: Union[str, tuple] = (),
+        raise_exception_on_failure: bool=True,
+        priority: Optional[int]=None,
+        soft_time_limit: Optional[int]=None,
+        block=True,
+        **_kwargs,
+    ) -> Union[tuple, dict]:
+
+        if _kwargs:
+            logger.warning(f'Unexpected kwargs: {_kwargs}')
+
+        if not block:
+            logger.warning(
+                f'enqueue_and_extract ignored block={block}, '
+                'since it needs to block in order to extract results')
+
+        result_promise = self.enqueue(
+            queue=queue or socket.gethostname(),
+            block=True,
+            raise_exception_on_failure=raise_exception_on_failure,
+            priority=priority,
+            soft_time_limit=soft_time_limit,
+        )
+        return result_promise.legacy_extract_results(
+            return_keys=return_keys,
+        )
+
+
+class InjectArgs(SignatureX):
+
+    def __init__(self, *args, **kwargs):
+        assert not args, f'Inject args accepts no positional args.'
+        self.args = ()
+        self.kwargs = kwargs
+
+    def __str__(self):
+        return f'InjectArgs({", ".join(self.kwargs.keys())})'
+
+    @property
+    def options(self):
+        return dict()
+
+    def __or__(self, other) -> SignatureX:
+        if isinstance(other, InjectArgs):
+            r = InjectArgs(**(self.kwargs | other.kwargs))
+        else:
+            r = other.clone()
+            # chains and signatures are both handled by this
+            SignatureX.injectArgs(r, **self.kwargs)
+        return r
+
+
+
 Signature.injectArgs = SignatureX.injectArgs
 Signature.set_priority = SignatureX.set_priority
 Signature.set_use_cache = SignatureX.set_use_cache

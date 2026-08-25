@@ -33,19 +33,20 @@ from firexkit.bag_of_goodies import (
 )
 from firexkit.argument_conversion import ConverterRegister
 from firexkit.result import (
-    get_tasks_names_from_results, wait_for_any_results,
-    wait_on_async_results_and_maybe_raise, get_result_logging_name, ChainInterruptedException,
+    ChainInterruptedException,
     ChainRevokedException, last_causing_chain_interrupted_exception,
-    wait_for_running_tasks_from_results, WaitOnChainTimeoutError, get_results,
-    get_task_name_from_result, first_non_chain_interrupted_exception, forget_chain_results,
-    DYNAMIC_RETURN, ReturnsCodingException, FireXResults
+    WaitOnChainTimeoutError,
+    first_non_chain_interrupted_exception,
+    forget_chain_results,
+    DYNAMIC_RETURN, ReturnsCodingException, FireXResults, WaitLoopCallBack, FxAsyncResult,
+    ManyFxAsyncResults
 )
 from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
-from firexkit.firexkit_common import JINJA_ENV
+from firexkit.firexkit_common import JINJA_ENV, REPLACEMENT_TASK_NAME_POSTFIX
 from firexkit.chain import InjectArgs, SignatureX
 
 ADDITIONAL_CHILDREN_KEY = 'additional_children'
-REPLACEMENT_TASK_NAME_POSTFIX = '_orig'
+REPLACEMENT_TASK_NAME_POSTFIX = REPLACEMENT_TASK_NAME_POSTFIX
 
 REDIS_DB_KEY_FOR_RESULTS_WITH_REPORTS = 'FIREX_RESULTS_WITH_REPORTS'
 REDIS_DB_KEY_PREFIX_FOR_ENQUEUE_ONCE_UID = 'ENQUEUE_CHILD_ONCE_UID_'
@@ -55,6 +56,10 @@ REDIS_DB_KEY_PREFIX_FOR_CACHE_ENABLED_UID = 'CACHE_ENABLED'
 logger = get_task_logger(__name__)
 
 
+class SchedulingDeadlockException(Exception):
+    pass
+
+
 @dataclasses.dataclass
 class TaskEnqueueSpec:
     signature: SignatureX
@@ -62,6 +67,46 @@ class TaskEnqueueSpec:
     enqueue_opts: Optional[dict[str, Any]] = None
 
 
+@dataclasses.dataclass
+class TaskAttempt:
+    name: str
+    task_uuid: Optional[str] = None
+    retries: Optional[int] = 0
+
+    def __str__(self):
+        if self.task_uuid:
+            attempt_str = f'_{self.retries}' if self.retries else ''
+            uuid_and_retries = f'[[{self.task_uuid}{attempt_str}]]'
+        else:
+            uuid_and_retries = ''
+        return f'{self.name}{uuid_and_retries}'
+
+    def short_display(self) -> str:
+        if self.name:
+            return FireXTask.get_short_name(self.name)
+        return self.task_uuid or str(self)
+
+    @classmethod
+    def task_attempt_from_str(cls, attempt_str: str) -> 'TaskAttempt':
+        parts = attempt_str.split('[')
+
+        name = parts[0]
+        uuid_part: Optional[str] = None
+        attempt_num : Optional[int] = None
+        if len(parts) > 1:
+            uuid_part = parts[-1].removesuffix(']')
+            attempt_num : Optional[int] = None
+            if len( maybe_attempt_parts := uuid_part.split('_') ) == 2:
+                uuid_part = maybe_attempt_parts[0]
+                try:
+                    attempt_num = int(maybe_attempt_parts[-1])
+                except ValueError:
+                    pass
+        return TaskAttempt(
+            name=name,
+            task_uuid=uuid_part,
+            retries=attempt_num,
+        )
 
 class NotInCache(Exception):
     pass
@@ -70,6 +115,38 @@ class NotInCache(Exception):
 class CacheResultNotPopulatedYetInRedis(NotInCache):
     pass
 
+class FxWorkerTypes(enum.Enum):
+    MC = 'mc'
+    MASTER = 'master'
+    WORKER = 'worker'
+
+    @classmethod
+    def fx_worker_type_from_str(
+        cls,
+        worker_name: str,
+    ) -> Optional['FxWorkerTypes']:
+        for t in cls:
+            if worker_name.startswith(t.value):
+                return t
+        return None
+
+    @classmethod
+    def get_subworker_name(cls, worker_name: str) -> str:
+        if worker_name is not None and (
+            worker_type := cls.fx_worker_type_from_str(worker_name)
+        ) in [FxWorkerTypes.MC, FxWorkerTypes.MASTER]:
+            return worker_name.replace(
+                worker_type.value,
+                FxWorkerTypes.WORKER.value,
+            )
+        return worker_name
+
+
+class FxWorkerId:
+    prefix_name: str
+    host: str
+    spawn_group: Optional[str] = None
+    # uniq_slug: Optional[str] = None # TODO
 
 def _nop():
     pass
@@ -83,7 +160,7 @@ def _empty_bog() -> BagOfGoodies:
 class TaskContext:
     bog: BagOfGoodies = dataclasses.field(default_factory=_empty_bog)
     flame_configs: dict = dataclasses.field(default_factory=dict)
-    enqueued_children: dict[AsyncResult, dict] = dataclasses.field(default_factory=dict)
+    enqueued_children: dict[FxAsyncResult, str] = dataclasses.field(default_factory=dict)
 
     _auto_in_reg: Optional[AutoInjectRegistry] = None
     _pause_tasks: Optional['PauseTasks'] = None
@@ -314,9 +391,12 @@ class FireXTask(Task):
         self._temp_loghandlers = None
         self.code_filepath = self.get_module_file_location()
 
-        self._from_plugin = False
+        self.from_plugin = False
         self.context : TaskContext = self.initialize_context()
         self.name : str
+
+        from firexkit.firex_celery import FireXCelery
+        self.app : FireXCelery
 
         # when this task is overriden, this is the most immediately preceding overridden task,
         # or None when the current task is not an override.
@@ -356,7 +436,7 @@ class FireXTask(Task):
             self.name = self.root_orig.name_without_orig
 
         try:
-            res = super(FireXTask, self).apply_async(*args, **kwargs)
+            res : FxAsyncResult = super(FireXTask, self).apply_async(*args, **kwargs)
         finally:
             # Restore the original name
             self.name = original_name
@@ -364,6 +444,7 @@ class FireXTask(Task):
 
     def signature(self, *args, **kwargs):
         # We need to lookup the task, in case it was over-ridden by a plugin
+        new_self : FireXTask
         try:
             new_self = self.app.tasks[self.name]
         except Exception:
@@ -372,8 +453,8 @@ class FireXTask(Task):
             # These tests should really run in forked processes (or use Celery PyTest fixtures)
             # Otherwise, seems that everything is global
             new_self = self.app.tasks[self.name]
-        # Get the signature from the new_self
-        return super(FireXTask, new_self).signature(*args, **kwargs)
+        kwargs.setdefault('app', new_self.app)
+        return SignatureX(new_self, *args, **kwargs)
 
     @contextmanager
     def _task_context(self, args: tuple[Any, ...], kwargs: dict[str, Any]):
@@ -385,14 +466,27 @@ class FireXTask(Task):
                 # Organise the input args by creating a BagOfGoodies
                 bog=self._create_bog(args, kwargs),
             )
+            # if not self.request.called_directly:
+            #     self.update_state(
+            #         state=celery.states.STARTED,
+            #         meta=dict(fx_parent_uuid=self.request.id)
+            #     )
             yield
         finally:
             # restore empty context to avoid pointless defensive coding.
             self.context = self.initialize_context()
+            # if not self.request.called_directly:
+            #     self.update_state(
+            #         # state=celery.states.STARTED, # ???
+            #         meta=dict(fx_parent_uuid=None)
+            #     )
 
-    @property
-    def from_plugin(self):
-        return self._from_plugin
+    def get_attempt(self) -> TaskAttempt:
+        return TaskAttempt(
+            name=self.name,
+            task_uuid=self.request.id,
+            retries=self.request.retries,
+        )
 
     @property
     def task_label(self) -> str:
@@ -403,7 +497,7 @@ class FireXTask(Task):
             8345379a-e536-4566-b5c9-3d515ec5936a_2 (if it was the second retry)
             microservices.testsuites_tasks.CreateWorkerConfigFromTestsuites (if there was no request id yet)
         """
-        label = str(self.request.id) if self.request.id else self.name
+        label = str(self.request.id or self.name)
         label += '_%d' % self.request.retries if self.request.retries >= 1 else ''
         return label
 
@@ -411,9 +505,8 @@ class FireXTask(Task):
     def request_soft_time_limit(self):
         return self.request.timelimit[1]
 
-    @from_plugin.setter
-    def from_plugin(self, value):
-        self._from_plugin = value
+    def s(self, *args, **kwargs) -> SignatureX:
+        return super().s(*args, **kwargs)
 
     def initialize_context(
         self,
@@ -475,7 +568,7 @@ class FireXTask(Task):
         return re.sub(f"({REPLACEMENT_TASK_NAME_POSTFIX})*$", "", task_name)
 
     @staticmethod
-    def get_short_name(task_name):
+    def get_short_name(task_name: str) -> str:
         # Task name of first task in chain. (I.E. 'task1' in module1.task1|module2.task2)
         return task_name.split('|')[0].split('.')[-1]
 
@@ -573,7 +666,7 @@ class FireXTask(Task):
             extra={'label': self.task_label, 'span_class': 'task_started'},
         )
 
-    def print_postcall_header(self, result):
+    def _print_postcall_header(self, result):
         content = ''
         results_list = []
         if result:
@@ -613,6 +706,7 @@ class FireXTask(Task):
             return converted_result
         except Exception as e:
             self.handle_exception(e)
+            raise # typehint
         finally:
             try:
                 if self._lagging_children_strategy is not PendingChildStrategy.Continue:
@@ -664,7 +758,7 @@ class FireXTask(Task):
         }
 
         # Print the post-call header
-        self.print_postcall_header(converted_task_results)
+        self._print_postcall_header(converted_task_results)
 
         # Send a custom task-succeeded event with the results
         if not self.request.called_directly:
@@ -694,9 +788,8 @@ class FireXTask(Task):
         logger.debug(f'[Caching] storing entry for key {cache_key!r} -> {uuid!r}')
         self.backend.set(cache_key, uuid)
 
-    @classmethod
     def _retrieve_result_from_backend(
-        cls,
+        self,
         cached_uuid,
         secs_to_wait_for_cached_result: int=3,
     ) -> dict[str, Any]:
@@ -704,7 +797,7 @@ class FireXTask(Task):
         logger.info(f'Retrieving result for {cached_uuid}; might take up to {secs_to_wait_for_cached_result} seconds.')
         loop_start_time = current_time = time.time()
         while (current_time - loop_start_time) < secs_to_wait_for_cached_result:
-            result : dict[str, Any] = cls.app.backend.get_result(cached_uuid)
+            result : dict[str, Any] = self.app.backend.get_result(cached_uuid)
             if set(result.keys()) != {'hostname', 'pid'}:
                 # When the result is not populated, we get a dict back with these two keys
                 break # --< We're done
@@ -717,9 +810,8 @@ class FireXTask(Task):
                                                     f'in redis after {secs_to_wait_for_cached_result}s')
         return result
 
-    @classmethod
-    def _run_from_cache(cls, cached_uuid) -> dict[str, Any]:
-        result = cls._retrieve_result_from_backend(cached_uuid)
+    def _run_from_cache(self, cached_uuid) -> dict[str, Any]:
+        result = self._retrieve_result_from_backend(cached_uuid)
         cached_result_return_keys = result.get('__task_return_keys', ()) + ('__task_return_keys',)
         return {
             k: v for k, v in result.items()
@@ -936,52 +1028,61 @@ class FireXTask(Task):
     #######################
     # Enqueuing child tasks
 
-    _STATE_KEY = 'state'
     _PENDING = 'pending'
     _UNBLOCKED = 'unblocked'
 
     @property
-    def enqueued_children(self) -> list[AsyncResult]:
-        return list(self.context.enqueued_children.keys())
+    def pending_enqueued_children(self) -> list[FxAsyncResult]:
+        return [
+            child_ar
+            for child_ar, child_ar_state in self.context.enqueued_children.items()
+            if child_ar_state == self._PENDING
+        ]
 
-    @property
-    def pending_enqueued_children(self):
-        return [child for child, result in self.context.enqueued_children.items() if
-                result.get(self._STATE_KEY) == self._PENDING]
-
-    @property
-    def nonready_enqueued_children(self):
-        return [child for child in self.context.enqueued_children if not child.ready()]
-
-    def _add_enqueued_child(self, child_result: AsyncResult):
-        if child_result not in self.context.enqueued_children:
-            self.context.enqueued_children[child_result] = {}
-
-    def _remove_enqueued_child(self, child_result: AsyncResult):
+    def _remove_enqueued_child(self, child_result: FxAsyncResult):
         if child_result in self.context.enqueued_children:
             del(self.context.enqueued_children[child_result])
 
-    def _update_child_state(self, child_result: AsyncResult, state: str):
-        if child_result not in self.context.enqueued_children:
-            self._add_enqueued_child(child_result)
-        self.context.enqueued_children[child_result][self._STATE_KEY] = state
+    def _update_child_state(self, child_result: FxAsyncResult, state: str):
+        self.context.enqueued_children[child_result] = state
 
-    def wait_for_any_children(self, pending_only=True, **kwargs):
+    def wait_for_any_children(
+        self,
+        max_wait: Optional[float]=None,
+        poll_max_wait: Optional[float]=None,
+        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+    ):
         """Wait for any of the enqueued child tasks to run and complete"""
-        child_results = self.pending_enqueued_children if pending_only else self.enqueued_children
-        for completed_child_result in wait_for_any_results(child_results, **kwargs):
+        for completed_child_result in ManyFxAsyncResults.fx_ars_from_list(
+            self.pending_enqueued_children
+        ).get_as_completed(
+            max_wait=max_wait,
+            poll_max_wait=poll_max_wait,
+            callbacks=callbacks,
+        ):
             self._update_child_state(completed_child_result, self._UNBLOCKED)
             yield completed_child_result
 
-    def wait_for_children(self, pending_only=True, **kwargs):
+    def wait_for_children(
+        self,
+        pending_only=True,
+        forget: bool=False,
+        raise_exception_on_failure: bool=True,
+        max_wait: Optional[float]=None,
+        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        **kwargs,
+    ):
         """Wait for all enqueued child tasks to run and complete"""
-        child_results = self.pending_enqueued_children if pending_only else self.enqueued_children
+        child_results = self.pending_enqueued_children if pending_only else self.context.enqueued_children
         self.wait_for_specific_children(
-            child_results=child_results,
-            **kwargs,
+            child_results=list(child_results),
+            forget=forget,
+            raise_exception_on_failure=raise_exception_on_failure,
+            max_wait=max_wait,
+            callbacks=callbacks,
         )
 
-    def _forget_child_result(self, child_result: AsyncResult):
+    def _forget_child_result(self, child_result: FxAsyncResult):
 
         """Forget results of the tree rooted at the "chain-head" of child_result, while skipping subtrees in
         skip_subtree_nodes, as well as nodes in do_not_forget_nodes.
@@ -1001,8 +1102,7 @@ class FireXTask(Task):
             skip_subtree_nodes.update(cache_enabled_subtree_nodes)
             logger.debug(f'Cache-enabled  subtree nodes: {cache_enabled_subtree_nodes}')
 
-        report_nodes = get_current_reports_uids(self.backend)
-        if report_nodes:
+        if report_nodes := get_current_reports_uids(self.backend):
             logger.debug(f'Report nodes: {report_nodes}')
 
         forget_chain_results(
@@ -1013,61 +1113,128 @@ class FireXTask(Task):
         # Since we forget the child, we need to also remove it from the list of enqueued_children
         self._remove_enqueued_child(child_result)
 
-    def forget_specific_children_results(self, child_results: list[AsyncResult]):
+    def forget_specific_children_results(self, child_results: list[FxAsyncResult]):
         """Forget results for the explicitly provided child_results"""
         for child in child_results:
             self._forget_child_result(child)
 
-    def wait_for_specific_children(self, child_results, forget: bool=False, **kwargs):
+    def wait_for_specific_children(
+        self,
+        child_results: Union[FxAsyncResult, list[FxAsyncResult]],
+        forget: bool=False,
+        raise_exception_on_failure: bool=True,
+        max_wait: Optional[float]=None,
+        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+    ):
         """Wait for the explicitly provided child_results to run and complete"""
-        if isinstance(child_results, AsyncResult):
-            child_results = [child_results]
-        if child_results:
-            logger.debug(f'Waiting for enqueued children: {get_tasks_names_from_results(child_results)}')
+
+        async_results = ManyFxAsyncResults.create_fx_ars(child_results)
+        if async_results:
+            logger.debug(f'Waiting for enqueued children: {async_results}')
             try:
-                wait_on_async_results_and_maybe_raise(
-                    child_results,
-                    caller_task=self,
-                    **kwargs,
+                async_results.wait_for_all(
+                    raise_on_failure=raise_exception_on_failure,
+                    max_wait=max_wait,
+                    callbacks=callbacks,
                 )
             finally:
-                for r in child_results:
+                for r in async_results:
                     self._update_child_state(r, self._UNBLOCKED)
                 if forget:
-                    self.forget_specific_children_results(child_results)
+                    self.forget_specific_children_results(
+                        [r for r in async_results]
+                    )
+
+    @staticmethod
+    def is_mc_queue(queue: str) -> bool:
+        return queue.startswith('mc')
+
+    def get_worker_queue(self) -> Optional[str]:
+        hostname = self.request.hostname
+        workername = hostname and FxWorkerTypes.get_subworker_name(hostname)
+        if workername == self.request.hostname:
+            return self.get_request_queue()
+        else:
+            return workername
+
+    def get_request_queue(self) -> Optional[str]:
+        # noinspection PyBroadException
+        try:
+            return self.request.delivery_info['routing_key']
+        except Exception:
+            return None
+
+    def _resolve_queue(self, queue: Optional[str]) -> Optional[str]:
+        if queue == "auto":
+            current_queue = self.get_request_queue()
+            if current_queue and self.is_mc_queue(current_queue):
+                queue = current_queue
+            else:
+                queue = self.get_worker_queue()
+
+        # This is not fool proof, since a "master" can have multiple queue names, still causing a deadlock
+        if (
+            queue
+            and queue.startswith('master')
+            and queue == self.get_request_queue()
+        ):
+            raise SchedulingDeadlockException(
+                "Microservices running on 'master' cannot schedule on master. This results in a deadlock")
+
+        return queue
 
     def enqueue_child(
         self,
         chain: SignatureX,
+        queue: Optional[str]=None,
+        priority: Optional[int]=None,
+        soft_time_limit: Optional[int]=None,
         add_to_enqueued_children: bool=True,
         block: bool=False,
         raise_exception_on_failure: Optional[bool]=None,
         apply_async_epilogue: Optional[Callable[[AsyncResult], None]]=None,
         forget: bool=False,
+        max_wait: Optional[float]=None,
+        callbacks: Iterable[WaitLoopCallBack] = tuple(),
         **kwargs,
-    ) -> Optional[AsyncResult]:
+    ) -> FxAsyncResult:
         """Schedule a child task to run"""
 
         if raise_exception_on_failure is not None:
             if not block:
-                raise ValueError('Cannot control exceptions on child failure if we don\'t block')
+                raise ValueError("Cannot control exceptions on child failure if we don't block")
             # Only set it if not None, otherwise we want to leave the downstream default
-            kwargs['raise_exception_on_failure'] = raise_exception_on_failure
+            raise_on_failure = raise_exception_on_failure
+        else:
+            raise_on_failure = block
 
         if isinstance(chain, InjectArgs):
-            return # FIXME: need to always return an AsyncResult
+            return None # FIXME: need to always return an AsyncResult
 
-        child_result = chain.apply_async_x(self.context.bog.get_auto_inject_registry())
+        if resolved_queue := self._resolve_queue(queue):
+            chain.set_queue(resolved_queue)
+
+        if priority is not None:
+            chain.set_priority(priority)
+
+        if soft_time_limit:
+            chain.set_soft_time_limit(soft_time_limit)
+
+        child_result = chain.apply_async_x(
+            self.context.bog.get_auto_inject_registry()
+        )
         if apply_async_epilogue:
             apply_async_epilogue(child_result)
+
         if add_to_enqueued_children:
             self._update_child_state(child_result, self._PENDING)
+
         if block:
             try:
-                wait_on_async_results_and_maybe_raise(
-                    results=child_result,
-                    caller_task=self,
-                    **kwargs,
+                child_result.fx_wait(
+                    raise_on_failure=raise_on_failure,
+                    max_wait=max_wait,
+                    callbacks=callbacks,
                 )
             finally:
                 if add_to_enqueued_children:
@@ -1076,13 +1243,22 @@ class FireXTask(Task):
                     self.forget_specific_children_results([child_result])
         return child_result
 
-    def enqueue_child_and_get_results(self,
-                                      *args,
-                                      return_keys: Union[str, tuple] = (),
-                                      return_keys_only: bool = True,
-                                      merge_children_results: bool = False,
-                                      extract_from_parents: bool = True,
-                                      **kwargs) -> dict:
+    def enqueue_child_and_get_results(
+        self,
+        chain: SignatureX,
+        queue: Optional[str]="auto",
+        priority: Optional[int]=None,
+        soft_time_limit: Optional[int]=None,
+        return_keys: Union[str, tuple[str,...]] = (),
+        return_keys_only: bool = True,
+        merge_children_results: bool = False,
+        extract_from_parents: bool = True,
+        forget: bool = False,
+        raise_exception_on_failure: bool=True,
+        max_wait: Optional[float]=None,
+        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        block=True,
+    ) -> dict[str, Any]:
         """Apply a ``chain``, and extract results from it.
 
         This is a better version of `enqueue_child_and_extract` where the defaults for
@@ -1109,37 +1285,40 @@ class FireXTask(Task):
         See Also:
             get_results
         """
+        chain_result = self.enqueue_child_and_extract(
+            chain,
+            queue=queue,
+            priority=priority,
+            soft_time_limit=soft_time_limit,
+            return_keys=return_keys,
+            extract_from_children=merge_children_results,
+            extract_task_returns_only=return_keys_only,
+            extract_from_parents=extract_from_parents,
+            forget=forget,
+            raise_exception_on_failure=raise_exception_on_failure,
+            max_wait=max_wait,
+            callbacks=callbacks,
+            block=block,
+        )
+        return chain_result
 
-        return self.enqueue_child_and_extract(*args,
-                                              return_keys=return_keys,
-                                              extract_from_children=merge_children_results,
-                                              extract_task_returns_only=return_keys_only,
-                                              extract_from_parents=extract_from_parents,
-                                              **kwargs)
-
-    def enqueue_child_and_extract(self,
-                                  *args,
-                                  **kwargs) -> Union[tuple, dict]:
-        """Apply a ``chain``, and extract results from it.
-
-        See:
-            _enqueue_child_and_extract
-        """
-
-        if kwargs.pop('enqueue_once_key', None):
-            raise ValueError('Invalid argument. Use the enqueue_child_once_and_extract() api.')
-
-        return self._enqueue_child_and_extract(*args, **kwargs)
-
-    def _enqueue_child_and_extract(self,
-                                   *args,
-                                   return_keys: Union[str, tuple] = (),
-                                   extract_from_children: bool = True,
-                                   extract_task_returns_only: bool = False,
-                                   enqueue_once_key: str = '',
-                                   extract_from_parents: bool = True,
-                                   forget: bool = False,
-                                   **kwargs) -> Union[tuple, dict]:
+    def enqueue_child_and_extract(
+        self,
+        chain: SignatureX,
+        queue: Optional[str]="auto",
+        priority: Optional[int]=None,
+        soft_time_limit: Optional[int]=None,
+        return_keys: Union[str, tuple[str,...]] = tuple(),
+        extract_from_children: bool = True,
+        extract_task_returns_only: bool = False,
+        enqueue_once_key: Optional[str]=None,
+        extract_from_parents: Optional[bool] = None,
+        forget: bool = False,
+        raise_exception_on_failure: bool=True,
+        max_wait: Optional[float]=None,
+        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        block=True,
+    ) -> Union[tuple, dict]:
         """Apply a ``chain``, and extract results from it.
 
         Note:
@@ -1163,39 +1342,81 @@ class FireXTask(Task):
         Returns:
             The returns of `extract_and_filter`.
 
-        See Also:
-            extract_and_filter
         """
 
+        if enqueue_once_key:
+            if extract_from_parents is None:
+                extract_from_parents = False
+            if extract_from_parents:
+                raise ValueError('Unable to extract returns from parents when using enqueue_child_once.')
+
+        if extract_from_parents is None:
+            extract_from_parents = True
+
         # Remove block from kwargs if it exists
-        _block = kwargs.pop('block', True)
-        if not _block:
-            logger.warning(f'enqueue_child_and_extract ignored block={_block}, '
+        if not block:
+            logger.warning(f'enqueue_child_and_extract ignored block={block}, '
                            'since it needs to block in order to extract results')
+            block = True
 
         if not enqueue_once_key:
-            result_promise = self.enqueue_child(*args, block=True, **kwargs)
+            result_promise = self.enqueue_child(
+                chain=chain,
+                queue=queue,
+                priority=priority,
+                soft_time_limit=soft_time_limit,
+                block=block,
+                forget=forget,
+                raise_exception_on_failure=raise_exception_on_failure,
+                max_wait=max_wait,
+                callbacks=callbacks,
+            )
         else:
             # Need to make sure task with this key is run only once
-            result_promise = self.enqueue_child_once(*args,
-                                                     enqueue_once_key=enqueue_once_key,
-                                                     block=True,
-                                                     **kwargs)
+            result_promise = self.enqueue_child_once(
+                chain=chain,
+                enqueue_once_key=enqueue_once_key,
+                queue=queue,
+                priority=priority,
+                soft_time_limit=soft_time_limit,
+                block=block,
+                raise_exception_on_failure=raise_exception_on_failure,
+                max_wait=max_wait,
+                callbacks=callbacks,
+                forget=forget,
+            )
 
-        results = get_results(result_promise,
-                              return_keys=return_keys,
-                              merge_children_results=extract_from_children,
-                              return_keys_only=extract_task_returns_only,
-                              extract_from_parents=extract_from_parents)
-
-        if forget:
-            self.forget_specific_children_results([result_promise])
+        if result_promise: # FIXME: inject arg bugs.
+            results = result_promise.legacy_extract_results(
+                return_keys=return_keys,
+                merge_children_results=extract_from_children,
+                return_keys_only=extract_task_returns_only,
+                extract_from_parents=extract_from_parents,
+            )
+            if forget:
+                self.forget_specific_children_results([result_promise])
+        else:
+            results = {}
 
         return results
 
-    def enqueue_child_once(self, *args, enqueue_once_key, block=False, **kwargs) -> AsyncResult:
-        """See  :`meth:`enqueue_child_once_and_extract`
+    def enqueue_child_once(
+        self,
+        chain: SignatureX,
+        enqueue_once_key: str,
+        block=False,
+        raise_exception_on_failure: bool=True,
+        max_wait: Optional[float]=None,
+        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        forget=False,
+        **kwargs,
+    ) -> FxAsyncResult:
         """
+            See  :`meth:`enqueue_child_once_and_extract`
+        """
+
+        if forget:
+            logger.error(f'Since {chain.get_label()} is being enqueued once, it cannot be forgotten.')
 
         if self.request.retries > 0:
             # NOTE: We presume previous run of the enqueue service failed and needs to rerun, so we use a new key.
@@ -1207,21 +1428,27 @@ class FireXTask(Task):
 
         enqueue_child_once_uid_dbkey = get_enqueue_child_once_uid_dbkey(enqueue_once_key)
         enqueue_child_once_count_dbkey = get_enqueue_child_once_count_dbkey(enqueue_once_key)
-
         num_runs_attempted = self.backend.client.incr(enqueue_child_once_count_dbkey)
         if int(num_runs_attempted) == 1:
             # This is the first attempt, enqueue the child
-            apply_async_epilogue = partial(_set_taskid_in_db_key,
-                                           db=self.backend,
-                                           db_key=enqueue_child_once_uid_dbkey)
-            return self.enqueue_child(*args,
-                                      block=block,
-                                      apply_async_epilogue=apply_async_epilogue,
-                                      **kwargs)
+            apply_async_epilogue = partial(
+                _set_taskid_in_db_key,
+                db=self.backend,
+                db_key=enqueue_child_once_uid_dbkey,
+            )
+            return self.enqueue_child(
+                chain=chain,
+                block=block,
+                apply_async_epilogue=apply_async_epilogue,
+                raise_exception_on_failure=raise_exception_on_failure,
+                max_wait=max_wait,
+                callbacks=callbacks,
+            )
 
         # Someone else is running this; wait for uuid to be set in the backend
-        logger.info(f'Skipping enqueue of task with enqueue-once key {enqueue_once_key}; '
-                    f'It\'s being enqueued by a different owner.')
+        logger.info(
+            f'Skipping enqueue of task with enqueue-once key {enqueue_once_key}; '
+            f'It\'s being enqueued by a different owner.')
 
         # Wait for task-id to show up in the backend
         sec_to_wait = 60
@@ -1235,39 +1462,49 @@ class FireXTask(Task):
             current_time = time.time()
         else:
             # This is unexpected, since we expect uuid to be set by whoever is enqueueing this
-            raise WaitOnChainTimeoutError(f'Timed out waiting for task-id to be set.'
-                                          f' (enqueue-once key: {enqueue_once_key})')
+            raise WaitOnChainTimeoutError(
+                f'Timed out waiting for task-id to be set.'
+                f' (enqueue-once key: {enqueue_once_key})')
 
-        task_uid = uid_of_enqueued_task.decode()
-        logger.info(f'{enqueue_once_key} is enqueued with task-id: {task_uid}')
-        self._send_flame_additional_child(task_uid)
+        task_uuid = uid_of_enqueued_task.decode()
+        logger.info(f'{enqueue_once_key} is enqueued with task-id: {task_uuid}')
+        self._send_flame_additional_child(task_uuid)
 
-        result = AsyncResult(task_uid)
+        result = FxAsyncResult(task_uuid)
         if block:
-            logger.debug(f'Waiting for results of non-child task {get_result_logging_name(result)}')
-            wait_on_async_results_and_maybe_raise(results=result, caller_task=self, **kwargs)
+            logger.debug(f'Waiting for results of non-child task {result.fx_get_name()}')
+            result.fx_wait(
+                raise_on_failure=raise_exception_on_failure,
+                max_wait=max_wait,
+                callbacks=callbacks,
+            )
         return result
 
     def _send_flame_additional_child(self, additional_child_uuid):
         self.send_firex_event_raw({ADDITIONAL_CHILDREN_KEY: [additional_child_uuid]})
 
-    def enqueue_child_once_and_extract(self,
-                                       *args,
-                                       enqueue_once_key: str,
-                                       **kwargs):
+    def enqueue_child_once_and_extract(
+        self,
+        chain: SignatureX,
+        enqueue_once_key: str,
+        extract_from_parents=False,
+        **kwargs,
+    ):
         """Apply a ``chain`` with a unique key only once per FireX run, and extract results from it.
 
         Note:
             This is like :meth:`enqueue_child_and_extract`, but it sets `enqueue_once_key`.
         """
 
-        if kwargs.pop('extract_from_parents', False):
+        if extract_from_parents:
             raise ValueError('Unable to extract returns from parents when using enqueue_child_once.')
 
-        return self._enqueue_child_and_extract(*args,
-                                               enqueue_once_key=enqueue_once_key,
-                                               extract_from_parents=False,
-                                               **kwargs)
+        return self.enqueue_child_and_extract(
+            chain,
+            enqueue_once_key=enqueue_once_key,
+            extract_from_parents=False,
+            **kwargs,
+        )
 
     def enqueue_in_parallel(
         self,
@@ -1276,19 +1513,19 @@ class FireXTask(Task):
         wait_for_completion=True,
         raise_exception_on_failure=False,
         **kwargs,
-    ) -> list[AsyncResult]:
+    ) -> list[FxAsyncResult]:
         """ This method executes the provided list of Signatures/Chains in parallel
         and returns the associated list of "async_result" objects.
         The results are returned in the same order as the input Signatures/Chains."""
-        promises = []
-        scheduled = []
+        promises : list[FxAsyncResult] = []
+        scheduled : list[FxAsyncResult] = []
         for c in chains:
             if len(scheduled) >= max_parallel_chains:
                 # Reach the max allowed parallel chains, wait for one to complete before scheduling the next one.
-                async_res = next(
-                    wait_for_any_results(scheduled, raise_exception_on_failure=raise_exception_on_failure)
-                )
-                scheduled.remove(async_res)
+                completed_ar = ManyFxAsyncResults.fx_ars_from_list(
+                    scheduled,
+                ).wait_for_any(raise_on_failure=raise_exception_on_failure)
+                scheduled.remove(completed_ar)
             # Schedule the next child
             logger.debug(f'Enqueueing: {c.get_label()}')
             promise = self.enqueue_child(c, **kwargs)
@@ -1297,51 +1534,55 @@ class FireXTask(Task):
 
         if wait_for_completion or raise_exception_on_failure:
             # Wait for all children to complete
-            self.wait_for_specific_children(promises, raise_exception_on_failure=raise_exception_on_failure)
+            self.wait_for_specific_children(
+                promises,
+                raise_exception_on_failure=raise_exception_on_failure,
+            )
         return promises
 
-    def enqueue_child_from_spec(self,
-                                task_spec: TaskEnqueueSpec,
-                                inject_args: Optional[dict] = None):
-        enqueue_opts = task_spec.enqueue_opts or dict()
-        chain = task_spec.signature
+    def enqueue_child_from_spec(
+        self,
+        task_spec: TaskEnqueueSpec,
+        inject_args: Optional[dict]=None,
+    ):
         args_to_inject = self.abog.copy() if task_spec.inject_abog else {}
-        if inject_args:
-            args_to_inject.update(inject_args)
+        args_to_inject.update(inject_args or {})
         if args_to_inject:
-            chain = InjectArgs(**args_to_inject) | chain
+            chain = InjectArgs(**args_to_inject) | task_spec.signature
+        else:
+            chain = task_spec.signature
         logger.debug(f'Enqueuing {task_spec}')
-        self.enqueue_child(chain, **enqueue_opts)
+        self.enqueue_child(
+            chain,
+            **(task_spec.enqueue_opts or {})
+        )
 
-    def revoke_nonready_children(self):
-        nonready_children = self.nonready_enqueued_children
-        if nonready_children:
+    def revoke_nonready_children(self) -> None:
+        if nonready_children := [
+            c for c in self.context.enqueued_children
+            if not c.fx_is_ready()
+        ]:
             logger.info('Nonready children of current task exist.')
-            revoked = [self.revoke_child(child_result) for child_result in nonready_children]
-            wait_for_running_tasks_from_results([result for result_list in revoked for result in result_list])
+            revoked : list[FxAsyncResult]= []
+            for child_ar in nonready_children:
+                revoked += self.revoke_child(child_ar)
+            ManyFxAsyncResults.fx_ars_from_list(
+                revoked
+            ).wait_for_running()
 
-    def revoke_child(self, result: AsyncResult, terminate=True, wait=False, timeout=None):
-        name = get_result_logging_name(result)
-        logger.debug('Revoking child %s' % name)
-        result.revoke(terminate=terminate, wait=wait, timeout=timeout)
-        revoked_results = [result]
+    def revoke_child(self, result: FxAsyncResult) -> list[FxAsyncResult]:
+        logger.debug(f'Revoking child {result.fx_get_name()}')
+        revoked_results = result.get_chain_ancestors_as_many().revoke_non_ready()
         self._update_child_state(result, self._UNBLOCKED)
-        logger.info(f'Revoked {name}')
-
-        while result.parent:
-            # Walk up the chain, since nobody is waiting on those tasks explicitly.
-            result = result.parent
-            if not result.ready():
-                name = get_result_logging_name(result)
-                logger.debug(f'Revoking parent {name}')
-                result.revoke(terminate=terminate, wait=wait, timeout=timeout)
-                revoked_results.append(result)
-                logger.info(f'Revoked {name}')
-        return revoked_results
+        return list(revoked_results)
 
     @property
-    def root_logger_file_handler(self):
-        return [handler for handler in logger.root.handlers if isinstance(handler, WatchedFileHandler)][0]
+    def root_logger_file_handler(self) -> WatchedFileHandler:
+        return next(
+            handler
+            for handler in logger.root.handlers
+            if isinstance(handler, WatchedFileHandler)
+        )
 
     @property
     def worker_log_file(self):
@@ -1389,7 +1630,11 @@ class FireXTask(Task):
 
     def get_task_logfile_from_request(self, request):
         # Sometimes self.request isn't populated correctly, so we need to use this version instead of the property
-        return self.get_task_logfile(self.get_task_logging_dirpath_from_request(request=request), self.name, request.id)
+        return self.get_task_logfile(
+            self.get_task_logging_dirpath_from_request(request=request),
+            self.name,
+            request.id,
+        )
 
     @property
     def task_logfile(self):
@@ -1400,8 +1645,8 @@ class FireXTask(Task):
         return os.path.join(task_logging_dirpath, cls.get_task_logfilename(task_name, uuid))
 
     @staticmethod
-    def get_task_logfilename(task_name, uuid):
-        return '{}_{}.html'.format(task_name, str(uuid))
+    def get_task_logfilename(task_name, uuid) -> str:
+        return f'{task_name}_{uuid}.html'
 
     @property
     def worker_log_url(self):
@@ -1628,19 +1873,6 @@ def is_jsonable(obj) -> bool:
     else:
         return True
 
-def _custom_serializers(obj) -> Optional[str]:
-    # This is primarily done to make root service "unsuccessful_services" visible in run.json
-    if isinstance(obj, AsyncResult) and obj.failed():
-        task_name = get_task_name_from_result(obj)
-        if task_name:
-            if isinstance(obj.result, Exception):
-                failure = first_non_chain_interrupted_exception(obj.result)
-            else:
-                failure = obj.result
-            return f'{task_name.split(".")[-1]} failed: {failure}'
-
-    return None
-
 
 def convert_to_serializable(obj, max_recursive_depth=10, _depth=0):
 
@@ -1683,10 +1915,6 @@ def convert_to_serializable(obj, max_recursive_depth=10, _depth=0):
         if isinstance(obj, Iterable):
             return [convert_to_serializable(e, max_recursive_depth, _depth+1) for e in obj]
 
-    # Either input isn't walkable (i.e. dict or iterable), or we're too deep in the structure to keep walking.
-    custom_serialized = _custom_serializers(obj)
-    if custom_serialized is not None:
-        return custom_serialized
     return repr(obj)
 
 
@@ -1741,6 +1969,7 @@ class _TaskPauseRequest:
     task_name: str
     pause_point: _PausePoints
     pause_hours: float
+
 
 def _listy(val: Any) -> list[str]:
     if isinstance(val, str):

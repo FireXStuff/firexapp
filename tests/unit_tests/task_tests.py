@@ -4,12 +4,24 @@ import types
 from celery import Celery
 
 from firexkit.argument_conversion import ConverterRegister
-from firexkit.chain import returns
+from firexkit.chain import returns, SignatureX
 from firexkit.task import FireXTask, convert_to_serializable, IllegalTaskNameException, \
     REPLACEMENT_TASK_NAME_POSTFIX
 
 
 class TaskTests(unittest.TestCase):
+
+    def test_signature_type(self):
+        test_app = Celery()
+
+        @test_app.task(base=FireXTask)
+        def task(arg=None):
+            return arg
+
+        for signature in (task.s(), task.si(), task.signature(), task.s().clone()):
+            with self.subTest(signature=signature):
+                self.assertIsInstance(signature, SignatureX)
+                self.assertIs(signature.app, test_app)
 
     def test_instantiation(self):
         from celery.utils.threads import LocalStack
