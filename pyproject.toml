@@ -55,19 +55,10 @@ firex_shutdown = "firexapp.submit.shutdown:main"
 firexapp = "firexapp"
 
 [dependency-groups]
-build-legacy = [
-    "firexbuilder",
-    "keyrings.alt",
-    # firexbuilder shells out to pip3; uv-created environments are otherwise
-    # intentionally not seeded with pip.
-    "pip",
-]
 test = [
     "coverage==5.5",
-    "firexbuilder",
 ]
 docs = [
-    "firexbuilder",
     "sphinx",
     "sphinx-rtd-theme",
     "sphinx-sitemap",
@@ -76,7 +67,6 @@ integration = [
     "firex-bundle-ci",
 ]
 release = [
-    "firexbuilder",
     "keyrings.alt",
     "twine",
 ]

@@ -34,19 +34,6 @@ build:
     paths:
       - dist/
 
-# Keep the previous builder as a comparison and rollback path during Phase 1.
-# The uv-built artifacts above are the only artifacts eligible for upload.
-build-legacy:
-  stage: build
-  variables:
-    UV_SYNC_ARGS: "--group build-legacy --all-extras"
-  script:
-    - uv run --locked --group build-legacy --all-extras firex-build build --install_test_reqs --install_flame
-    - mv dist legacy-dist
-  artifacts:
-    paths:
-      - legacy-dist/
-
 build-firexkit-from-tip:
   stage: build-firexkit-from-tip
   variables:
@@ -62,7 +49,7 @@ build-docs:
   variables:
     UV_SYNC_ARGS: "--group docs"
   script:
-    - uv run --locked --group docs firex-build docs
+    - uv run --locked --group docs sphinx-build -b html docs html
   artifacts:
     paths:
       - html/
@@ -72,7 +59,7 @@ test-unit:
   variables:
     UV_SYNC_ARGS: "--group test --extra test"
   script:
-    - uv run --locked --group test --extra test firex-build unit_tests
+    - uv run --locked --group test --extra test coverage run -m unittest discover -s tests/unit_tests -p "*_tests.py"
   artifacts:
     paths:
       - .coverage
@@ -89,23 +76,13 @@ test-integration:
       - flow_test_results/
     when: always
 
-compare-build-artifacts:
-  stage: test
-  needs:
-    - job: build
-      artifacts: true
-    - job: build-legacy
-      artifacts: true
-  script:
-    - uv run --locked python tools/compare_build_artifacts.py legacy-dist dist
-
 upload-pkg:
   stage: upload
   variables:
     UV_SYNC_ARGS: "--group release"
   script:
     - uv run --locked --group release twine check dist/*
-    - uv run --locked --group release firex-build upload_pip
+    - uv run --locked --group release twine upload --verbose --username __token__ dist/*
   only:
     - tags
 
