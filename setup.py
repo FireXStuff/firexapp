@@ -33,7 +33,7 @@ setup(name='firex_flame',
             "gevent-websocket",
             "gevent",
             "importlib-resources",
-            "jsonpath-ng",
+            "jsonpath-ng==1.7.0",
             "cryptography==42.0.7",
             "bcrypt==4.1.3", # 4.2.0 causes SIGSEGV
       ],
