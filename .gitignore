@@ -11,8 +11,6 @@ __pycache__/
 build/
 develop-eggs/
 dist/
-workspace-dist*/
-workspace-selected-dist/
 downloads/
 eggs/
 .eggs/
@@ -106,4 +104,3 @@ venv.bak/
 
 # mypy
 .mypy_cache/
-
