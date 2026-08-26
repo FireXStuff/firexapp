@@ -11,6 +11,8 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+workspace-dist*/
+workspace-selected-dist/
 downloads/
 eggs/
 .eggs/

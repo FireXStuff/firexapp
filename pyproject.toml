@@ -70,6 +70,10 @@ release = [
     "keyrings.alt",
     "twine",
 ]
+workspace-ci = [
+    "ruff",
+    "tomli==2.4.1; python_version < '3.11'",
+]
 
 [tool.setuptools]
 include-package-data = true
@@ -89,6 +93,12 @@ firexapp = ["testing/cloud-ci-install-configs.json"]
 
 [tool.uv]
 required-version = "==0.11.*"
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.firex.workspace-validation]
+module-roots = ["firexapp"]
 
 [tool.versioneer]
 VCS = "git"
