@@ -23,6 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "distlib",
+    "confluent-kafka==2.12.0",
     "tqdm<=4.29.1",
     "unittest-xml-reporting",
     "redis",
@@ -50,12 +51,16 @@ Homepage = "https://github.com/FireXStuff/firexapp"
 
 [project.scripts]
 firexapp = "firexapp.application:main"
+firex_blaze = "firex_blaze.__main__:main"
 flow_tests = "firexapp.testing.test_infra:default_main"
 firex_shutdown = "firexapp.submit.shutdown:main"
 
 [project.entry-points."firex.core"]
 firexapp = "firexapp"
 firexkit = "firexkit"
+
+[project.entry-points."firex_tracking_service"]
+firex_blaze_launcher = "firex_blaze.blaze_launcher:FireXBlazeLauncher"
 
 [dependency-groups]
 test = [
@@ -85,7 +90,7 @@ package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["firexapp*", "firexkit*"]
+include = ["firexapp*", "firexkit*", "firex_blaze*"]
 
 [tool.setuptools.package-data]
 firexkit = ["resources/*", "templates/*", "install_resources/*"]

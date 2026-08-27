@@ -8,3 +8,4 @@ omit =
 include =
     *firexapp*
     *firexkit*
+    *firex_blaze*
