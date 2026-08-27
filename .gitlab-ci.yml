@@ -76,6 +76,9 @@ test-integration:
   variables:
     UV_SYNC_ARGS: "--group integration --all-extras"
   script:
+    # FlameLiveMonitorRemoteFile deliberately exercises Flame's SSH-based
+    # remote log streaming against this container.
+    - sudo /usr/sbin/sshd
     - uv run --locked --group integration --all-extras firexapp submit --sync --chain nop
     - uv run --locked --group integration --all-extras firexapp submit --chain RunAllIntegrationTests --public_runs True --install_configs cloud-ci-install-configs.json --sync --coverage False --max_parallel_tests 5
   artifacts:
