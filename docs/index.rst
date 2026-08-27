@@ -15,6 +15,7 @@ Want to learn more?
 
    quick_start
    programming_guide/index
+   firexkit/index
    api_reference
 
 API Reference Indices

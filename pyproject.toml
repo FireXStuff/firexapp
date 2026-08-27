@@ -23,7 +23,6 @@ classifiers = [
 ]
 dependencies = [
     "distlib",
-    "firexkit",
     "tqdm<=4.29.1",
     "unittest-xml-reporting",
     "redis",
@@ -37,6 +36,9 @@ dependencies = [
     "detach3k",
     "pytz",
     "rapidfuzz==3.8.1",
+    "jinja2",
+    "pydantic==2.13.0",
+    "typing-extensions==4.16.0",
 ]
 
 [project.optional-dependencies]
@@ -53,6 +55,7 @@ firex_shutdown = "firexapp.submit.shutdown:main"
 
 [project.entry-points."firex.core"]
 firexapp = "firexapp"
+firexkit = "firexkit"
 
 [dependency-groups]
 test = [
@@ -82,10 +85,10 @@ package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["firexapp*"]
+include = ["firexapp*", "firexkit*"]
 
 [tool.setuptools.package-data]
-firexapp = ["testing/cloud-ci-install-configs.json"]
+firexkit = ["resources/*", "templates/*", "install_resources/*"]
 
 [tool.uv]
 required-version = "==0.11.*"

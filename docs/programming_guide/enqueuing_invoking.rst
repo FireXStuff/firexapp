@@ -94,7 +94,7 @@ To avoid an error exception while waiting for the chain completion, you can spec
 
 when waiting for the chain completion. By default, an exception will be raised during the "wait" if one of the services in the chains fails during the execution.
 
-Once a chain has completed, use the `get_results <http://www.firexkit.com/api_reference.html#firexkit.result.get_results>`_
+Once a chain has completed, use :py:func:`firexkit.result.get_results`
 API to extract the results from the ``AsyncResult``.
 
 Parallel scheduling and results extraction
@@ -109,7 +109,6 @@ The method receives a list of chains as an input and will schedule up to the spe
 
 ..
     TODO: port examples
-
 
 
 

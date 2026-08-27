@@ -1,0 +1,10 @@
+{
+  "viewer_templates": {
+    "viewer_base":   "http://www.firexstuff.com",
+    "run_path_template": "/flame/#/{{ firex_id }}",
+    "task_path_template": "/flame/#/{{ firex_id }}/tasks/{{ task_id }}",
+    "run_logs_root_path_template": "/flame/#/{{ firex_id }}/logs/",
+    "run_logs_entry_path_template": "https://storage.googleapis.com/runs.firexflame.com/{{ firex_id }}/{{ log_entry_rel_run_root }}"
+  },
+  "requested_tracking_services": ["FlameLauncher", "FireXKeeperLauncher"]
+}

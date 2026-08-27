@@ -1,0 +1,8 @@
+<a
+    href="{{url}}"
+    {% if html_class %} class="{{ html_class }}" {% endif %}
+    {% if title_attribute %} title="{{ title_attribute }}" {% endif %}
+    {% for attr_name, attr_value in attrs.items() %}
+        {{attr_name}}="{{attr_value}}"
+   {% endfor %}
+>{{other_elements | safe}}{{text}}</a>

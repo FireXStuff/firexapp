@@ -705,14 +705,16 @@ dependencies = [
     { name = "detach3k" },
     { name = "distlib" },
     { name = "entrypoints" },
-    { name = "firexkit" },
     { name = "hiredis" },
+    { name = "jinja2" },
     { name = "psutil" },
+    { name = "pydantic" },
     { name = "python-levenshtein" },
     { name = "pytz" },
     { name = "rapidfuzz" },
     { name = "redis" },
     { name = "tqdm" },
+    { name = "typing-extensions" },
     { name = "unittest-xml-reporting" },
 ]
 
@@ -753,14 +755,16 @@ requires-dist = [
     { name = "entrypoints" },
     { name = "firex-flame", marker = "extra == 'flame'" },
     { name = "firex-keeper", marker = "extra == 'test'" },
-    { name = "firexkit" },
     { name = "hiredis" },
+    { name = "jinja2" },
     { name = "psutil" },
+    { name = "pydantic", specifier = "==2.13.0" },
     { name = "python-levenshtein" },
     { name = "pytz" },
     { name = "rapidfuzz", specifier = "==3.8.1" },
     { name = "redis" },
     { name = "tqdm", specifier = "<=4.29.1" },
+    { name = "typing-extensions", specifier = "==4.16.0" },
     { name = "unittest-xml-reporting" },
 ]
 provides-extras = ["test", "flame"]
@@ -777,21 +781,6 @@ release = [
     { name = "twine" },
 ]
 test = [{ name = "coverage", specifier = "==5.5" }]
-
-[[package]]
-name = "firexkit"
-version = "5.2.48"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "celery" },
-    { name = "jinja2" },
-    { name = "pydantic" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/6a/b5/184df4ff3f41f8e799d63ed5a7ecd8a61bea550b6b94e5db65dac3e77a32/firexkit-5.2.48.tar.gz", hash = "sha256:498929659bd1d7c486abbd442137256d6b515124de4d79db48334f27ea1267d8", size = 79836, upload-time = "2026-08-25T22:14:32.182Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/7a/f29315e108f0685f85fcd928814b3932a76f4d03fc30b2c8dd97da69519c/firexkit-5.2.48-py2.py3-none-any.whl", hash = "sha256:60e21e303ba675cbedb6a73d062589788eba8a92ad5cf98bab313fd19e970b34", size = 64174, upload-time = "2026-08-25T22:14:31.12Z" },
-]
 
 [[package]]
 name = "flask"
