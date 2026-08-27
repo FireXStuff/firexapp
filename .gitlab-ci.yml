@@ -67,6 +67,7 @@ test-artifact:
     - uv pip check --python .artifact-venv/bin/python
     - .artifact-venv/bin/python -I tools/validate_consolidated_artifact.py
     - .artifact-venv/bin/firex_blaze --help > /dev/null
+    - .artifact-venv/bin/firex_keeper --help > /dev/null
 
 test-integration:
   stage: test

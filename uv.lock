@@ -697,19 +697,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0e/a8/d523c1f358551808fd37a299a4e74ca687f2bf946481f6e5bcf646d42b3d/firex_flame_ui-0.29.59.tar.gz", hash = "sha256:4ad1813330d254ca62383fae5b00cda7c1a77a7a378e30e58177e5b9353a30a2", size = 239871, upload-time = "2025-07-29T16:15:33.204Z" }
 
 [[package]]
-name = "firex-keeper"
-version = "4.1.67"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "firexapp" },
-    { name = "sqlalchemy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3d/47/aec1dc9920a88328a8a399190333d20a8e59474252837cd05dd75a4782a3/firex_keeper-4.1.67.tar.gz", hash = "sha256:9fc18a0759b1dc04ec4b1f2a5d59b3cf15d86fdde0345e811fc7f4a7010dd81e", size = 35873, upload-time = "2026-05-14T20:52:50.137Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/55/82/49ff17d42e3fcf6e38afe376dcd089ce6ac75a88edae54a07783892a9f78/firex_keeper-4.1.67-py2.py3-none-any.whl", hash = "sha256:6d95ca69fdee946456df2ed665df50127e9afa569a428814da1dc1bf47e6dc6f", size = 18507, upload-time = "2026-05-14T20:52:48.879Z" },
-]
-
-[[package]]
 name = "firexapp"
 source = { editable = "." }
 dependencies = [
@@ -729,6 +716,7 @@ dependencies = [
     { name = "pytz" },
     { name = "rapidfuzz" },
     { name = "redis" },
+    { name = "sqlalchemy" },
     { name = "tqdm" },
     { name = "typing-extensions" },
     { name = "unittest-xml-reporting" },
@@ -738,9 +726,6 @@ dependencies = [
 [package.optional-dependencies]
 flame = [
     { name = "firex-flame" },
-]
-test = [
-    { name = "firex-keeper" },
 ]
 
 [package.dev-dependencies]
@@ -753,7 +738,6 @@ docs = [
 ]
 integration = [
     { name = "firex-flame" },
-    { name = "firex-keeper" },
 ]
 release = [
     { name = "keyrings-alt" },
@@ -773,7 +757,6 @@ requires-dist = [
     { name = "distlib" },
     { name = "entrypoints" },
     { name = "firex-flame", marker = "extra == 'flame'" },
-    { name = "firex-keeper", marker = "extra == 'test'" },
     { name = "hiredis" },
     { name = "jinja2" },
     { name = "lxml" },
@@ -783,6 +766,7 @@ requires-dist = [
     { name = "pytz" },
     { name = "rapidfuzz", specifier = "==3.8.1" },
     { name = "redis" },
+    { name = "sqlalchemy", specifier = "<2" },
     { name = "tqdm", specifier = "<=4.29.1" },
     { name = "typing-extensions", specifier = "==4.16.0" },
     { name = "unittest-xml-reporting" },
@@ -796,10 +780,7 @@ docs = [
     { name = "sphinx-rtd-theme" },
     { name = "sphinx-sitemap" },
 ]
-integration = [
-    { name = "firex-flame" },
-    { name = "firex-keeper" },
-]
+integration = [{ name = "firex-flame" }]
 release = [
     { name = "keyrings-alt" },
     { name = "twine" },

@@ -18,6 +18,7 @@ Want to learn more?
    firexkit/index
    firex_blaze/index
    firex_bundle_ci/index
+   firex_keeper/index
    api_reference
 
 API Reference Indices
