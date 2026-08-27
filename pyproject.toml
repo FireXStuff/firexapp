@@ -24,8 +24,10 @@ classifiers = [
 dependencies = [
     "distlib",
     "confluent-kafka==2.12.0",
+    "lxml",
     "tqdm<=4.29.1",
     "unittest-xml-reporting",
+    "xunitmerge",
     "redis",
     "hiredis",
     "celery[redis]==5.3.1",
@@ -59,6 +61,9 @@ firex_shutdown = "firexapp.submit.shutdown:main"
 firexapp = "firexapp"
 firexkit = "firexkit"
 
+[project.entry-points."firex.bundles"]
+firex-bundle-ci = "firex_bundle_ci"
+
 [project.entry-points."firex_tracking_service"]
 firex_blaze_launcher = "firex_blaze.blaze_launcher:FireXBlazeLauncher"
 
@@ -72,7 +77,8 @@ docs = [
     "sphinx-sitemap",
 ]
 integration = [
-    "firex-bundle-ci",
+    "firex-flame",
+    "firex-keeper",
 ]
 release = [
     "keyrings.alt",
@@ -90,7 +96,7 @@ package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["firexapp*", "firexkit*", "firex_blaze*"]
+include = ["firexapp*", "firexkit*", "firex_blaze*", "firex_bundle_ci*"]
 
 [tool.setuptools.package-data]
 firexkit = ["resources/*", "templates/*", "install_resources/*"]

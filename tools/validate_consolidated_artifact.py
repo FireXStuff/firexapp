@@ -12,7 +12,7 @@ def _canonical_name(name: str) -> str:
 def main() -> None:
     firexapp_distribution = metadata.distribution("firexapp")
 
-    absorbed_distributions = ("firexkit", "firex-blaze")
+    absorbed_distributions = ("firexkit", "firex-blaze", "firex-bundle-ci")
     for distribution_name in absorbed_distributions:
         try:
             metadata.distribution(distribution_name)
@@ -46,6 +46,12 @@ def main() -> None:
         raise AssertionError(
             "firexapp must own Blaze's confluent-kafka==2.12.0 dependency"
         )
+    for dependency_name in ("lxml", "xunitmerge"):
+        if _canonical_name(dependency_name) not in requirement_names:
+            raise AssertionError(
+                "firexapp must own firex-bundle-ci's direct dependency: "
+                f"{dependency_name}"
+            )
 
     distribution_files = {str(path) for path in firexapp_distribution.files or []}
     expected_files = {
@@ -62,6 +68,9 @@ def main() -> None:
         "firex_blaze/blaze_helper.py",
         "firex_blaze/blaze_launcher.py",
         "firex_blaze/fast_blaze_helper.py",
+        "firex_bundle_ci/__init__.py",
+        "firex_bundle_ci/_version.py",
+        "firex_bundle_ci/tasks.py",
     }
     missing_files = expected_files - distribution_files
     if missing_files:
@@ -77,9 +86,10 @@ def main() -> None:
 
     import firexapp
     import firex_blaze
+    import firex_bundle_ci
     import firexkit
 
-    for namespace in (firexkit, firex_blaze):
+    for namespace in (firexkit, firex_blaze, firex_bundle_ci):
         if namespace.__version__ != firexapp.__version__:
             raise AssertionError(
                 f"{namespace.__name__} and firexapp must report the same "
@@ -87,7 +97,7 @@ def main() -> None:
             )
 
     distribution_root = Path(firexapp_distribution.locate_file("")).resolve()
-    for namespace in (firexkit, firex_blaze):
+    for namespace in (firexkit, firex_blaze, firex_bundle_ci):
         namespace_path = Path(namespace.__file__).resolve()
         if not namespace_path.is_relative_to(distribution_root):
             raise AssertionError(
@@ -112,6 +122,7 @@ def main() -> None:
     expected_entry_points = {
         ("firex.core", "firexapp"): "firexapp",
         ("firex.core", "firexkit"): "firexkit",
+        ("firex.bundles", "firex-bundle-ci"): "firex_bundle_ci",
         ("console_scripts", "firex_blaze"): "firex_blaze.__main__:main",
         (
             "firex_tracking_service",
@@ -141,10 +152,33 @@ def main() -> None:
             "Blaze tracking service must report the owning firexapp version"
         )
 
+    from firex_bundle_ci import tasks as bundle_ci_tasks
+
+    expected_bundle_ci_tasks = {
+        "AggregateCoverage",
+        "AggregateXunit",
+        "CollectXunits",
+        "GenerateHtmlCoverage",
+        "RunAllIntegrationTests",
+        "RunIntegrationTests",
+        "RunUnitAndIntegrationTests",
+        "RunUnitTests",
+    }
+    missing_bundle_ci_tasks = {
+        task_name
+        for task_name in expected_bundle_ci_tasks
+        if not hasattr(bundle_ci_tasks, task_name)
+    }
+    if missing_bundle_ci_tasks:
+        raise AssertionError(
+            "firexapp artifact is missing firex-bundle-ci tasks: "
+            f"{sorted(missing_bundle_ci_tasks)}"
+        )
+
     print(
         "Validated consolidated firexapp artifact "
-        f"{firexapp_distribution.version} with the firexkit and "
-        "firex_blaze namespaces"
+        f"{firexapp_distribution.version} with the firexkit, firex_blaze, "
+        "and firex_bundle_ci namespaces"
     )
 
 

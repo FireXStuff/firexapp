@@ -665,23 +665,6 @@ wheels = [
 ]
 
 [[package]]
-name = "firex-bundle-ci"
-version = "1.4.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "firex-flame" },
-    { name = "firex-keeper" },
-    { name = "firexapp" },
-    { name = "lxml" },
-    { name = "unittest-xml-reporting" },
-    { name = "xunitmerge" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e6/b1/96323f55c12c4244114355ed84e418cc5fbaa100ff1c7c57f8dbd30443e6/firex-bundle-ci-1.4.3.tar.gz", hash = "sha256:152cca051d1fc34ed9144e7b27bba4077bfba7a697863c42f925708c0a2a5f23", size = 36986, upload-time = "2023-08-14T14:05:14.015Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/89/40/b957dd25d22b3fc672c53da6a931d1b9bb2bae7b29c22ccbf036cd38a77c/firex_bundle_ci-1.4.3-py2.py3-none-any.whl", hash = "sha256:2baa7d47d3a5648c9a7c6b1d4ba7f83db29a79b6df0062c0c2c222dc82bbbcec", size = 22333, upload-time = "2023-08-14T14:05:12.092Z" },
-]
-
-[[package]]
 name = "firex-flame"
 version = "2.6.110"
 source = { registry = "https://pypi.org/simple" }
@@ -739,6 +722,7 @@ dependencies = [
     { name = "entrypoints" },
     { name = "hiredis" },
     { name = "jinja2" },
+    { name = "lxml" },
     { name = "psutil" },
     { name = "pydantic" },
     { name = "python-levenshtein" },
@@ -748,6 +732,7 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
     { name = "unittest-xml-reporting" },
+    { name = "xunitmerge" },
 ]
 
 [package.optional-dependencies]
@@ -767,7 +752,8 @@ docs = [
     { name = "sphinx-sitemap" },
 ]
 integration = [
-    { name = "firex-bundle-ci" },
+    { name = "firex-flame" },
+    { name = "firex-keeper" },
 ]
 release = [
     { name = "keyrings-alt" },
@@ -790,6 +776,7 @@ requires-dist = [
     { name = "firex-keeper", marker = "extra == 'test'" },
     { name = "hiredis" },
     { name = "jinja2" },
+    { name = "lxml" },
     { name = "psutil" },
     { name = "pydantic", specifier = "==2.13.0" },
     { name = "python-levenshtein" },
@@ -799,6 +786,7 @@ requires-dist = [
     { name = "tqdm", specifier = "<=4.29.1" },
     { name = "typing-extensions", specifier = "==4.16.0" },
     { name = "unittest-xml-reporting" },
+    { name = "xunitmerge" },
 ]
 provides-extras = ["test", "flame"]
 
@@ -808,7 +796,10 @@ docs = [
     { name = "sphinx-rtd-theme" },
     { name = "sphinx-sitemap" },
 ]
-integration = [{ name = "firex-bundle-ci" }]
+integration = [
+    { name = "firex-flame" },
+    { name = "firex-keeper" },
+]
 release = [
     { name = "keyrings-alt" },
     { name = "twine" },
