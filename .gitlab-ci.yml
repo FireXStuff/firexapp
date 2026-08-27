@@ -52,6 +52,7 @@ test-unit:
     # FireXKit tests define intentionally invalid Celery tasks. Run them in a
     # separate process so their global registrations cannot affect app tests.
     - uv run --locked --group test --extra test coverage run --append -m unittest discover -s tests/firexkit_unit_tests -p "*_tests.py"
+    - uv run --locked --group test --extra test coverage run --append -m unittest discover -s tests/firex_flame_unit_tests -p "*_tests.py"
   artifacts:
     paths:
       - .coverage
@@ -67,6 +68,7 @@ test-artifact:
     - uv pip check --python .artifact-venv/bin/python
     - .artifact-venv/bin/python -I tools/validate_consolidated_artifact.py
     - .artifact-venv/bin/firex_blaze --help > /dev/null
+    - .artifact-venv/bin/firex_flame --help > /dev/null
     - .artifact-venv/bin/firex_keeper --help > /dev/null
 
 test-integration:

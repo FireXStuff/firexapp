@@ -1,0 +1,25 @@
+{
+  "model_file_name": "test-tasks.json",
+  "task_queries": [
+    {
+      "matchCriteria": {
+        "type": "always-select-fields"
+      },
+      "selectPaths": [
+        "uuid", "name"
+      ]
+    },
+    {
+      "matchCriteria": {
+			"type": "equals",
+			"value": {"name": "Parent"}
+	  },
+      "selectPaths": [
+			"hostname"
+		],
+		"selectDescendants": [
+			{ "type": "equals", "value": {"name": "GrandChild" }}
+		]
+    }
+  ]
+}
