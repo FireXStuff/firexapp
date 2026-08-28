@@ -27,11 +27,11 @@ default:
 build:
   stage: build
   variables:
-    UV_SYNC_ARGS: "--group release --no-sources"
+    UV_SYNC_ARGS: "--group release"
   script:
     - npm --prefix firex_flame_ui_frontend ci
     # Validate without auto-fixing tracked sources in the release workspace.
-    # The old unit suite remains disabled pending replacement of its
+    # The frontend unit suite remains disabled pending replacement of its
     # Jest-specific mocks.
     - npm --prefix firex_flame_ui_frontend run lint-no-fix
     # Vite deliberately replaces the checked-in fallback UI with freshly
@@ -65,13 +65,13 @@ build-docs:
 test-unit:
   stage: test
   variables:
-    UV_SYNC_ARGS: "--group test --extra test"
+    UV_SYNC_ARGS: "--group test"
   script:
-    - uv run --locked --group test --extra test coverage run -m unittest discover -s tests/unit_tests -p "*_tests.py"
+    - uv run --locked --group test coverage run -m unittest discover -s tests/unit_tests -p "*_tests.py"
     # FireXKit tests define intentionally invalid Celery tasks. Run them in a
     # separate process so their global registrations cannot affect app tests.
-    - uv run --locked --group test --extra test coverage run --append -m unittest discover -s tests/firexkit_unit_tests -p "*_tests.py"
-    - uv run --locked --group test --extra test coverage run --append -m unittest discover -s tests/firex_flame_unit_tests -p "*_tests.py"
+    - uv run --locked --group test coverage run --append -m unittest discover -s tests/firexkit_unit_tests -p "*_tests.py"
+    - uv run --locked --group test coverage run --append -m unittest discover -s tests/firex_flame_unit_tests -p "*_tests.py"
   artifacts:
     paths:
       - .coverage
@@ -85,7 +85,7 @@ test-artifact:
     - uv venv --python "$UV_PYTHON" .artifact-venv
     - uv pip install --python .artifact-venv/bin/python dist/*.whl
     - uv pip check --python .artifact-venv/bin/python
-    - .artifact-venv/bin/python -I tools/validate_consolidated_artifact.py
+    - .artifact-venv/bin/python -I tools/validate_artifact.py
     - .artifact-venv/bin/firex_blaze --help > /dev/null
     - .artifact-venv/bin/firex_flame --help > /dev/null
     - .artifact-venv/bin/firex_keeper --help > /dev/null
@@ -93,13 +93,13 @@ test-artifact:
 test-integration:
   stage: test
   variables:
-    UV_SYNC_ARGS: "--group integration --all-extras"
+    UV_SYNC_ARGS: "--group integration"
   script:
     # FlameLiveMonitorRemoteFile deliberately exercises Flame's SSH-based
     # remote log streaming against this container.
     - sudo /usr/sbin/sshd
-    - uv run --locked --group integration --all-extras firexapp submit --sync --chain nop
-    - uv run --locked --group integration --all-extras firexapp submit --chain RunAllIntegrationTests --public_runs True --install_configs cloud-ci-install-configs.json --sync --coverage False --max_parallel_tests 5
+    - uv run --locked --group integration firexapp submit --sync --chain nop
+    - uv run --locked --group integration firexapp submit --chain RunAllIntegrationTests --public_runs True --install_configs cloud-ci-install-configs.json --sync --coverage False --max_parallel_tests 5
   artifacts:
     paths:
       - flow_test_results/

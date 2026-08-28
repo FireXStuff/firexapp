@@ -11,6 +11,7 @@ build-backend = "setuptools.build_meta"
 name = "firexapp"
 dynamic = ["version"]
 description = "Core firex application libraries"
+readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "BSD-3-Clause" }
 authors = [
@@ -100,10 +101,10 @@ release = [
 ]
 
 [tool.setuptools]
-include-package-data = true
+include-package-data = false
 zip-safe = true
-# Preserve the legacy ``setup.py develop`` import-path behavior for editable
-# installs.  Without an explicit root package directory, setuptools may use a
+# Preserve source-tree import-path behavior for editable installs. Without an
+# explicit root package directory, setuptools may use a
 # meta-path finder for PEP 660 installs.  That finder runs after PathFinder and
 # can be shadowed by stale package directories left by an in-place upgrade.
 package-dir = {"" = "."}
