@@ -1,1 +1,6 @@
 firexapp/_version.py export-subst
+# These frozen Flame UI files intentionally retain the final standalone
+# release bytes, including its existing trailing whitespace.
+firex_flame_ui/index.html -whitespace
+firex_flame_ui_frontend/src/components/XFindFirexId.vue -whitespace
+firex_flame_ui_frontend/src/main.js -whitespace

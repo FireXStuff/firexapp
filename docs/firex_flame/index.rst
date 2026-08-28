@@ -10,11 +10,11 @@ The Flame server is typically ephemeral. A FireX execution launches its own
 server, which remains available after the workflow completes and terminates
 automatically after its configured timeout.
 
-The implementation is distributed as part of ``firexapp`` while retaining the
-``firex_flame`` import namespace, ``firex_flame`` command, and Flame
-tracking-service entry point. The separately released
-`FireX Flame UI <https://github.com/FireXStuff/firex-flame-ui>`_ remains a
-runtime dependency during this migration stage.
+The server and UI are distributed as part of ``firexapp`` while retaining the
+``firex_flame`` and ``firex_flame_ui`` import namespaces, ``firex_flame``
+command, and Flame tracking-service entry point. Frontend source and tests
+live in ``firex_flame_ui_frontend``; its production build populates the
+``firex_flame_ui`` resource package included in the FireXApp artifact.
 
 API Reference
 -------------

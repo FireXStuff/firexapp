@@ -18,6 +18,7 @@ def main() -> None:
         "firex-bundle-ci",
         "firex-keeper",
         "firex-flame",
+        "firex-flame-ui",
     )
     for distribution_name in absorbed_distributions:
         try:
@@ -77,9 +78,6 @@ def main() -> None:
         "Werkzeug==3.1.3": r"\s*werkzeug\s*==\s*3\.1\.3\s*",
         "python-socketio==5.3.0": (
             r"\s*python[-_.]socketio\s*==\s*5\.3\.0\s*"
-        ),
-        "firex-flame-ui<0.30": (
-            r"\s*firex[-_.]flame[-_.]ui\s*<\s*0\.30\s*"
         ),
         "jsonpath-ng==1.7.0": (
             r"\s*jsonpath[-_.]ng\s*==\s*1\.7\.0\s*"
@@ -160,6 +158,14 @@ def main() -> None:
         "firex_flame/model_dumper.py",
         "firex_flame/templates/index.html",
         "firex_flame/web_app.py",
+        "firex_flame_ui/COMMITHASH",
+        "firex_flame_ui/VERSION",
+        "firex_flame_ui/__init__.py",
+        "firex_flame_ui/assets/firex_logo.6409b05e.png",
+        "firex_flame_ui/assets/index.0fe0735d.js",
+        "firex_flame_ui/assets/index.560b9848.css",
+        "firex_flame_ui/index.html",
+        "firex_flame_ui/send-firex-user-config.html",
     }
     missing_files = expected_files - distribution_files
     if missing_files:
@@ -177,6 +183,7 @@ def main() -> None:
     import firex_blaze
     import firex_bundle_ci
     import firex_flame
+    import firex_flame_ui
     import firex_keeper
     import firexkit
 
@@ -186,6 +193,7 @@ def main() -> None:
         firex_bundle_ci,
         firex_keeper,
         firex_flame,
+        firex_flame_ui,
     ):
         if namespace.__version__ != firexapp.__version__:
             raise AssertionError(
@@ -200,6 +208,7 @@ def main() -> None:
         firex_bundle_ci,
         firex_keeper,
         firex_flame,
+        firex_flame_ui,
     ):
         namespace_path = Path(namespace.__file__).resolve()
         if not namespace_path.is_relative_to(distribution_root):
@@ -222,7 +231,9 @@ def main() -> None:
     flame_ui_root = resources.files("firex_flame_ui")
     for resource_path in (
         flame_ui_root / "COMMITHASH",
+        flame_ui_root / "VERSION",
         flame_ui_root / "index.html",
+        flame_ui_root / "send-firex-user-config.html",
     ):
         if not resource_path.is_file():
             raise AssertionError(f"Missing Flame UI resource: {resource_path}")
@@ -326,7 +337,8 @@ def main() -> None:
     print(
         "Validated consolidated firexapp artifact "
         f"{firexapp_distribution.version} with the firexkit, firex_blaze, "
-        "firex_bundle_ci, firex_keeper, and firex_flame namespaces"
+        "firex_bundle_ci, firex_keeper, firex_flame, and firex_flame_ui "
+        "namespaces"
     )
 
 

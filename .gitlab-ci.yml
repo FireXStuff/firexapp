@@ -3,11 +3,13 @@ variables:
   UV_PYTHON: "3.10"
   UV_PYTHON_DOWNLOADS: "never"
   UV_SYNC_ARGS: ""
+  NPM_CONFIG_CACHE: "$CI_PROJECT_DIR/.cache/npm"
   firex_base_logging_dir: "$CI_PROJECT_DIR/flow_test_results"
 
 cache:
   paths:
     - .cache/uv/
+    - .cache/npm/
 
 stages:
   - build
@@ -27,11 +29,19 @@ build:
   variables:
     UV_SYNC_ARGS: "--group release --no-sources"
   script:
+    - npm config set "@fortawesome:registry" https://npm.fontawesome.com/
+    - npm config set "//npm.fontawesome.com/:_authToken" "$FONTAWESOME_TOKEN"
+    - npm --prefix firex_flame_ui_frontend ci
+    - npm --prefix firex_flame_ui_frontend run build
+    # Preserve the standalone UI pipeline's effective gate. Its unit suite was
+    # already disabled pending replacement of the old Jest-specific mocks.
+    - npm --prefix firex_flame_ui_frontend run lint
     - uv build --clear --no-create-gitignore
     - uv run --locked --group release twine check dist/*
   artifacts:
     paths:
       - dist/
+      - firex_flame_ui/
 
 build-docs:
   stage:  test
@@ -105,6 +115,25 @@ upload-results:
     - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS
     - gsutil -m rsync -e -r $firex_base_logging_dir  gs://runs.firexflame.com
   when: always
+
+deploy-flame-ui:
+  inherit:
+    default: false
+  stage: upload
+  image: google/cloud-sdk
+  dependencies:
+    - build
+  script:
+    - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS
+    - gsutil -m rsync -r firex_flame_ui gs://www.firexstuff.com$DEPLOY_PATH
+    - gsutil mv gs://www.firexstuff.com$DEPLOY_PATH/public-flame-ui-config.json gs://www.firexstuff.com$DEPLOY_PATH/flame-ui-config.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      variables:
+        DEPLOY_PATH: /flame/$CI_JOB_ID
+    - if: $CI_COMMIT_TAG
+      variables:
+        DEPLOY_PATH: /flame
 
 update-docs:
   inherit:
