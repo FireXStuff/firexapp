@@ -29,8 +29,6 @@ build:
   variables:
     UV_SYNC_ARGS: "--group release --no-sources"
   script:
-    - npm config set "@fortawesome:registry" https://npm.fontawesome.com/
-    - npm config set "//npm.fontawesome.com/:_authToken" "$FONTAWESOME_TOKEN"
     - npm --prefix firex_flame_ui_frontend ci
     - npm --prefix firex_flame_ui_frontend run build
     # Preserve the standalone UI pipeline's effective gate. Its unit suite was

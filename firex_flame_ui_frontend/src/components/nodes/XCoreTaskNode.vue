@@ -11,7 +11,7 @@
 
         <div v-if="retries" :title="'retried ' + retries + ' times'">
           <font-awesome-layers fixed-width >
-            <font-awesome-icon :icon="['fal', 'redo']"/>
+            <font-awesome-icon icon="redo"/>
             <font-awesome-layers-text transform="shrink-3" :value="retries" />
           </font-awesome-layers>
         </div>

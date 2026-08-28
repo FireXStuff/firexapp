@@ -32,7 +32,7 @@ import { faExclamationTriangle } from '@fortawesome/free-solid-svg-icons/faExcla
 import { faTimesCircle } from '@fortawesome/free-regular-svg-icons/faTimesCircle';
 import { faFolderOpen } from '@fortawesome/free-solid-svg-icons/faFolderOpen';
 import { faLevelUpAlt } from '@fortawesome/free-solid-svg-icons/faLevelUpAlt';
-import { faRedo } from '@fortawesome/pro-light-svg-icons/faRedo';
+import { faRedo } from '@fortawesome/free-solid-svg-icons/faRedo';
 import { faBriefcase } from '@fortawesome/free-solid-svg-icons/faBriefcase';
 import { faSignInAlt } from '@fortawesome/free-solid-svg-icons/faSignInAlt';
 import { faBoxOpen } from '@fortawesome/free-solid-svg-icons/faBoxOpen';
