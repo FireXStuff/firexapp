@@ -30,16 +30,27 @@ build:
     UV_SYNC_ARGS: "--group release --no-sources"
   script:
     - npm --prefix firex_flame_ui_frontend ci
+    # Validate without auto-fixing tracked sources in the release workspace.
+    # The old unit suite remains disabled pending replacement of its
+    # Jest-specific mocks.
+    - npm --prefix firex_flame_ui_frontend run lint-no-fix
+    # Vite deliberately replaces the checked-in fallback UI with freshly
+    # generated assets. Hide only those tracked build outputs from Versioneer
+    # so the Python artifact retains the clean commit/tag version. Newly
+    # content-hashed assets are untracked and do not affect git describe.
+    - git ls-files -z firex_flame_ui | xargs -0 git update-index --assume-unchanged
     - npm --prefix firex_flame_ui_frontend run build
-    # Preserve the standalone UI pipeline's effective gate. Its unit suite was
-    # already disabled pending replacement of the old Jest-specific mocks.
-    - npm --prefix firex_flame_ui_frontend run lint
     - uv build --clear --no-create-gitignore
+    - test -z "$(find dist -maxdepth 1 -name '*dirty*' -print -quit)"
     - uv run --locked --group release twine check dist/*
+    # Keep generated deploy files outside their tracked package path when
+    # GitLab overlays artifacts onto downstream clean checkouts.
+    - mkdir -p ci_artifacts
+    - cp -R firex_flame_ui ci_artifacts/
   artifacts:
     paths:
       - dist/
-      - firex_flame_ui/
+      - ci_artifacts/firex_flame_ui/
 
 build-docs:
   stage:  test
@@ -123,7 +134,7 @@ deploy-flame-ui:
     - build
   script:
     - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS
-    - gsutil -m rsync -r firex_flame_ui gs://www.firexstuff.com$DEPLOY_PATH
+    - gsutil -m rsync -r ci_artifacts/firex_flame_ui gs://www.firexstuff.com$DEPLOY_PATH
     - gsutil mv gs://www.firexstuff.com$DEPLOY_PATH/public-flame-ui-config.json gs://www.firexstuff.com$DEPLOY_PATH/flame-ui-config.json
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web"'

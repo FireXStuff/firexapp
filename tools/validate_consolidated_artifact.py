@@ -161,9 +161,6 @@ def main() -> None:
         "firex_flame_ui/COMMITHASH",
         "firex_flame_ui/VERSION",
         "firex_flame_ui/__init__.py",
-        "firex_flame_ui/assets/firex_logo.6409b05e.png",
-        "firex_flame_ui/assets/index.0fe0735d.js",
-        "firex_flame_ui/assets/index.560b9848.css",
         "firex_flame_ui/index.html",
         "firex_flame_ui/send-firex-user-config.html",
     }
@@ -172,6 +169,21 @@ def main() -> None:
         raise AssertionError(
             "firexapp artifact is missing absorbed component files: "
             f"{sorted(missing_files)}"
+        )
+    flame_ui_assets = {
+        path
+        for path in distribution_files
+        if path.startswith("firex_flame_ui/assets/")
+    }
+    missing_asset_types = {
+        suffix
+        for suffix in (".js", ".css", ".png")
+        if not any(path.endswith(suffix) for path in flame_ui_assets)
+    }
+    if missing_asset_types:
+        raise AssertionError(
+            "firexapp artifact is missing Flame UI asset types: "
+            f"{sorted(missing_asset_types)}"
         )
     if not any(
         path.endswith(".dist-info/licenses/LICENSE")
@@ -239,6 +251,33 @@ def main() -> None:
             raise AssertionError(f"Missing Flame UI resource: {resource_path}")
     if not (flame_ui_root / "assets").is_dir():
         raise AssertionError("Installed Flame UI is missing its assets directory")
+    flame_ui_index = (flame_ui_root / "index.html").read_text(encoding="utf-8")
+    referenced_ui_assets = set(
+        re.findall(
+            r'(?:src|href)=["\']/flame/(assets/[^"\']+\.(?:js|css))["\']',
+            flame_ui_index,
+        )
+    )
+    missing_reference_types = {
+        suffix
+        for suffix in (".js", ".css")
+        if not any(path.endswith(suffix) for path in referenced_ui_assets)
+    }
+    if missing_reference_types:
+        raise AssertionError(
+            "Flame UI index is missing generated asset references for: "
+            f"{sorted(missing_reference_types)}"
+        )
+    missing_referenced_assets = {
+        asset
+        for asset in referenced_ui_assets
+        if f"firex_flame_ui/{asset}" not in distribution_files
+    }
+    if missing_referenced_assets:
+        raise AssertionError(
+            "Flame UI index references assets absent from the artifact: "
+            f"{sorted(missing_referenced_assets)}"
+        )
 
     installed_entry_points = {
         (entry_point.group, entry_point.name): entry_point.value
