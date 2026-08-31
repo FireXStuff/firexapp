@@ -54,5 +54,4 @@ class FireXKeeperLauncher(TrackingService):
     def get_pkg_version_info() -> PkgVersionInfo:
         import firex_keeper
         return PkgVersionInfo(pkg='firex-keeper',
-                              version=firex_keeper.__version__,
-                              commit=firex_keeper._version.get_versions()['full-revisionid'])
+                              version=firex_keeper.__version__)

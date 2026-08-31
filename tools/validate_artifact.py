@@ -81,6 +81,9 @@ def _validate_distribution_ownership(
     distribution_root = Path(
         firexapp_distribution.locate_file("")
     ).resolve()
+    distribution_files = {
+        str(path) for path in firexapp_distribution.files or ()
+    }
     owner = importlib.import_module("firexapp")
     for namespace_name in PUBLIC_NAMESPACES:
         namespace = importlib.import_module(namespace_name)
@@ -95,15 +98,36 @@ def _validate_distribution_ownership(
                 f"{namespace_name} was imported from {namespace_path}, "
                 f"outside {distribution_root}"
             )
+        relative_path = namespace_path.relative_to(distribution_root).as_posix()
+        if relative_path not in distribution_files:
+            raise AssertionError(
+                f"{namespace_name} was imported from {namespace_path}, but "
+                "that file is not owned by the firexapp RECORD"
+            )
 
 
-def _validate_resources() -> None:
+def _validate_resources(distribution_version: str) -> None:
     for package_name, *relative_parts in REQUIRED_RESOURCES:
         resource = resources.files(package_name).joinpath(*relative_parts)
         if not resource.is_file():
             raise AssertionError(f"Missing packaged resource: {resource}")
 
     flame_ui_root = resources.files("firex_flame_ui")
+    ui_version = (flame_ui_root / "VERSION").read_text(
+        encoding="utf-8"
+    ).strip()
+    if ui_version != distribution_version:
+        raise AssertionError(
+            f"Flame UI reports {ui_version!r}, but installed metadata reports "
+            f"{distribution_version!r}"
+        )
+
+    ui_revision = (flame_ui_root / "COMMITHASH").read_text(
+        encoding="utf-8"
+    ).strip()
+    if re.fullmatch(r"[0-9a-f]{40}", ui_revision) is None:
+        raise AssertionError(f"Invalid packaged commit hash: {ui_revision!r}")
+
     assets_root = flame_ui_root / "assets"
     if not assets_root.is_dir():
         raise AssertionError("Installed Flame UI has no assets directory")
@@ -177,6 +201,10 @@ def _validate_entry_points(
 
 def main() -> None:
     firexapp_distribution = metadata.distribution("firexapp")
+    if firexapp_distribution.metadata["License-Expression"] != "BSD-3-Clause":
+        raise AssertionError(
+            "firexapp artifact does not declare the BSD-3-Clause license"
+        )
     distribution_files = {
         str(path) for path in firexapp_distribution.files or ()
     }
@@ -187,7 +215,7 @@ def main() -> None:
         raise AssertionError("firexapp artifact is missing its license")
 
     _validate_distribution_ownership(firexapp_distribution)
-    _validate_resources()
+    _validate_resources(firexapp_distribution.version)
     _validate_entry_points(firexapp_distribution)
 
     print(

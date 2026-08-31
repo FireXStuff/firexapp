@@ -87,11 +87,7 @@ def get_firex_dependant_package_versions() -> list[PkgVersionInfo]:
             version = loaded_pkg.__version__
         except AttributeError:
             version = None
-        try:
-            commit = loaded_pkg._version.get_versions()['full-revisionid']
-        except AttributeError:
-            commit = None
-        versions.append(PkgVersionInfo(pkg=ep.name, version=version, commit=commit))
+        versions.append(PkgVersionInfo(pkg=ep.name, version=version))
     return versions
 
 

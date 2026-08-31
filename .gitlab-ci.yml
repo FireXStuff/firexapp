@@ -1,8 +1,6 @@
 variables:
   UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
-  UV_PYTHON: "3.10"
   UV_PYTHON_DOWNLOADS: "never"
-  UV_SYNC_ARGS: ""
   NPM_CONFIG_CACHE: "$CI_PROJECT_DIR/.cache/npm"
   firex_base_logging_dir: "$CI_PROJECT_DIR/flow_test_results"
 
@@ -20,28 +18,25 @@ stages:
 default:
   image: firexstuff/firex-alpine-build:3.10.20-uv0.11.19
   before_script:
-    - git config --global --add safe.directory /builds/FireXStuff/firexapp
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
     - uv --version
-    - uv sync --locked $UV_SYNC_ARGS
 
 build:
   stage: build
-  variables:
-    UV_SYNC_ARGS: "--group release"
   script:
+    - uv run --locked python tools/validate_version.py
     - npm --prefix firex_flame_ui_frontend ci
     # Validate without auto-fixing tracked sources in the release workspace.
     # The frontend unit suite remains disabled pending replacement of its
     # Jest-specific mocks.
     - npm --prefix firex_flame_ui_frontend run lint-no-fix
-    # Vite deliberately replaces the checked-in fallback UI with freshly
-    # generated assets. Hide only those tracked build outputs from Versioneer
-    # so the Python artifact retains the clean commit/tag version. Newly
-    # content-hashed assets are untracked and do not affect git describe.
-    - git ls-files -z firex_flame_ui | xargs -0 git update-index --assume-unchanged
+    # Vite replaces the checked-in fallback UI and stamps the static project
+    # version plus the exact Git commit into the consolidated artifact.
     - npm --prefix firex_flame_ui_frontend run build
-    - uv build --clear --no-create-gitignore
-    - test -z "$(find dist -maxdepth 1 -name '*dirty*' -print -quit)"
+    - uv run --locked python tools/validate_version.py --generated-ui
+    # Build with publishable metadata only; local/workspace source overrides
+    # must never be required to produce the release artifacts.
+    - uv build --clear --no-create-gitignore --no-sources
     - uv run --locked --group release twine check dist/*
     # Keep generated deploy files outside their tracked package path when
     # GitLab overlays artifacts onto downstream clean checkouts.
@@ -53,9 +48,7 @@ build:
       - ci_artifacts/firex_flame_ui/
 
 build-docs:
-  stage:  test
-  variables:
-    UV_SYNC_ARGS: "--group docs"
+  stage: test
   script:
     - uv run --locked --group docs sphinx-build -b html docs html
   artifacts:
@@ -64,8 +57,6 @@ build-docs:
 
 test-unit:
   stage: test
-  variables:
-    UV_SYNC_ARGS: "--group test"
   script:
     - uv run --locked --group test coverage run -m unittest discover -s tests/unit_tests -p "*_tests.py"
     # FireXKit tests define intentionally invalid Celery tasks. Run them in a
@@ -82,7 +73,8 @@ test-artifact:
     - job: build
       artifacts: true
   script:
-    - uv venv --python "$UV_PYTHON" .artifact-venv
+    # .python-version is the single Python request for this project.
+    - uv venv .artifact-venv
     - uv pip install --python .artifact-venv/bin/python dist/*.whl
     - uv pip check --python .artifact-venv/bin/python
     - .artifact-venv/bin/python -I tools/validate_artifact.py
@@ -92,8 +84,6 @@ test-artifact:
 
 test-integration:
   stage: test
-  variables:
-    UV_SYNC_ARGS: "--group integration"
   script:
     # FlameLiveMonitorRemoteFile deliberately exercises Flame's SSH-based
     # remote log streaming against this container.
@@ -107,10 +97,10 @@ test-integration:
 
 upload-pkg:
   stage: upload
-  variables:
-    UV_SYNC_ARGS: "--group release"
+  dependencies:
+    - build
   script:
-    - uv run --locked --group release twine check dist/*
+    # Build already checked these exact artifacts; this job only publishes.
     - uv run --locked --group release twine upload --verbose --username __token__ dist/*
   only:
     - tags

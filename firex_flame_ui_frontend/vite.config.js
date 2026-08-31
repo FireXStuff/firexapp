@@ -2,26 +2,32 @@ import { defineConfig } from "vite";
 import { createVuePlugin as vue } from "vite-plugin-vue2"; //vue 2
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
-const packagedUiDir = path.resolve(dirname, '..', 'firex_flame_ui');
+const repoRoot = path.resolve(dirname, '..');
+const packagedUiDir = path.resolve(repoRoot, 'firex_flame_ui');
 
-function createCommitHashFile(isDev, outputDir) {
+function commandOutput(command, args) {
+  return execFileSync(command, args, {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  }).trim();
+}
+
+function createBuildMetadataFiles(isDev, outputDir) {
   return {
-    name: 'commithash',
+    name: 'build-metadata',
     apply: 'build',
     generateBundle() {
       if (!isDev) {
         fs.writeFileSync(
           path.resolve(outputDir, 'COMMITHASH'),
-          execSync('git rev-parse HEAD', { cwd: dirname }).toString().trim());
+          commandOutput('git', ['rev-parse', 'HEAD']));
         fs.writeFileSync(
           path.resolve(outputDir, 'VERSION'),
-          execSync('git describe --tags --always', { cwd: dirname })
-            .toString()
-            .trim());
+          commandOutput('uv', ['version', '--short']));
       }
     }
   };
@@ -37,7 +43,7 @@ function createConfig(ctx) {
     define: {},
     plugins: [
       vue(),
-      createCommitHashFile(isDev, outputDir),
+      createBuildMetadataFiles(isDev, outputDir),
     ],
     base: isDev ? path.join(dirname, 'dist/') : '/flame/',
     publicDir: './public',

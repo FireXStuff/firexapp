@@ -199,5 +199,4 @@ class FlameLauncher(TrackingService):
     def get_pkg_version_info() -> PkgVersionInfo:
         import firex_flame
         return PkgVersionInfo(pkg='firex-flame',
-                              version=firex_flame.__version__,
-                              commit=firex_flame._version.get_versions()['full-revisionid'])
+                              version=firex_flame.__version__)

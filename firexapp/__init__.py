@@ -1,3 +1,6 @@
+from importlib.metadata import version as _distribution_version
 
-from . import _version
-__version__ = _version.get_versions()['version']
+
+__version__ = _distribution_version("firexapp")
+
+del _distribution_version

@@ -1,26 +1,21 @@
 [build-system]
-requires = [
-    "setuptools==84.0.0",
-    "versioneer[toml]==0.29",
-    "fastentrypoints==0.12",
-    "tomli==2.4.1; python_version < '3.11'",
-]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.11.19,<0.12"]
+build-backend = "uv_build"
 
 [project]
 name = "firexapp"
-dynamic = ["version"]
+version = "5.7.162"
 description = "Core firex application libraries"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "BSD-3-Clause" }
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 authors = [
     { name = "Core FireX Team", email = "firex-dev@gmail.com" },
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
-    "License :: OSI Approved :: BSD License",
 ]
 dependencies = [
     "distlib",
@@ -100,40 +95,23 @@ release = [
     "twine",
 ]
 
-[tool.setuptools]
-include-package-data = false
-zip-safe = true
-# Preserve source-tree import-path behavior for editable installs. Without an
-# explicit root package directory, setuptools may use a
-# meta-path finder for PEP 660 installs.  That finder runs after PathFinder and
-# can be shadowed by stale package directories left by an in-place upgrade.
-package-dir = {"" = "."}
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = [
-    "firexapp*",
-    "firexkit*",
-    "firex_blaze*",
-    "firex_bundle_ci*",
-    "firex_keeper*",
+[tool.uv.build-backend]
+module-root = ""
+module-name = [
+    "firexapp",
+    "firexkit",
+    "firex_blaze",
+    "firex_bundle_ci",
+    "firex_keeper",
     "firex_flame",
-    "firex_flame.*",
     "firex_flame_ui",
 ]
-
-[tool.setuptools.package-data]
-firexkit = ["resources/*", "templates/*", "install_resources/*"]
-firex_flame = ["templates/*.html"]
-firex_flame_ui = ["*.html", "assets/*", "COMMITHASH", "VERSION"]
+source-include = ["firex_flame_ui_frontend/**"]
+source-exclude = [
+    "/firex_flame_ui_frontend/dist",
+    "/firex_flame_ui_frontend/node_modules",
+]
+wheel-exclude = ["firex_flame_ui/public-flame-ui-config.json"]
 
 [tool.uv]
 required-version = "==0.11.*"
-
-[tool.versioneer]
-VCS = "git"
-style = "pep440"
-versionfile_source = "firexapp/_version.py"
-versionfile_build = "firexapp/_version.py"
-tag_prefix = ""
-parentdir_prefix = "firexapp-"

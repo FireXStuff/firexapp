@@ -1,9 +1,0 @@
-include LICENSE
-include versioneer.py
-include firexapp/_version.py
-include fastentrypoints.py
-graft firex_flame_ui
-graft firex_flame_ui_frontend
-prune firex_flame_ui_frontend/dist
-prune firex_flame_ui_frontend/node_modules
-global-exclude __pycache__ *.py[cod]
