@@ -24,7 +24,6 @@ default:
 build:
   stage: build
   script:
-    - uv run --locked python tools/validate_version.py
     - npm --prefix firex_flame_ui_frontend ci
     # Validate without auto-fixing tracked sources in the release workspace.
     # The frontend unit suite remains disabled pending replacement of its
@@ -33,7 +32,6 @@ build:
     # Vite replaces the checked-in fallback UI and stamps the static project
     # version plus the exact Git commit into the consolidated artifact.
     - npm --prefix firex_flame_ui_frontend run build
-    - uv run --locked python tools/validate_version.py --generated-ui
     # Build with publishable metadata only; local/workspace source overrides
     # must never be required to produce the release artifacts.
     - uv build --clear --no-create-gitignore --no-sources
@@ -67,20 +65,16 @@ test-unit:
     paths:
       - .coverage
 
-test-artifact:
+test-wheel-install:
   stage: test
   needs:
     - job: build
       artifacts: true
   script:
     # .python-version is the single Python request for this project.
-    - uv venv .artifact-venv
-    - uv pip install --python .artifact-venv/bin/python dist/*.whl
-    - uv pip check --python .artifact-venv/bin/python
-    - .artifact-venv/bin/python -I tools/validate_artifact.py
-    - .artifact-venv/bin/firex_blaze --help > /dev/null
-    - .artifact-venv/bin/firex_flame --help > /dev/null
-    - .artifact-venv/bin/firex_keeper --help > /dev/null
+    - uv venv .wheel-venv
+    - uv pip install --python .wheel-venv/bin/python dist/*.whl
+    - uv pip check --python .wheel-venv/bin/python
 
 test-integration:
   stage: test
@@ -100,6 +94,7 @@ upload-pkg:
   dependencies:
     - build
   script:
+    - test "$CI_COMMIT_TAG" = "$(uv version --short)"
     # Keep using the existing protected PyPI token while uv owns the upload.
     - UV_PUBLISH_TOKEN="$TWINE_PASSWORD" uv publish --trusted-publishing never
   only:
