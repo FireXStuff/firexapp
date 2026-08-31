@@ -37,7 +37,7 @@ build:
     # Build with publishable metadata only; local/workspace source overrides
     # must never be required to produce the release artifacts.
     - uv build --clear --no-create-gitignore --no-sources
-    - uv run --locked --group release twine check dist/*
+    - uv publish --dry-run --trusted-publishing never
     # Keep generated deploy files outside their tracked package path when
     # GitLab overlays artifacts onto downstream clean checkouts.
     - mkdir -p ci_artifacts
@@ -100,8 +100,8 @@ upload-pkg:
   dependencies:
     - build
   script:
-    # Build already checked these exact artifacts; this job only publishes.
-    - uv run --locked --group release twine upload --verbose --username __token__ dist/*
+    # Keep using the existing protected PyPI token while uv owns the upload.
+    - UV_PUBLISH_TOKEN="$TWINE_PASSWORD" uv publish --trusted-publishing never
   only:
     - tags
 
