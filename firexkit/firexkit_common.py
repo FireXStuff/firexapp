@@ -2,8 +2,6 @@ import os
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-REPLACEMENT_TASK_NAME_POSTFIX = '_orig'
-
 JINJA_ENV = Environment(
     # Cannot use PackageLoader because we override pkg_resources for module load speed.
     loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), 'templates')),
