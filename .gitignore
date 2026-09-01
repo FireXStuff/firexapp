@@ -105,3 +105,7 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# FIXME: stop writing to repo from tests
+tests/data/firex_internal/
+tests/data/nop/firex_internal/flame/model/
