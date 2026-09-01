@@ -123,3 +123,6 @@ class TrackingServiceMissingRequiredTest(FlowTestConfiguration):
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
+
+    def cleanup(self):
+        os.environ.pop(INSTALL_CONFIGS_ENV_NAME, None)

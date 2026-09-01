@@ -473,20 +473,10 @@ class FireXTask(Task):
                 # Organise the input args by creating a BagOfGoodies
                 bog=self._create_bog(args, kwargs),
             )
-            # if not self.request.called_directly:
-            #     self.update_state(
-            #         state=celery.states.STARTED,
-            #         meta=dict(fx_parent_uuid=self.request.id)
-            #     )
             yield
         finally:
             # restore empty context to avoid pointless defensive coding.
             self.context = self.initialize_context()
-            # if not self.request.called_directly:
-            #     self.update_state(
-            #         # state=celery.states.STARTED, # ???
-            #         meta=dict(fx_parent_uuid=None)
-            #     )
 
     def get_attempt(self) -> TaskAttempt:
         return TaskAttempt(
