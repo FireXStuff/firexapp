@@ -12,16 +12,17 @@ from typing import (
 )
 import dataclasses
 
-
 from celery.app.base import Celery
 from celery.result import AsyncResult
 from celery.states import FAILURE, REVOKED, PENDING, STARTED, RECEIVED, RETRY, SUCCESS, READY_STATES
 from celery.utils.log import get_task_logger
+from celery.local import PromiseProxy
+import vine
+
 from firexkit.broker import handle_broker_timeout
 from firexkit import inspect as fx_inspect
 from firexkit.revoke import RevokedRequests
-from celery.local import PromiseProxy
-import vine
+
 
 RETURN_KEYS_KEY = '__task_return_keys'
 DYNAMIC_RETURN = '__DYNAMIC_RETURN__'
@@ -220,7 +221,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
                 pass
         return self._fx_hostname
 
-    def firex_serializable(self):
+    def firex_serializable(self) -> str:
         if self.failed() and (task_name := self.fx_get_name()):
             if isinstance(self.result, Exception):
                 failure = first_non_chain_interrupted_exception(self.result)
@@ -337,7 +338,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         #   or async_result.state == RETRY
         return bool(
             self.fx_get_state() == REVOKED
-            or RevokedRequests.instance().is_revoked(self.id)
+            or RevokedRequests.is_revoked_uuid(self.id)
         )
 
     def fx_is_ready(
@@ -351,7 +352,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             state
             and (
                 state in self.backend.READY_STATES
-                or RevokedRequests.instance().is_revoked(self.id)
+                or RevokedRequests.is_revoked_uuid(self.id)
             )
         ):
             # nuts but this means PENDING can be terminal, sometimes!!
@@ -377,6 +378,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             # disable blocking state change on parent since this ar
             # is already complete
             parent_id = None
+
         if (
             parent_id
             and not FxAsyncResult(parent_id, app=self.app).fx_is_ready()
@@ -544,7 +546,6 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         last_callback_time: Optional[dict[Callable, float]]=None,
         raise_on_failure: bool=True,
     ) -> str:
-
         with self.update_parent_task_blocked_states():
             return self.fx_wait_no_state_update(
                 max_wait=max_wait,
@@ -702,7 +703,7 @@ class ManyFxAsyncResults(Generic[K]):
         return ManyFxAsyncResults({0: fx_ar})
 
     def __str__(self):
-        return ", ".join(r.fx_logging_name() for r in self._fx_ars_by_key.values())
+        return ", ".join(r.fx_logging_name() for r in self)
 
     def _get_running(self) -> 'ManyFxAsyncResults':
         return ManyFxAsyncResults(
@@ -735,19 +736,20 @@ class ManyFxAsyncResults(Generic[K]):
         revoked_ars : list[FxAsyncResult] = []
         for ar in self:
             if not ar.fx_is_ready():
-                any_chain_entry_revoked = False
                 for chain_entry in ar.get_chain_ancestors():
-                    chain_entry.revoke(terminate=True)
-                    any_chain_entry_revoked = True
-                    if chain_entry.id != ar.id:
-                        msg_detail = f' (in chain of {ar.fx_logging_name()})'
-                    else:
-                        msg_detail = ''
-                    logger.info(
-                        f'Revoked child {chain_entry.fx_logging_name()}{msg_detail}'
-                    )
-                if any_chain_entry_revoked:
-                    revoked_ars.append(ar)
+                    if (
+                        ( is_input_ar := (ar.id == chain_entry.id) )
+                        or not chain_entry.fx_is_ready()
+                    ):
+                        chain_entry.revoke(terminate=True)
+                        if not is_input_ar:
+                            msg_detail = f' (in chain of {ar.fx_logging_name()})'
+                        else:
+                            msg_detail = ''
+                        logger.info(
+                            f'Revoked child {chain_entry.fx_logging_name()}{msg_detail}'
+                        )
+                        revoked_ars.append(chain_entry)
         return ManyFxAsyncResults.fx_ars_from_list(revoked_ars)
 
     def wait_for_any(
@@ -779,7 +781,7 @@ class ManyFxAsyncResults(Generic[K]):
         logger.debug(
             'Waiting for any of the following tasks to complete:\n'
             + '\n'.join([f'-> {r.fx_logging_name()}' for r in self]))
-        if first_ar := next(iter(self._fx_ars_by_key.values()), None):
+        if first_ar := next(iter(self), None):
             # assume all ars have same parent.
             with first_ar.update_parent_task_blocked_states():
                 remaining_ars = ManyFxAsyncResults(self._fx_ars_by_key)
@@ -815,7 +817,7 @@ class ManyFxAsyncResults(Generic[K]):
         failures : list[Exception] = []
         start_time = time.monotonic()
         last_callback_time = {c.func: start_time for c in callbacks}
-        if first_ar := next(iter(self._fx_ars_by_key.values()), None):
+        if first_ar := next(iter(self), None):
             # assume all ars have same parent.
             with first_ar.update_parent_task_blocked_states():
                 for ar in self:
@@ -879,27 +881,27 @@ class ManyFxAsyncResults(Generic[K]):
         return True
 
 
-def _was_queue_ready(app, queue_name: str):
+def _was_queue_ready(app: Celery, queue_name: str):
     return app.backend.client.sismember('QUEUES', queue_name)
+
+S = TypeVar('S')
 
 
 def create_unsuccessful_result(
-    failures: list[FxAsyncResult],
-    did_not_run: list[FxAsyncResult],
-) -> dict[str, list[FxAsyncResult]]:
+    failures: Iterable[S],
+    did_not_run: Iterable[S],
+) -> dict[str, list[S]]:
     res = {}
-    if failures:
-        res['failed'] = failures
-    if did_not_run:
-        res['not_run'] = did_not_run
+    if failures_list := list(failures):
+        res['failed'] = failures_list
+    if did_not_run_list := list(did_not_run):
+        res['not_run'] = did_not_run_list
     return res
 
 
 def find_unsuccessful_in_chain(
     result: FxAsyncResult,
-) -> dict[
-    str, list[FxAsyncResult]
-]:
+) -> dict[str, list[FxAsyncResult]]:
     failures : list[FxAsyncResult] = []
     did_not_run : list[FxAsyncResult] = []
     for chain_ar in result.get_chain_ancestors():
@@ -912,9 +914,10 @@ def find_unsuccessful_in_chain(
             did_not_run.append(chain_ar)
 
     # Should reverse the items since we're traversing the chain from RTL
-    failures.reverse()
-    did_not_run.reverse()
-    return create_unsuccessful_result(failures, did_not_run)
+    return create_unsuccessful_result(
+        reversed(failures),
+        reversed(did_not_run),
+    )
 
 
 def _check_for_failure_in_parents(result: FxAsyncResult):
@@ -926,11 +929,15 @@ def _check_for_failure_in_parents(result: FxAsyncResult):
             ancestor_state = ancestor.fx_get_state()
             if ancestor_state == FAILURE:
                 failed_ancestor = ancestor
-                break
+                # continue in case we find a failed ancestor higher
+                # in the chain, since that's what we want to report.
 
             if (
-                ancestor_state == REVOKED
-                or RevokedRequests.instance().is_revoked(ancestor.id)
+                failed_ancestor is None
+                and (
+                    ancestor_state == REVOKED
+                    or RevokedRequests.is_revoked_uuid(ancestor.id)
+                )
             ):
                 raise ChainRevokedException(
                     task_id=ancestor.id,
@@ -938,18 +945,13 @@ def _check_for_failure_in_parents(result: FxAsyncResult):
                 )
 
     if failed_ancestor:
-        failed_anc_chain_ar = failed_ancestor
-        for maybe_failed_ancestor in failed_ancestor.get_chain_ancestors():
-            if not maybe_failed_ancestor.fx_is_failed():
-                raise _chain_interrupted_ex(failed_anc_chain_ar)
-            failed_anc_chain_ar = maybe_failed_ancestor
         raise _chain_interrupted_ex(failed_ancestor)
 
 
 def _chain_interrupted_ex(ar: FxAsyncResult):
     return ChainInterruptedException(
         task_id=ar.id,
-        task_name=ar.fx_backend_get_name(),
+        task_name=ar.fx_logging_name(),
         cause=ar.fx_exception_result(),
     )
 

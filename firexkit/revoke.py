@@ -18,19 +18,22 @@ class RevokedRequests:
     _instance = None
 
     @classmethod
-    def instance(cls, existing_instance=None):
-        if existing_instance is not None:
-            cls._instance = existing_instance
+    def _get_instance(cls):
         if cls._instance is None:
             cls._instance = RevokedRequests()
         return cls._instance
 
+    @classmethod
+    def is_revoked_uuid(cls, ar_uuid: str) -> bool:
+        return cls._get_instance().is_revoked(ar_uuid)
+
     def __init__(
         self,
+        revoked_uuids : Optional[set[str]]=None,
         timer_expiry_secs: int=60,
     ):
         self.timer_expiry = datetime.timedelta(seconds=timer_expiry_secs)
-        self._revoked_uuids : set[str] = set()
+        self._revoked_uuids : set[str] = revoked_uuids or set()
         self.last_updated : Optional[datetime.datetime] = _now_utc()
         from firexkit.firex_celery import FireXCelery
         self.app = FireXCelery.app_or_default()
@@ -46,21 +49,29 @@ class RevokedRequests:
             self._revoked_uuids.update(dest_revoked_uuids)
         self.last_updated = _now_utc()
 
-    def _task_in_revoked_list(self, result_id):
+    def _task_in_revoked_list(self, result_id: str) -> bool:
         return result_id in self._revoked_uuids
 
-    def is_revoked(self, result_id: str):
+    def _need_update_revoked(self) -> bool:
+        return (
+            self.last_updated is None
+            or (_now_utc() - self.last_updated) > self.timer_expiry
+        )
+
+    def is_revoked(self, result_id: str) -> bool:
         if self._task_in_revoked_list(result_id):
             return True
         # Updating the _revoked_uuids is an expensive operation, so only do it periodically
-        if (
-            self.last_updated is None
-            or (_now_utc() - self.last_updated) > self.timer_expiry
-        ):
+        if self._need_update_revoked():
             self._update()
             return self._task_in_revoked_list(result_id)
         else:
             return False
+
+    def get_revoked_uuids(self) -> frozenset[str]:
+        if self._need_update_revoked():
+            self._update()
+        return frozenset(self._revoked_uuids)
 
 def _now_utc() -> datetime.datetime:
     return datetime.datetime.now(datetime.timezone.utc)

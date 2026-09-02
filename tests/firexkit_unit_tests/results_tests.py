@@ -1,12 +1,14 @@
 import unittest
 from unittest import mock
+import datetime
+
 from celery.states import SUCCESS, FAILURE, REVOKED, STARTED, PENDING
 from contextlib import contextmanager
 from firexkit.result import wait_on_async_results, \
     WaitLoopCallBack, WaitOnChainTimeoutError, ChainRevokedException, ChainInterruptedException, \
     MultipleFailuresException, find_unsuccessful_in_chain, \
     last_causing_chain_interrupted_exception, first_non_chain_interrupted_exception
-from firexkit.revoke import RevokedRequests
+from firexkit.revoke import RevokedRequests, _now_utc
 from firexkit.testing import MockFxAsyncResult
 from firexkit.firex_celery import FireXCelery
 
@@ -31,9 +33,9 @@ def get_mocks(
 
 
 def setup_revoke(revoked=tuple()):
-    revokes = type('NotRevokedRequests', (object,), {})()
-    revokes.is_revoked = lambda result_id: result_id in revoked
-    RevokedRequests.instance(revokes)
+    RevokedRequests._instance = RevokedRequests(revoked)
+    # disable update
+    RevokedRequests._instance.last_updated = _now_utc() + datetime.timedelta(days=1)
 
 
 class ResultsLoggingNamesTests(unittest.TestCase):
@@ -205,7 +207,9 @@ class WaitOnResultsTests(unittest.TestCase):
         self.assertIsNone(context.exception.__cause__)
 
         unsuccessful = find_unsuccessful_in_chain(mock_results[-1])
-        self.assertDictEqual(unsuccessful, {'not_run': [mock_results[2]], 'failed': [mock_results[1]]})
+        self.assertDictEqual(unsuccessful, {
+            'not_run': [mock_results[2]],
+            'failed': [mock_results[1]]})
 
     def test_Chain_interrupted_from_exc(self):
         setup_revoke()
@@ -243,9 +247,10 @@ class WaitOnResultsTests(unittest.TestCase):
                 wait_on_async_results(mock_results[2])
 
     def test_wait_on_revoked_result(self):
-        setup_revoke(["rev"])
+
         test_app, mock_result = get_mocks(["rev"])
         mock_result = mock_result[0]
+        setup_revoke(["rev"])
         mock_result._state = PENDING
         with self.assertRaises(ChainRevokedException):
             wait_on_async_results(mock_result)

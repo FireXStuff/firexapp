@@ -24,7 +24,6 @@ from types import MethodType, MappingProxyType
 from celery.app.task import Task
 from celery.local import PromiseProxy
 from celery.utils.log import get_task_logger, get_logger
-import celery.signals
 from celery.backends.redis import RedisBackend
 
 from firexkit.bag_of_goodies import (
@@ -951,16 +950,17 @@ class FireXTask(Task):
                 block=True,
                 raise_exception_on_failure=False,
             )
-            self.set_backend_task_start_time(force=True)
+            self.set_backend_task_start_time(self.request.id, force=True)
 
-    def set_backend_task_start_time(self, force=False):
-        if self.request.id:
+    @classmethod
+    def set_backend_task_start_time(cls, task_uuid: Optional[str], force=False):
+        if task_uuid:
             set_fn_attr = 'set' if force else 'setnx'
             getattr(
-                self.backend.client,
+                cls.app.backend.client,
                 set_fn_attr,
             )(
-                _get_starttime_dbkey(self.request.id),
+                _get_starttime_dbkey(task_uuid),
                 time.time(),
             )
 
@@ -1320,7 +1320,7 @@ class FireXTask(Task):
             get_results
         """
         chain_result = self.enqueue_child_and_extract(
-            chain,
+            chain=chain,
             queue=queue,
             priority=priority,
             soft_time_limit=soft_time_limit,
@@ -1385,14 +1385,15 @@ class FireXTask(Task):
             if extract_from_parents is None:
                 extract_from_parents = False
             if extract_from_parents and chain.is_multi_chain():
-                raise ValueError('Unable to extract returns from parents when using enqueue_child_once.')
+                raise ValueError('Unable to extract returns from parents when using enqueue_once_key.')
 
         if extract_from_parents is None:
             extract_from_parents = True
 
         if not block:
-            logger.warning(f'enqueue_child_and_extract ignored block={block}, '
-                           'since it needs to block in order to extract results')
+            logger.warning(
+                f'enqueue_child_and_extract ignored block={block}, '
+                'since it needs to block in order to extract results')
             block = True
 
         result_promise = self.enqueue_child(
@@ -1419,37 +1420,6 @@ class FireXTask(Task):
             results = {}
 
         return results
-
-    def enqueue_child_once(
-        self,
-        chain: SignatureX,
-        enqueue_once_key: str,
-        block=False,
-        raise_exception_on_failure: Optional[bool]=None,
-        max_wait: Optional[float]=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
-        forget=False,
-        queue: Optional[str]=None,
-        priority: Optional[int]=None,
-        soft_time_limit: Optional[int]=None,
-    ) -> FxAsyncResult:
-        """
-            See  :`meth:`enqueue_child_once_and_extract`
-        """
-
-        return self.enqueue_child(
-            chain=chain,
-            block=block,
-            raise_exception_on_failure=raise_exception_on_failure,
-            max_wait=max_wait,
-            callbacks=callbacks,
-            forget=forget,
-            enqueue_once_key=enqueue_once_key,
-            queue=queue,
-            priority=priority,
-            soft_time_limit=soft_time_limit,
-        )
-
 
     def _send_flame_additional_child(self, additional_child_uuid):
         self.send_firex_event_raw({ADDITIONAL_CHILDREN_KEY: [additional_child_uuid]})
@@ -1657,7 +1627,13 @@ class FireXTask(Task):
         return None
 
     def start_time(self) -> Optional[float]:
-        return get_task_start_time(self.request.id, self.backend)
+        if self.request.id:
+            starttime_dbkey = _get_starttime_dbkey(self.request.id)
+            try:
+                return float(self.backend.get(starttime_dbkey))
+            except Exception:
+                pass
+        return None
 
     def _get_task_flame_configs(self) -> dict:
         decorator_flame_configs = deepcopy(getattr(self.undecorated, "flame_data_configs", {}))
@@ -1942,21 +1918,6 @@ def banner(text, ch='=', length=78, content=''):
 
 def _get_starttime_dbkey(task_id: str):
     return task_id + '_starttime'
-
-
-@celery.signals.task_prerun.connect
-def statsd_task_prerun(sender, task: FireXTask, **donotcare):
-    task.set_backend_task_start_time()
-
-
-def get_task_start_time(task_id: Optional[str], backend) -> Optional[float]:
-    if task_id:
-        starttime_dbkey = _get_starttime_dbkey(task_id)
-        try:
-            return float(backend.get(starttime_dbkey))
-        except Exception:
-            pass
-    return None
 
 
 class _PausePoints(str, enum.Enum):

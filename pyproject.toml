@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "firexapp"
-version = "5.7.172"
+version = "5.7.173"
 description = "Core firex application libraries"
 readme = "README.md"
 requires-python = ">=3.10"
