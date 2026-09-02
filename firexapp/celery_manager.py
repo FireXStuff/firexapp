@@ -300,8 +300,8 @@ class CeleryManager:
             )
 
     @staticmethod
-    def find_procs(pid_file):
-        return find_procs(
+    def _find_procs(pid_file):
+        return _find_procs(
             'celery',
             cmdline_contains=f'--pidfile={pid_file}',
         )
@@ -309,16 +309,16 @@ class CeleryManager:
     def find_all_procs(self):
         procs = []
         for pid_file in os.listdir(self.celery_pids_dir):
-            procs += self.find_procs(os.path.join(self.celery_pids_dir, pid_file))
+            procs += self._find_procs(os.path.join(self.celery_pids_dir, pid_file))
         return procs
 
     def kill_all_forked(self, pid_file):
-        for proc in self.find_procs(pid_file):
-            self.log('Killing  pid %d' % proc.pid, level=INFO)
+        for proc in self._find_procs(pid_file):
+            self.log(f'Killing  pid {proc.pid}', level=INFO)
             try:
                 proc.kill()
             except Exception:
-                self.log('Failed to kill pid %d' % proc.pid, level=WARNING)
+                self.log(f'Failed to kill pid {proc.pid}', level=WARNING)
 
     @classmethod
     def terminate(cls, pid, timeout=60):
@@ -359,7 +359,7 @@ class CeleryManager:
         )
 
 
-def find_procs(name, cmdline_regex=None, cmdline_contains=None):
+def _find_procs(name, cmdline_regex=None, cmdline_contains=None) -> list[psutil.Process]:
     matching_procs = []
     if cmdline_regex:
         cmdline_regex = re.compile(cmdline_regex)
@@ -371,7 +371,20 @@ def find_procs(name, cmdline_regex=None, cmdline_contains=None):
         except psutil.NoSuchProcess:
             pass
         else:
-            if proc_matches(pinfo, name, cmdline_regex, cmdline_contains):
+            if _proc_matches(pinfo, name, cmdline_regex, cmdline_contains):
                 matching_procs.append(proc)
 
     return matching_procs
+
+
+def _proc_matches(proc_info, pname, cmdline_regex, cmdline_contains):
+    if proc_info['name'] == pname:
+        cmdline = proc_info['cmdline'] or []
+        if cmdline_regex:
+            return any(cmdline_regex.search(item) for item in cmdline)
+        elif cmdline_contains:
+            return any(cmdline_contains in item for item in cmdline)
+        else:
+            return True
+    else:
+        return False
