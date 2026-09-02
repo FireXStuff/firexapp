@@ -369,8 +369,6 @@ class BagOfGoodies:
                 # we can pull this up to the bog from a modelled arg.
                 # for backwards compatibility
                 convertible.add(unbound_name)
-            else:
-                logger.debug(f'cannot hoist {unbound_name} from: {arg_names_to_validatable_names}')
 
         return convertible
 
@@ -535,8 +533,6 @@ def _get_fx_model_subclass(
             inspect.isclass(maybe_class)
             and issubclass(maybe_class, FireXBaseBaseModel)
         ):
-            if typing.get_origin(param.annotation) is typing.Annotated:
-                return param.annotation
             return maybe_class
     return None
 
@@ -552,6 +548,7 @@ def _pydantic_validate_args(
             param.annotation
             and param.annotation != param.empty
         ):
+            attempting_expand_default = False
             try:
                 fx_model_cls = _get_fx_model_subclass(param)
                 if (
@@ -561,8 +558,12 @@ def _pydantic_validate_args(
                         # and the current value is None, try to populate from abog
                         # instead of native pydantic conversion being done here.
                         fx_model_cls
-                        and input_service_args[arg_name] is None
-                        and fx_model_cls.__pydantic_fields__[arg_name].default is None
+                        and (
+                            attempting_expand_default := (
+                                input_service_args[arg_name] is None
+                                and fx_model_cls.__pydantic_fields__[arg_name].default is None
+                            )
+                        )
                     )
                 ):
                     init_value = input_service_args[arg_name]
@@ -576,10 +577,12 @@ def _pydantic_validate_args(
                 else:
                     adapted_value = init_value = input_service_args # noop
             except ValueError as e:
-                msg = f'Failed to convert arg {arg_name} to {param.annotation}'
-                if pydantic_validate == ValidateArgs.REQUIRE:
-                    raise ValueError(msg) from e
-                logger.warning(msg) # FIXME: bump to error
+                # if a default of None can't be filled in, that's OK the default is fine.
+                if not attempting_expand_default:
+                    msg = f'Failed to convert arg {arg_name} to {param.annotation}'
+                    if pydantic_validate == ValidateArgs.REQUIRE:
+                        raise ValueError(msg) from e
+                    logger.warning(msg) # FIXME: bump to error
             else:
                 if init_value != adapted_value:
                     logger.debug(f'Pydantic converted {arg_name} to {param.annotation} value: {adapted_value}')
