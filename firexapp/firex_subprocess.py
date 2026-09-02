@@ -140,14 +140,7 @@ def _send_flame_subprocess(subprocess_data):
         logger.warning(f"Error while sending flame subprocess event: {e}")
 
 
-def send_flame_subprocess_start(
-    flame_subprocess_id,
-    cmd,
-    cwd,
-    host,
-    filename=None,
-    remote_host=None,
-):
+def _send_flame_subprocess_start(flame_subprocess_id, cmd, cwd, host, filename=None, remote_host=None):
     _send_flame_subprocess({flame_subprocess_id: {'cmd': cmd,
                                                   'cwd': str(cwd) if cwd else cwd,
                                                   'output_file': filename,
@@ -156,15 +149,8 @@ def send_flame_subprocess_start(
                                                   'start_time': time.time()}})
 
 
-def send_flame_subprocess_end(
-    flame_subprocess_id,
-    output,
-    returncode,
-    chars=None,
-    hung_process=None,
-    slow_process=None,
-    stderr_output=None,
-):
+def _send_flame_subprocess_end(flame_subprocess_id, output, returncode, chars=None, hung_process=None,
+                               slow_process=None, stderr_output=None):
     ui_max_chars = 8000
     chars = ui_max_chars if chars is None else min(chars, ui_max_chars)
     subproc_result = {
@@ -469,7 +455,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
 
 
     if log_level is not None:
-        send_flame_subprocess_start(flame_subprocess_id=subprocess_id, cmd=cmd, filename=filename, cwd=cwd_str,
+        _send_flame_subprocess_start(flame_subprocess_id=subprocess_id, cmd=cmd, filename=filename, cwd=cwd_str,
                                      host=host)
         _log_intro_msg(subprocess_id)
 
@@ -576,7 +562,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                                                                      stderr=output)
         finally:
             if log_level is not None:
-                send_flame_subprocess_end(flame_subprocess_id=subprocess_id, hung_process=hung_process,
+                _send_flame_subprocess_end(flame_subprocess_id=subprocess_id, hung_process=hung_process,
                                            slow_process=slow_process, output=output, chars=chars,
                                            returncode=getattr(p, 'returncode', None))
                 _hide_live_file_monitor_element()

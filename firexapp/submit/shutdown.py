@@ -16,7 +16,7 @@ from firexapp.celery_manager import CeleryManager
 from firexapp.submit.uid import Uid
 from firexapp.broker_manager.broker_factory import BrokerFactory, REDIS_BIN_ENV
 from firexapp.common import qualify_firex_bin, select_env_vars
-from firexkit.inspect import get_active, ping
+from firexkit.inspect import get_active, get_revoked, ping
 
 logger = logging.getLogger(__name__)
 
@@ -147,14 +147,9 @@ def revoke_active_tasks(
 
         # Revoke tasks in order they were started. This avoids ChainRevokedException errors when children are revoked
         # before their parents.
-        for task in sorted(
-            maybe_active_tasks.active_tasks,
-            key=lambda t: t.get('time_start', float('inf'))
-        ):
+        for task in sorted(maybe_active_tasks.active_tasks, key=lambda t: t.get('time_start', float('inf'))):
             logger.info(f"Revoking {task['name']}[{task['id']}]")
-            celery_app.control.revoke(
-                task_id=task["id"],
-                terminate=True)
+            celery_app.control.revoke(task_id=task["id"], terminate=True)
 
         # wait for confirmation of revoke
         maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)

@@ -8,8 +8,8 @@ from typing import Optional, Union
 
 from celery.signals import worker_init
 from celery.utils.log import get_task_logger
-from firexkit.firexkit_common import REPLACEMENT_TASK_NAME_POSTFIX
 from firexapp.common import delimit2list
+from firexkit.task import REPLACEMENT_TASK_NAME_POSTFIX
 import importlib.util
 from celery import current_app
 
@@ -40,7 +40,7 @@ def plugins_has(plugins: Union[str, list[str]], query_basename: str) -> bool:
     return plugins == query_basename or plugins.endswith(f'/{query_basename}')
 
 
-def _get_short_name(long_name: str) -> str:
+def get_short_name(long_name: str) -> str:
     return long_name.split('.')[-1]
 
 
@@ -73,7 +73,7 @@ def cdl2list(plugin_files: Union[None, str, list[str]]) -> list[str]:
     return [find_plugin_file(file) for file in plugin_files if file]
 
 
-def _get_plugin_module_name(plugin_file):
+def get_plugin_module_name(plugin_file):
     return os.path.splitext(os.path.basename(plugin_file))[0]
 
 
@@ -81,10 +81,10 @@ def get_plugin_module_names(plugin_files: Union[None, str, list[str]]) -> list[s
     files = cdl2list(plugin_files)
     if not files:
         return []
-    return [_get_plugin_module_name(file) for file in files]
+    return [get_plugin_module_name(file) for file in files]
 
 
-def _get_plugin_module_names_from_env():
+def get_plugin_module_names_from_env():
     plugin_files = get_active_plugins()
     return get_plugin_module_names(plugin_files)
 
@@ -120,11 +120,7 @@ def _get_signals_with_connections():
     return signals
 
 
-def create_replacement_task(
-    original,
-    name_postfix,
-    sigs,
-):
+def create_replacement_task(original, name_postfix, sigs):
     new_name = original.name + name_postfix
     bound = inspect.ismethod(original.undecorated)
     func = original.run if not bound else original.run.__func__
@@ -186,7 +182,7 @@ def create_replacement_task(
 
 def _unregister_duplicate_tasks():
     sigs = _get_signals_with_connections()
-    becomes = _identify_duplicate_tasks(current_app.tasks, _get_plugin_module_names_from_env())
+    becomes = identify_duplicate_tasks(current_app.tasks, get_plugin_module_names_from_env())
     for substitutions in becomes:
         prime_overrider = substitutions[-1]  # the last item in the list is the last override
         for index in range(0, len(substitutions)-1):
@@ -200,15 +196,15 @@ def _unregister_duplicate_tasks():
             current_app.tasks[overrider].orig = new_task
 
 
-def _identify_duplicate_tasks(all_tasks, priority_modules: list) -> [[]]:
+def identify_duplicate_tasks(all_tasks, priority_modules: list) -> [[]]:
     """
     Returns a list of substitution. Each substitution is a list of microservices. The last will be the 'dominant' one.
     It will be the one used.
     """
-    unique_names = set([_get_short_name(long_name) for long_name in all_tasks])
+    unique_names = set([get_short_name(long_name) for long_name in all_tasks])
     unique_names = {name: list() for name in unique_names}
     for long_name in all_tasks:
-        unique_names[_get_short_name(long_name)].append(long_name)
+        unique_names[get_short_name(long_name)].append(long_name)
 
     def priority_index(micro_name):
         try:
@@ -267,10 +263,10 @@ def _import_plugin(module_name, plugin_file):
     return mod
 
 
-def _import_plugin_file(plugin_file, replace=False) -> Optional[ModuleType]:
+def import_plugin_file(plugin_file, replace=False) -> Optional[ModuleType]:
 
     plugin_file = find_plugin_file(plugin_file)
-    module_name = _get_plugin_module_name(plugin_file)
+    module_name = get_plugin_module_name(plugin_file)
     should_import, existing_module = _should_import(module_name, plugin_file, replace)
     if should_import:
         return _import_plugin(module_name, plugin_file)
@@ -278,9 +274,7 @@ def _import_plugin_file(plugin_file, replace=False) -> Optional[ModuleType]:
     return existing_module
 
 
-def _import_plugin_files(
-    plugin_files: Union[str, list[str]]
-) -> set[str]:
+def import_plugin_files(plugin_files) -> set[str]:
     plugin_files = cdl2list(plugin_files)
     if not plugin_files:
         return set()
@@ -289,7 +283,7 @@ def _import_plugin_files(
     new_tasks = set()
     previous_tasks = set(current_app.tasks)
     for plugin_file in plugin_files:
-        mod = _import_plugin_file(plugin_file)
+        mod = import_plugin_file(plugin_file)
         current_tasks = set(current_app.tasks)
         new_tasks_from_this_import = current_tasks - previous_tasks
         new_tasks.update(new_tasks_from_this_import)
@@ -325,7 +319,7 @@ def get_active_plugins() -> str:
 
 def load_plugin_modules(plugin_files):
     set_plugins_env(plugin_files)
-    new_tasks_imported = _import_plugin_files(plugin_files)
+    new_tasks_imported = import_plugin_files(plugin_files)
     # Mark the newly imported tasks with "from_plugin"
     for t in new_tasks_imported:
         current_app.tasks[t].from_plugin = True
