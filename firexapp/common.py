@@ -96,6 +96,23 @@ def proc_matches(proc_info, pname, cmdline_regex, cmdline_contains):
         return False
 
 
+def find_procs(name, cmdline_regex=None, cmdline_contains=None):
+    matching_procs = []
+    if cmdline_regex:
+        cmdline_regex = re.compile(cmdline_regex)
+    else:
+        cmdline_regex = None
+    for proc in psutil.process_iter():
+        try:
+            pinfo = proc.as_dict(attrs=['name', 'cmdline', 'pid'])
+        except psutil.NoSuchProcess:
+            pass
+        else:
+            if proc_matches(pinfo, name, cmdline_regex, cmdline_contains):
+                matching_procs.append(proc)
+
+    return matching_procs
+
 from typing import Callable, TypeVar
 
 T = TypeVar('T')
@@ -156,9 +173,9 @@ def render_template(template_str, template_args):
 #
 def create_link(src, target, delete_link=None, relative=False, create_target_dir=False):
     if create_target_dir:
-        silent_mkdir(
-            os.path.dirname(target)
-        )
+        target_dir = os.path.dirname(target)
+        if not os.path.isdir(target_dir):
+            silent_mkdir(target_dir)
 
     if relative:
         src = os.path.relpath(src, os.path.dirname(target))

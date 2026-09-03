@@ -16,6 +16,9 @@ class GreetTest(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
         return ['submit', '--chain', "greet", "--name", "John"]
 
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
+
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert not cmd_err, "no errors expected"
         assert self.completed_run.get_result('greeting') == "Hello John!"
@@ -25,6 +28,9 @@ class GreetGuestsTest(FlowTestConfiguration):
 
     def initial_firex_options(self) -> list:
         return ['submit', '--chain', "greet_guests", "--guests", "John,Mohammad"]
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert not cmd_err, "no errors expected"
@@ -36,6 +42,9 @@ class AmplifiedGreetGuestsTest(FlowTestConfiguration):
 
     def initial_firex_options(self) -> list:
         return ['submit', '--chain', "amplified_greet_guests", "--guests", "John,Mohammad"]
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert not cmd_err, "no errors expected"
@@ -50,6 +59,9 @@ class GreetGuestsWithFailureTest(FlowTestConfiguration):
 
     def initial_firex_options(self) -> list:
         return ['submit', '--chain', "greet_guests", "--guests", "John,A"]
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         expected_result = "Hello John! And apologies to those not mentioned."
@@ -69,6 +81,9 @@ class GreetSpringfieldPowerPlantTest(FlowTestConfiguration):
                 "--celery_concurrency", '10',
                 ]
 
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
+
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         expected_result = "HELLO EXECUTIVE ASSISTANT WAYLON SMITHERS! HELLO SUPERVISOR HOMER SIMPSON!"
         actual_result = self.completed_run.chain_results()['amplified_greeting']
@@ -85,6 +100,9 @@ class GreetSpringfieldPowerPlantWithPluginTest(FlowTestConfiguration):
                 "--celery_concurrency", '10',
                 ]
 
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
+
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         expected_result = "HELLO CHANCELLOR HOMER SIMPSON! HELLO PRINCE WAYLON SMITHERS!"
         actual_result = self.completed_run.chain_results()['amplified_greeting']
@@ -96,6 +114,9 @@ class GreetLeeAndTomTest(FlowTestConfiguration):
 
     def initial_firex_options(self) -> list:
         return ['submit', '--chain', "greet_lee_and_tom"]
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         chain_results = self.completed_run.chain_results()
