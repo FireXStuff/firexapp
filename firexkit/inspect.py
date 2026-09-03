@@ -1,7 +1,7 @@
 import time
-from typing import Iterable, Union
+from typing import Iterable, Union, Any, Optional
 
-from celery import current_app, Celery
+from celery import Celery
 from celery.local import Proxy
 from celery.utils.log import get_task_logger
 
@@ -12,11 +12,14 @@ def inspect_with_retry(
     inspect_retry_timeout=30,
     inspect_method=None,
     retry_if_None_returned=True,
-    celery_app: Union[Celery, Proxy]=current_app,
-    method_args: Iterable = None,
+    celery_app: Union[Celery, Proxy, None]=None,
+    method_args: Optional[Iterable[Any]]=None,
     verbose=False,
     **inspect_opts,
 ):
+    if celery_app is None:
+        from celery import current_app
+        celery_app = current_app
 
     inspect_retry_timeout = inspect_retry_timeout if inspect_retry_timeout else 0
     timeout_time = time.monotonic() + inspect_retry_timeout

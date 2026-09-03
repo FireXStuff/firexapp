@@ -13,7 +13,6 @@ import psutil
 from celery import bootsteps
 from celery.worker.components import Hub
 import celery.exceptions
-from celery.result import AsyncResult
 
 from firexapp.application import get_app_tasks
 from firexapp.common import silent_mkdir, create_link, wait_until
@@ -25,6 +24,7 @@ from firexkit.result import (
     get_results,
 )
 from celery.states import REVOKED, RETRY
+from firexkit.result import FxAsyncResult
 from firexkit.task import convert_to_serializable
 from celery.utils.log import get_task_logger
 from firexapp.engine.celery import app
@@ -591,7 +591,7 @@ class FireXJsonReportGenerator:
 
 
 def _get_run_results_from_root_task_promise(
-    root_task_ar: Optional[AsyncResult],
+    root_task_ar: Optional[FxAsyncResult],
     run_revoked: bool,
     shutdown_reason: Optional[str],
 ) -> dict[str, Any]:
@@ -604,7 +604,7 @@ def _get_run_results_from_root_task_promise(
         did_not_run = [
             f'was revoked (i.e. cancelled){f" due to: {shutdown_reason}" if shutdown_reason else ""}'
         ]
-    elif root_task_ar and root_task_ar.failed():
+    elif root_task_ar and root_task_ar.fx_is_failed():
         failures = [f"Run failed: {root_task_ar.result}"]
     else:
         failures = [f"Run failed before starting: {shutdown_reason or ''}"]

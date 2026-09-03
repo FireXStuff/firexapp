@@ -210,7 +210,11 @@ def get_global_args_allowlist() -> frozenset[str]:
     return frozenset(_global_argument_whitelist)
 
 
-def find_unused_arguments(chain_args: dict[str, Any], ignore_list: list, all_tasks: list):
+def find_unused_arguments(
+    chain_args: dict[str, Any],
+    ignore_list: list[str],
+    all_tasks: dict[str, Any],
+):
     """
     Function to detect any arguments that are not explicitly consumed by any microservice.
 

@@ -8,18 +8,19 @@ import platform
 from functools import partial
 from tempfile import TemporaryDirectory
 from typing import Optional
-
-from firexapp.fileregistry import FileRegistry
-from firexapp.submit.uid import Uid
 from socket import gethostname
 from urllib.parse import urlsplit
-from logging import ERROR, INFO
+import logging
 from psutil import Process
 from pathlib import Path
 
-from firexapp.broker_manager import BrokerManager
+from firexapp.submit.console import setup_console_logging
+from firexapp.fileregistry import FileRegistry
+from firexapp.submit.uid import Uid
 from firexapp.common import get_available_port, wait_until, silent_mkdir
 from firexkit.memory_utils import get_process_memory_info, human_readable_bytes
+
+logger = setup_console_logging(__name__)
 
 REDIS_DIR_REGISTRY_KEY = 'REDIS_DIR_REGISTRY_KEY'
 FileRegistry().register_file(REDIS_DIR_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'redis'))
@@ -79,7 +80,7 @@ class RedisPidNotFoundInPidFile(Exception):
     pass
 
 
-class RedisManager(BrokerManager):
+class RedisManager:
 
     _METADATA_BROKER_URL_KEY = 'broker_url'  # For reading old-style configurations, before the usage of passwords
     _METADATA_BROKER_HOST_KEY = 'broker_host'
@@ -87,7 +88,14 @@ class RedisManager(BrokerManager):
     _BROKER_PASSWORD_KEY = 'broker_password'
     _BROKER_FAILED_AUTH_STR = 'NOAUTH Authentication required'  # Actual output from Redis
 
-    def __init__(self, redis_bin_base, hostname=None, port=None, logs_dir=None, password=None):
+    def __init__(
+        self,
+        redis_bin_base,
+        hostname=None,
+        port=None,
+        logs_dir=None,
+        password=None,
+    ):
         self.redis_bin_base = redis_bin_base
         self.platform = platform.system()
         if hostname is None:
@@ -120,10 +128,6 @@ class RedisManager(BrokerManager):
                 pass
             self._redis_server_bin = redis_server_bin
 
-    @property
-    def redis_cli_cmd(self):
-        return self.get_redis_cli_cmd(self.port)
-
     def get_redis_cli_cmd(self, port, include_host=False):
         cmd = os.path.join(self.redis_bin_base, 'redis-cli') + ' -p %d -a %s' % (port, self._password)
         if include_host or self.host != gethostname():
@@ -135,10 +139,6 @@ class RedisManager(BrokerManager):
         if include_host or self.host != gethostname():
             cmd += ' --host={self.host}'
         return cmd
-
-    @property
-    def redis_server_cmd(self):
-        return self.get_redis_server_cmd(self.port)
 
     def get_redis_server_cmd(self, port):
         return self._redis_server_bin + ' --port %d --requirepass %s' \
@@ -224,6 +224,14 @@ class RedisManager(BrokerManager):
             # Possibly old-style metadata, before broker password usage
             cls.log('Could not get hostname and port directly. Trying old method.', exc_info=e)
             return cls.get_hostname_port_from_url(broker_url=metadata[cls._METADATA_BROKER_URL_KEY])
+
+    @classmethod
+    def log(cls, msg, header=None, level=logging.DEBUG, exc_info=None):
+        if header is None:
+            header = cls.__name__
+        if header:
+            msg = '[%s] %s' % (header, msg)
+        logger.log(level, msg, exc_info=exc_info)
 
     @classmethod
     def get_password_from_logs_dir(cls, logs_dir):
@@ -355,9 +363,9 @@ class RedisManager(BrokerManager):
             except (subprocess.CalledProcessError, RedisDidNotBecomeActive):
                 if trials >= max_trials:
                     self.log('Redis did not come up after %d trial(s) (max_trials=%d)..Giving up!' %
-                             (trials, max_trials), level=ERROR)
+                             (trials, max_trials), level=logging.ERROR)
                     raise
-                self.log('Redis did not come up after %d trial(s) (max_trials=%d)' % (trials, max_trials), level=INFO)
+                self.log('Redis did not come up after %d trial(s) (max_trials=%d)' % (trials, max_trials), level=logging.INFO)
                 self.port = None  # Clear port in case the reason is didn't come up is because port was in use
             else:
                 if log_memory_info:
@@ -402,8 +410,9 @@ class RedisManager(BrokerManager):
                  log_memory_info: bool = True,
                  save_memory_info_timeout: Optional[int] = 5):
         if log_memory_info:
-            self.save_memory_info_to_file(filepath=self.get_shutdown_memory_file(self.logs_dir),
-                                          timeout=save_memory_info_timeout)
+            self.save_memory_info_to_file(
+                filepath=self.get_shutdown_memory_file(self.logs_dir),
+                timeout=save_memory_info_timeout)
         try:
             self.cli('shutdown', timeout=timeout)
         except subprocess.CalledProcessError:
@@ -446,9 +455,9 @@ class RedisManager(BrokerManager):
         return 'redis://%s%s:%d/0' % (preamble, hostname, int(port))
 
     @staticmethod
-    def get_hostname_port_from_url(broker_url):
+    def get_hostname_port_from_url(broker_url) -> tuple[str, str]:
         url = urlsplit(broker_url)
-        return url.hostname, str(url.port) if url.port else url.port
+        return url.hostname, str(url.port or '')
 
     @staticmethod
     def get_password_from_url(broker_url):

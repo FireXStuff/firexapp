@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 from importlib import import_module
 from celery import bootsteps
@@ -6,8 +7,14 @@ from celery.signals import task_postrun
 from celery.states import REVOKED, RETRY
 from celery.utils.log import get_task_logger
 from firexkit.chain import InjectArgs
-from firexkit.result import find_unsuccessful_in_chain, get_results, RUN_RESULTS_NAME, RUN_UNSUCCESSFUL_NAME
-
+from firexkit.task import FireXTask
+from firexkit.result import (
+    find_unsuccessful_in_chain,
+    get_results,
+    RUN_RESULTS_NAME,
+    RUN_UNSUCCESSFUL_NAME,
+    FxAsyncResult,
+)
 from firexapp.application import get_app_tasks
 from firexapp.engine.celery import app
 
@@ -16,14 +23,20 @@ logger = get_task_logger(__name__)
 
 # noinspection PyPep8Naming
 @app.task(bind=True, returns=(RUN_RESULTS_NAME, RUN_UNSUCCESSFUL_NAME))
-def RootTask(self, chain, **chain_args):
+def RootTask(
+    self: FireXTask,
+    chain,
+    **chain_args,
+) -> tuple[
+    FxAsyncResult,
+    dict[str, list[FxAsyncResult]],
+]:
     c = InjectArgs(chain=chain, **chain_args)
     for task in get_app_tasks(chain):
         c |= task.s()
     promise = self.enqueue_child(c, block=True, raise_exception_on_failure=False)
-    chain_results = get_results(promise)
     unsuccessful_services = find_unsuccessful_in_chain(promise)
-    return chain_results, unsuccessful_services
+    return get_results(promise), unsuccessful_services
 
 
 def get_configured_root_task():

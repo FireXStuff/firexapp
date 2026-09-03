@@ -4,9 +4,6 @@ from textwrap import wrap
 from celery.exceptions import NotRegistered
 
 from firexapp.discovery import get_all_pkg_versions_str
-from firexapp.plugins import plugin_support_parser
-from firexapp.application import import_microservices, get_app_task
-
 
 class InfoBaseApp:
     def __init__(self):
@@ -14,9 +11,12 @@ class InfoBaseApp:
         self._info_sub_parser = None
 
     def create_list_sub_parser(self, sub_parser):
-        list_parser = sub_parser.add_parser("list", help="Lists FireX microservices, or used arguments"
-                                                         "  {microservices,arguments}",
-                                            parents=[plugin_support_parser])
+        from firexapp.plugins import plugin_support_parser
+        list_parser = sub_parser.add_parser(
+            "list",
+            help="Lists FireX microservices, or used arguments  {microservices,arguments}",
+            parents=[plugin_support_parser],
+        )
         list_group = list_parser.add_mutually_exclusive_group(required=True)
         list_group.add_argument("--microservices", '-microservices', help="Lists all available microservices",
                                 action='store_true')
@@ -29,20 +29,27 @@ class InfoBaseApp:
 
     def create_info_sub_parser(self, sub_parser):
         if not self._info_sub_parser:
-
-            info_parser = sub_parser.add_parser("info", help="Lists detailed information about a microservice",
-                                                parents=[plugin_support_parser])
-            info_parser.add_argument("entity", help="The short or long name of the microservice to be detailed, or a "
-                                                    "microservice argument. It can be a Python compatible regexp to "
-                                                    "display information about all services matching that expression.")
+            from firexapp.plugins import plugin_support_parser
+            info_parser = sub_parser.add_parser(
+                "info",
+                help="Lists detailed information about a microservice",
+                parents=[plugin_support_parser])
+            info_parser.add_argument(
+                "entity",
+                help="The short or long name of the microservice to be detailed, or a "
+                    "microservice argument. It can be a Python compatible regexp to "
+                    "display information about all services matching that expression.")
 
             info_parser.set_defaults(func=self.run_info)
             self._info_sub_parser = info_parser
         return self._info_sub_parser
 
     def create_version_sub_parser(self, sub_parser):
-        version_parser = sub_parser.add_parser("version", help="Print FireX Package Version Information",
-                                               parents=[plugin_support_parser])
+        from firexapp.plugins import plugin_support_parser
+        version_parser = sub_parser.add_parser(
+            "version",
+            help="Print FireX Package Version Information",
+            parents=[plugin_support_parser])
         version_parser.set_defaults(func=self.version)
         return version_parser
 
@@ -61,7 +68,8 @@ class InfoBaseApp:
 
     @staticmethod
     def print_available_microservices(plugins: str):
-        apps, _ = import_microservices(plugins)
+        from firexapp.engine.celery import app
+        apps, _ = app.import_microservices(plugins)
         print()
         print("The following microservices are available:")
 
@@ -80,7 +88,8 @@ class InfoBaseApp:
 
     @staticmethod
     def print_argument_used(plugins: str):
-        all_tasks, _ = import_microservices(plugins)
+        from firexapp.engine.celery import app
+        all_tasks, _ = app.import_microservices(plugins)
         print()
         print("The following arguments are used by microservices:")
         usage = get_argument_use(all_tasks)
@@ -95,6 +104,7 @@ class InfoBaseApp:
             if not re.search(entity, task_name):
                 continue
             try:
+                from firexapp.application import get_app_task
                 task = get_app_task(task_name, all_tasks)
             except NotRegistered:
                 continue
@@ -107,11 +117,13 @@ class InfoBaseApp:
 
     def print_details(self, entity, plugins, all_tasks=None):
         if not all_tasks:
-            all_tasks, _ = import_microservices(plugins)
+            from firexapp.engine.celery import app
+            all_tasks, _ = app.import_microservices(plugins)
 
         # Is this entity a microservice
         try:
             # Do we have a match on the full name?
+            from firexapp.application import get_app_task
             task = get_app_task(entity, all_tasks)
         except NotRegistered:
             # Do we have a match on the partial name
@@ -139,7 +151,7 @@ class InfoBaseApp:
 
         header = None
         arg_dict = None
-        docstring = inspect.getdoc(task)
+        docstring = inspect.getdoc(task) or ''
 
         match = re.search(r"^(.*)\n\s*Arguments?[^\n]*\n\s*-*(.*)", docstring, re.MULTILINE | re.DOTALL)
         if match:
@@ -150,7 +162,7 @@ class InfoBaseApp:
                 arg_dict = {}
 
                 # Need to determine if args are indicated with prefixed '--'
-                if re.search("^\s*--", arg_desc_str):
+                if re.search(f"^\s*--", arg_desc_str):
                     # assume our args all start with --
                     arg_prefix = "(?:--)"
                 else:
