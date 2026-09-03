@@ -37,13 +37,8 @@ from firexkit.result import (
     last_causing_chain_interrupted_exception,
     WaitOnChainTimeoutError,
     forget_chain_results,
-    DYNAMIC_RETURN,
-    ReturnsCodingException,
-    FireXResults,
-    WaitLoopCallBack,
-    FxAsyncResult,
-    ManyFxAsyncResults,
-    FxEagerResult,
+    DYNAMIC_RETURN, ReturnsCodingException, FireXResults, WaitLoopCallBack, FxAsyncResult,
+    ManyFxAsyncResults
 )
 from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
 from firexkit.firexkit_common import JINJA_ENV, REPLACEMENT_TASK_NAME_POSTFIX
@@ -1250,10 +1245,7 @@ class FireXTask(Task):
         else:
             assert enqueue_once_key and enqueue_once_spec
             child_result = _get_already_enqueued_once_result(
-                self,
-                enqueue_once_key,
-                enqueue_once_spec[1],
-            )
+                self, enqueue_once_key, enqueue_once_spec[1])
 
         if block:
             try:
@@ -1267,9 +1259,7 @@ class FireXTask(Task):
                     self._update_child_state(child_result, self._UNBLOCKED)
                 if forget:
                     if enqueue_once_spec is None:
-                        eager_fx_ar = FxEagerResult(fx_ar=child_result)
                         self.forget_specific_children_results([child_result])
-                        child_result = eager_fx_ar
                     else:
                         logger.error(f'Since {chain.get_label()} is being enqueued once, it cannot be forgotten.')
 

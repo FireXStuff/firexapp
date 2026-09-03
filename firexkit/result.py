@@ -1,7 +1,6 @@
 # hack Celery AsyncResult generics e.g.AsyncResult[Optional[str]]
 from __future__ import annotations
 
-import uuid
 import time
 from collections import namedtuple, deque
 import contextlib
@@ -13,7 +12,6 @@ from typing import (
 import dataclasses
 
 
-from celery.app.base import Celery
 from celery.result import AsyncResult
 from celery.states import FAILURE, REVOKED, PENDING, STARTED, RECEIVED, RETRY, SUCCESS, READY_STATES
 from celery.utils.log import get_task_logger
@@ -21,7 +19,6 @@ from firexkit.broker import handle_broker_timeout
 from firexkit import inspect as fx_inspect
 from firexkit.revoke import RevokedRequests
 from celery.local import PromiseProxy
-import vine
 
 RETURN_KEYS_KEY = '__task_return_keys'
 DYNAMIC_RETURN = '__DYNAMIC_RETURN__'
@@ -587,93 +584,6 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             extract_from_parents=extract_from_parents,
         )
 
-
-class FxEagerResult(FxAsyncResult):
-    """Taken from Celery EagerResult"""
-
-    def __init__(
-        self,
-        id: Optional[str]=None,
-        ret_value: Any=None,
-        state: Optional[str]=None,
-        app=None,
-        traceback=None,
-        fx_ar: Optional[FxAsyncResult]=None,
-    ):
-        if fx_ar is not None:
-            self.id = fx_ar.id
-            self._result = fx_ar._fx_raw_result()
-            self._state = fx_ar.fx_get_state()
-            self._traceback = fx_ar.traceback
-            self.app = fx_ar.app
-
-            self._fx_hostname = fx_ar._fx_hostname
-            self._fx_name = fx_ar._fx_name
-            self._fx_terminal_state = fx_ar._fx_terminal_state
-        else:
-            self.id = id or str(uuid.uuid4())
-            self._result = ret_value
-            assert state, f'state must be supplied when fx_ar is not'
-            self._state = state
-            self._traceback = traceback
-            from firexkit.firex_celery import FireXCelery
-            fx_app : Optional[FireXCelery] = app
-            assert fx_app, f'app must be supplied when fx_ar is not'
-            self.app = fx_app
-
-        self.on_ready = vine.promise()
-        self.on_ready(self)
-        super().__init__(
-            self.id,
-            backend=self.app.backend,
-            app=self.app,
-            # parent=None,
-        )
-        self._cache = {
-            'task_id': self.id,
-            'result': self._result,
-            'status': self._state,
-            'traceback': self._traceback,
-        }
-
-    def _get_task_meta(self):
-        return self._cache
-
-    def __reduce__(self):
-        return self.__class__, self.__reduce_args__()
-
-    def __reduce_args__(self):
-        return (self.id, self._result, self._state, self._traceback)
-
-    def __copy__(self):
-        cls, args = self.__reduce__()
-        return cls(*args)
-
-    def ready(self):
-        return True
-
-    def forget(self):
-        pass
-
-    def revoke(self, *args, **kwargs):
-        self._state = REVOKED
-
-    def __repr__(self):
-        return f'<FxEagerResult: {self.id}>'
-
-    @property
-    def result(self):
-        return self._result
-
-    @property
-    def state(self):
-        return self._state
-
-    @property
-    def traceback(self):
-        return self.traceback
-
-
 K = TypeVar('K')
 
 @dataclasses.dataclass
@@ -832,6 +742,7 @@ class ManyFxAsyncResults(Generic[K]):
                         )
                     except (ChainRevokedException, ChainInterruptedException) as e:
                         failures.append(e)
+
         if (
             failures
             and (
