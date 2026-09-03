@@ -236,9 +236,6 @@ class SignatureX(Signature):
     def is_multi_chain(self) -> bool:
         return len(self._get_sigs()) > 1
 
-    def delay(self, *partial_args, **partial_kwargs) -> FxAsyncResult:
-        return super(*partial_args, **partial_kwargs).delay()
-
     def enqueue(
         self,
         block: bool = False,
@@ -262,8 +259,9 @@ class SignatureX(Signature):
 
         result_promise : FxAsyncResult = self.delay()
         if block:
-            result_promise.fx_wait(
-                raise_on_failure=raise_exception_on_failure,
+            wait_on_async_results_and_maybe_raise(
+                results=result_promise,
+                raise_exception_on_failure=raise_exception_on_failure,
             )
         return result_promise
 
@@ -401,4 +399,3 @@ Signature.apply_async_x = SignatureX.apply_async_x
 Signature._is_chain = SignatureX._is_chain
 Signature.remove_inject_args = SignatureX.remove_inject_args
 Signature._set = SignatureX._set
-Signature.is_multi_chain = SignatureX.is_multi_chain

@@ -193,7 +193,6 @@ def _populate_task_info(sender: str, declare, headers, **_kwargs):
 @celery.signals.task_prerun.connect
 def _update_task_name(sender: FireXTask, task_id: str, *_args, **_kwargs):
     sender.backend.client.hset(task_id, _TASK_PRE_RUN_KEY, 'True')
-    sender.set_backend_task_start_time(task_id)
     # Although the name was populated in _populate_task_info before_task_publish, the name
     # can be inaccurate if it was a plugin. We can only over-write it with the accurate name
     # at task_prerun.
