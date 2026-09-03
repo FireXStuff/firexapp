@@ -11,6 +11,7 @@ from typing import (
     Generator, ClassVar, Generic, Iterator, Sequence
 )
 import dataclasses
+import socket
 
 from celery.app.base import Celery
 from celery.result import AsyncResult
@@ -161,6 +162,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
         self._fx_name : Optional[str] = None
         self._fx_parent : Optional[FxAsyncResult] = None
+        self._fx_parent_id : Optional[str] = None
         self._fx_queue : Optional[str] = None
         self._fx_terminal_state: Optional[str] = None
         self._fx_seen_queue: Optional[str] = None
@@ -360,31 +362,34 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             return True
         return False
 
-    @property
-    def _parent_id(self):
-        return self._get_task_meta().get('parent_id')
-
     def fx_get_parent_id(self) -> Optional[str]:
-        return self._handle_broker_timeout(
-            getattr,
-            args=(self, '_parent_id'),
-        )
+        if self._fx_parent_id is None:
+            self._fx_parent_id =  self._fx_get_backend_attr(
+                '_fx_parent_id',
+                timeout=_DEFAULT_AR_QUERY_TIMEOUT,
+                retry_delay=_DEFAULT_AR_RETRY_DELAY,
+            ) or None
+        return self._fx_parent_id
 
     @contextlib.contextmanager
-    def update_parent_task_blocked_states(self):
-        if not self.fx_is_ready():
-            parent_id = self.fx_get_parent_id()
-        else:
-            # disable blocking state change on parent since this ar
-            # is already complete
-            parent_id = None
+    def update_parent_task_blocked_states(
+        self,
+        parent_id: Optional[str]=None,
+    ):
+        if not parent_id:
+            if not self.fx_is_ready():
+                parent_id = self.fx_get_parent_id()
+            else:
+                # disable blocking state change on parent since this ar
+                # is already complete
+                parent_id = None
 
         if (
             parent_id
             and not FxAsyncResult(parent_id, app=self.app).fx_is_ready()
         ):
             with self.app.events.default_dispatcher(
-                hostname=self.fx_get_hostname(),
+                hostname=self.fx_get_hostname() or socket.gethostname(),
             ) as d:
                 d.send('task-blocked', uuid=parent_id)
                 try:
@@ -549,8 +554,9 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         max_sleep: float=_SLEEP_BETWEEN_ITERATIONS * 20 * 15,  # Somewhat arbitrary,
         last_callback_time: Optional[dict[Callable, float]]=None,
         raise_on_failure: bool=True,
+        parent_id: Optional[str]=None,
     ) -> str:
-        with self.update_parent_task_blocked_states():
+        with self.update_parent_task_blocked_states(parent_id=parent_id):
             return self.fx_wait_no_state_update(
                 max_wait=max_wait,
                 callbacks=callbacks,

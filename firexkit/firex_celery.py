@@ -114,7 +114,7 @@ class FireXCelery(Celery):
         try:
             return bool(
                 _get_task_info_from_result(
-                    result=task_id,
+                    task_id,
                     key=_TASK_PRE_RUN_KEY,
                     fx_app=self,
                 )
@@ -156,13 +156,13 @@ class _DisabledTasksLoader(BaseLoader):
 
 
 def _get_task_info_from_result(
-    result: str,
+    result_id: str,
     key: str,
     fx_app: FireXCelery,
 ) -> str:
     key_value_bytes : Optional[bytes] = handle_broker_timeout(
         fx_app.backend.client.hget,
-        args=(result, key),
+        args=(result_id, key),
     )
     if key_value_bytes is None:
         info = ''
@@ -210,6 +210,12 @@ def _celery_worker_ready(sender: Consumer, **_kwargs):
     queue_names = [queue.name for queue in sender.task_consumer.queues]
     if queue_names:
         sender.app.backend.client.sadd('QUEUES', *queue_names)
+
+
+@celery.signals.task_received.connect
+def on_task_received(sender: FireXTask, request=None, **kwargs):
+    if request and request.parent_id:
+        sender.app.backend.client.hset(request.id, '_fx_parent_id', request.parent_id)
 
 
 @celery.signals.task_postrun.connect()
