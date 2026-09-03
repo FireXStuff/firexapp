@@ -1452,17 +1452,17 @@ class FireXTask(Task):
         raise_exception_on_failure=False,
         **kwargs,
     ) -> list[FxAsyncResult]:
-        """
-            This method executes the provided list of Signatures/Chains in parallel
-            and returns the associated list of "async_result" objects.
-            The results are returned in the same order as the input Signatures/Chains.
-        """
+        """ This method executes the provided list of Signatures/Chains in parallel
+        and returns the associated list of "async_result" objects.
+        The results are returned in the same order as the input Signatures/Chains."""
         promises : list[FxAsyncResult] = []
         scheduled : list[FxAsyncResult] = []
         for c in chains:
             if len(scheduled) >= max_parallel_chains:
                 # Reach the max allowed parallel chains, wait for one to complete before scheduling the next one.
-                completed_ar = ManyFxAsyncResults.fx_ars_from_list(scheduled).wait_for_any()
+                completed_ar = ManyFxAsyncResults.fx_ars_from_list(
+                    scheduled,
+                ).wait_for_any(raise_on_failure=raise_exception_on_failure)
                 scheduled.remove(completed_ar)
 
             # Schedule the next child

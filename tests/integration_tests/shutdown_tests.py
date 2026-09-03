@@ -277,7 +277,7 @@ class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
         existing_procs = []
         celery_pids_dir = CeleryManager(logs_dir=logs_dir, broker=get_broker(cmd_output)).celery_pids_dir
         for f in os.listdir(celery_pids_dir):
-            existing_procs += CeleryManager._find_procs(os.path.join(celery_pids_dir, f))
+            existing_procs += CeleryManager.find_procs(os.path.join(celery_pids_dir, f))
 
         assert not existing_procs, "Expected no remaining celery processes, found: %s" % existing_procs
 
