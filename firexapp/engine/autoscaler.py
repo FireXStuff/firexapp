@@ -52,7 +52,6 @@ class FireXAutoscaler(Autoscaler):
     def _get_task_postrun_info(self, task_id: str, _call_time):
         return self.fx_app.task_id_has_postrun(task_id)
 
-
     @lru_cache(maxsize=4096)
     def _get_task_prerun_info(self, task_id: str, _call_time) -> bool:
         return self.fx_app.task_id_has_prerun(task_id)

@@ -10,7 +10,7 @@ from firexapp.common import silent_mkdir
 import lxml.etree as et
 from firexkit.result import get_results
 from xunitmerge import merge_trees
-from firexkit.task import flame
+from firexkit.task import flame, FireXTask
 
 logger = get_task_logger(__name__)
 
@@ -68,7 +68,7 @@ def RunIntegrationTests(test_output_dir=None, flow_tests_configs=None, flow_test
 
 
 @app.task(bind=True)
-def RunUnitAndIntegrationTests(self, uid):
+def RunUnitAndIntegrationTests(self: FireXTask, uid):
     ut_promise = self.enqueue_child(RunUnitTests.s(uid))
     it_promise = self.enqueue_child(RunAllIntegrationTests.s(uid))
     self.wait_for_children()
@@ -87,16 +87,25 @@ def RunUnitAndIntegrationTests(self, uid):
     self.wait_for_children()
 
 
-@app.task(bind=True, returns=('integration_tests_xunits', 'integration_tests_coverage_dats'))
-def RunAllIntegrationTests(self, uid,
-                           integration_tests_dir='tests/integration_tests/',
-                           integration_tests_logs=None, coverage=True, public_runs=False, max_parallel_tests=15):
+@app.task(
+    bind=True,
+    returns=('integration_tests_xunits','integration_tests_coverage_dats'),
+)
+def RunAllIntegrationTests(
+    self: FireXTask,
+    uid,
+    integration_tests_dir='tests/integration_tests/',
+    integration_tests_logs=None,
+    coverage=True,
+    public_runs=False,
+    max_parallel_tests: int=15,
+):
     if not integration_tests_logs and uid:
         test_output_dir = os.path.join(uid.logs_dir, 'integration_tests_logs')
     else:
         test_output_dir = integration_tests_logs
 
-    parallel_tasks = []
+    parallel_tasks = {}
     integration_tests_xunits = []
     integration_tests_coverage_dats = []
 
@@ -107,16 +116,26 @@ def RunAllIntegrationTests(self, uid,
         xunit_file_name = os.path.join(test_config_output_dir, 'xunit_results.xml')
         integration_tests_xunits.append(xunit_file_name)
         integration_tests_coverage_dats.append(os.path.join(test_config_output_dir, '.coverage'))
-        parallel_tasks.append(RunIntegrationTests.s(uid=uid,
-                                                    flow_tests_configs=test_config_name,
-                                                    flow_tests_file=test_config_filepath,
-                                                    test_output_dir=test_config_output_dir,
-                                                    xunit_file_name=xunit_file_name,
-                                                    public_runs=public_runs,
-                                                    coverage=coverage))
+        parallel_tasks[f'{test_config_filepath}.{test_config_name}'] = RunIntegrationTests.s(
+            uid=uid,
+            flow_tests_configs=test_config_name,
+            flow_tests_file=test_config_filepath,
+            test_output_dir=test_config_output_dir,
+            xunit_file_name=xunit_file_name,
+            public_runs=public_runs,
+            coverage=coverage,
+        )
     if parallel_tasks:
-        promises = self.enqueue_in_parallel(parallel_tasks, max_parallel_chains=int(max_parallel_tests))
-        if not all([promise.successful() for promise in promises]):
+        promises = self.enqueue_many(
+            parallel_tasks,
+            max_parallel_chains=int(max_parallel_tests),
+        ).wait_for_all(raise_on_failure=False)
+        any_failed = False
+        for k, p in promises.as_dict().items():
+            if not p.fx_is_successful():
+                print(f'Failed test: {k}')
+                any_failed = True
+        if any_failed:
             raise AssertionError('Some tests failed')
     else:
         raise AssertionError('No Integrations tests to run')

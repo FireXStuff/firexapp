@@ -317,7 +317,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
     def fx_is_running(self) -> bool:
         return (
-            self.fx_get_state() in _FX_STARTED_STATES
+            self.app.task_id_has_prerun(self.id)
             and not self.app.task_id_has_postrun(self.id)
         )
 
@@ -693,7 +693,14 @@ class ManyFxAsyncResults(Generic[K]):
     _fx_ars_by_key: dict[K, FxAsyncResult]
 
     @classmethod
-    def create_fx_ars(cls, results: Union[FxAsyncResult, list[FxAsyncResult], None]):
+    def create_fx_ars(
+        cls,
+        results: Union[
+            FxAsyncResult,
+            list[FxAsyncResult],
+            None,
+        ],
+    ):
         if isinstance(results, FxAsyncResult):
             results = [results]
         return cls.fx_ars_from_list(results or [])
@@ -826,7 +833,7 @@ class ManyFxAsyncResults(Generic[K]):
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         log_msg: bool=True,
         raise_on_failure: bool=True,
-    ) -> None:
+    ) -> 'ManyFxAsyncResults[K]':
         failures : list[Exception] = []
         start_time = time.monotonic()
         last_callback_time = {c.func: start_time for c in callbacks}
@@ -868,6 +875,7 @@ class ManyFxAsyncResults(Generic[K]):
                     ),
                     failures=tuple(failures),
                 )
+        return self
 
     def wait_for_running(self, max_wait: int=2*60) -> bool:
         sleep_between_iterations = _SLEEP_BETWEEN_ITERATIONS

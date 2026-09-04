@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 
 import types
 
@@ -338,6 +339,33 @@ class TaskTests(unittest.TestCase):
 
             d._process_result =types.MethodType(post_task_run, d)
             d(value1, arg2=value2, arg3=3)
+
+
+class EnqueueManyTests(unittest.TestCase):
+
+    @staticmethod
+    def _enqueue(chains):
+        task = mock.Mock(spec=FireXTask)
+        results = [mock.Mock(), mock.Mock()]
+        task.enqueue_child.side_effect = results
+        return FireXTask.enqueue_many(task, chains), results
+
+    def test_sequence_results_use_integer_keys(self):
+        chains = [mock.Mock(spec=SignatureX), mock.Mock(spec=SignatureX)]
+
+        many_results, results = self._enqueue(chains)
+
+        self.assertEqual(many_results.as_dict(), dict(enumerate(results)))
+
+    def test_mapping_results_preserve_input_keys(self):
+        chains = {
+            'first': mock.Mock(spec=SignatureX),
+            'second': mock.Mock(spec=SignatureX),
+        }
+
+        many_results, results = self._enqueue(chains)
+
+        self.assertEqual(many_results.as_dict(), dict(zip(chains, results)))
 
 
 class TaskCachingTests(unittest.TestCase):

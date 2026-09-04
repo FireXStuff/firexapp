@@ -59,6 +59,8 @@ REDIS_DB_KEY_PREFIX_FOR_CACHE_ENABLED_UID = 'CACHE_ENABLED'
 
 logger = get_task_logger(__name__)
 
+K = typing.TypeVar('K')
+
 
 class SchedulingDeadlockException(Exception):
     pass
@@ -1430,22 +1432,48 @@ class FireXTask(Task):
     def _send_flame_additional_child(self, additional_child_uuid):
         self.send_firex_event_raw({ADDITIONAL_CHILDREN_KEY: [additional_child_uuid]})
 
-    def enqueue_in_parallel(
+    @typing.overload
+    def enqueue_many(
         self,
         chains: Sequence[SignatureX],
         max_parallel_chains=15,
-        wait_for_completion=True,
-        raise_exception_on_failure=False,
-        **kwargs,
-    ) -> list[FxAsyncResult]:
+        block=False,
+        raise_on_failure=False,
+        forget: bool=False,
+        max_wait: Optional[float]=None,
+        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+    ) -> ManyFxAsyncResults[int]: ...
+
+    @typing.overload
+    def enqueue_many(
+        self,
+        chains: Mapping[K, SignatureX],
+        max_parallel_chains=15,
+        block=False,
+        raise_on_failure=False,
+        forget: bool=False,
+        max_wait: Optional[float]=None,
+        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+    ) -> ManyFxAsyncResults[K]: ...
+
+    def enqueue_many(
+        self,
+        chains: Union[Sequence[SignatureX], Mapping[K, SignatureX]],
+        max_parallel_chains=15,
+        block=False,
+        raise_on_failure=False,
+        forget: bool=False,
+        max_wait: Optional[float]=None,
+        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+    ) -> ManyFxAsyncResults[Any]:
         """
-            This method executes the provided list of Signatures/Chains in parallel
-            and returns the associated list of "async_result" objects.
-            The results are returned in the same order as the input Signatures/Chains.
+            Execute the provided Signatures/Chains in parallel and return their results.
+            Sequence inputs use positional integer keys; mapping inputs preserve their keys.
         """
-        promises : list[FxAsyncResult] = []
+        keyed_chains = chains if isinstance(chains, Mapping) else dict(enumerate(chains))
+        promises_by_key : dict[Any, FxAsyncResult] = {}
         scheduled : list[FxAsyncResult] = []
-        for c in chains:
+        for key, c in keyed_chains.items():
             if len(scheduled) >= max_parallel_chains:
                 # Reach the max allowed parallel chains, wait for one to complete before scheduling the next one.
                 completed_ar = ManyFxAsyncResults.fx_ars_from_list(scheduled).wait_for_any()
@@ -1453,16 +1481,53 @@ class FireXTask(Task):
 
             # Schedule the next child
             logger.debug(f'Enqueueing: {c.get_label()}')
-            promise = self.enqueue_child(c, **kwargs)
-            scheduled.append(promise)
-            promises.append(promise)
 
-        if wait_for_completion or raise_exception_on_failure:
-            ManyFxAsyncResults.fx_ars_from_list(promises).wait_for_all(
-                raise_on_failure=raise_exception_on_failure,
+            promise = self.enqueue_child(
+                c,
+                forget=forget,
+                callbacks=callbacks,
             )
+            scheduled.append(promise)
+            promises_by_key[key] = promise
 
-        return promises
+        many_ars = ManyFxAsyncResults.fx_ars_from_dict(promises_by_key)
+
+        if block or raise_on_failure:
+            many_ars.wait_for_all(
+                raise_on_failure=raise_on_failure,
+                max_wait=max_wait,
+            )
+        return many_ars
+
+    def enqueue_in_parallel(
+        self,
+        chains: Sequence[SignatureX],
+        max_parallel_chains=15,
+        wait_for_completion=True,
+        raise_exception_on_failure=False,
+        forget: bool=False,
+        max_wait: Optional[float]=None,
+        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        **_kwargs,
+    ) -> list[FxAsyncResult]:
+        """
+            This method executes the provided list of Signatures/Chains in parallel
+            and returns the associated list of "async_result" objects.
+            The results are returned in the same order as the input Signatures/Chains.
+        """
+        if _kwargs:
+            logger.error(f'Ignoring unexpected arguments: {_kwargs}')
+
+        many_ars = self.enqueue_many(
+            chains=chains,
+            max_parallel_chains=max_parallel_chains,
+            block=wait_for_completion,
+            raise_on_failure=raise_exception_on_failure,
+            forget=forget,
+            max_wait=max_wait,
+            callbacks=callbacks,
+        )
+        return [r for r in many_ars]
 
     def enqueue_child_from_spec(
         self,
