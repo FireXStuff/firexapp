@@ -1,18 +1,20 @@
 import unittest
 
 import types
-from celery import Celery
 
 from firexkit.argument_conversion import ConverterRegister
 from firexkit.chain import returns, SignatureX
+from firexkit.firex_celery import FireXCelery
 from firexkit.task import FireXTask, convert_to_serializable, IllegalTaskNameException, \
     REPLACEMENT_TASK_NAME_POSTFIX
+from firexkit.testing import ut_celery_app
 
 
 class TaskTests(unittest.TestCase):
 
     def test_signature_type(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
+        self.assertIsInstance(test_app, FireXCelery)
 
         @test_app.task(base=FireXTask)
         def task(arg=None):
@@ -117,7 +119,7 @@ class TaskTests(unittest.TestCase):
         self.assertTrue(TestTask.post_ran, "post_task_run() was not called")
 
     def test_undecorated(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         # noinspection PyUnusedLocal
         @test_app.task(base=FireXTask, bind=True)
@@ -147,7 +149,7 @@ class TaskTests(unittest.TestCase):
 
     def test_properties(self):
         the_test = self
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         # noinspection PyUnusedLocal
         @test_app.task(base=FireXTask, bind=True)
@@ -341,7 +343,7 @@ class TaskTests(unittest.TestCase):
 class TaskCachingTests(unittest.TestCase):
 
     def test_use_cache(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         with self.subTest('use_cache is not defined'):
             @test_app.task(base=FireXTask)

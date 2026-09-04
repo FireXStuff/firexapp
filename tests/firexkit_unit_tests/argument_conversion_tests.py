@@ -1,11 +1,11 @@
 
 import unittest
-from celery import Celery
 
 from firexkit.argument_conversion import ConverterRegister, CircularDependencyException, \
     MissingConverterDependencyError, ConverterRegistrationException, NameDuplicationException, SingleArgDecorator, \
     ArgumentConversionException
 from firexkit.task import FireXTask
+from firexkit.testing import ut_celery_app
 
 
 class ArgConversionTests(unittest.TestCase):
@@ -197,7 +197,7 @@ class ArgConversionTests(unittest.TestCase):
 
     def test_failing_converters(self):
 
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         @test_app.task(base=FireXTask)
         def a_task():

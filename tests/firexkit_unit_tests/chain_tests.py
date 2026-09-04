@@ -1,13 +1,12 @@
 import unittest
-from celery import Celery
 from celery.app.task import Task
 from celery.canvas import chain
 from collections import namedtuple
 
 from firexkit.result import RETURN_KEYS_KEY, ReturnsCodingException
 from firexkit.task import FireXTask, get_attr_unwrapped
-from firexkit.chain import returns, verify_chain_arguments, InvalidChainArgsException, \
-    InjectArgs
+from firexkit.chain import returns, InvalidChainArgsException, InjectArgs
+from firexkit.testing import ut_celery_app
 from functools import wraps
 
 
@@ -22,7 +21,7 @@ def assertTupleAlmostEqual(t1, t2):
 class ReturnsTests(unittest.TestCase):
 
     def test_returns_normal_case(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         @test_app.task(base=FireXTask)
         @returns("stuff")
@@ -58,7 +57,7 @@ class ReturnsTests(unittest.TestCase):
                 assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ('stuff',))
 
     def test_dynamic_returns(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         @test_app.task(base=FireXTask, returns=(FireXTask.DYNAMIC_RETURN, 'stuff2'))
         def a_task(the_goods, the_other_goods):
@@ -134,7 +133,7 @@ class ReturnsTests(unittest.TestCase):
                 self.assertEqual(ret["more_stuff"], "final2", "explicit did not override dynamic")
 
     def test_bad_returns_code(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         # duplicate keys
         with self.assertRaises(ReturnsCodingException):
@@ -210,7 +209,7 @@ class ReturnsTests(unittest.TestCase):
             double_return.__name__
 
     def test_returns_and_bind(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         @test_app.task(base=FireXTask, bind=True)
         @returns("the_task_name", "stuff")
@@ -236,7 +235,7 @@ class ReturnsTests(unittest.TestCase):
                 assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ("the_task_name", "stuff"))
 
     def test_returns_play_nice_with_decorators(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         def passing_through(func):
             @wraps(func)
@@ -257,7 +256,7 @@ class ReturnsTests(unittest.TestCase):
         assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ('stuff',))
 
     def test_returning_named_tuples(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
         TestingTuple = namedtuple('TestingTuple', ['thing1', 'thing2'])
 
         @test_app.task(base=FireXTask)
@@ -288,7 +287,7 @@ class ReturnsTests(unittest.TestCase):
 class ChainVerificationTests(unittest.TestCase):
 
     def test_interoperability_with_regular_celery_tasks(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         @test_app.task(base=FireXTask)
         @returns("stuff")
@@ -305,10 +304,10 @@ class ChainVerificationTests(unittest.TestCase):
 
         with self.subTest("FireX (with app ret) to Celery"):
             c = chain(task3.s(), task2b.s())
-            verify_chain_arguments(c)
+            c.verify_args()
 
     def test_detect_missing(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         @test_app.task(base=FireXTask)
         def task1():
@@ -325,22 +324,22 @@ class ChainVerificationTests(unittest.TestCase):
         # fails if it is missing something
         c = chain(task1.s(), task2raise.s())
         with self.assertRaises(InvalidChainArgsException):
-            verify_chain_arguments(c)
+            c.verify_args()
 
         # same result a second time
         with self.assertRaises(InvalidChainArgsException):
-            verify_chain_arguments(c)
+            c.verify_args()
 
         # pass if it gets what it needs
         c = chain(task1.s(stuff="yes"), task2raise.s())
-        verify_chain_arguments(c)
+        c.verify_args()
 
         # default arguments are sufficient
         c = chain(task1.s(), task2ok.s())
-        verify_chain_arguments(c)
+        c.verify_args()
 
     def test_indirect(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         @test_app.task(base=FireXTask)
         @returns("stuff")
@@ -359,32 +358,32 @@ class ChainVerificationTests(unittest.TestCase):
         for task in [task1_with_return, task1_with_task_return]:
             with self.subTest():
                 c = chain(task.s(), task2needs.s())
-                verify_chain_arguments(c)
+                c.verify_args()
 
         @test_app.task(base=FireXTask)
         def task1_no_return():
             pass  # pragma: no cover
 
         c = chain(task1_no_return.s(stuff="yep"), task2needs.s())
-        verify_chain_arguments(c)
+        c.verify_args()
 
         # todo: add this check to the validation
         # with self.assertRaises(InvalidChainArgsException):
         #     c = chain(task1_no_return.s(), task2needs.s())
-        #     verify_chain_arguments(c)
+        #     c.verify_args()
 
         with self.assertRaises(InvalidChainArgsException):
-            verify_chain_arguments(
+            (
                 task1_no_return.s(thing="@stuff")
                 | task2needs.s()
-            )
+            ).verify_args()
 
         with self.assertRaises(InvalidChainArgsException):
             c = chain(task1_no_return.s(), task2needs.s(thing="@stuff"))
-            verify_chain_arguments(c)
+            c.verify_args()
 
     def test_arg_properties(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         # noinspection PyUnusedLocal
         @test_app.task(base=FireXTask)
@@ -405,7 +404,7 @@ class ChainVerificationTests(unittest.TestCase):
                 self.assertEqual(task.optional_args, {'optional': "yup"})  # repeat
 
     def test_chain_assembly_validation(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         # noinspection PyUnusedLocal
         @test_app.task(base=FireXTask)
@@ -451,53 +450,53 @@ class ChainVerificationTests(unittest.TestCase):
 
 
         with self.assertRaises(InvalidChainArgsException):
-            verify_chain_arguments(
+            (
                 beginning.s(start="something")
                 | middle_task.s(very_important="oh_it_is")
                 | ending.s()
-            )
+            ).verify_args()
 
         for b, m, e in [[beginning, middle_task, ending], [beginning2, middle_task2, ending2]]:
 
 
             with self.subTest():
                 c = b.s(start="something") | m.s(very_important="oh_it_is") | e.s(missing="not_missing")
-                verify_chain_arguments(c)
+                c.verify_args()
                 self.assertIsNotNone(chain)
 
             with self.subTest():
                 with self.assertRaises(InvalidChainArgsException):
                     c2 = b.s(start="something") | m.s(very_important="@not_there") | e.s(missing="not missing")
-                    verify_chain_arguments(c2)
+                    c2.verify_args()
 
             with self.subTest():
                 c2 = b.s(start="something") | m.s(very_important="@final") | e.s(missing="not missing")
-                verify_chain_arguments(c2)
+                c2.verify_args()
                 self.assertIsNotNone(c2)
 
         with self.subTest():
             c = beginning.s(start='something') | middle_task3.s()
             with self.assertRaises(InvalidChainArgsException):
-                verify_chain_arguments(c)
+                c.verify_args()
 
         with self.subTest():
             c = beginning3.s(start='something') | middle_task.s()
-            verify_chain_arguments(c)
+            c.verify_args()
 
         with self.subTest():
             c = beginning3.s(start='something') | middle_task3.s() | ending.s()
-            verify_chain_arguments(c)
+            c.verify_args()
 
         with self.subTest():
             c = beginning3.s() | middle_task3.s()
             with self.assertRaises(InvalidChainArgsException):
-                verify_chain_arguments(c)
+                c.verify_args()
 
 
 class TaskUtilTests(unittest.TestCase):
     def test_get_attr_unwrapped(self):
         with self.subTest("Raise error"):
-            test_app = Celery()
+            test_app = ut_celery_app()
 
             @test_app.task(base=Task)
             def fun():
@@ -509,7 +508,7 @@ class TaskUtilTests(unittest.TestCase):
             self.assertEqual(get_attr_unwrapped(fun, "_decorated_return_keys", None), None)  # special case
 
         with self.subTest("Find attribute"):
-            test_app = Celery()
+            test_app = ut_celery_app()
 
             @test_app.task(base=Task)
             @returns("stuff")
@@ -519,8 +518,21 @@ class TaskUtilTests(unittest.TestCase):
 
 
 class InjectArgsTest(unittest.TestCase):
+    def test_inject_in_middle_of_chain(self):
+        test_app = ut_celery_app()
+
+        @test_app.task(base=FireXTask)
+        def injected_task():
+            pass  # pragma: no cover
+
+        injected_args = {'needed': 'stuff'}
+        task_chain = injected_task.s() | InjectArgs(**injected_args) | injected_task.s()
+
+        self.assertIsInstance(task_chain.tasks[1], InjectArgs)
+        self.assertEqual(task_chain.tasks[1].kwargs, injected_args)
+
     def test_inject_irrelevant(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         @test_app.task(base=FireXTask)
         def injected_task1():
@@ -531,13 +543,13 @@ class InjectArgsTest(unittest.TestCase):
             kwargs = {}
             c = InjectArgs(**kwargs)
             c = c | injected_task1.s()
-            verify_chain_arguments(c)
+            c.verify_args()
 
         with self.subTest("Inject nothing useful"):
             kwargs = {"random": "thing"}
             c = InjectArgs(**kwargs)
             c = c | injected_task1.s()
-            verify_chain_arguments(c)
+            c.verify_args()
 
         with self.subTest("Inject will be overridden by signature"):
             kwargs = {"injected": "thing"}
@@ -552,7 +564,7 @@ class InjectArgsTest(unittest.TestCase):
             self.assertEqual(c.tasks[0].kwargs['injected'], "stuff")
 
     def test_inject_necessary(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         # noinspection PyUnusedLocal
         @test_app.task(base=FireXTask)
@@ -562,13 +574,13 @@ class InjectArgsTest(unittest.TestCase):
         with self.subTest("Inject directly"):
             c = InjectArgs(needed='stuff', **{})
             c = c | injected_task2.s()
-            verify_chain_arguments(c)
+            c.verify_args()
 
         kwargs = {"needed": "thing"}
         with self.subTest("Inject with kwargs"):
             c = InjectArgs(not_needed='stuff', **kwargs)
             c = c | injected_task2.s()
-            verify_chain_arguments(c)
+            c.verify_args()
 
         @test_app.task(base=FireXTask)
         def injected_task3():
@@ -578,18 +590,18 @@ class InjectArgsTest(unittest.TestCase):
             c = InjectArgs(**kwargs)
             c |= injected_task3.s()
             c = chain(c, injected_task2.s())
-            verify_chain_arguments(c)
+            c.verify_args()
 
         with self.subTest("Inject into existing chain"):
             c = InjectArgs(**kwargs)
             n_c = injected_task3.s() | injected_task2.s()
             c = c | n_c
-            verify_chain_arguments(c)
+            c.verify_args()
 
         with self.subTest("Inject into existing chain"):
             c = InjectArgs(**kwargs)
             c = c | (injected_task3.s() | injected_task2.s())
-            verify_chain_arguments(c)
+            c.verify_args()
 
         with self.subTest("Inject into Another inject"):
             c = InjectArgs(**kwargs)
@@ -599,7 +611,7 @@ class InjectArgsTest(unittest.TestCase):
 
 class LabelTests(unittest.TestCase):
     def test_labels(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         @test_app.task(base=FireXTask)
         def task1():
@@ -643,7 +655,7 @@ class LabelTests(unittest.TestCase):
 class SetExecutionOptionsTests(unittest.TestCase):
 
     def test(self):
-        test_app = Celery()
+        test_app = ut_celery_app()
 
         @test_app.task(base=FireXTask)
         def task1():

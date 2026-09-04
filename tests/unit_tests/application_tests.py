@@ -1,14 +1,14 @@
 import unittest
-from celery import Celery
 from celery.exceptions import NotRegistered
 from firexapp.application import get_app_task, get_app_tasks
 from firexkit.task import FireXTask
+from firexkit.testing import ut_celery_app
 
 
 class GetTasksTests(unittest.TestCase):
 
     def test_get_app_task(self):
-        test_app = Celery(set_as_current=False)
+        test_app = ut_celery_app()
 
         all_tasks = test_app.tasks
 

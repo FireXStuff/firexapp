@@ -9,7 +9,7 @@ from firexkit.result import wait_on_async_results, \
     MultipleFailuresException, find_unsuccessful_in_chain, \
     last_causing_chain_interrupted_exception, first_non_chain_interrupted_exception
 from firexkit.revoke import RevokedRequests, _now_utc
-from firexkit.testing import MockFxAsyncResult
+from firexkit.testing import MockFxAsyncResult, ut_celery_app
 from firexkit.firex_celery import FireXCelery
 
 
@@ -20,7 +20,7 @@ def get_mocks(
     if result_ids is None:
         result_ids = ["anything"]
 
-    test_app = FireXCelery()
+    test_app = ut_celery_app()
     test_app.config_from_object({
         "result_backend": 'cache',
         "cache_backend": 'memory'

@@ -5,7 +5,13 @@ from uuid import uuid4
 
 from celery import Celery
 
+from firexkit.firex_celery import FireXCelery
 from firexkit.result import FxAsyncResult
+
+
+def ut_celery_app(*args, **kwargs) -> FireXCelery:
+    kwargs['set_as_current'] = False
+    return FireXCelery(*args, **kwargs)
 
 
 class MockFxAsyncResult(FxAsyncResult):
@@ -21,7 +27,7 @@ class MockFxAsyncResult(FxAsyncResult):
         id: Optional[str]=None,
         app: Optional[Celery]=None,
     ):
-        super().__init__(id=id or str(uuid4()), app=app or Celery(), parent=parent)
+        super().__init__(id=id or str(uuid4()), app=app or ut_celery_app(), parent=parent)
         self._state = state
         self._result = result
         self._successful = successful

@@ -25,6 +25,7 @@ from celery.app.task import Task
 from celery.local import PromiseProxy
 from celery.utils.log import get_task_logger, get_logger
 from celery.backends.redis import RedisBackend
+import celery.states
 
 from firexkit.bag_of_goodies import (
     BagOfGoodies, AutoInjectRegistry, AutoInjectSpec, AutoInject, ValidateArgs,
@@ -1222,7 +1223,11 @@ class FireXTask(Task):
             raise_on_failure = block
 
         if isinstance(chain, InjectArgs):
-            return None # FIXME: need to always return an AsyncResult
+            return FxEagerResult(
+                ret_value=chain.kwargs,
+                state=celery.states.SUCCESS,
+                app=self.app,
+            )
 
         if resolved_queue := self._resolve_queue(queue):
             chain.set_queue(resolved_queue)

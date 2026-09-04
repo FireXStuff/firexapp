@@ -739,7 +739,7 @@ class ManyFxAsyncResults(Generic[K]):
     def as_dict(self) -> dict[K, FxAsyncResult]:
         return dict(self._fx_ars_by_key)
 
-    def revoke_non_ready(self) -> 'ManyFxAsyncResults':
+    def revoke_non_ready(self, max_wait: int=2*60) -> 'ManyFxAsyncResults':
         """
             returns FxAsyncResult that were revoked.
         """
@@ -760,7 +760,10 @@ class ManyFxAsyncResults(Generic[K]):
                             f'Revoked child {chain_entry.fx_logging_name()}{msg_detail}'
                         )
                         revoked_ars.append(chain_entry)
-        return ManyFxAsyncResults.fx_ars_from_list(revoked_ars)
+        many_revoked = ManyFxAsyncResults.fx_ars_from_list(revoked_ars)
+        # wait for visible revoke completion
+        many_revoked.wait_for_running(max_wait)
+        return many_revoked
 
     def wait_for_any(
         self,
@@ -1141,23 +1144,6 @@ def wait_on_async_results(
     )
 
 
-def wait_on_async_results_and_maybe_raise(
-    results: Union[FxAsyncResult, list[FxAsyncResult], None], # FIXME: crazy type sig,
-    raise_exception_on_failure: bool=True,
-    max_wait: Optional[float]=None,
-    callbacks: Iterable[WaitLoopCallBack] = tuple(),
-    log_msg=True,
-    **_kwargs,
-):
-    wait_on_async_results(
-        results=results,
-        max_wait=max_wait,
-        callbacks=callbacks,
-        log_msg=log_msg,
-        raise_exception_on_failure=raise_exception_on_failure,
-    )
-
-
 def _warn_on_never_callback(callbacks, poll_max_wait):
     if callbacks:
         for will_not_run_callback in [c for c in callbacks if c.frequency > poll_max_wait]:
@@ -1239,7 +1225,10 @@ def _get_task_results(results: dict) -> dict:
     except KeyError:
         return {}
     else:
-        return {k: results[k] for k in return_keys if k in results} if return_keys else {}
+        return {
+            k: results[k]
+            for k in return_keys
+            if k in results} if return_keys else {}
 
 
 def _get_tasks_inputs_from_result(results: dict) -> dict:
@@ -1275,7 +1264,9 @@ def _get_all_results(
 
     if not return_keys_only and ret:
         # Inputs from child win, below
-        all_results.update(_get_tasks_inputs_from_result(ret))
+        all_results.update(
+            _get_tasks_inputs_from_result(ret)
+        )
 
     children = getattr(result, 'children', []) or [] if merge_children_results else []
 
@@ -1283,11 +1274,13 @@ def _get_all_results(
         if exclude_id and child and child.id == exclude_id:
             continue
         # Beware, recursion
-        _get_all_results(child,
-                         all_results=all_results,
-                         return_keys_only=return_keys_only,
-                         merge_children_results=merge_children_results,
-                         exclude_id=exclude_id) # Unnecessary; exclude_id is usually a first-level child
+        _get_all_results(
+            child,
+            all_results=all_results,
+            return_keys_only=return_keys_only,
+            merge_children_results=merge_children_results,
+            # Unnecessary; exclude_id is usually a first-level child
+            exclude_id=exclude_id)
 
     if ret:
         # Returns from the parent win

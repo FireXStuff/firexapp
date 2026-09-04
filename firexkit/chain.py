@@ -5,21 +5,13 @@ from typing import Optional, Any, Union
 from celery.canvas import Signature
 from celery.utils.log import get_task_logger
 
-from firexkit.result import wait_on_async_results_and_maybe_raise, FireXResults, FxAsyncResult
+from firexkit.result import FireXResults, FxAsyncResult
 from firexkit.bag_of_goodies import BagOfGoodies, AutoInjectRegistry
 
 logger = get_task_logger(__name__)
 
 # this is where most code import from!!
 returns = FireXResults.returns
-
-
-def verify_chain_arguments(sig: 'SignatureX'):
-    """
-    Verifies that the chain is not missing any parameters. Asserts if any parameters are missing, or if a
-    reference parameter (@something) has not provider
-    """
-    sig.verify_args()
 
 
 class InvalidChainArgsException(Exception):
@@ -88,6 +80,7 @@ def _merged_python_signature(task_obj) -> inspect.Signature:
     except ValueError:
         # FIXME: only take orig defaults when they don't break arg no default arg order :/
         return py_sig
+
 
 def _fake_validation_bog(
     task_obj,
@@ -223,7 +216,7 @@ class SignatureX(Signature):
             and len( tasks := self.tasks ) > 1
         ):
             for s in tasks:
-                if s.name is None:
+                if s.name is None and not isinstance(s, InjectArgs):
                     logger.error(
                         f'removing {s} with name {s.name}'
                     )
@@ -368,6 +361,10 @@ class InjectArgs(SignatureX):
         self.args = ()
         self.kwargs = kwargs
 
+    def clone(self, args=None, kwargs=None, **opts) -> 'InjectArgs':
+        assert not args, 'InjectArgs accepts no positional args.'
+        return type(self)(**(self.kwargs | (kwargs or {})))
+
     def __str__(self):
         return f'InjectArgs({", ".join(self.kwargs.keys())})'
 
@@ -383,7 +380,6 @@ class InjectArgs(SignatureX):
             # chains and signatures are both handled by this
             SignatureX.injectArgs(r, **self.kwargs)
         return r
-
 
 
 Signature.injectArgs = SignatureX.injectArgs

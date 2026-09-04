@@ -11,6 +11,7 @@ from firexapp.submit.uid import Uid
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexapp.tasks.example import nop, sleep
 from firexapp.application import JSON_ARGS_PATH_ARG_NAME
+from firexkit.task import InjectArgs, FireXTask
 
 
 @InputConverter.register("convert_booleans")
@@ -171,3 +172,21 @@ class ArgsFromJsonFile(FlowTestConfiguration):
     def assert_expected_return_code(self, ret_value):
         os.unlink(self.json_args_path.name)
         assert_is_good_run(ret_value)
+
+@app.task(bind=True)
+def test_bog_sequence(
+    self: FireXTask,
+):
+    self.enqueue_child(
+        nop.s()
+        | InjectArgs(**self.abog)
+        | nop.s()
+    )
+
+class BogSequenceTest(FlowTestConfiguration):
+
+    def initial_firex_options(self) -> list:
+        return [
+            "submit",
+            '--chain', 'test_bog_sequence',
+        ]

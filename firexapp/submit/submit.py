@@ -23,7 +23,7 @@ from firexkit.result import (
     ChainRevokedPreRunException,
     FxAsyncResult
 )
-from firexkit.chain import InjectArgs, verify_chain_arguments, InvalidChainArgsException
+from firexkit.chain import InjectArgs, InvalidChainArgsException
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.uid import Uid
 from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args, find_unused_arguments
@@ -466,7 +466,7 @@ class SubmitBaseApp:
         for t in app_tasks:
             c |= t.s()
         try:
-            verify_chain_arguments(c)
+            c.verify_args()
         except InvalidChainArgsException as e:
             self.error_banner(e)
             self.main_error_exit_handler(reason=str(e))
@@ -611,7 +611,10 @@ class SubmitBaseApp:
 
     # increase timeout until Flame's 'recalc' at during shutdown can be removed.
     def wait_tracking_services_release_console_ready(self, timeout=45)->None:
-        self.wait_tracking_services_pred(lambda s: s.ready_release_console(), 'ready to release console', timeout)
+        self.wait_tracking_services_pred(
+            lambda s: s.ready_release_console(),
+            'ready to release console',
+            timeout)
 
     def main_error_exit_handler(self, chain_details=None, reason=None, run_revoked=False):
         mssg = 'Aborting FireX submission...'

@@ -2,13 +2,13 @@ import os
 import shutil
 import unittest
 
-from celery import Celery
 from firexapp.application import FireXBaseApp, JSON_ARGS_PATH_ARG_NAME
 from firexapp.submit.arguments import get_chain_args, ChainArgException, InputConverter, convert_booleans, \
     find_unused_arguments, whitelist_arguments
 from firexapp.submit.uid import Uid
 from firexkit.argument_conversion import SingleArgDecorator
 from firexkit.task import FireXTask
+from firexkit.testing import ut_celery_app
 
 
 class SubmitArgsTests(unittest.TestCase):
@@ -239,7 +239,7 @@ class InputConversionTests(unittest.TestCase):
 
 
 class ArgumentApplicabilityTests(unittest.TestCase):
-    test_app = Celery()
+    test_app = ut_celery_app()
 
     @test_app.task(base=FireXTask, bind=True)
     def micro_for_args_check_test(self, uid, ignored=True):
