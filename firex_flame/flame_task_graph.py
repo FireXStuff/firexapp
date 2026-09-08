@@ -1,27 +1,36 @@
-import logging
-from typing import Optional, Any, Union, Callable
-import re
-from datetime import datetime
 import dataclasses
-import os
-import sys
-import tarfile
-from collections import OrderedDict
-from pathlib import Path
-from enum import Enum
 import json
-import time
+import logging
+import os
+import re
 import shutil
 import subprocess
-
-from firexapp.events.model import ADDITIONAL_CHILDREN_KEY, EXTERNAL_COMMANDS_KEY, RunStates
-from firexapp.events.event_aggregator import transform_task_state
-from firex_flame.flame_helper import flatten, deep_merge
-from firex_flame.model_dumper import get_all_tasks_dir, get_tasks_slim_file, get_run_metadata_file, \
-    get_model_complete_file, atomic_write_json, get_flame_model_dir
+import sys
+import tarfile
+import time
+from collections import OrderedDict
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any, Optional
 
 from gevent.lock import BoundedSemaphore
 
+from firex_flame.flame_helper import deep_merge, flatten
+from firex_flame.model_dumper import (
+    atomic_write_json,
+    get_all_tasks_dir,
+    get_flame_model_dir,
+    get_model_complete_file,
+    get_run_metadata_file,
+    get_tasks_slim_file,
+)
+from firexapp.events.event_aggregator import transform_task_state
+from firexapp.events.model import (
+    ADDITIONAL_CHILDREN_KEY,
+    EXTERNAL_COMMANDS_KEY,
+    RunStates,
+)
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -181,12 +190,12 @@ class _ModelledFlameTask:
     # Only fields declared here are ever unloaded from memory (see unload_fields()). Any field that is
     # copy_celery in FIELD_CONFIG but not also listed here will be kept in memory for the life of the
     # server, so large/rare fields (like tracebacks) belong here too.
-    firex_bound_args: Union[dict, _TaskFieldSentile] = _TaskFieldSentile.UNSET
-    firex_default_bound_args: Union[dict, _TaskFieldSentile] = _TaskFieldSentile.UNSET
-    firex_result: Union[dict, _TaskFieldSentile] = _TaskFieldSentile.UNSET
-    external_commands: Union[dict, _TaskFieldSentile] = _TaskFieldSentile.UNSET
-    traceback: Union[str, _TaskFieldSentile] = _TaskFieldSentile.UNSET
-    exception: Union[str, _TaskFieldSentile] = _TaskFieldSentile.UNSET
+    firex_bound_args: dict | _TaskFieldSentile = _TaskFieldSentile.UNSET
+    firex_default_bound_args: dict | _TaskFieldSentile = _TaskFieldSentile.UNSET
+    firex_result: dict | _TaskFieldSentile = _TaskFieldSentile.UNSET
+    external_commands: dict | _TaskFieldSentile = _TaskFieldSentile.UNSET
+    traceback: str | _TaskFieldSentile = _TaskFieldSentile.UNSET
+    exception: str | _TaskFieldSentile = _TaskFieldSentile.UNSET
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -311,7 +320,7 @@ class _FlameTask:
                         if task_num % 100 == 0:
                             logger.debug(f'Unloaded big fields for task num {task_num}, uuid {self.get_uuid()}')
 
-    def get_task_state(self) -> Optional[RunStates]:
+    def get_task_state(self) -> RunStates | None:
         try:
             return RunStates.create(self.always_loaded_task_data['state'])
         except TypeError:
@@ -395,10 +404,10 @@ class FlameTaskGraph:
 
     def __init__(
         self,
-        tasks_by_uuid: Optional[TASKS_BY_UUID_TYPE] = None,
+        tasks_by_uuid: TASKS_BY_UUID_TYPE | None = None,
         model_dumper: Optional['FlameModelDumper'] = None,
     ) -> None:
-        self.root_uuid : Optional[str] = None
+        self.root_uuid : str | None = None
 
         self._tasks_by_uuid : dict[str, _FlameTask] = {}
         self.model_dumper: FlameModelDumper | None = model_dumper
@@ -415,7 +424,7 @@ class FlameTaskGraph:
             (tasks_by_uuid or {}).values()
         )
 
-    def get_root_task(self) -> Optional[TASK_TYPE]:
+    def get_root_task(self) -> TASK_TYPE | None:
         if not self.root_uuid:
             return None
         return self.get_full_task_dict(self.root_uuid)
@@ -538,13 +547,13 @@ class FlameTaskGraph:
             t.is_complete() for t in self._tasks_by_uuid.values()
         )
 
-    def get_full_task_dict(self, uuid) -> Optional[dict[str, dict[str, Any]]]:
+    def get_full_task_dict(self, uuid) -> dict[str, dict[str, Any]] | None:
         maybe_full_task: _FlameTask | None = self._tasks_by_uuid.get(uuid)
         if maybe_full_task is None:
             return None
         return maybe_full_task.get_full_task_dict()
 
-    def get_slim_task_dict(self, uuid) -> Optional[dict[str, dict[str, Any]]]:
+    def get_slim_task_dict(self, uuid) -> dict[str, dict[str, Any]] | None:
         task: _FlameTask | None = self._tasks_by_uuid.get(uuid)
         if task is None:
             return None
@@ -592,7 +601,7 @@ class FlameTaskGraph:
         else:
             self._tasks_by_uuid[uuid].dump_full(new_event_types)
 
-    def _get_task(self, uuid) -> Optional[_FlameTask]:
+    def _get_task(self, uuid) -> _FlameTask | None:
         # Everything outside this module should do get_full_task_dict instead of this.
         return self._tasks_by_uuid.get(uuid)
 
@@ -623,13 +632,13 @@ def _validate_task_queries(task_representation) -> bool:
 
 
 def _normalize_criteria_key(k):
-    return k[1:] if k.startswith('?') else k
+    return k.removeprefix('?')
 
 
 def _matches_equal_criteria(task: _FlameTask, eq_criteria: dict[str, Any]) -> bool:
     # TODO: if more adjusting qualifiers are added, this needs to be reworked.
-    required_keys: set[str] = {k for k in eq_criteria.keys() if not k.startswith('?')}
-    optional_keys: set[str] = {_normalize_criteria_key(k) for k in eq_criteria.keys() if k.startswith('?')}
+    required_keys: set[str] = {k for k in eq_criteria if not k.startswith('?')}
+    optional_keys: set[str] = {_normalize_criteria_key(k) for k in eq_criteria if k.startswith('?')}
 
     task_fields: list[str] = task.get_field_names()
     if not required_keys.issubset(task_fields):
@@ -703,7 +712,7 @@ def _add_path_to_container(container, path_list, val) -> None:
         if is_cur_list:
             cur_key = int(is_cur_list.group(1))
 
-def _add_path_to_container(top_container: dict[str, Any], path_list: tuple[Union[str,int]], val) -> None:
+def _add_path_to_container(top_container: dict[str, Any], path_list: tuple[str | int], val) -> None:
     latest_container: dict[str, Any] = top_container
     for i, cur_key in enumerate(path_list):
         is_last_key: bool = i == len(path_list) - 1
@@ -1018,7 +1027,7 @@ class FlameEventAggregator:
         return task, is_new
 
     def _aggregate_event(self, event: dict[str, Any]):
-        task_uuid: Optional[str] = event.get('uuid')
+        task_uuid: str | None = event.get('uuid')
         if (
             # The uuid can be null, it's unclear what this means but the event
             # can't be associated with a task so dropping is OK.
@@ -1049,7 +1058,7 @@ class FlameModelDumper:
     # Bounds the read-cache below so it can't become an unbounded memory sink itself.
     _FULL_TASK_CACHE_MAX_SIZE = 500
 
-    def __init__(self, firex_logs_dir=None, root_model_dir: Optional[str]=None) -> None:
+    def __init__(self, firex_logs_dir=None, root_model_dir: str | None=None) -> None:
         assert bool(firex_logs_dir) ^ bool(root_model_dir), \
             "Dumper needs exclusively either logs dir or root model dir."
         if firex_logs_dir:

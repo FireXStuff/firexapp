@@ -1,12 +1,12 @@
 import inspect
 import socket
-from typing import Optional, Any, Union
+from typing import Any
 
 from celery.canvas import Signature
 from celery.utils.log import get_task_logger
 
+from firexkit.bag_of_goodies import AutoInjectRegistry, BagOfGoodies
 from firexkit.result import FireXResults, FxAsyncResult
-from firexkit.bag_of_goodies import BagOfGoodies, AutoInjectRegistry
 
 logger = get_task_logger(__name__)
 
@@ -15,13 +15,13 @@ returns = FireXResults.returns
 
 
 class InvalidChainArgsException(Exception):
-    def __init__(self, msg, wrong_args: Optional[dict]=None):
-        super(InvalidChainArgsException, self).__init__(msg)
+    def __init__(self, msg, wrong_args: dict | None=None):
+        super().__init__(msg)
         self.wrong_args = wrong_args or {}
 
 
 def _simulate_chain_args_kwargs(
-    prev_task_return_args : Optional[dict[str, Any]],
+    prev_task_return_args : dict[str, Any] | None,
     task_pos_args: tuple,
     task_kwargs: dict[str, Any],
     chain_depth: int,
@@ -87,7 +87,9 @@ def _fake_validation_bog(
     simulated_pos_args: tuple[Any, ...],
     simulated_kwargs: dict[str, Any],
 ):
-    from firexkit.task import FireXTask # FIXME: bad relationship between core abstractions
+    from firexkit.task import (
+        FireXTask,  # FIXME: bad relationship between core abstractions
+    )
     task_obj : FireXTask
     bog = BagOfGoodies(
         # there is something insane in UT here where the base class isn't set.
@@ -130,9 +132,11 @@ class SignatureX(Signature):
         )
 
     def verify_args(self) -> None:
-        from firexkit.task import FireXTask # FIXME: bad relationship between core abstractions
+        from firexkit.task import (
+            FireXTask,  # FIXME: bad relationship between core abstractions
+        )
 
-        prev_task_return_args : Optional[dict[str, Any]] = None
+        prev_task_return_args : dict[str, Any] | None = None
         task_names_to_missing_required_arg_names : dict[str, set[str]] = {}
         chain_depth = 0
         for task_sig in [t for t in self._get_sigs()]:
@@ -198,7 +202,7 @@ class SignatureX(Signature):
 
     def _get_sigs(self) -> list['SignatureX']:
         try:
-            tasks : list['SignatureX'] = self.tasks
+            tasks : list[SignatureX] = self.tasks
         except AttributeError:
             return [self]
         else:
@@ -236,9 +240,9 @@ class SignatureX(Signature):
         self,
         block: bool = False,
         raise_exception_on_failure: bool = True,
-        queue: Optional[str]=None,
-        priority: Optional[int]=None,
-        soft_time_limit: Optional[int]=None,
+        queue: str | None=None,
+        priority: int | None=None,
+        soft_time_limit: int | None=None,
     ) -> FxAsyncResult:
 
         self.remove_inject_args()
@@ -301,7 +305,7 @@ class SignatureX(Signature):
 
     def apply_async_x(
         self,
-        auto_inject_reg: Optional[AutoInjectRegistry],
+        auto_inject_reg: AutoInjectRegistry | None,
     ) -> FxAsyncResult:
         self.remove_inject_args()
         first_sig = self.get_first_sig()
@@ -325,14 +329,14 @@ class SignatureX(Signature):
 
     def enqueue_and_extract(
         self,
-        queue: Optional[str]=None,
-        return_keys: Union[str, tuple] = (),
+        queue: str | None=None,
+        return_keys: str | tuple = (),
         raise_exception_on_failure: bool=True,
-        priority: Optional[int]=None,
-        soft_time_limit: Optional[int]=None,
+        priority: int | None=None,
+        soft_time_limit: int | None=None,
         block=True,
         **_kwargs,
-    ) -> Union[tuple, dict]:
+    ) -> tuple | dict:
 
         if _kwargs:
             logger.warning(f'Unexpected kwargs: {_kwargs}')
@@ -357,7 +361,7 @@ class SignatureX(Signature):
 class InjectArgs(SignatureX):
 
     def __init__(self, *args, **kwargs):
-        assert not args, f'Inject args accepts no positional args.'
+        assert not args, 'Inject args accepts no positional args.'
         self.args = ()
         self.kwargs = kwargs
 

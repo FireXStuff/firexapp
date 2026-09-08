@@ -25,7 +25,7 @@ def get_link(url, text=None, html_class=None, title_attribute=None, attrs=None, 
     )
 
 
-class ModifyUmask(object):
+class ModifyUmask:
     def __init__(self, new_umask):
         self.new_umask = new_umask
 

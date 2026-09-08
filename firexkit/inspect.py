@@ -1,12 +1,13 @@
-import time
-from typing import Iterable, Union, Any, Optional, Sequence
-from typing_extensions import Self
 import socket
-import psutil
+import time
+from collections.abc import Iterable, Sequence
+from typing import Any
 
+import psutil
 from celery import Celery
 from celery.local import Proxy
 from celery.utils.log import get_task_logger
+from typing_extensions import Self
 
 logger = get_task_logger(__name__)
 
@@ -15,8 +16,8 @@ def inspect_with_retry(
     inspect_retry_timeout=30,
     inspect_method=None,
     retry_if_None_returned=True,
-    celery_app: Union[Celery, Proxy, None]=None,
-    method_args: Optional[Iterable[Any]]=None,
+    celery_app: Celery | Proxy | None=None,
+    method_args: Iterable[Any] | None=None,
     verbose=False,
     **inspect_opts,
 ):
@@ -118,14 +119,14 @@ class InspectedTask(pydantic.BaseModel):
     name: str
     status: str # active|reserved| ?
     celery_destination: str
-    hostname: Optional[str] = None # e.g. mc@sjc-ads-6971, actually fx_worker_name not host hostname
-    time_start: Optional[float] = None
-    worker_pid: Optional[int] = None
+    hostname: str | None = None # e.g. mc@sjc-ads-6971, actually fx_worker_name not host hostname
+    time_start: float | None = None
+    worker_pid: int | None = None
     acknowledged: bool = False
 
-    _is_localhost: Optional[bool]=None
+    _is_localhost: bool | None=None
 
-    def get_only_hostname(self) -> Optional[str]:
+    def get_only_hostname(self) -> str | None:
         if self.hostname is None:
             return None
         return self.hostname.split('@')[-1]
@@ -141,14 +142,14 @@ class InspectedTask(pydantic.BaseModel):
         # (i.e. None alive means dead=False)
         return self.is_alive_localhost_proc() is False
 
-    def is_localhost(self) -> Optional[bool]:
+    def is_localhost(self) -> bool | None:
         if self.hostname is None:
             return None # don't know yet if this task will run on localhost
         if self._is_localhost is None:
             self._is_localhost = bool(self.get_only_hostname() == socket.gethostname())
         return self._is_localhost
 
-    def is_alive_localhost_proc(self) -> Optional[bool]: # None means "failed to confirm liveness or deadness"
+    def is_alive_localhost_proc(self) -> bool | None: # None means "failed to confirm liveness or deadness"
         assert self.is_localhost(), f'Cannot check for liveness for task {self.id} on remote host {self.get_only_hostname()}'
 
         try:
@@ -174,7 +175,7 @@ class InspectedTask(pydantic.BaseModel):
         cls,
         celery_app,
         query_task_status: str,
-        destinations: Optional[Sequence[str]]=None,
+        destinations: Sequence[str] | None=None,
         timeout=_DEFAULT_INSPECT_TIMEOUT,
     ) -> dict[str, list[Self]]:
         assert query_task_status in ['active', 'reserved', 'scheduled', 'revoked']
@@ -210,7 +211,7 @@ class InspectedTask(pydantic.BaseModel):
     def inspect_active(
         cls,
         celery_app,
-        destinations: Optional[Sequence[str]]=None,
+        destinations: Sequence[str] | None=None,
         timeout=_DEFAULT_INSPECT_TIMEOUT,
     ) -> dict[str, list[Self]]:
         return cls._inspect_status(
@@ -252,7 +253,7 @@ class InspectedTask(pydantic.BaseModel):
         cls,
         celery_app,
         query_task_ids: Sequence[str],
-        destinations: Optional[Sequence[str]]=None,
+        destinations: Sequence[str] | None=None,
         timeout=_DEFAULT_INSPECT_TIMEOUT,
     ) -> list[Self]:
         tasks_by_dest_and_id : dict[
@@ -301,9 +302,9 @@ class InspectedTask(pydantic.BaseModel):
         cls,
         celery_app,
         query_task_id: str,
-        destinations: Optional[Sequence[str]]=None,
+        destinations: Sequence[str] | None=None,
         timeout=_DEFAULT_INSPECT_TIMEOUT,
-    ) -> Optional[Self]:
+    ) -> Self | None:
         tasks = cls.inspect_query_tasks(
             celery_app=celery_app,
             query_task_ids=(query_task_id,),

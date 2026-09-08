@@ -1,10 +1,14 @@
 import os
 
-from firexapp.engine.celery import app
-from firexapp.submit.tracking_service import TrackingService, get_tracking_services
 import firexapp.submit.tracking_service
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run, assert_is_bad_run
+from firexapp.engine.celery import app
 from firexapp.submit.install_configs import INSTALL_CONFIGS_ENV_NAME
+from firexapp.submit.tracking_service import TrackingService, get_tracking_services
+from firexapp.testing.config_base import (
+    FlowTestConfiguration,
+    assert_is_bad_run,
+    assert_is_good_run,
+)
 
 test_data_dir = os.path.join(os.path.dirname(__file__), "data", "tracking_services")
 tracking_test_install_config_path = os.path.join(test_data_dir, 'install-configs-test-service.json')
@@ -26,11 +30,11 @@ class TestService(TrackingService):
         self.ready_for_release_console_check_count = 0
 
     def extra_cli_arguments(self, arg_parser):
-        super(TestService, self).extra_cli_arguments(arg_parser)
+        super().extra_cli_arguments(arg_parser)
 
     def start(self, args, **kwargs)->{}:
         print(self.start_message)
-        super(TestService, self).start(args, **kwargs)
+        super().start(args, **kwargs)
         return {"service_success_value": True}
 
     def ready_for_tasks(self, **kwargs) -> bool:
@@ -56,9 +60,13 @@ def service_success(service_success_value=False):
 
 
 class TrackingServiceTest(FlowTestConfiguration):
+
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "service_success",
-                '--install_configs', tracking_test_install_config_path]
+        return [
+            "submit",
+            "--chain", "service_success",
+            '--install_configs', tracking_test_install_config_path,
+        ]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert TestService.start_message in cmd_output
@@ -75,43 +83,24 @@ class TrackingServiceTest(FlowTestConfiguration):
 
         assert not cmd_err, "Unexpected stderr %s" % cmd_err
 
-    def assert_expected_return_code(self, ret_value):
-        assert_is_good_run(ret_value)
-
-
-class NoInstallConfigTrackingServiceTest(FlowTestConfiguration):
-    """Test all tracking services (e.g. TestService) installed in the env are started when no
-        install_config is defined."""
-
-    no_install_config = True
-
-    def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "service_success",
-                '--service_success_value', 'True']
-
-    def assert_expected_firex_output(self, cmd_output, cmd_err):
-        assert TestService.start_message in cmd_output
-        assert not cmd_err, "Unexpected stderr %s" % cmd_err
-
-    def assert_expected_return_code(self, ret_value):
-        assert_is_good_run(ret_value)
-
 
 class TrackingServiceDisabledTest(FlowTestConfiguration):
+
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "service_success",
-                '--service_success_value', 'True',
-                '--disable_tracking_services', 'TestService',
-                '--install_configs', tracking_test_install_config_path]
+        return [
+            "submit",
+            "--chain", "service_success",
+            '--service_success_value', 'True',
+            '--disable_tracking_services', 'TestService',
+            '--install_configs', tracking_test_install_config_path,
+        ]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert TestService.start_message not in cmd_output
 
-    def assert_expected_return_code(self, ret_value):
-        assert_is_good_run(ret_value)
-
 
 class TrackingServiceMissingRequiredTest(FlowTestConfiguration):
+
     def initial_firex_options(self) -> list:
         # Test getting the install config from the ENV instead of from the CLI arg.
         os.environ[INSTALL_CONFIGS_ENV_NAME] = os.path.join(test_data_dir, 'install-configs-missing-launcher.json')

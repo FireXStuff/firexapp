@@ -1,8 +1,13 @@
 
 from celery import current_app
+
+from firexapp.testing.config_base import (
+    FlowTestConfiguration,
+    assert_is_bad_run,
+    assert_is_good_run,
+)
 from firexkit.chain import returns
 from firexkit.task import FireXTask
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 
 
 # noinspection PyUnusedLocal

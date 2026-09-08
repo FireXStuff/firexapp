@@ -6,7 +6,7 @@
 #
 import os
 
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run
+from firexapp.testing.config_base import FlowTestConfiguration
 
 test_data_dir = os.path.join(os.path.dirname(__file__), "data")
 

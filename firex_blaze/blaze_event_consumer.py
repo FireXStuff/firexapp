@@ -2,19 +2,17 @@
 Process events from Celery and put them on a kafka bus.
 """
 
-import logging
 import json
+import logging
 import time
 from getpass import getuser
-from typing import Optional, Any
+from typing import Any
 
-from confluent_kafka import Producer, KafkaException
-from confluent_kafka.admin import AdminClient
+from confluent_kafka import KafkaException, Producer
 
+from firex_blaze.blaze_helper import KAFKA_EVENTS_FILE_DELIMITER, BlazeSenderConfig
 from firexapp.events.broker_event_consumer import BrokerEventConsumerThread
-from firexapp.events.model import FireXRunMetadata, COMPLETE_RUNSTATES, RunStates
-
-from firex_blaze.blaze_helper import BlazeSenderConfig, KAFKA_EVENTS_FILE_DELIMITER
+from firexapp.events.model import FireXRunMetadata, RunStates
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +46,7 @@ def format_kafka_message(firex_id, event_data, uuid, logs_url, submitter=getuser
 
 
 def send_kafka_mssg(kafka_producer: Producer, kafka_mssg: dict[str, Any], kafka_topic: str, firex_id: str,
-                    partition: Optional[int] = None):
+                    partition: int | None = None):
     """Send message using confluent-kafka Producer."""
     try:
         kafka_producer.produce(
@@ -100,10 +98,10 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         celery_app,
         run_metadata: FireXRunMetadata,
         config: BlazeSenderConfig,
-        max_retry_attempts: Optional[int] = None,
-        receiver_ready_file: Optional[str] = None,
-        recording_file: Optional[str] = None,
-        partition: Optional[int] = None,
+        max_retry_attempts: int | None = None,
+        receiver_ready_file: str | None = None,
+        recording_file: str | None = None,
+        partition: int | None = None,
     ):
 
         super().__init__(celery_app, max_retry_attempts, receiver_ready_file)
@@ -220,9 +218,9 @@ class BlazeKafkaSenderThread(KafkaSenderThread):
                  run_metadata: FireXRunMetadata,
                  config: BlazeSenderConfig,
                  logs_url: str,
-                 max_retry_attempts: Optional[int] = None,
-                 receiver_ready_file: Optional[str] = None,
-                 recording_file: Optional[str] = None,
+                 max_retry_attempts: int | None = None,
+                 receiver_ready_file: str | None = None,
+                 recording_file: str | None = None,
     ):
 
         super().__init__(

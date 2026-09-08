@@ -1,11 +1,17 @@
 import inspect
 import re
 from textwrap import wrap
+
 from celery.exceptions import NotRegistered
 
 from firexapp.discovery import get_all_pkg_versions_str
+from firexkit.firex_celery import FireXCelery
+
 
 class InfoBaseApp:
+
+    _FX_CELERY_CLS = FireXCelery
+
     def __init__(self):
         self._list_sub_parser = None
         self._info_sub_parser = None
@@ -66,10 +72,10 @@ class InfoBaseApp:
     def run_info(self, args):
         self.print_details(args.entity, args.plugins)
 
-    @staticmethod
-    def print_available_microservices(plugins: str):
-        from firexapp.engine.celery import app
-        apps, _ = app.import_microservices(plugins)
+    @classmethod
+    def print_available_microservices(cls, plugins: str):
+        with cls._FX_CELERY_CLS.metadata_fx_app(plugins) as fx_app:
+            apps, _ = fx_app.import_microservices()
         print()
         print("The following microservices are available:")
 
@@ -86,26 +92,26 @@ class InfoBaseApp:
                 print(new, "->", old)
         print("\nUse the info sub-command for more details\n")
 
-    @staticmethod
-    def print_argument_used(plugins: str):
-        from firexapp.engine.celery import app
-        all_tasks, _ = app.import_microservices(plugins)
+    @classmethod
+    def print_argument_used(cls, plugins: str):
+        with cls._FX_CELERY_CLS.metadata_fx_app(plugins) as fx_app:
+            all_tasks, _ = fx_app.import_microservices()
+            usage = get_argument_use(all_tasks)
         print()
         print("The following arguments are used by microservices:")
-        usage = get_argument_use(all_tasks)
         for arg in sorted(usage):
             print(arg)
         print("\nUse the info sub-command for more details\n")
 
     def print_partial_task_matches(self, entity, all_tasks):
+        from firexapp.engine.celery import app
         entries_found = False
         for task_name in sorted(all_tasks, key=lambda i: i.split('.')[-1]):
             # Is this even a partial match
             if not re.search(entity, task_name):
                 continue
             try:
-                from firexapp.application import get_app_task
-                task = get_app_task(task_name, all_tasks)
+                task = app.get_app_task(task_name, all_tasks)
             except NotRegistered:
                 continue
             else:
@@ -116,33 +122,32 @@ class InfoBaseApp:
         return entries_found
 
     def print_details(self, entity, plugins, all_tasks=None):
-        if not all_tasks:
-            from firexapp.engine.celery import app
-            all_tasks, _ = app.import_microservices(plugins)
+        with self._FX_CELERY_CLS.metadata_fx_app(plugins) as fx_app:
+            if not all_tasks:
+                all_tasks, _ = fx_app.import_microservices()
 
-        # Is this entity a microservice
-        try:
-            # Do we have a match on the full name?
-            from firexapp.application import get_app_task
-            task = get_app_task(entity, all_tasks)
-        except NotRegistered:
-            # Do we have a match on the partial name
-            if self.print_partial_task_matches(entity, all_tasks):
+            # Is this entity a microservice
+            try:
+                # Do we have a match on the full name?
+                task = fx_app.get_app_task(entity, all_tasks)
+            except NotRegistered:
+                # Do we have a match on the partial name
+                if self.print_partial_task_matches(entity, all_tasks):
+                    return
+            else:
+                self.print_task_details(task)
                 return
-        else:
-            self.print_task_details(task)
-            return
 
-        # Is this entity an argument
-        all_args = get_argument_use(all_tasks)
-        if entity in all_args:
-            print("Argument name: " + entity)
-            print("Used in the following microservices:")
-            for micro in all_args[entity]:
-                print(micro.name)
-            return
+            # Is this entity an argument
+            all_args = get_argument_use(all_tasks)
+            if entity in all_args:
+                print("Argument name: " + entity)
+                print("Used in the following microservices:")
+                for micro in all_args[entity]:
+                    print(micro.name)
+                return
 
-        self._info_sub_parser.exit(status=-1, message="Microservice %s was not found!" % entity)
+            self._info_sub_parser.exit(status=-1, message="Microservice %s was not found!" % entity)
 
     @classmethod
     def parse_task_docstring(cls, task):
@@ -162,7 +167,7 @@ class InfoBaseApp:
                 arg_dict = {}
 
                 # Need to determine if args are indicated with prefixed '--'
-                if re.search(f"^\s*--", arg_desc_str):
+                if re.search(r"^\s*--", arg_desc_str):
                     # assume our args all start with --
                     arg_prefix = "(?:--)"
                 else:

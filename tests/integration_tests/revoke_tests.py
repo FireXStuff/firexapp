@@ -1,12 +1,11 @@
-import os
 import glob
-
+import os
 from time import sleep
 
 from firex_keeper import task_query
-
 from firexapp.engine.celery import app
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
+
 
 @app.task()
 def revoke(root_uuid):

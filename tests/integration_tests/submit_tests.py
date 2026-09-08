@@ -1,17 +1,21 @@
+import json
 import os
 from tempfile import NamedTemporaryFile
-import json
 
-from firexkit.argument_conversion import SingleArgDecorator
+from firexapp.application import JSON_ARGS_PATH_ARG_NAME
 from firexapp.engine.celery import app
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.arguments import InputConverter
 from firexapp.submit.submit import SUBMISSION_FILE_REGISTRY_KEY, get_log_dir_from_output
 from firexapp.submit.uid import Uid
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
 from firexapp.tasks.example import nop, sleep
-from firexapp.application import JSON_ARGS_PATH_ARG_NAME
-from firexkit.task import InjectArgs, FireXTask
+from firexapp.testing.config_base import (
+    FlowTestConfiguration,
+    assert_is_bad_run,
+    assert_is_good_run,
+)
+from firexkit.argument_conversion import SingleArgDecorator
+from firexkit.task import FireXTask, InjectArgs
 
 
 @InputConverter.register("convert_booleans")

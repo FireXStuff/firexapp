@@ -1,25 +1,25 @@
 import datetime
-from dataclasses import dataclass
-from enum import Enum, auto
+import glob
 import logging
 import os
 import shlex
 import shutil
-from socket import gethostname
 import stat
 import subprocess
 import tempfile
 import time
 import urllib.parse
 import uuid
-from typing import Union, Optional
-import glob
+from dataclasses import dataclass
+from enum import Enum, auto
+from socket import gethostname
+
 import psutil
 from celery.utils.log import get_task_logger
 
-from firexkit import firex_exceptions, firexkit_common
 from firexapp.engine.logging import html_escape
 from firexapp.events.model import EXTERNAL_COMMANDS_KEY
+from firexkit import firex_exceptions, firexkit_common
 
 logger = get_task_logger(__name__)
 
@@ -180,11 +180,11 @@ def send_flame_subprocess_end(
     _send_flame_subprocess({flame_subprocess_id: {'result': subproc_result, 'end_time': time.time()}})
 
 
-def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType = _SubprocessRunnerType.CHECK_OUTPUT,
+def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _SubprocessRunnerType.CHECK_OUTPUT,
                        extra_header=None, file=None, chars=32000, timeout=None, capture_output=True, check=False,
                        inactivity_timeout=30 * 60, monitor_activity_files=None, log_level=logging.DEBUG,
                        copy_file_path=None, shell=False, cwd=None, env=None, remove_firex_pythonpath=True,
-                       logger=logger, stderr=subprocess.STDOUT, proc_stats: Optional[ProcStats] = None,
+                       logger=logger, stderr=subprocess.STDOUT, proc_stats: ProcStats | None = None,
                        stdin=subprocess.PIPE, bufsize=0, **kwargs):
     ##########################
     # Local Helper functions #
@@ -245,11 +245,12 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                                                      'html_escape': False})
 
     def _get_live_file_monitor_link():
-        from firexapp.engine.celery import app
+        from firexkit.firex_celery import FireXCelery
         try:
+            fx_app = FireXCelery.app_or_default()
             # FIXME: https://github.com/FireXStuff/firexapp/issues/10
-            if app.conf.install_config.has_viewer():
-                run_url = app.conf.install_config.get_run_url()
+            if fx_app.conf.install_config.has_viewer():
+                run_url = fx_app.conf.install_config.get_run_url()
             else:
                 return
         except AttributeError:
@@ -303,7 +304,6 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                 except (subprocess.TimeoutExpired, psutil.TimeoutExpired) as e:
                     # Give up at this point. It is undead.
                     logger.exception(e)
-                    pass
         except (PermissionError, psutil.AccessDenied, psutil.NoSuchProcess) as e:
             # Possible if the underlying process is running under sudo or the like
             logger.exception(e)
@@ -347,7 +347,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
     _mem_stat_errors = set()
     _cpu_totals_by_proc = {}
 
-    def _get_proc_cpu_totals(the_proc: psutil.Process)-> Union[float, None]:
+    def _get_proc_cpu_totals(the_proc: psutil.Process)-> float | None:
         try:
             cpu_times = the_proc.cpu_times()
         except psutil.NoSuchProcess:
@@ -409,8 +409,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
             mem_totals += _get_proc_mem_totals(p)
 
         mem_totals = round(mem_totals)
-        if mem_totals > proc_stats.mem_mb_high_wm:
-            proc_stats.mem_mb_high_wm = mem_totals
+        proc_stats.mem_mb_high_wm = max(proc_stats.mem_mb_high_wm, mem_totals)
 
         # we do a time-weighted average for memory
         current_weight = (now - last_proc_stats) / elapsed_time
@@ -502,7 +501,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                     break
                 except (subprocess.TimeoutExpired, psutil.TimeoutExpired):
                     pass
-                _sleep = _sleep * 1.1 if _sleep * 1.1 < 1 else 1  # Exponential backoff
+                _sleep = min(1, _sleep * 1.1)  # Exponential backoff
 
                 now = time.monotonic()
 
@@ -517,8 +516,7 @@ def _subprocess_runner(cmd: Union[str, list], runner_type: _SubprocessRunnerType
                         if stats_interval < max_stats_interval:
                             stats_interval = proc_stats.collection_interval + ((now - start_time) *
                                                                                proc_stats.collection_interval / 120)
-                            if stats_interval > max_stats_interval:
-                                stats_interval = max_stats_interval
+                            stats_interval = min(stats_interval, max_stats_interval)
 
                 # Log
                 if now - last_log_time > 10 * 60:  # Log every 10 minutes

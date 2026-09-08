@@ -1,10 +1,11 @@
 """
 Aggregates events in to the task data model.
 """
-from datetime import datetime
-import logging
-from typing import Optional, Any, Callable
 import dataclasses
+import logging
+from collections.abc import Callable
+from datetime import datetime
+from typing import Any
 
 from firexapp.events.model import RunStates, TaskColumn
 
@@ -84,7 +85,7 @@ def transform_task_state(
     celery_event: dict[str, Any],
 ) -> dict[str, Any]:
     transformed_data = {}
-    event_type: Optional[str] = celery_event.get('type')
+    event_type: str | None = celery_event.get('type')
     if event_type == 'task-completed':
         transformed_data['has_completed'] = True
     else:
@@ -331,7 +332,7 @@ class AbstractFireXEventAggregator:
     def _task_exists(self, task_uuid):
         raise NotImplementedError("This should be implemented by concrete subclasses")
 
-    def _get_task(self, task_uuid: str) -> Optional[dict[str, Any]]:
+    def _get_task(self, task_uuid: str) -> dict[str, Any] | None:
         raise NotImplementedError("This should be implemented by concrete subclasses")
 
     def _get_incomplete_tasks(self) -> list[dict[str, Any]]:
@@ -353,7 +354,7 @@ class FireXEventAggregator(AbstractFireXEventAggregator):
             return False
         return task_uuid in self.tasks_by_uuid
 
-    def _get_task(self, task_uuid: str) -> Optional[dict[str, Any]]:
+    def _get_task(self, task_uuid: str) -> dict[str, Any] | None:
         return self.tasks_by_uuid.get(task_uuid)
 
     def _get_incomplete_tasks(self) -> list[dict[str, Any]]:

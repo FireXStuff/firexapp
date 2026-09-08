@@ -2,25 +2,23 @@
 Flask API module for interacting with celery tasks.
 """
 
+import getpass
 import logging
-from socket import gethostname
 import os
 import subprocess
-import requests
-from typing import Optional
 import urllib.parse
-import getpass
+from socket import gethostname
 
-from flask import jsonify, request
-from gevent import spawn, sleep
 import paramiko
+import requests
+from flask import jsonify, request
+from gevent import sleep, spawn
 
-from firexapp.engine.run_controller import FireXRunController
-from firex_flame.flame_helper import wait_until, REVOKE_REASON_KEY
-from firex_flame.flame_task_graph import FlameTaskGraph, is_task_dict_complete
 from firex_flame.controller import FlameAppController
+from firex_flame.flame_helper import REVOKE_REASON_KEY, wait_until
+from firex_flame.flame_task_graph import FlameTaskGraph, is_task_dict_complete
 from firex_flame.model_dumper import wait_and_get_flame_url
-
+from firexapp.engine.run_controller import FireXRunController
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +133,6 @@ def monitor_file(sio_server, sid, host, filename):
 
                 # local helper function
                 def get_data_chunk():
-                    from socket import timeout
                     data_chunk = ''
                     max_chunk_lines = 10000
                     num_chunk_lines = 0
@@ -147,7 +144,7 @@ def monitor_file(sio_server, sid, host, filename):
                                 # empty line signifies eof
                                 end_of_file = True
                                 break
-                        except timeout:
+                        except TimeoutError:
                             # No more data available within timeout: consider this a full data_chunk to be sent off
                             break
                         else:
@@ -420,11 +417,11 @@ def create_revoke_api(
 
 def flame_revoke(
     logs_dir : str,
-    task_uuid : Optional[str]=None, # None revokes the whole run by revoking the root task.
-    revoke_reason: Optional[str]=None,
-    revoking_user: Optional[str]=getpass.getuser(),
+    task_uuid : str | None=None, # None revokes the whole run by revoking the root task.
+    revoke_reason: str | None=None,
+    revoking_user: str | None=getpass.getuser(),
     timeout=10*60,
-) -> Optional[requests.Response]:
+) -> requests.Response | None:
 
     flame_url = wait_and_get_flame_url(firex_logs_dir=logs_dir)
     if not flame_url:

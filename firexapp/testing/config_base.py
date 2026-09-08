@@ -1,17 +1,16 @@
-import os
 import abc
-import sys
 import inspect
+import os
+import sys
 from importlib import import_module
-from typing import Optional
 
 from firexapp.reporters.json_reporter import FireXRunData
 
 
-class FlowTestConfiguration(object):
+class FlowTestConfiguration:
     __metaclass__ = abc.ABCMeta
 
-    run_data: Optional[FireXRunData]
+    run_data: FireXRunData | None
 
     def __init__(self):
         self.results_folder = ""
@@ -56,7 +55,7 @@ def assert_is_good_run(ret_value):
 
 
 def skip_test(cls):
-    setattr(cls, "skip_test", True)
+    cls.skip_test = True
     return cls
 
 

@@ -20,7 +20,7 @@ def fail_with_timeout():
     raise TimeoutError()
 
 
-class SucceedAfter():
+class SucceedAfter:
     def __init__(self, succeed_after_retries):
         self.succeed_after_retries = succeed_after_retries
         self.tries = 0

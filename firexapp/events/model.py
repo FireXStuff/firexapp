@@ -1,8 +1,8 @@
-from collections import namedtuple
-from enum import Enum
 import logging
 import re
-from typing import Optional, Any
+from collections import namedtuple
+from enum import Enum
+from typing import Any
 
 from firexkit.result import ChainInterruptedException
 
@@ -57,7 +57,7 @@ class RunStates(Enum):
         # in the presence of retries, so allow callers to track
         # total task completion independently if they want complete accuracy.
         # by default failed is considered complete.
-        has_completed: Optional[bool]=None,
+        has_completed: bool | None=None,
     ):
         complete_states = [
             RunStates.SUCCEEDED,
@@ -82,14 +82,14 @@ class RunStates(Enum):
         return self in [RunStates.REVOKE_COMPLETED, RunStates.REVOKED]
 
     @staticmethod
-    def is_complete_state(task_state: Any, has_completed: Optional[bool]=None) -> bool:
+    def is_complete_state(task_state: Any, has_completed: bool | None=None) -> bool:
         try:
             return RunStates.create(task_state).is_complete(has_completed=has_completed)
         except ValueError:
             return False
 
     @staticmethod
-    def is_incomplete_state(task_state: Any, has_completed: Optional[bool]=None) -> bool:
+    def is_incomplete_state(task_state: Any, has_completed: bool | None=None) -> bool:
         try:
             return not RunStates.create(task_state).is_complete(has_completed=has_completed)
         except ValueError:
@@ -98,7 +98,7 @@ class RunStates(Enum):
     @staticmethod
     def get_forced_complete_celery_event_type(
         task_state: Any,
-        has_completed: Optional[bool]=None,
+        has_completed: bool | None=None,
     ) -> str:
         try:
             state = RunStates.create(task_state)
@@ -114,8 +114,8 @@ class RunStates(Enum):
 
     @staticmethod
     def get_higher_priority_state(
-        existing_state_str: Optional[str],
-        new_state_str: Optional[str],
+        existing_state_str: str | None,
+        new_state_str: str | None,
     ) -> str:
         try:
             existing_state = RunStates.create(existing_state_str)
@@ -229,7 +229,7 @@ def get_chain_exception_child_uuid(task):
     assert is_chain_exception(task)
     exception_str = task.exception.strip()
     # example: ChainInterruptedException('ad9b0b79-86e9-4d76-8654-9c19886d50a1', ...).
-    m = re.search(r'' + ChainInterruptedException.__name__ + "\('([\da-f\-]+)'", exception_str)
+    m = re.search(r'' + ChainInterruptedException.__name__ + r"\('([\da-f\-]+)'", exception_str)
     assert m, "No UUID found in %s." % exception_str
     return m.group(1)
 

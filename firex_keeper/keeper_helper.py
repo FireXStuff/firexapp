@@ -1,16 +1,15 @@
 """
     Utility functions for the firex_keeper package.
 """
-from collections import namedtuple
 import gzip
 import json
 import os
 import stat
+from collections import namedtuple
 
-from firexapp.submit.uid import Uid
 from firexapp.events.event_aggregator import FireXEventAggregator
 from firexapp.events.model import FireXTask
-
+from firexapp.submit.uid import Uid
 
 FireXTreeTask = namedtuple('FireXTreeTask', FireXTask._fields + ('children', 'parent'))
 

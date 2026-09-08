@@ -2,18 +2,21 @@ import argparse
 import logging
 import logging.handlers
 import os
-import sys
 import signal
+import sys
 
 # Prevent dependencies from taking module loading hit of pkg_resources.
 sys.modules["pkg_resources"] = type('noop', (object,), {})
 
 
-from firexapp.events.model import FireXRunMetadata
-
 from firex_blaze.blaze_event_consumer import BlazeKafkaSenderThread
+from firex_blaze.blaze_helper import (
+    BlazeSenderConfig,
+    celery_app_from_logs_dir,
+    get_blaze_events_file,
+)
 from firex_blaze.fast_blaze_helper import get_blaze_dir
-from firex_blaze.blaze_helper import BlazeSenderConfig, get_blaze_events_file, celery_app_from_logs_dir
+from firexapp.events.model import FireXRunMetadata
 
 logger = logging.getLogger(__name__)
 

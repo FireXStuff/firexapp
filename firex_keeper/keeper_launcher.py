@@ -1,13 +1,13 @@
 import os
-from psutil import Process, TimeoutExpired
 import subprocess
 
-from firexapp.submit.tracking_service import TrackingService
-from firexapp.common import qualify_firex_bin
-from firexapp.submit.console import setup_console_logging
+from psutil import Process, TimeoutExpired
 
 from firex_keeper.keeper_helper import get_keeper_dir
+from firexapp.common import qualify_firex_bin
 from firexapp.discovery import PkgVersionInfo
+from firexapp.submit.console import setup_console_logging
+from firexapp.submit.tracking_service import TrackingService
 
 logger = setup_console_logging(__name__)
 

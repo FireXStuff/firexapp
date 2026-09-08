@@ -1,43 +1,41 @@
-import json
-import os
-from socket import gethostname
 import dataclasses
-from tempfile import NamedTemporaryFile
-from typing import Union, Optional, Any, TypeVar, Type
 import datetime
 import enum
-import pytz
+import json
+import os
 from getpass import getuser
-import psutil
+from socket import gethostname
+from tempfile import NamedTemporaryFile
+from typing import Any, Optional, TypeVar
 
-from celery import bootsteps
-from celery.worker.components import Hub
 import celery.exceptions
+import psutil
+import pytz
+from celery import bootsteps
+from celery.states import RETRY, REVOKED
+from celery.utils.log import get_task_logger
+from typing_extensions import Self
 
-from firexapp.application import get_app_tasks
-from firexapp.common import silent_mkdir, create_link, wait_until
+from firexapp.common import create_link, silent_mkdir, wait_until
+from firexapp.engine.firex_revoke import RevokeDetails
 from firexapp.submit.uid import FIREX_ID_REGEX, Uid
 from firexkit.result import (
-    create_unsuccessful_result,
     RUN_RESULTS_NAME,
     RUN_UNSUCCESSFUL_NAME,
+    FxAsyncResult,
+    create_unsuccessful_result,
     get_results,
 )
-from celery.states import REVOKED, RETRY
-from firexkit.result import FxAsyncResult
 from firexkit.task import convert_to_serializable
-from celery.utils.log import get_task_logger
-from firexapp.engine.celery import app
-from firexapp.engine.firex_revoke import RevokeDetails
 
 logger = get_task_logger(__name__)
 
 T = TypeVar('T', bound='FireXRunData')
 
 
-def norm_chain_names(chain) -> list[str]:
+def _norm_chain_names(fx_app, chain) -> list[str]:
     try:
-        return [t.short_name for t in get_app_tasks(chain)]
+        return [t.short_name for t in fx_app.get_app_tasks(chain)]
     except celery.exceptions.NotRegistered:
         if isinstance(chain, str):
             chain = chain.split(',')
@@ -54,11 +52,11 @@ class FireXRunData:
     submission_cmd: list[str]
     viewers: dict[str, str]
     inputs: dict[str, Any]
-    results: Optional[dict[str, Any]] = None
+    results: dict[str, Any] | None = None
     revoked: bool = False
     revoked_details: Optional['RevokeDetails'] = None
-    completed_timestamp: Optional[datetime.datetime] = None
-    submit_proc_start_timestamp: Optional[datetime.datetime] = None
+    completed_timestamp: datetime.datetime | None = None
+    submit_proc_start_timestamp: datetime.datetime | None = None
 
     _extra_fields: dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -70,10 +68,12 @@ class FireXRunData:
         argv,
         original_cli,
         inputs: dict[str, Any],
-        submit_proc_start_timestamp: Optional[datetime.datetime]=None,
+        submit_proc_start_timestamp: datetime.datetime | None=None,
     ) -> 'FireXRunData':
+        from firexkit.firex_celery import FireXCelery
+        fx_app = FireXCelery.app_or_default()
         if chain:
-            chain = norm_chain_names(chain)
+            chain = _norm_chain_names(fx_app, chain)
 
         viewers = uid.viewers or {}
         _extra_fields = dict(viewers) # backwards compat
@@ -83,7 +83,7 @@ class FireXRunData:
             logs_path=uid.logs_dir,
             completed=False,
             chain=chain,
-            submission_host=app.conf.mc or gethostname(),
+            submission_host=fx_app.conf.mc or gethostname(),
             submission_dir=submission_dir,
             submission_cmd=original_cli or list(argv or []),
             viewers=viewers,
@@ -93,14 +93,14 @@ class FireXRunData:
         )
 
     @classmethod
-    def run_logs_dir_from_firex_id(cls: Type[T], firex_id: str) -> str:
+    def run_logs_dir_from_firex_id(cls, firex_id: str) -> str:
         raise NotImplementedError()
 
     @classmethod
     def _create_from_dict(
-        cls: Type[T],
+        cls,
         run_dict: dict[str, Any],
-    ) -> T:
+    ) -> Self:
         field_names = {
             f.name for f in dataclasses.fields(cls)
             if f.name not in ['_extra_fields']
@@ -133,8 +133,8 @@ class FireXRunData:
     @classmethod
     def _get_completion_run_json_path(
         cls,
-        logs_dir: Optional[str]=None,
-        firex_id: Optional[str]=None,
+        logs_dir: str | None=None,
+        firex_id: str | None=None,
     ) -> str:
         return os.path.join(
             cls._logs_dir_maybe_from_firex_id(logs_dir, firex_id),
@@ -144,22 +144,22 @@ class FireXRunData:
 
     @classmethod
     def load_run_json_file(
-        cls: Type[T],
+        cls,
         json_filepath: str,
-    ) -> T:
+    ) -> Self:
         with open(json_filepath, encoding='utf-8') as f:
             return cls._create_from_dict(
                 json.load(fp=f),
             )
 
     @classmethod
-    def load_initial(cls: Type[T], logs_dir: str) -> T:
+    def load_initial(cls, logs_dir: str) -> Self:
         return cls.load_run_json_file(
             _get_initial_run_json_path(logs_dir),
         )
 
     @classmethod
-    def load_from_logs_dir(cls: Type[T], logs_dir: str) -> T:
+    def load_from_logs_dir(cls, logs_dir: str) -> Self:
         try:
             return cls.load_run_json_file(
                 cls._get_completion_run_json_path(logs_dir),
@@ -175,7 +175,7 @@ class FireXRunData:
                 )
 
     @classmethod
-    def load_from_firex_id(cls: Type[T], firex_id: str) -> T:
+    def load_from_firex_id(cls, firex_id: str) -> Self:
         logs_dir = cls.run_logs_dir_from_firex_id(firex_id)
         return cls.load_from_logs_dir(logs_dir)
 
@@ -216,9 +216,9 @@ class FireXRunData:
 
     def write_run_completed(
         self,
-        results: Optional[dict[str, Any]] = None,
-        revoked: Union[None, bool, str] = None,
-        root_task_uuid: Optional[str] = None,
+        results: dict[str, Any] | None = None,
+        revoked: None | bool | str = None,
+        root_task_uuid: str | None = None,
     ) -> str:
         self.completed = True
         if results is not None:
@@ -296,7 +296,7 @@ class FireXRunData:
 
     def chain_has_service(
         self,
-        query_services: Union[str, list[str]],
+        query_services: str | list[str],
     ) -> bool:
         if self.chain is None:
             logger.debug(f'Run {self.firex_id} has no chain')
@@ -312,8 +312,8 @@ class FireXRunData:
     @classmethod
     def _logs_dir_maybe_from_firex_id(
         cls,
-        logs_dir: Optional[str]=None,
-        firex_id: Optional[str]=None,
+        logs_dir: str | None=None,
+        firex_id: str | None=None,
     ) -> str:
         if not logs_dir:
             assert firex_id, 'Must supply logs_dir or firex_id'
@@ -323,9 +323,9 @@ class FireXRunData:
     @classmethod
     def is_run_json_complete(
         cls,
-        logs_dir: Optional[str]=None,
-        firex_id: Optional[str]=None,
-        run_json_path: Optional[str]=None,
+        logs_dir: str | None=None,
+        firex_id: str | None=None,
+        run_json_path: str | None=None,
     ) -> bool:
         if run_json_path is not None:
             real_basename = os.path.basename(os.path.realpath(run_json_path))
@@ -353,9 +353,9 @@ class FireXRunData:
     @classmethod
     def set_revoked_if_incomplete(
         cls,
-        logs_dir: Optional[str]=None,
-        firex_id: Optional[str]=None,
-        shutdown_reason: Optional[str]=None,
+        logs_dir: str | None=None,
+        firex_id: str | None=None,
+        shutdown_reason: str | None=None,
     ):
         try:
             logs_dir = cls._logs_dir_maybe_from_firex_id(logs_dir, firex_id)
@@ -371,9 +371,9 @@ class FireXRunData:
     @classmethod
     def run_json_completed_time(
         cls,
-        logs_dir: Optional[str]=None,
-        firex_id: Optional[str]=None,
-    ) -> Optional[datetime.datetime]:
+        logs_dir: str | None=None,
+        firex_id: str | None=None,
+    ) -> datetime.datetime | None:
         logs_dir = cls._logs_dir_maybe_from_firex_id(logs_dir, firex_id)
         if cls.is_run_json_complete(logs_dir=logs_dir):
             run_data = cls.load_from_logs_dir(logs_dir)
@@ -390,8 +390,8 @@ class FireXRunData:
     @classmethod
     def wait_for_run_json_complete(
         cls,
-        logs_dir: Optional[str]=None,
-        firex_id: Optional[str]=None,
+        logs_dir: str | None=None,
+        firex_id: str | None=None,
         timeout: float=0,
     ) -> bool:
         return wait_until(
@@ -408,12 +408,12 @@ class FireXRunData:
             timeout=timeout,
         )
 
-    def reload(self: T) -> T:
+    def reload(self) -> Self:
         return self.load_from_logs_dir(
             self.logs_path
         )
 
-    def get_proc_duration(self) -> Optional[float]:
+    def get_proc_duration(self) -> float | None:
         if self.submit_proc_start_timestamp:
             if self.completed_timestamp:
                 end_time = self.completed_timestamp
@@ -429,8 +429,8 @@ class FireXRunData:
 def _get_completed_revoke_details(
     logs_dir: str,
     shutdown_revoke_reason: str,
-    root_task_uuid: Optional[str],
-    completed_timestamp: Optional[datetime.datetime],
+    root_task_uuid: str | None,
+    completed_timestamp: datetime.datetime | None,
 ) -> Optional['RevokeDetails']:
     try:
         tracked_revoked_details = RevokeDetails.load_latest_run_revoke_details(
@@ -516,7 +516,7 @@ class FireXJsonReportGenerator:
 
     @staticmethod
     def create_initial_run_json(
-        uid,
+        uid: Uid,
         chain,
         submission_dir,
         argv,
@@ -544,7 +544,7 @@ class FireXJsonReportGenerator:
     @classmethod
     def create_completed_run_json(
         cls,
-        uid: Optional[Uid]=None,
+        uid: Uid | None=None,
         run_revoked: bool=True,
         chain=None,
         root_id=None,
@@ -552,8 +552,8 @@ class FireXJsonReportGenerator:
         argv=None,
         original_cli=None,
         json_file=None,
-        logs_dir: Optional[str]=None,
-        shutdown_reason: Optional[str]=None,
+        logs_dir: str | None=None,
+        shutdown_reason: str | None=None,
         **inputs,
     ):
         if not logs_dir and uid is None:
@@ -591,9 +591,9 @@ class FireXJsonReportGenerator:
 
 
 def _get_run_results_from_root_task_promise(
-    root_task_ar: Optional[FxAsyncResult],
+    root_task_ar: FxAsyncResult | None,
     run_revoked: bool,
-    shutdown_reason: Optional[str],
+    shutdown_reason: str | None,
 ) -> dict[str, Any]:
     if root_task_ar and root_task_ar.successful():
         return get_results(root_task_ar)
@@ -625,7 +625,7 @@ def _get_initial_run_json_path(logs_dir):
 class ReporterStep(bootsteps.StartStopStep):
 
     def include_if(self, parent):
-        return parent.hostname.startswith(app.conf.primary_worker_name + '@')
+        return parent.hostname.startswith(parent.app.conf.primary_worker_name + '@')
 
     def __init__(self, parent, **kwargs):
         self._logs_dir = None
@@ -647,10 +647,3 @@ class ReporterStep(bootsteps.StartStopStep):
                 logs_dir=self._logs_dir,
                 shutdown_reason='Celery stop bootstep unexpectedly found incomplete run',
             )
-
-
-app.steps['worker'].add(ReporterStep)
-
-# We want this step to finish after Pool at least (because a poolworker writes this file in the async case),
-# but might as well finish after Hub too
-Hub.requires = Hub.requires + (ReporterStep,)

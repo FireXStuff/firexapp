@@ -1,19 +1,19 @@
-from typing import NamedTuple, Optional
 import json
-from urllib.parse import urljoin, urlparse
-import shutil
 import os
+import shutil
+from typing import NamedTuple
+from urllib.parse import urljoin, urlparse
 
-from firexkit.resources import get_packaged_install_config_path
-from firexapp.submit.uid import Uid
 from firexapp.common import render_template
+from firexapp.submit.uid import Uid
+from firexkit.resources import get_packaged_install_config_path
 
 INSTALL_CONFIGS_ENV_NAME = 'firex_install_config'
 INSTALL_CONFIGS_RUN_BASENAME = 'install-configs.json'
 
 
 class FireXViewerTemplates(NamedTuple):
-    viewer_base: Optional[str] = ""
+    viewer_base: str | None = ""
     run_path_template: str = ""
     task_path_template: str = ""
     run_logs_root_path_template: str = ""
@@ -23,14 +23,14 @@ class FireXViewerTemplates(NamedTuple):
 # Data-only representation of the config. This is expected to EXACTLY reflect the contents of the config file.
 # Utilities on top of this data should go in the FireXInstallConfigs class.
 class FireXRawInstallConfigs(NamedTuple):
-    viewer_templates: Optional[FireXViewerTemplates] = None
+    viewer_templates: FireXViewerTemplates | None = None
 
     # None means "use all installed tracking services". A list means only listed tracking services will be started,
     # and a service with each requested name must be installed. If a service is included here but not present during
     # start, the run will fail.
-    requested_tracking_services: Optional[list] = None
+    requested_tracking_services: list | None = None
 
-    submit_args: Optional[dict] = None
+    submit_args: dict | None = None
 
 
 class FireXInstallConfigError(Exception):
@@ -131,8 +131,8 @@ def recursive_named_tuple_asdict(obj):
         return obj
 
 
-def load_new_install_configs(firex_id: str, logs_dir: str, install_config_path: Optional[str],
-                             raw_install_config: Optional[FireXRawInstallConfigs] = None) -> FireXInstallConfigs:
+def load_new_install_configs(firex_id: str, logs_dir: str, install_config_path: str | None,
+                             raw_install_config: FireXRawInstallConfigs | None = None) -> FireXInstallConfigs:
     """
     Copies supplied install configs to supplied logs_dir and returns loaded (i.e. deserialized)
     FireXInstallConfigs object. If no install_config_path is supplied, internally-defined default install config is
@@ -148,7 +148,13 @@ def load_new_install_configs(firex_id: str, logs_dir: str, install_config_path: 
             raw_configs_to_write = raw_install_config
         else:
             # built-in default configs
-            raw_configs_to_write = FireXRawInstallConfigs(viewer_templates=None, requested_tracking_services=None)
+            raw_configs_to_write = FireXRawInstallConfigs(
+                viewer_templates=None,
+                requested_tracking_services=[
+                    'FlameLauncher',
+                    'FireXKeeperLauncher',
+                ],
+            )
         with open(install_config_copy_path, 'w') as fp:
             json.dump(recursive_named_tuple_asdict(raw_configs_to_write), fp)
     else:

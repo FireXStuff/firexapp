@@ -1,10 +1,15 @@
 import os
 import unittest
+
 # noinspection PyProtectedMember
 from tempfile import NamedTemporaryFile, _get_candidate_names, gettempdir
 from threading import Timer
 
-from firexapp.common import delimit2list, poll_until_file_exist, poll_until_file_not_empty
+from firexapp.common import (
+    delimit2list,
+    poll_until_file_exist,
+    poll_until_file_not_empty,
+)
 
 
 class SplitListTests(unittest.TestCase):

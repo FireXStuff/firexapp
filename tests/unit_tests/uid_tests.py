@@ -1,4 +1,5 @@
 import unittest
+
 from firexapp.submit.uid import is_firex_id
 
 

@@ -1,8 +1,7 @@
-import sys
-
+import argparse
 import os
 import shutil
-import argparse
+import sys
 import unittest
 
 from xmlrunner.runner import XMLTestRunner
@@ -53,7 +52,7 @@ class FlowTestInfra(unittest.TestCase):
         if self.failures > self.max_acceptable_failures:
             print("-"*70)
             print("Run was terrible. Half have failed so far. Skipping the remaining test")
-            print("")
+            print()
             self._outcome.result.shouldStop = True
 
 

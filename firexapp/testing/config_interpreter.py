@@ -1,17 +1,19 @@
+import inspect
+import os
+import subprocess
 import sys
 import time
-import os
-import inspect
-import subprocess
 from datetime import datetime
-from typing import List
 
 from firexapp.reporters.json_reporter import FireXRunData
-from firexkit.resources import get_cloud_ci_install_config_path
+from firexapp.submit.install_configs import (
+    INSTALL_CONFIGS_ENV_NAME,
+    load_new_install_configs,
+)
 from firexapp.submit.submit import get_firex_id_from_output, get_log_dir_from_output
 from firexapp.submit.tracking_service import has_flame
-from firexapp.submit.install_configs import load_new_install_configs, INSTALL_CONFIGS_ENV_NAME
 from firexapp.testing.config_base import FlowTestConfiguration
+from firexkit.resources import get_cloud_ci_install_config_path
 
 
 class ConfigInterpreter:
@@ -48,7 +50,7 @@ class ConfigInterpreter:
         cmd = self.create_cmd(flow_test_config)
         self.run_executable(cmd, flow_test_config)
 
-    def create_cmd(self, flow_test_config: FlowTestConfiguration) -> List[str]:
+    def create_cmd(self, flow_test_config: FlowTestConfiguration) -> list[str]:
         # assemble options, adding/consolidating --external and --sync
         cmd = self.get_exe(flow_test_config)
         cmd += flow_test_config.initial_firex_options()
@@ -76,7 +78,7 @@ class ConfigInterpreter:
 
         return cmd
 
-    def get_exe(self, flow_test_config) -> List[str]:
+    def get_exe(self, flow_test_config) -> list[str]:
         import firexapp
         if self.coverage and not hasattr(flow_test_config, 'no_coverage'):
             return ["coverage", "run", "--branch", "--append", "-m", firexapp.__name__]
@@ -151,7 +153,7 @@ class ConfigInterpreter:
             verification_time = time.monotonic() - verification_start_time
             raise
         except Exception as e:
-            print('\tException: {}: {}'.format(type(e).__name__, e), file=sys.stderr)
+            print(f'\tException: {type(e).__name__}: {e}', file=sys.stderr)
             raise
         finally:
 

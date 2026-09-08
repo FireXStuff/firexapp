@@ -1,8 +1,18 @@
-from sqlalchemy import Table, Column, Integer, String, MetaData, ForeignKey, Boolean, Float, Text, Index
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+)
 from sqlalchemy.types import JSON
 
 from firexapp.events.model import RunMetadataColumn, TaskColumn
-
 
 UUID_LEN = 37
 HOSTNAME_LEN = 40

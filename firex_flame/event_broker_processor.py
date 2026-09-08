@@ -2,18 +2,16 @@
 Process events from Celery in to flame data model.
 """
 
-import logging
-from pathlib import Path
-import threading
-import traceback
 import json
+import logging
+import threading
 import time
-from typing import Optional
+import traceback
+from datetime import datetime, timedelta, timezone
 from io import TextIOWrapper
-from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
 from celery.events import EventReceiver
-
 
 from firex_flame.controller import FlameAppController
 from firex_flame.flame_helper import BrokerConsumerConfig
@@ -66,7 +64,7 @@ class BrokerEventConsumerThread(threading.Thread):
         threading.Thread.__init__(self, daemon=True)
         self.celery_app = celery_app
 
-        self.open_recording_file : Optional[TextIOWrapper]
+        self.open_recording_file : TextIOWrapper | None
         if recording_file:
             self.open_recording_file = open(recording_file, "a", encoding="utf-8")
         else:
@@ -78,9 +76,9 @@ class BrokerEventConsumerThread(threading.Thread):
         self.stopped_externally = False
         self.shutdown_handler = shutdown_handler
         self._event_count = 0
-        self.celery_event_receiver : Optional[EventReceiver] = None
+        self.celery_event_receiver : EventReceiver | None = None
 
-        self.receiver_ready_file : Optional[Path]
+        self.receiver_ready_file : Path | None
 
         if config.receiver_ready_file:
             self.receiver_ready_file = Path(config.receiver_ready_file)

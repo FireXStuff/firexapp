@@ -1,9 +1,9 @@
+import json
 import os
 import signal
+import sys
 import tempfile
 from argparse import ArgumentParser, RawTextHelpFormatter
-import json
-import sys
 
 from firexapp.submit.console import setup_console_logging
 from firexkit.permissions import DEFAULT_UMASK
@@ -22,41 +22,6 @@ def main():
         app = FireXBaseApp(submit_app=submit_app)
         ExitSignalHandler(app)
         app.run(sys_argv=sys.argv[1:])
-
-
-def get_app_task(
-    task_short_name: str,
-    all_tasks=None,
-):
-    task_short_name = task_short_name.strip()
-    if all_tasks is None:
-        from firexapp.engine.celery import app
-        all_tasks = app.tasks
-
-    # maybe it isn't a short name, but a long one
-    if task_short_name in all_tasks:
-        return all_tasks[task_short_name]
-
-    # Search for an exact match first
-    for key, value in all_tasks.items():
-        if key.split('.')[-1] == task_short_name:
-            return value
-
-    # Let's do a case-insensitive search
-    task_name_lower = task_short_name.lower()
-    for key, value in all_tasks.items():
-        if key.split('.')[-1].lower() == task_name_lower:
-            return value
-
-    # Can't find a match
-    from celery.exceptions import NotRegistered
-    raise NotRegistered(task_short_name)
-
-
-def get_app_tasks(tasks, all_tasks=None):
-    if type(tasks) is str:
-        tasks = tasks.split(",")
-    return [get_app_task(task, all_tasks) for task in tasks]
 
 
 class JsonContentNotList(Exception):

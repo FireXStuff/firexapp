@@ -2,7 +2,8 @@ import os
 import shutil
 import tempfile
 import unittest
-from firexapp.fileregistry import FileRegistry, KeyNotRegistered, KeyAlreadyRegistered
+
+from firexapp.fileregistry import FileRegistry, KeyAlreadyRegistered, KeyNotRegistered
 from firexapp.submit.uid import Uid
 
 

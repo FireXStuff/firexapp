@@ -1,10 +1,11 @@
 import uuid
+
 from celery.utils.log import get_task_logger
 
+from firexapp.engine.celery import app
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run
 from firexkit.chain import returns
 from firexkit.result import get_results
-from firexapp.engine.celery import app
 from firexkit.task import FireXTask
 
 logger = get_task_logger(__name__)

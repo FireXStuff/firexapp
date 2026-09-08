@@ -1,20 +1,28 @@
+import distutils.util
 import os
+import socket
 import subprocess
 import time
-import distutils.util
-import socket
-import time
 
-from firexapp.common import qualify_firex_bin, select_env_vars
-from firexapp.submit.submit import OptionalBoolean
-from firexapp.submit.tracking_service import TrackingService
+from firex_flame.flame_helper import (
+    DEFAULT_FLAME_TIMEOUT,
+    get_flame_debug_dir,
+    get_flame_redirect_file_path,
+    get_rec_file,
+    is_json_file,
+)
+from firex_flame.model_dumper import (
+    get_run_metadata_file,
+    is_dump_complete,
+    wait_and_get_flame_url,
+)
+from firexapp.common import qualify_firex_bin
+from firexapp.discovery import PkgVersionInfo
+from firexapp.engine.default_celery_config import FxEnvVars
 from firexapp.submit.console import setup_console_logging
 from firexapp.submit.install_configs import FireXInstallConfigs
-
-from firex_flame.flame_helper import DEFAULT_FLAME_TIMEOUT, get_flame_debug_dir, get_rec_file, is_json_file, \
-    get_flame_redirect_file_path
-from firex_flame.model_dumper import is_dump_complete, get_run_metadata_file, wait_and_get_flame_url
-from firexapp.discovery import PkgVersionInfo
+from firexapp.submit.submit import OptionalBoolean
+from firexapp.submit.tracking_service import TrackingService
 
 logger = setup_console_logging(__name__)
 
@@ -141,7 +149,7 @@ class FlameLauncher(TrackingService):
                 subprocess.Popen([qualify_firex_bin("firex_flame")] + flame_args,
                                  stdout=f, stderr=subprocess.STDOUT,
                                  close_fds=True,
-                                 env=select_env_vars(['PATH']),
+                                 env=FxEnvVars.select_minimal_fx_env_from_os_env(),
                                  preexec_fn=os.setpgrp, # Avoid SIGINTs sent to FireX by having own process group.
                                  cwd=flame_debug_dir,
                                  )

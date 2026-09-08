@@ -1,15 +1,15 @@
+import hashlib
 import json
 import logging
 import os
-from pathlib import Path
-import psutil
-import time
-import signal
-from dataclasses import dataclass
-from typing import Optional, List, Union
-import hashlib
 import platform
+import signal
 import socket
+import time
+from dataclasses import dataclass
+from pathlib import Path
+
+import psutil
 
 from firexapp.submit.uid import Uid
 
@@ -23,9 +23,9 @@ REVOKE_REASON_KEY = 'revoke_reason'
 class FlameServerConfig:
     webapp_port: int
     serve_logs_dir: bool
-    recording_file: Optional[str]
-    extra_task_dump_paths: List[str]
-    authed_user_request_path: List[str]
+    recording_file: str | None
+    extra_task_dump_paths: list[str]
+    authed_user_request_path: list[str]
 
 
 def get_flame_redirect_file_path(root_logs_dir):
@@ -170,7 +170,7 @@ def _both_instance(o1, o2, _type):
     return isinstance(o1, _type) and isinstance(o2, _type)
 
 
-def deep_merge(container1: Union[dict,list,set], container2: Union[dict,list,set]) -> dict:
+def deep_merge(container1: dict | list | set, container2: dict | list | set) -> dict:
     if _both_instance(container1, container2, list):
         # TODO: could deep merge nested dicts.
         return container1 + container2

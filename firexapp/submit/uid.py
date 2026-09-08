@@ -1,15 +1,15 @@
-from dataclasses import dataclass
-import os
 import datetime
-import pytz
-import tempfile
-from getpass import getuser
+import os
 import random
-import firexkit
-import shutil
 import re
-from typing import Optional
+import shutil
+import tempfile
+from dataclasses import dataclass
+from getpass import getuser
 
+import pytz
+
+import firexkit
 from firexapp.submit.arguments import whitelist_arguments
 from firexkit.permissions import DEFAULT_CHMOD_MODE
 
@@ -41,7 +41,7 @@ class FireXIdParts:
         return maybe_parts
 
 
-def get_firex_id_parts(maybe_firex_id: str) -> Optional[FireXIdParts]:
+def get_firex_id_parts(maybe_firex_id: str) -> FireXIdParts | None:
     m = FIREX_ID_REGEX.match(maybe_firex_id)
     if m:
         parts = m.groupdict()
@@ -61,7 +61,7 @@ def is_firex_id(maybe_firex_id: str) -> bool:
     return bool(get_firex_id_parts(maybe_firex_id))
 
 
-def find_all_firex_ids_from_str(input_str: Optional[str]) -> list[str]:
+def find_all_firex_ids_from_str(input_str: str | None) -> list[str]:
     if not input_str:
         return []
     # unique, keeping order from input.

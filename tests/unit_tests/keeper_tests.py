@@ -1,20 +1,27 @@
-import unittest
 import tempfile
+import unittest
 from multiprocessing import Process, Queue
-from unittest.mock import patch
-from sqlalchemy.exc import OperationalError
 from sqlite3 import OperationalError as SqlLiteOperationalError
+from unittest.mock import patch
 
-from firexkit.result import ChainInterruptedException
-from firexapp.events.model import RunStates, FireXRunMetadata
-from firex_keeper.keeper_event_consumer import KeeperThreadedEventWriter, WritingFireXRunDbManager
-from firex_keeper.persist import (
-    task_by_uuid_exp, task_uuid_complete_exp, FireXWaitQueryExceeded,
-    get_db_file, DEFAULT_MAX_RETRY_ATTEMPTS
-)
+from sqlalchemy.exc import OperationalError
+
 from firex_keeper import task_query
-from firex_keeper.keeper_helper import can_any_write
 from firex_keeper.db_model import firex_tasks
+from firex_keeper.keeper_event_consumer import (
+    KeeperThreadedEventWriter,
+    WritingFireXRunDbManager,
+)
+from firex_keeper.keeper_helper import can_any_write
+from firex_keeper.persist import (
+    DEFAULT_MAX_RETRY_ATTEMPTS,
+    FireXWaitQueryExceeded,
+    get_db_file,
+    task_by_uuid_exp,
+    task_uuid_complete_exp,
+)
+from firexapp.events.model import FireXRunMetadata, RunStates
+from firexkit.result import ChainInterruptedException
 
 
 def __write_events(logs_dir, events):

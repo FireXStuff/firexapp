@@ -1,27 +1,30 @@
-import os
 import abc
+import os
 import signal
 from time import sleep
 
 from celery.utils.log import get_task_logger
+from psutil import Process
 
-from firexapp.engine.celery import app
+import firexapp.submit.tracking_service
 from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.broker_manager.redis_manager import RedisManager
+from firexapp.celery_manager import CeleryManager
+from firexapp.common import wait_until
+from firexapp.engine.celery import app
+from firexapp.engine.default_celery_config import FxEnvVars
 from firexapp.fileregistry import FileRegistry
 from firexapp.submit.arguments import InputConverter
 from firexapp.submit.reporting import ReportGenerator, report
-from firexapp.submit.tracking_service import TrackingService, get_tracking_services
-import firexapp.submit.tracking_service
-from firexapp.submit.submit import get_log_dir_from_output, RUN_COMPLETE_REGISTRY_KEY
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run, assert_is_good_run
-from firexapp.celery_manager import CeleryManager
-from firexapp.common import wait_until
-from firexapp.tasks.root_tasks import get_configured_root_task
 from firexapp.submit.shutdown import launch_background_shutdown
-
-
-from psutil import Process
+from firexapp.submit.submit import RUN_COMPLETE_REGISTRY_KEY, get_log_dir_from_output
+from firexapp.submit.tracking_service import TrackingService, get_tracking_services
+from firexapp.tasks.root_tasks import get_configured_root_task
+from firexapp.testing.config_base import (
+    FlowTestConfiguration,
+    assert_is_bad_run,
+    assert_is_good_run,
+)
 
 logger = get_task_logger(__name__)
 
@@ -246,11 +249,16 @@ class AsyncNoBrokerLeakOnRootRevoke(NoBrokerLeakBase):
     def assert_expected_return_code(self, ret_value):
         assert_is_good_run(ret_value)
 
+import socket
+
 
 @app.task
 def terminate_celery(uid):
     worker_name = app.conf.primary_worker_name
-    pid = CeleryManager.get_pid(uid.logs_dir, worker_name)
+    pid = CeleryManager.get_celery_pid(
+        uid.logs_dir,
+        f'{worker_name}@{socket.gethostname()}',
+    )
     logger.info(f'Killing pid {pid} for {worker_name}')
     Process(pid).kill()
 
@@ -275,7 +283,10 @@ class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
         super().assert_expected_firex_output(cmd_output, cmd_err)
         logs_dir = get_log_dir_from_output(cmd_output)
         existing_procs = []
-        celery_pids_dir = CeleryManager(logs_dir=logs_dir, broker=get_broker(cmd_output)).celery_pids_dir
+        celery_pids_dir = CeleryManager(
+            logs_dir,
+            fx_env=FxEnvVars.create_no_task_exec_fx_env(),
+        ).celery_pids_dir
         for f in os.listdir(celery_pids_dir):
             existing_procs += CeleryManager._find_procs(os.path.join(celery_pids_dir, f))
 

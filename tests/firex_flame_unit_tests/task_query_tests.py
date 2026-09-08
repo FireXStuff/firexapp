@@ -1,10 +1,16 @@
 import os
 import unittest
 
-from firex_flame.flame_task_graph import FlameTaskGraph, _jsonpath_get_paths, TASK_ARGS, _container_from_json_paths_to_values
-from firexapp.events.model import ADDITIONAL_CHILDREN_KEY
-from firex_flame.controller import _convert_json_paths_in_query
 import jsonpath_ng
+
+from firex_flame.controller import _convert_json_paths_in_query
+from firex_flame.flame_task_graph import (
+    TASK_ARGS,
+    FlameTaskGraph,
+    _container_from_json_paths_to_values,
+    _jsonpath_get_paths,
+)
+from firexapp.events.model import ADDITIONAL_CHILDREN_KEY
 
 test_data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 

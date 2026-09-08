@@ -1,14 +1,12 @@
-from getpass import getuser
 import time
-from typing import Optional
-
-from firexkit.argument_conversion import SingleArgDecorator
-from firexkit.chain import InjectArgs, returns
-from firexkit.task import FireXTask, flame, flame_collapse
+from getpass import getuser
 
 from firexapp.engine.celery import app
 from firexapp.submit.arguments import InputConverter
 from firexapp.tasks.core_tasks import CopyBogKeys
+from firexkit.argument_conversion import SingleArgDecorator
+from firexkit.chain import InjectArgs, returns
+from firexkit.task import FireXTask, flame, flame_collapse
 
 
 @app.task
@@ -17,10 +15,9 @@ def nop() -> None:
 
 
 @app.task
-def sleep(sleep: Optional[int] = None) -> None:
+def sleep(sleep: int | None = None) -> None:
     if sleep:
         time.sleep(int(sleep))
-    return
 
 
 @app.task(returns='username')
@@ -70,9 +67,9 @@ def to_list(guests: str) -> list[str]:
 @app.task(returns=['amplified_message'])
 def amplify(to_amplify: str,
             upper: bool = True,
-            surround_str: Optional[str] = None,
-            underline_char: Optional[str] = None,
-            overline_char: Optional[str] = None) -> str:
+            surround_str: str | None = None,
+            underline_char: str | None = None,
+            overline_char: str | None = None) -> str:
     result = to_amplify
     if upper:
         result = to_amplify.upper()

@@ -2,9 +2,14 @@ import os
 import unittest
 from unittest.mock import patch
 
-from firexapp.plugins import _identify_duplicate_tasks, find_plugin_file, cdl2list, get_plugin_module_names, \
-    get_active_plugins, set_plugins_env, load_plugin_modules, merge_plugins, \
-    plugin_support_parser, _get_plugin_module_names_from_env, load_plugin_modules_from_env
+from firexapp.plugins import (
+    FxPluginRegistry,
+    _get_plugin_module_name,
+    _identify_duplicate_tasks,
+    get_active_plugins,
+    merge_plugins,
+    plugin_support_parser,
+)
 from firexkit.task import FireXTask
 
 
@@ -15,7 +20,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
         results = _identify_duplicate_tasks(all_tasks, ["external"])
 
         self.assertTrue(len(results) == 1)
-        this, that = tuple(results[0])
+        this, that = tuple(results['joey'])
         self.assertEqual(this, "microservice.tasks.joey")
         self.assertEqual(that, "external.joey")
 
@@ -42,7 +47,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
                      "external.joey"]
         results = _identify_duplicate_tasks(all_tasks, ["external"])
         self.assertTrue(len(results) == 1)
-        this, that = tuple(results[0])
+        this, that = tuple(results['joey'])
         self.assertEqual(this, "microservice.tasks.joey")
         self.assertEqual(that, "external.joey")
 
@@ -51,7 +56,7 @@ class DuplicateIdentificationTests(unittest.TestCase):
                      "external.joey"]
         results = _identify_duplicate_tasks(all_tasks, ["microservice.tasks"])
         self.assertTrue(len(results) == 1)
-        this, that = tuple(results[0])
+        this, that = tuple(results['joey'])
         self.assertEqual(this, "external.joey")
         self.assertEqual(that, "microservice.tasks.joey")
 
@@ -60,36 +65,47 @@ class DuplicateIdentificationTests(unittest.TestCase):
                      "microservice.tasks.joey"]
         results = _identify_duplicate_tasks(all_tasks, ["microservice.tasks"])
         self.assertTrue(len(results) == 1)
-        this, that = tuple(results[0])
+        this, that = tuple(results['joey'])
         self.assertEqual(this, "external.joey")
         self.assertEqual(that, "microservice.tasks.joey")
 
         # Multiple priority modules. Last is highest priority
         all_tasks = ['celery_queues_tests.success_test_worker', 'RunOnMcAndWorkerTestConfig_mock.success_test_worker']
         results = _identify_duplicate_tasks(all_tasks, ['celery_queues_tests', 'RunOnMcAndWorkerTestConfig_mock'])
-        this, that = tuple(results[0])
+        this, that = tuple(results['success_test_worker'])
         self.assertEqual(this, "celery_queues_tests.success_test_worker")
         self.assertEqual(that, "RunOnMcAndWorkerTestConfig_mock.success_test_worker")
 
         # Multiple priority modules. Last is highest priority, even if the order of the tasks is reversed
         all_tasks.reverse()
         results = _identify_duplicate_tasks(all_tasks, ['celery_queues_tests', 'RunOnMcAndWorkerTestConfig_mock'])
-        this, that = tuple(results[0])
+        this, that = tuple(results['success_test_worker'])
         self.assertEqual(this, "celery_queues_tests.success_test_worker")
         self.assertEqual(that, "RunOnMcAndWorkerTestConfig_mock.success_test_worker")
+
+    def test_identify_duplicate_tasks_registration_order_tie_break(self):
+        # Neither module is a known plugin module: the most recently registered
+        # task is the dominant one.
+        all_tasks = ["microservice.tasks.joey", "some.imported.module.joey"]
+        results = _identify_duplicate_tasks(all_tasks, [])
+        self.assertEqual(results['joey'][-1], "some.imported.module.joey")
+
+        all_tasks.reverse()
+        results = _identify_duplicate_tasks(all_tasks, [])
+        self.assertEqual(results['joey'][-1], "microservice.tasks.joey")
 
     def test_identify_dup_of_dup(self):
         all_tasks = ["original.joey",
                      "first.external.joey",
                      "second.external.joey"]
-        for x in range(0, 2):
+        for x in range(2):
             with self.subTest(str(x)):
                 results = _identify_duplicate_tasks(all_tasks, ['first.external', 'second.external'])
                 self.assertEqual(len(results), 1)
-                self.assertEqual(len(results[0]), 3)
-                self.assertTrue("original" in results[0][0])
-                self.assertTrue("first" in results[0][1])
-                self.assertTrue("second" in results[0][2])
+                self.assertEqual(len(results['joey']), 3)
+                self.assertTrue("original" in results['joey'][0])
+                self.assertTrue("first" in results['joey'][1])
+                self.assertTrue("second" in results['joey'][2])
             all_tasks.reverse()
 
     def test_identify_duplicate_tasks_odd(self):
@@ -100,58 +116,61 @@ class DuplicateIdentificationTests(unittest.TestCase):
         results = _identify_duplicate_tasks(all_tasks, ["external"])
 
         self.assertTrue(len(results) == 1)
-        this, that = tuple(results[0])
+        this, that = tuple(results['joey'])
         self.assertEqual(this, "microservice.tasks.joey")
         self.assertEqual(that, "external.joey")
 
 
 class ResolvePathTests(unittest.TestCase):
     def test_absolute(self):
-        self.assertEqual(__file__, find_plugin_file(__file__))
+        self.assertEqual(__file__, FxPluginRegistry.find_plugin_file(__file__))
 
     def test_relative(self):
         old_cwd = os.getcwd()
         try:
             filename = os.path.basename(__file__)
             os.chdir(os.path.dirname(__file__))
-            self.assertEqual(__file__, find_plugin_file(filename))
+            self.assertEqual(__file__, FxPluginRegistry.find_plugin_file(filename))
         finally:
             os.chdir(old_cwd)
 
     def test_fail_to_find(self):
         with self.assertRaises(FileNotFoundError):
-            find_plugin_file("complete/gibberish.py")
+            FxPluginRegistry.find_plugin_file("complete/gibberish.py")
 
     def test_resolve_list(self):
         current_dir = os.path.dirname(__file__)
         files = [os.path.join(current_dir, f) for f in os.listdir(current_dir) if os.path.isfile(f)]
-        self.assertEqual(len(files), len(cdl2list(",".join(files))))
-        self.assertEqual([], cdl2list(None))
+        self.assertEqual(len(files), len(FxPluginRegistry.resolve_plugin_paths(",".join(files))))
+        self.assertEqual([], FxPluginRegistry.resolve_plugin_paths(None))
 
     def test_get_plugin_modules(self):
-        self.assertFalse(get_plugin_module_names(None))
-        self.assertTrue(self.__module__ in get_plugin_module_names(__file__))
+        self.assertFalse(FxPluginRegistry.resolve_plugin_paths(None))
+
+        files = FxPluginRegistry.resolve_plugin_paths(__file__)
+        self.assertTrue(self.__module__ in [_get_plugin_module_name(f) for f in files])
 
         with self.assertRaises(FileNotFoundError):
-            self.assertFalse(get_plugin_module_names("complete/gibberish.py"))
+            FxPluginRegistry.resolve_plugin_paths("complete/gibberish.py")
 
     @patch.dict(os.environ, {'firex_plugins': ''})
     def test_plugin_env(self):
-        self.assertFalse(_get_plugin_module_names_from_env())
-        set_plugins_env("")
-        self.assertFalse(load_plugin_modules_from_env())
-        set_plugins_env(__file__)
-        self.assertEqual(get_active_plugins(), __file__)
-        load_plugin_modules(__file__)
-
         from firexapp.engine.celery import app as test_app
+        plugin_registry = test_app.fx_plugins_reg
+
+        self.assertFalse(get_active_plugins())
+        FxPluginRegistry.set_plugins_env("")
+        plugin_registry.load_plugin_modules(test_app, get_active_plugins())
+        FxPluginRegistry.set_plugins_env(__file__)
+        self.assertEqual(get_active_plugins(), __file__)
+        plugin_registry.load_plugin_modules(test_app, __file__)
 
         @test_app.task(base=FireXTask)
         def override_me():
             pass  # pragma: no cover
 
         mock = os.path.join(os.path.dirname(__file__), "data", "plugins", "mock_plugin.py")
-        load_plugin_modules(mock)
+        plugin_registry.load_plugin_modules(test_app, mock)
         # original registration is now pointing to overrider
         self.assertEqual(test_app.tasks['plugins_tests.override_me'],
                          test_app.tasks['mock_plugin.override_me'])
@@ -163,12 +182,34 @@ class ResolvePathTests(unittest.TestCase):
 
         # name matches preexisting python module
         # noinspection PyUnresolvedReferences
-        import subprocess
         sp = os.path.join(os.path.dirname(__file__), "data", "plugins", "subprocess.py")
-        load_plugin_modules(sp)
+        plugin_registry.load_plugin_modules(test_app, sp)
 
         new = os.path.join(os.path.dirname(__file__), "data", "plugins", "new.py")
-        load_plugin_modules(new)
+        plugin_registry.load_plugin_modules(test_app, new)
+
+    @patch.dict(os.environ, {'firex_plugins': ''})
+    def test_indirectly_imported_plugin_module_overrides(self):
+        # A plugin file commonly only imports the module that defines the overriding
+        # microservices, so that imported module must be given plugin priority too.
+        from firexapp.engine.celery import app as test_app
+        plugin_registry = test_app.fx_plugins_reg
+
+        @test_app.task(base=FireXTask)
+        def indirect_override_me():
+            pass  # pragma: no cover
+
+        plugin = os.path.join(os.path.dirname(__file__), "data", "plugins", "indirect_override_plugin.py")
+        priority_module_names = plugin_registry._import_plugin_files(test_app, plugin)
+        self.assertIn('indirect_override_defs', priority_module_names)
+        # the plugin file's own module outranks the modules it imported
+        self.assertEqual(priority_module_names[-1], 'indirect_override_plugin')
+
+        plugin_registry._unregister_duplicate_tasks(test_app, priority_module_names)
+        self.assertEqual(test_app.tasks['plugins_tests.indirect_override_me'],
+                         test_app.tasks['indirect_override_defs.indirect_override_me'])
+        self.assertEqual(test_app.tasks['plugins_tests.indirect_override_me'].orig,
+                         test_app.tasks['plugins_tests.indirect_override_me_orig'])
 
 
 class MergePluginsTests(unittest.TestCase):

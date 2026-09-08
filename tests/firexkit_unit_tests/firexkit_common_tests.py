@@ -1,6 +1,6 @@
-from html.parser import HTMLParser
-from collections import OrderedDict
 import unittest
+from collections import OrderedDict
+from html.parser import HTMLParser
 
 from firexkit.firexkit_common import get_link
 
@@ -8,7 +8,7 @@ from firexkit.firexkit_common import get_link
 class SimpleHtmlParser(HTMLParser):
 
     def __init__(self, html_str):
-        super(SimpleHtmlParser, self).__init__()
+        super().__init__()
         self.start_tag, self.start_tag_attrs, self.data = None, None, None
         self.feed(html_str)
 

@@ -1,29 +1,30 @@
 # hack Celery AsyncResult generics e.g.AsyncResult[Optional[str]]
 from __future__ import annotations
 
-import uuid
-import time
-from collections import namedtuple, deque
 import contextlib
-from pprint import pformat
-from typing import (
-    Union, Optional, Iterable, Any, Callable, TypeVar,
-    Generator, ClassVar, Generic, Iterator, Sequence
-)
 import dataclasses
 import socket
+import time
+import uuid
+from collections import deque, namedtuple
+from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
+from pprint import pformat
+from typing import (
+    Any,
+    ClassVar,
+    Generic,
+    TypeVar,
+)
 
-from celery.app.base import Celery
-from celery.result import AsyncResult
-from celery.states import FAILURE, REVOKED, PENDING, STARTED, RECEIVED, RETRY, SUCCESS, READY_STATES
-from celery.utils.log import get_task_logger
-from celery.local import PromiseProxy
 import vine
+from celery.local import PromiseProxy
+from celery.result import AsyncResult
+from celery.states import FAILURE, PENDING, RECEIVED, RETRY, REVOKED, STARTED, SUCCESS
+from celery.utils.log import get_task_logger
 
-from firexkit.broker import handle_broker_timeout
+import firexkit.broker
 from firexkit import inspect as fx_inspect
 from firexkit.revoke import RevokedRequests
-
 
 RETURN_KEYS_KEY = '__task_return_keys'
 DYNAMIC_RETURN = '__DYNAMIC_RETURN__'
@@ -139,14 +140,6 @@ _DEFAULT_AR_QUERY_TIMEOUT = 15 * 60
 _DEFAULT_AR_RETRY_DELAY = 1
 
 
-def _backend_result_to_str(backend_res: Union[None, bytes, bytearray]) -> str:
-    if backend_res is None:
-        return ''
-    return backend_res.decode()
-
-
-_FX_STARTED_STATES = set(READY_STATES) | {STARTED, RETRY}
-
 WaitLoopCallBack = namedtuple('WaitLoopCallBack', ['func', 'frequency', 'kwargs'])
 
 ARR = TypeVar('ARR')
@@ -155,23 +148,23 @@ R = TypeVar('R')
 class FxAsyncResult(AsyncResult, Generic[ARR]):
 
     # tracked only if enable_ar_tracking is set
-    _ARS_BY_ID : ClassVar[Optional[dict[str, 'FxAsyncResult']]] = None
+    _ARS_BY_ID : ClassVar[dict[str, FxAsyncResult] | None] = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self._fx_name : Optional[str] = None
-        self._fx_parent : Optional[FxAsyncResult] = None
-        self._fx_parent_id : Optional[str] = None
-        self._fx_queue : Optional[str] = None
-        self._fx_terminal_state: Optional[str] = None
-        self._fx_seen_queue: Optional[str] = None
-        self._fx_hostname: Optional[str] = None
+        self._fx_name : str | None = None
+        self._fx_parent : FxAsyncResult | None = None
+        self._fx_parent_id : str | None = None
+        self._fx_queue : str | None = None
+        self._fx_terminal_state: str | None = None
+        self._fx_seen_queue: str | None = None
+        self._fx_hostname: str | None = None
 
         # This is the parent if the AR is part of a chain,
         # it is not the parent task the caused this AR to be created.
-        self.parent : Optional[FxAsyncResult]
-        self.children : Optional[Iterable[FxAsyncResult]]
+        self.parent : FxAsyncResult | None
+        self.children : Iterable[FxAsyncResult] | None
 
         # AsyncResult objects cannot be in memory after the broker (i.e. backend) shutdowns, otherwise errors are
         # produced when they are garbage collected. We therefore track AsyncResults so
@@ -196,7 +189,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         self,
         timeout: int=_DEFAULT_AR_QUERY_TIMEOUT,
         retry_delay: int=_DEFAULT_AR_RETRY_DELAY,
-    ) -> Optional[str]:
+    ) -> str | None:
         if self._fx_name is None:
             if b_name := self.fx_backend_get_name(
                 default='',
@@ -209,9 +202,11 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
     def fx_logging_name(self) -> str:
         return f'{self.fx_backend_get_name("") or ""}[{self.id}]'
 
-    def fx_get_hostname(self) -> Optional[str]:
+    def fx_get_hostname(self) -> str | None:
         if self._fx_hostname is None:
-            info = handle_broker_timeout(lambda r: r.info, args=(self,))
+            info = firexkit.broker.handle_broker_timeout(
+                lambda r: r.info, args=(self,)
+            )
             try:
                 # NOTE: if the task completes after the check for state right above but before the call
                 # to handle_broker_timeout(), the type of 'info' is whatever the task returned, not the internal
@@ -240,13 +235,11 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         default: str='',
     ) -> str:
         try:
-            maybe_name_bytes = handle_broker_timeout(
-                self.app.backend.client.hget,
-                args=(self.id, key_name),
+            return self.app.backend_hget_task_attr(
+                self.id, key_name,
                 timeout=timeout,
                 retry_delay=retry_delay,
             )
-            return _backend_result_to_str(maybe_name_bytes)
         except AttributeError:
             return default
 
@@ -287,7 +280,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
         return self._fx_queue or ''
 
-    def get_chain_head(self) -> 'FxAsyncResult':
+    def get_chain_head(self) -> FxAsyncResult:
         return list(self.get_chain_ancestors())[-1]
 
     def fx_seen_queue(self) -> bool:
@@ -296,7 +289,10 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             logger.debug(f'Cannot get task queue for {self.fx_logging_name()}; assuming task is alive.')
             return False
 
-        if not _was_queue_ready(self.app, task_queue):
+        if not self.app.backend.client.sismember(
+            firexkit.broker.FX_QUEUES_KEY,
+            task_queue,
+        ):
             logger.debug(f'Queue "{task_queue}" for {self.fx_logging_name()} not seen yet; assuming task is alive.')
             return False
         return True
@@ -305,9 +301,9 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         self,
         timeout: int=_DEFAULT_AR_QUERY_TIMEOUT,
         retry_delay: int=_DEFAULT_AR_RETRY_DELAY,
-    ) -> Optional['FxAsyncResult']:
+    ) -> FxAsyncResult | None:
         if self._fx_parent is None:
-            self._fx_parent = handle_broker_timeout(
+            self._fx_parent = firexkit.broker.handle_broker_timeout(
                 getattr,
                 args=(self, 'parent'),
                 timeout=timeout,
@@ -326,7 +322,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         timeout: int=_DEFAULT_AR_QUERY_TIMEOUT,
         retry_delay: int=_DEFAULT_AR_RETRY_DELAY,
     ) -> str:
-        return self._fx_terminal_state or handle_broker_timeout(
+        return self._fx_terminal_state or firexkit.broker.handle_broker_timeout(
             getattr,
             args=(self, 'state'),
             timeout=timeout,
@@ -362,7 +358,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             return True
         return False
 
-    def fx_get_parent_id(self) -> Optional[str]:
+    def fx_get_parent_id(self) -> str | None:
         if self._fx_parent_id is None:
             self._fx_parent_id =  self._fx_get_backend_attr(
                 '_fx_parent_id',
@@ -374,7 +370,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
     @contextlib.contextmanager
     def update_parent_task_blocked_states(
         self,
-        parent_id: Optional[str]=None,
+        parent_id: str | None=None,
     ):
         if not parent_id:
             if not self.fx_is_ready():
@@ -409,7 +405,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         timeout=_DEFAULT_AR_QUERY_TIMEOUT,
         retry_delay=_DEFAULT_AR_RETRY_DELAY,
     ) -> R:
-        return handle_broker_timeout(
+        return firexkit.broker.handle_broker_timeout(
             callable_func,
             args=args,
             timeout=timeout,
@@ -418,9 +414,9 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
     def get_chain_ancestors(
         self,
-        max_parent_id: Optional[str]=None,
-    ) -> Generator['FxAsyncResult', None, None]:
-        parent : Optional['FxAsyncResult'] = self
+        max_parent_id: str | None=None,
+    ) -> Generator[FxAsyncResult, None, None]:
+        parent : FxAsyncResult | None = self
         seen_ids : set[str] = set()
         while (
             parent
@@ -436,8 +432,8 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
     def get_chain_ancestors_as_many(
         self,
-        max_parent_id: Optional[str]=None,
-    ) -> 'ManyFxAsyncResults':
+        max_parent_id: str | None=None,
+    ) -> ManyFxAsyncResults:
         return ManyFxAsyncResults.fx_ars_from_list(
             list(self.get_chain_ancestors(max_parent_id))
         )
@@ -456,7 +452,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             self.successful,
         ) or False
 
-    def _fx_raw_result(self) -> Union[Exception, dict[str, Any]]:
+    def _fx_raw_result(self) -> Exception | dict[str, Any]:
         return self._handle_broker_timeout(
             getattr,
             args=(self, 'result'),
@@ -466,18 +462,29 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         if not self.fx_is_successful():
             raise ValueError(f'Cannot get success result of {self.fx_logging_name()} with state {self.fx_get_state()}')
         r = self._fx_raw_result()
-        assert not isinstance(r, Exception), f'{self.fx_logging_name()} with state {elf.fx_get_state()} unexpectedly had result: {r}'
+        assert not isinstance(r, Exception), f'{self.fx_logging_name()} with state {self.fx_get_state()} unexpectedly had result: {r}'
         return r
 
-    def fx_exception_result(self) -> Optional[Exception]:
+    def fx_exception_result(self) -> Exception | None:
         ex = self._fx_raw_result()
         return ex if isinstance(ex, Exception) else None
 
     def fx_forget(self):
         logger.debug(f'Forgetting result: {self.fx_logging_name()}')
         self._cache = None
+        self.backend.client.sadd(
+            firexkit.broker.FX_FORGOTTEN_AR_IDS_KEY,
+            self.id)
         self.backend.forget(self.id)
         (self._ARS_BY_ID or {}).pop(self.id, None)
+
+    def fx_is_forgotten(self) -> bool:
+        return bool(
+            self.app.backend.client.sismember(
+                firexkit.broker.FX_FORGOTTEN_AR_IDS_KEY,
+                self.id,
+            )
+        )
 
     def _handle_fx_ready(self) -> str:
         # If failure happened in a chain, raise from the failing task within the chain
@@ -504,12 +511,12 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
     def fx_wait_no_state_update(
         self,
-        max_wait: Optional[float]=None,
+        max_wait: float | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         log_msg: bool=True,
-        start_time: Optional[float]=None,
+        start_time: float | None=None,
         max_sleep: float=_SLEEP_BETWEEN_ITERATIONS * 20 * 15,  # Somewhat arbitrary,
-        last_callback_time: Optional[dict[Callable, float]]=None,
+        last_callback_time: dict[Callable, float] | None=None,
         raise_on_failure=True,
     ) -> str:
         """
@@ -524,7 +531,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         if last_callback_time is None:
             last_callback_time = {c.func: start_time for c in callbacks}
 
-        result_state : Optional[str] = None
+        result_state : str | None = None
         try:
             _poll_for_ar_complete(
                 self,
@@ -550,14 +557,14 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
     def fx_wait(
         self,
-        max_wait: Optional[float]=None,
+        max_wait: float | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         log_msg: bool=True,
-        start_time: Optional[float]=None,
+        start_time: float | None=None,
         max_sleep: float=_SLEEP_BETWEEN_ITERATIONS * 20 * 15,  # Somewhat arbitrary,
-        last_callback_time: Optional[dict[Callable, float]]=None,
+        last_callback_time: dict[Callable, float] | None=None,
         raise_on_failure: bool=True,
-        parent_id: Optional[str]=None,
+        parent_id: str | None=None,
     ) -> str:
         with self.update_parent_task_blocked_states(parent_id=parent_id):
             return self.fx_wait_no_state_update(
@@ -575,7 +582,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         return_keys: Sequence[str],
         raise_on_failure=True,
     ) -> tuple[Any, ...]:
-        assert return_keys, f'No return_keys supplied'
+        assert return_keys, 'No return_keys supplied'
         if not self.fx_is_ready():
             self.fx_wait(raise_on_failure=raise_on_failure)
         else:
@@ -599,10 +606,10 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
     def legacy_extract_results(
         self,
-        return_keys: Union[str, Sequence[str]],
+        return_keys: str | Sequence[str],
         return_keys_only: bool = False,
         merge_children_results: bool = True,
-        parent_id: Optional[str]=None,
+        parent_id: str | None=None,
         extract_from_parents=True,
     ) -> dict[str, Any]: # FIXME: split return types
         return get_results(
@@ -614,18 +621,21 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             extract_from_parents=extract_from_parents,
         )
 
+    def set_fx_forget(self):
+        self.app.backend_hset_task_attr(self.id, '_fx_forget', 'True')
+
 
 class FxEagerResult(FxAsyncResult):
     """Taken from Celery EagerResult"""
 
     def __init__(
         self,
-        id: Optional[str]=None,
+        id: str | None=None,
         ret_value: Any=None,
-        state: Optional[str]=None,
+        state: str | None=None,
         app=None,
         traceback=None,
-        fx_ar: Optional[FxAsyncResult]=None,
+        fx_ar: FxAsyncResult | None=None,
     ):
         if fx_ar is not None:
             self.id = fx_ar.id
@@ -640,12 +650,12 @@ class FxEagerResult(FxAsyncResult):
         else:
             self.id = id or str(uuid.uuid4())
             self._result = ret_value
-            assert state, f'state must be supplied when fx_ar is not'
+            assert state, 'state must be supplied when fx_ar is not'
             self._state = state
             self._traceback = traceback
             from firexkit.firex_celery import FireXCelery
-            fx_app : Optional[FireXCelery] = app
-            assert fx_app, f'app must be supplied when fx_ar is not'
+            fx_app : FireXCelery | None = app
+            assert fx_app, 'app must be supplied when fx_ar is not'
             self.app = fx_app
 
         self.on_ready = vine.promise()
@@ -711,34 +721,30 @@ class ManyFxAsyncResults(Generic[K]):
     @classmethod
     def create_fx_ars(
         cls,
-        results: Union[
-            FxAsyncResult,
-            list[FxAsyncResult],
-            None,
-        ],
+        results: FxAsyncResult | list[FxAsyncResult] | None,
     ):
         if isinstance(results, FxAsyncResult):
             results = [results]
         return cls.fx_ars_from_list(results or [])
 
     @classmethod
-    def fx_ars_from_list(cls, fx_ars: Iterable[FxAsyncResult]) -> 'ManyFxAsyncResults[int]':
+    def fx_ars_from_list(cls, fx_ars: Iterable[FxAsyncResult]) -> ManyFxAsyncResults[int]:
         return ManyFxAsyncResults(
             {i: ar for i, ar in enumerate(fx_ars)}
         )
 
     @classmethod
-    def fx_ars_from_dict(cls, fx_ars_by_key: dict[K, FxAsyncResult]) -> 'ManyFxAsyncResults[K]':
+    def fx_ars_from_dict(cls, fx_ars_by_key: dict[K, FxAsyncResult]) -> ManyFxAsyncResults[K]:
         return ManyFxAsyncResults(dict(fx_ars_by_key))
 
     @classmethod
-    def fx_ars_from_single(cls, fx_ar: FxAsyncResult) -> 'ManyFxAsyncResults[int]':
+    def fx_ars_from_single(cls, fx_ar: FxAsyncResult) -> ManyFxAsyncResults[int]:
         return ManyFxAsyncResults({0: fx_ar})
 
     def __str__(self):
         return ", ".join(r.fx_logging_name() for r in self)
 
-    def _get_running(self) -> 'ManyFxAsyncResults':
+    def _get_running(self) -> ManyFxAsyncResults:
         return ManyFxAsyncResults(
             {
                 k: ar
@@ -762,7 +768,7 @@ class ManyFxAsyncResults(Generic[K]):
     def as_dict(self) -> dict[K, FxAsyncResult]:
         return dict(self._fx_ars_by_key)
 
-    def revoke_non_ready(self, max_wait: int=2*60) -> 'ManyFxAsyncResults':
+    def revoke_non_ready(self, max_wait: int=2*60) -> ManyFxAsyncResults:
         """
             returns FxAsyncResult that were revoked.
         """
@@ -790,7 +796,7 @@ class ManyFxAsyncResults(Generic[K]):
 
     def wait_for_any(
         self,
-        max_wait: Optional[float]=None,
+        max_wait: float | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         raise_on_failure: bool=True,
     ) -> FxAsyncResult:
@@ -804,8 +810,8 @@ class ManyFxAsyncResults(Generic[K]):
 
     def get_as_completed(
         self,
-        max_wait: Optional[float]=None,
-        poll_max_wait: Optional[float]=None,
+        max_wait: float | None=None,
+        poll_max_wait: float | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         raise_on_failure: bool=True,
     ) -> Generator[FxAsyncResult, None, None]:
@@ -845,11 +851,11 @@ class ManyFxAsyncResults(Generic[K]):
 
     def wait_for_all(
         self,
-        max_wait: Optional[float]=None,
+        max_wait: float | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         log_msg: bool=True,
         raise_on_failure: bool=True,
-    ) -> 'ManyFxAsyncResults[K]':
+    ) -> ManyFxAsyncResults[K]:
         failures : list[Exception] = []
         revokes : list[Exception] = []
         start_time = time.monotonic()
@@ -873,20 +879,19 @@ class ManyFxAsyncResults(Generic[K]):
                         revokes.append(e)
                     except ChainInterruptedException as e:
                         failures.append(e)
+
         if revokes:
             raise revokes[0]
 
-        if (
-            failures
-            and raise_on_failure
-        ):
+        if failures and raise_on_failure:
             if len(failures) == 1:
                 raise failures[0]
             elif failures:
                 raise MultipleFailuresException(
                     task_ids=tuple(
-                        str(getattr(e, 'task_id'))
-                        for e in failures if hasattr(e, 'task_id')
+                        str(task_id)
+                        for e in failures
+                        if ( task_id := getattr(e, 'task_id', None) )
                     ),
                     failures=tuple(failures),
                 )
@@ -920,9 +925,6 @@ class ManyFxAsyncResults(Generic[K]):
             return False
         return True
 
-
-def _was_queue_ready(app: Celery, queue_name: str):
-    return app.backend.client.sismember('QUEUES', queue_name)
 
 S = TypeVar('S')
 
@@ -961,7 +963,7 @@ def find_unsuccessful_in_chain(
 
 
 def _check_for_failure_in_parents(result: FxAsyncResult):
-    failed_ancestor : Optional[FxAsyncResult] = None
+    failed_ancestor : FxAsyncResult | None = None
     ancestors = result.get_chain_ancestors()
     next(ancestors, None)  # get_chain_ancestors() yields result itself first; we only want its parents here.
     for ancestor in ancestors:
@@ -1016,7 +1018,7 @@ def _is_worker_alive(result: FxAsyncResult) -> bool:
                 logger.debug(f'Cannot get run info for {result.fx_logging_name()}; assuming task is alive. hostname: {hostname}')
                 return True
 
-            inspected_task : Optional[fx_inspect.InspectedTask] = fx_inspect.InspectedTask.inspect_query_single_task(
+            inspected_task : fx_inspect.InspectedTask | None = fx_inspect.InspectedTask.inspect_query_single_task(
                 celery_app=result.app,
                 query_task_id=result.id,
                 destinations=[hostname],
@@ -1034,7 +1036,7 @@ def _is_worker_alive(result: FxAsyncResult) -> bool:
                     (t for t in hostname_active_tasks if t.id == result.id),
                     None,
                 )
-                hostname_reserved_tasks : Optional[list[fx_inspect.InspectedTask]]
+                hostname_reserved_tasks : list[fx_inspect.InspectedTask] | None
                 if not inspected_task:
                     hostname_reserved_tasks = fx_inspect.InspectedTask.inspect_reserved_single_destination(
                         celery_app=result.app,
@@ -1099,7 +1101,7 @@ def _is_worker_alive(result: FxAsyncResult) -> bool:
 def _poll_for_ar_complete(
     result: FxAsyncResult,
     start_time: float,
-    max_wait: Optional[float],
+    max_wait: float | None,
     max_sleep: float,
     callbacks: Iterable[WaitLoopCallBack],
     last_callback_time: dict[Callable, float],
@@ -1159,8 +1161,8 @@ def _sleep_exponential_backoff(
 
 def wait_on_async_results(
     # FIXME: crazy type sig
-    results: Union[FxAsyncResult, list[FxAsyncResult], None],
-    max_wait: Optional[float]=None,
+    results: FxAsyncResult | list[FxAsyncResult] | None,
+    max_wait: float | None=None,
     callbacks: Iterable[WaitLoopCallBack] = tuple(),
     log_msg: bool=True,
     raise_exception_on_failure: bool=True,
@@ -1200,7 +1202,7 @@ class ChainRevokedException(ChainException):
     def __init__(self, task_id=None, task_name=None):
         self.task_id = task_id
         self.task_name = task_name
-        super(ChainRevokedException, self).__init__(task_id, task_name)
+        super().__init__(task_id, task_name)
 
     def __str__(self):
         message = self.MESSAGE
@@ -1222,7 +1224,7 @@ class ChainInterruptedException(ChainException):
         self.task_id = task_id
         self.task_name = task_name
         self.__cause__ = cause
-        super(ChainInterruptedException, self).__init__(task_id, task_name, cause)
+        super().__init__(task_id, task_name, cause)
 
     def __str__(self):
         message = self.MESSAGE
@@ -1324,7 +1326,7 @@ def _get_all_results(
 
 def _results2tuple(
     results: dict[str, Any],
-    return_keys: Union[str, Sequence[str]],
+    return_keys: str | Sequence[str],
 ) -> tuple[Any, ...]:
     if isinstance(return_keys, str):
         return_keys = tuple([return_keys])
@@ -1339,7 +1341,7 @@ def _results2tuple(
 
 def _get_results_dict(
     result: FxAsyncResult,
-    parent_id: Optional[str]=None,
+    parent_id: str | None=None,
     return_keys_only=True,
     merge_children_results=False,
     extract_from_parents=True,
@@ -1387,7 +1389,7 @@ def _is_dict_results_return(return_keys: Sequence[str]) -> bool:
 def _get_results_tuple(
     result: FxAsyncResult,
     return_keys: Sequence[str],
-    parent_id: Optional[str]=None,
+    parent_id: str | None=None,
     return_keys_only=True,
     merge_children_results=False,
     extract_from_parents=True,
@@ -1407,8 +1409,8 @@ def _get_results_tuple(
 
 def get_results(
     result: FxAsyncResult,
-    return_keys: Union[str, Sequence[str]]=tuple(),
-    parent_id: Optional[str]=None,
+    return_keys: str | Sequence[str]=tuple(),
+    parent_id: str | None=None,
     return_keys_only=True,
     merge_children_results=False,
     extract_from_parents=True,
@@ -1450,13 +1452,13 @@ def get_results(
 def get_results_with_default(
     result: AsyncResult,
     default=None,
-    error_msg: Optional[str]=None,
+    error_msg: str | None=None,
     **kwargs,
 ):
     if result.successful():
         return get_results(result, **kwargs)
     else:
-        if isinstance(getattr(result, 'result'), Exception):
+        if isinstance(result.result, Exception):
             exc_info = result.result
         else:
             exc_info = None
@@ -1530,8 +1532,8 @@ def _forget_subtree_results(
 
 def forget_chain_results(
     result: FxAsyncResult,
-    do_not_forget_nodes: Optional[Iterable[str]],
-    skip_subtree_nodes: Optional[Iterable[str]],
+    do_not_forget_nodes: Iterable[str] | None,
+    skip_subtree_nodes: Iterable[str] | None,
 ):
     """
     Forget results of the tree rooted at the "chain-head" of result, while skipping subtrees in skip_subtree_nodes,

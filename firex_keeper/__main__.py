@@ -1,18 +1,18 @@
 import argparse
 import logging
 import os
-import sys
 import signal
+import sys
 
 # Prevent dependencies from taking module loading hit of pkg_resources.
 sys.modules["pkg_resources"] = type('noop', (object,), {})
 
 from celery.app.base import Celery
 
-from firexapp.broker_manager.broker_factory import RedisManager
-from firexapp.events.model import FireXRunMetadata
 from firex_keeper.keeper_event_consumer import TaskDatabaseAggregatorThread
 from firex_keeper.keeper_helper import get_keeper_dir
+from firexapp.broker_manager.broker_factory import RedisManager
+from firexapp.events.model import FireXRunMetadata
 
 logger = logging.getLogger(__name__)
 

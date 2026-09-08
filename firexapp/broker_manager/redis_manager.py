@@ -1,23 +1,23 @@
 import json
+import logging
 import os
+import platform
 import secrets
-import time
 import shlex
 import subprocess
-import platform
+import time
 from functools import partial
-from tempfile import TemporaryDirectory
-from typing import Optional
-from socket import gethostname
-from urllib.parse import urlsplit
-import logging
-from psutil import Process
 from pathlib import Path
+from socket import gethostname
+from tempfile import TemporaryDirectory
+from urllib.parse import urlsplit
 
-from firexapp.submit.console import setup_console_logging
+from psutil import Process
+
+from firexapp.common import get_available_port, silent_mkdir, wait_until
 from firexapp.fileregistry import FileRegistry
+from firexapp.submit.console import setup_console_logging
 from firexapp.submit.uid import Uid
-from firexapp.common import get_available_port, wait_until, silent_mkdir
 from firexkit.memory_utils import get_process_memory_info, human_readable_bytes
 
 logger = setup_console_logging(__name__)
@@ -90,7 +90,7 @@ class RedisManager:
 
     def __init__(
         self,
-        redis_bin_base,
+        redis_bin_base: str,
         hostname=None,
         port=None,
         logs_dir=None,
@@ -147,10 +147,6 @@ class RedisManager:
     @property
     def broker_url(self):
         return self.get_broker_url(self.port, self.host, self._password)
-
-    @property
-    def broker_url_safe_print(self):
-        return self.get_broker_url(self.port, self.host, '**')
 
     @property
     def port(self):
@@ -219,7 +215,6 @@ class RedisManager:
         metadata = cls.read_metadata(logs_dir)
         try:
             return metadata[cls._METADATA_BROKER_HOST_KEY], str(metadata[cls._METADATA_BROKER_PORT_KEY])
-
         except KeyError as e:
             # Possibly old-style metadata, before broker password usage
             cls.log('Could not get hostname and port directly. Trying old method.', exc_info=e)
@@ -243,7 +238,7 @@ class RedisManager:
         return cls._BROKER_FAILED_AUTH_STR
 
     @classmethod
-    def get_broker_url_from_logs_dir(cls, logs_dir):
+    def get_broker_url_from_logs_dir(cls, logs_dir: str) -> str:
         hostname, port = cls.get_hostname_port_from_logs_dir(logs_dir)
         password = cls.get_password_from_logs_dir(logs_dir)
 
@@ -312,7 +307,12 @@ class RedisManager:
             with open(self.password_file, 'w',  opener=partial(os.open, mode=0o600)) as f:
                 json.dump(data, f, sort_keys=True, indent=2)
 
-    def _start(self, timeout=60, save_db: bool = False, redis_server_extra_opts: Optional[str]=None):
+    def _start(
+        self,
+        timeout=60,
+        save_db: bool = False,
+        redis_server_extra_opts: str | None=None,
+    ):
         try:
             port = self.port
         except RedisPortNotAssigned:
@@ -344,22 +344,31 @@ class RedisManager:
             )
 
         if not wait_until(os.path.exists, timeout, 0.1, self.pid_file):
-            raise RedisDidNotBecomeActive(f'The Redis pid file {self.pid_file} did not exist within {timeout}s')
+            raise RedisDidNotBecomeActive(
+                f'The Redis pid file {self.pid_file} did not exist within {timeout}s')
         self.wait_until_active(port=port, timeout=timeout)
         self.port = port
         self.create_password_file()
         self.create_metadata_file()
         self.log('redis started.')
 
-    def start(self, max_retries=3, log_memory_info: bool = True, save_db: bool = False,
-              redis_server_extra_opts: Optional[str]=None):
+    def start(
+        self,
+        max_retries=3,
+        log_memory_info: bool = True,
+        save_db: bool = False,
+        redis_server_extra_opts: str | None=None,
+    ):
         max_trials = max_retries + 1
         trials = 0
 
         while True:
             trials += 1
             try:
-                self._start(save_db=save_db, redis_server_extra_opts=redis_server_extra_opts)
+                self._start(
+                    save_db=save_db,
+                    redis_server_extra_opts=redis_server_extra_opts,
+                )
             except (subprocess.CalledProcessError, RedisDidNotBecomeActive):
                 if trials >= max_trials:
                     self.log('Redis did not come up after %d trial(s) (max_trials=%d)..Giving up!' %
@@ -373,7 +382,7 @@ class RedisManager:
                 break
 
     def get_memory_info(self,
-                        timeout: Optional[int] = None,
+                        timeout: int | None = None,
                         include_proc_memory: bool = True) -> str:
         output = []
         if include_proc_memory and gethostname() == self.host:
@@ -405,10 +414,12 @@ class RedisManager:
     def log_memory_info(self, **get_memory_info_kwargs):
         self.log(self.get_memory_info(**get_memory_info_kwargs))
 
-    def shutdown(self,
-                 timeout: Optional[int] = None,
-                 log_memory_info: bool = True,
-                 save_memory_info_timeout: Optional[int] = 5):
+    def shutdown(
+        self,
+        timeout: int | None = None,
+        log_memory_info: bool = True,
+        save_memory_info_timeout: int | None = 5,
+    ):
         if log_memory_info:
             self.save_memory_info_to_file(
                 filepath=self.get_shutdown_memory_file(self.logs_dir),
@@ -450,7 +461,7 @@ class RedisManager:
         raise RedisDidNotBecomeActive(f'Redis Server {self.host}:{port} did not respond after {timeout} seconds')
 
     @staticmethod
-    def get_broker_url(port=6379, hostname=gethostname(), password=None):
+    def get_broker_url(port=6379, hostname=gethostname(), password=None) -> str:
         preamble = f':{password}@' if password else ''
         return 'redis://%s%s:%d/0' % (preamble, hostname, int(port))
 
@@ -482,12 +493,10 @@ class RedisManager:
         port = self.port if port is None else port
         cmd = self.get_redis_cli_cmd(port=port, include_host=include_host) + ' %s' % cmd
         with open(os.devnull, 'w') as null:
-            return subprocess.check_output(shlex.split(cmd),
-                                           stderr=null,
-                                           timeout=timeout).decode().strip()
-
-    def __repr__(self):
-        return self.broker_url
+            return subprocess.check_output(
+                shlex.split(cmd),
+                stderr=null,
+                timeout=timeout).decode().strip()
 
     def __eq__(self, other):
-        return str(other) == self.broker_url
+        return other.broker_url == self.broker_url

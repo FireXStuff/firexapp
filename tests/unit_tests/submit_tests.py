@@ -2,9 +2,15 @@ import os
 import shutil
 import unittest
 
-from firexapp.application import FireXBaseApp, JSON_ARGS_PATH_ARG_NAME
-from firexapp.submit.arguments import get_chain_args, ChainArgException, InputConverter, convert_booleans, \
-    find_unused_arguments, whitelist_arguments
+from firexapp.application import JSON_ARGS_PATH_ARG_NAME, FireXBaseApp
+from firexapp.submit.arguments import (
+    ChainArgException,
+    InputConverter,
+    convert_booleans,
+    find_unused_arguments,
+    get_chain_args,
+    whitelist_arguments,
+)
 from firexapp.submit.uid import Uid
 from firexkit.argument_conversion import SingleArgDecorator
 from firexkit.task import FireXTask
@@ -94,11 +100,11 @@ class InputConversionTests(unittest.TestCase):
             pass
 
         # Do the pre-load conversion
-        InputConverter.convert(pre_load=True, **{})
+        InputConverter.convert(pre_load=True)
 
         # can't run pre a second time
         with self.assertRaises(Exception):
-            InputConverter.convert(pre_load=True, **{})
+            InputConverter.convert(pre_load=True)
 
         # This on is ok, because it's marked as post convert
         @InputConverter.register(False)
@@ -126,7 +132,7 @@ class InputConversionTests(unittest.TestCase):
                 pass  # pragma: no cover
 
         # but we can run the post load
-        InputConverter.convert(pre_load=False, **{})
+        InputConverter.convert(pre_load=False)
 
     def test_ways_of_registering(self):
         @InputConverter.register
@@ -152,8 +158,8 @@ class InputConversionTests(unittest.TestCase):
         @InputConverter.register(False)
         def in_the_end(_):
             pass
-        InputConverter.convert(pre_load=True, **{})
-        self.assertEqual(len(InputConverter.convert(pre_load=False, **{})), 1)
+        InputConverter.convert(pre_load=True)
+        self.assertEqual(len(InputConverter.convert(pre_load=False)), 1)
 
     def test_default_boolean_converter(self):
         self.assertTrue(convert_booleans.__name__ in self.old.get_visit_order(pre_task=True))

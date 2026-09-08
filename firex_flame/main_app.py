@@ -2,31 +2,29 @@ import logging
 import os
 from threading import Thread
 
-import celery
-from firexapp.broker_manager.broker_factory import RedisManager
-
 from firex_flame.controller import FlameAppController
-from firex_flame.event_file_processor import process_recording_file
 from firex_flame.event_broker_processor import BrokerEventConsumerThread
-from firex_flame.flame_helper import wait_until_path_exist, FlameServerConfig
+from firex_flame.event_file_processor import process_recording_file
+from firex_flame.flame_helper import FlameServerConfig, wait_until_path_exist
+from firexkit.firex_celery import FireXCelery
 
 logger = logging.getLogger(__name__)
 
 
-def create_broker_consumer_thread(broker_consumer_config, controller,
-                                  recording_file, shutdown_handler, logs_dir):
-    try:
-        broker_url = RedisManager.get_broker_url_from_logs_dir(logs_dir)
-    except:
-        logger.error(f"Failed to load broker URL from logs dir: {logs_dir}")
-        raise
-    else:
-        celery_app = celery.Celery(broker=broker_url, backend=broker_url)
-        return BrokerEventConsumerThread(celery_app,
-                                         controller,
-                                         broker_consumer_config,
-                                         recording_file,
-                                         shutdown_handler)
+def create_broker_consumer_thread(
+    broker_consumer_config,
+    controller,
+    recording_file,
+    shutdown_handler,
+    logs_dir,
+):
+    return BrokerEventConsumerThread(
+        FireXCelery.create_event_receiver_fx_celery_from_os_env(),
+        controller,
+        broker_consumer_config,
+        recording_file,
+        shutdown_handler,
+    )
 
 
 def start_flame(server_config: FlameServerConfig, broker_consumer_config, run_metadata, shutdown_handler, wait_for_webserver):

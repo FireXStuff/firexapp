@@ -1,8 +1,6 @@
-from firexkit.chain import InjectArgs
-from firexkit.task import FireXTask
-from firexkit.chain import returns
-
 from firexapp.engine.celery import app
+from firexkit.chain import InjectArgs, returns
+from firexkit.task import FireXTask
 
 
 @app.task(bind=True)

@@ -1,24 +1,26 @@
-from glob import glob
+import atexit
 import json
 import logging
 import os
-import importlib_resources
 import urllib.parse
 from contextlib import ExitStack
-import atexit
+from glob import glob
 
+import importlib_resources
 import socketio
+from flask import Flask, Response, redirect, render_template, send_from_directory
 from gevent import pywsgi
 from geventwebsocket.handler import WebSocketHandler
 
-from flask import Flask, redirect, send_from_directory, Response, render_template
-
-from firex_flame.api import create_socketio_task_api, create_revoke_api, create_rest_task_api
-from firexapp.submit.reporting import REL_COMPLETION_REPORT_PATH
-from firexapp.engine.run_controller import FireXRunController
-from firex_flame.flame_helper import FlameServerConfig, get_flame_url_from_port
+from firex_flame.api import (
+    create_rest_task_api,
+    create_revoke_api,
+    create_socketio_task_api,
+)
 from firex_flame.controller import FlameAppController
-
+from firex_flame.flame_helper import FlameServerConfig, get_flame_url_from_port
+from firexapp.engine.run_controller import FireXRunController
+from firexapp.submit.reporting import REL_COMPLETION_REPORT_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +54,7 @@ class FlameResponse(Response):
         # Avoid default octet-stream that causes download instead of display for some log files.
         if kwargs.get('mimetype', None) == 'application/octet-stream':
             kwargs['mimetype'] = 'text/plain'
-        super(FlameResponse, self).__init__(response, **kwargs)
+        super().__init__(response, **kwargs)
 
 
 def create_ui_index_render_function(central_server, central_server_ui_path):

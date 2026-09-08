@@ -1,16 +1,15 @@
 """
     Utility functions for the firex_blaze package.
 """
+import json
 import os
 from dataclasses import dataclass
-import json
-from typing import Optional
 
 from celery.app.base import Celery
 
-from firexapp.events.event_aggregator import FireXEventAggregator
-from firexapp.broker_manager.broker_factory import RedisManager
 from firex_blaze.fast_blaze_helper import get_blaze_dir
+from firexapp.broker_manager.broker_factory import RedisManager
+from firexapp.events.event_aggregator import FireXEventAggregator
 
 KAFKA_EVENTS_FILE_DELIMITER = '--END_OF_EVENT--'
 
@@ -22,12 +21,12 @@ class BlazeSenderConfig:
     max_kafka_connection_retries: int
     security_protocol: str = 'PLAINTEXT'
     # SASL-SSL OAuth 2.0 parameters
-    sasl_mechanism: Optional[str] = None
-    sasl_oauthbearer_method: Optional[str] = None
-    sasl_oauthbearer_client_id: Optional[str] = None
-    sasl_oauthbearer_client_secret: Optional[str] = None
-    sasl_oauthbearer_token_endpoint_url: Optional[str] = None
-    ssl_ca_location: Optional[str] = None
+    sasl_mechanism: str | None = None
+    sasl_oauthbearer_method: str | None = None
+    sasl_oauthbearer_client_id: str | None = None
+    sasl_oauthbearer_client_secret: str | None = None
+    sasl_oauthbearer_token_endpoint_url: str | None = None
+    ssl_ca_location: str | None = None
 
 
 def get_blaze_events_file(logs_dir, instance_name=None):
@@ -63,5 +62,7 @@ def aggregate_blaze_kafka_msgs(firex_id, kafka_msgs):
 
 
 def celery_app_from_logs_dir(logs_dir):
-    return Celery(broker=RedisManager.get_broker_url_from_logs_dir(logs_dir),
-                  accept_content=['pickle', 'json'])
+    return Celery(
+        broker=RedisManager.get_broker_url_from_logs_dir(logs_dir),
+        accept_content=['pickle', 'json'],
+    )

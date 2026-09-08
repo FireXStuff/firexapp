@@ -1,10 +1,8 @@
+from firexapp.engine.celery import app
+from firexapp.submit.reporting import ReportersRegistry
+from firexapp.tasks.root_tasks import get_configured_root_task
 from firexkit.argument_conversion import ConverterRegister
 from firexkit.task import flame_collapse
-from firexapp.engine.celery import app
-from firexapp.tasks.root_tasks import get_configured_root_task
-from firexapp.submit.reporting import ReportersRegistry
-from firexkit.task import flame_collapse
-
 
 __all__ = ["RunInitialReport"]
 

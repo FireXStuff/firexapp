@@ -1,13 +1,16 @@
+import types
 import unittest
 from unittest import mock
 
-import types
-
 from firexkit.argument_conversion import ConverterRegister
-from firexkit.chain import returns, SignatureX
+from firexkit.chain import SignatureX, returns
 from firexkit.firex_celery import FireXCelery
-from firexkit.task import FireXTask, convert_to_serializable, IllegalTaskNameException, \
-    REPLACEMENT_TASK_NAME_POSTFIX
+from firexkit.task import (
+    REPLACEMENT_TASK_NAME_POSTFIX,
+    FireXTask,
+    IllegalTaskNameException,
+    convert_to_serializable,
+)
 from firexkit.testing import ut_celery_app
 
 
@@ -93,7 +96,6 @@ class TaskTests(unittest.TestCase):
                 test_obj()
 
     def test_task_argument_conversion(self):
-        from firexkit.argument_conversion import ConverterRegister
         from celery.utils.threads import LocalStack
 
         # noinspection PyAbstractClass

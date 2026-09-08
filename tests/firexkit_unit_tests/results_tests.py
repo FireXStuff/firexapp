@@ -1,16 +1,24 @@
-import unittest
-from unittest import mock
 import datetime
-
-from celery.states import SUCCESS, FAILURE, REVOKED, STARTED, PENDING
+import unittest
 from contextlib import contextmanager
-from firexkit.result import wait_on_async_results, \
-    WaitLoopCallBack, WaitOnChainTimeoutError, ChainRevokedException, ChainInterruptedException, \
-    MultipleFailuresException, find_unsuccessful_in_chain, \
-    last_causing_chain_interrupted_exception, first_non_chain_interrupted_exception
+from unittest import mock
+
+from celery.states import FAILURE, PENDING, REVOKED, STARTED, SUCCESS
+
+from firexkit.firex_celery import FireXCelery
+from firexkit.result import (
+    ChainInterruptedException,
+    ChainRevokedException,
+    MultipleFailuresException,
+    WaitLoopCallBack,
+    WaitOnChainTimeoutError,
+    find_unsuccessful_in_chain,
+    first_non_chain_interrupted_exception,
+    last_causing_chain_interrupted_exception,
+    wait_on_async_results,
+)
 from firexkit.revoke import RevokedRequests, _now_utc
 from firexkit.testing import MockFxAsyncResult, ut_celery_app
-from firexkit.firex_celery import FireXCelery
 
 
 def get_mocks(
@@ -117,7 +125,7 @@ class WaitOnResultsTests(unittest.TestCase):
         setup_revoke()
         test_app, mock_result = get_mocks()
         mock_result = mock_result[0]
-        test_app.backend.set("anything", "yep".encode('utf-8'))
+        test_app.backend.set("anything", b"yep")
 
         mock_result._state = SUCCESS
         self.assertIsNone(wait_on_async_results(mock_result))
@@ -201,9 +209,9 @@ class WaitOnResultsTests(unittest.TestCase):
         mock_results[1]._state = FAILURE
         mock_results[2]._state = PENDING
         with self.assertRaises(ChainInterruptedException) as context:
-            print(f'will wait on ar')
+            print('will wait on ar')
             wait_on_async_results(mock_results[2], max_wait=1)
-            print(f'done wait on ar')
+            print('done wait on ar')
         self.assertIsNone(context.exception.__cause__)
 
         unsuccessful = find_unsuccessful_in_chain(mock_results[-1])

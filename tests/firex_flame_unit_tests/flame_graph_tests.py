@@ -1,6 +1,6 @@
 import unittest
 
-from firex_flame.flame_task_graph import _TaskFieldSentile, _FlameTask
+from firex_flame.flame_task_graph import _FlameTask, _TaskFieldSentile
 
 basic_event = {
     'uuid': '1',

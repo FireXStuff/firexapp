@@ -1,16 +1,15 @@
-from typing import Type, Any
-import dataclasses
-import inspect
-import typing
-import types
 import dataclasses
 import enum
-import pydantic
+import inspect
+import types
+import typing
+from typing import Any
 
+import pydantic
 from celery.utils.log import get_task_logger
+from typing_extensions import Self, is_typeddict
 
 from firexkit.result import RETURN_KEYS_KEY
-from typing_extensions import is_typeddict, Self
 
 logger = get_task_logger(__name__)
 
@@ -20,9 +19,9 @@ class _FireXArgParameters:
     """ this class is just a bunch fo queries on python inspect.Parameter mapping """
     parameters: types.MappingProxyType[str, inspect.Parameter]
 
-    _has_var_keyword: typing.Optional[bool] = None
-    _required_arg_names: typing.Optional[set[str]] = None
-    _optional_args_to_default_values: typing.Optional[dict[str, Any]] = None
+    _has_var_keyword: bool | None = None
+    _required_arg_names: set[str] | None = None
+    _optional_args_to_default_values: dict[str, Any] | None = None
 
     def _get_non_var_params(self) -> list[inspect.Parameter]:
         return [
@@ -283,7 +282,7 @@ class BagOfGoodies:
         return cls._get_indirect_key(value) == arg_name
 
     @classmethod
-    def _get_indirect_key(cls, value: Any) -> typing.Optional[str]:
+    def _get_indirect_key(cls, value: Any) -> str | None:
         if value and isinstance(value, str) and value.startswith(cls.INDIRECT_ARG_CHAR):
             return value.removeprefix(cls.INDIRECT_ARG_CHAR)
         return None
@@ -445,7 +444,7 @@ class BagOfGoodies:
             self.update(hoisted_updates)
 
     @staticmethod
-    def get_auto_inject_type(annotation) -> typing.Optional[typing.Type]:
+    def get_auto_inject_type(annotation) -> type | None:
         if (
             typing.get_origin(annotation) is typing.Annotated
             and annotation.__metadata__[0] == 'FireXAutoInject'
@@ -526,7 +525,7 @@ class FireXBaseBaseModel(pydantic.BaseModel):
 
 def _get_fx_model_subclass(
     param: inspect.Parameter,
-) -> typing.Optional[typing.Type[FireXBaseBaseModel]]:
+) -> type[FireXBaseBaseModel] | None:
     if param.annotation and param.annotation != param.empty:
         maybe_class = _get_base_type(param.annotation)
         if (
@@ -658,17 +657,17 @@ T = typing.TypeVar('T')
 
 @dataclasses.dataclass
 class AutoInjectSpec(typing.Generic[T]):
-    arg_type: typing.Type[T]
+    arg_type: type[T]
     arg_name: str
     default_value: T
-    value: typing.Optional[T] = None
+    value: T | None = None
 
 
 @dataclasses.dataclass(frozen=True)
 class AutoInjectRegistry:
 
     # dynamic auto inject keys/values
-    _specs_by_name_and_type: dict[str, dict[Type, AutoInjectSpec]]
+    _specs_by_name_and_type: dict[str, dict[type, AutoInjectSpec]]
 
     AUTO_IN_REG_ABOG_KEY : typing.ClassVar[str] = '__auto_inject_registry'
     EMPTY : typing.ClassVar[typing.Optional['AutoInjectRegistry']] = None
@@ -688,7 +687,7 @@ class AutoInjectRegistry:
 
     @staticmethod
     def create_auto_in_reg(specs: list[AutoInjectSpec]) -> 'AutoInjectRegistry':
-        specs_by_name_and_type: dict[str, dict[Type, AutoInjectSpec]] = {}
+        specs_by_name_and_type: dict[str, dict[type, AutoInjectSpec]] = {}
 
         for s in specs:
             if s.value is not None:
@@ -731,13 +730,13 @@ class AutoInjectRegistry:
                     logger.info(f'Overwriting auto-inject arg {arg_name} with abog value: {arg_val}')
                     auto_in_arg.value = arg_val
 
-    def _get_spec_by_name_and_instance(self, arg_name: str, val: typing.Any) -> typing.Optional[AutoInjectSpec]:
+    def _get_spec_by_name_and_instance(self, arg_name: str, val: typing.Any) -> AutoInjectSpec | None:
         for t, spec in self._specs_by_name_and_type[arg_name].items():
             if isinstance(val, t):
                 return spec
         return None
 
-    def _get_spec_by_name_and_type(self, arg_name: str, _type: Type) -> typing.Optional[AutoInjectSpec]:
+    def _get_spec_by_name_and_type(self, arg_name: str, _type: type) -> AutoInjectSpec | None:
         if arg_name not in self._specs_by_name_and_type:
             logger.error(f'AutoInjectRegistry not statically initialized for {arg_name}')
         elif _type not in self._specs_by_name_and_type[arg_name]:

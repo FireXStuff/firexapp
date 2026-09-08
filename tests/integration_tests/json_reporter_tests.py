@@ -2,12 +2,12 @@ import json
 import pprint
 from socket import gethostname
 from tempfile import NamedTemporaryFile
+
 from firex_keeper import task_query
-from firexapp.application import get_app_tasks
 from firexapp.common import poll_until_path_exist
-from firexapp.tasks.root_tasks import get_configured_root_task
-from firexapp.submit.submit import get_log_dir_from_output
 from firexapp.engine.celery import app
+from firexapp.submit.submit import get_log_dir_from_output
+from firexapp.tasks.root_tasks import get_configured_root_task
 from firexapp.testing.config_base import FlowTestConfiguration
 
 
@@ -25,7 +25,7 @@ def VerifyInitialJsonReport(uid, chain, submission_dir, json_file, argv, some_in
     poll_until_path_exist(json_file)
     with open(json_file) as f:
         json_content = json.load(f)
-    common_json_data = {'chain': [t.short_name for t in get_app_tasks(chain)],
+    common_json_data = {'chain': [t.short_name for t in app.get_app_tasks(chain)],
                         'firex_id': str(uid),
                         'logs_path': uid.logs_dir,
                         'submission_host': gethostname(),
