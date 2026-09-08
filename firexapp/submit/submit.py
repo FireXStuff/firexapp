@@ -386,8 +386,9 @@ class SubmitBaseApp:
             chain_results = self.process_sync(root_task_result_promise, chain_args)
             results_str = self.format_results_str(chain_results)
             self.log_results(results_str)
-            self.self_destruct(chain_details=(root_task_result_promise, chain_args),
-                               reason="Sync run: completed successfully")
+            self.self_destruct(
+                chain_details=(root_task_result_promise, chain_args),
+                reason="Sync run: completed successfully")
 
     def dump_environ(self):
         # Mask  any password-related env vars before dumping them in the environ.json

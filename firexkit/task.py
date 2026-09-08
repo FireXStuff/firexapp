@@ -1470,23 +1470,25 @@ class FireXTask(Task):
             Execute the provided Signatures/Chains in parallel and return their results.
             Sequence inputs use positional integer keys; mapping inputs preserve their keys.
         """
+        start = time.monotonic()
         keyed_chains = chains if isinstance(chains, Mapping) else dict(enumerate(chains))
         promises_by_key : dict[Any, FxAsyncResult] = {}
         scheduled : list[FxAsyncResult] = []
         for key, c in keyed_chains.items():
             if len(scheduled) >= max_parallel_chains:
                 # Reach the max allowed parallel chains, wait for one to complete before scheduling the next one.
-                completed_ar = ManyFxAsyncResults.fx_ars_from_list(scheduled).wait_for_any()
+                completed_ar = ManyFxAsyncResults.fx_ars_from_list(scheduled).wait_for_any(
+                    raise_on_failure=False, # handled below
+                )
                 scheduled.remove(completed_ar)
 
             # Schedule the next child
             logger.debug(f'Enqueueing: {c.get_label()}')
-
             promise = self.enqueue_child(
                 c,
                 forget=forget,
                 callbacks=callbacks,
-                raise_exception_on_failure=False, # handled later
+                block=False,
             )
             scheduled.append(promise)
             promises_by_key[key] = promise
@@ -1494,9 +1496,16 @@ class FireXTask(Task):
         many_ars = ManyFxAsyncResults.fx_ars_from_dict(promises_by_key)
 
         if block or raise_on_failure:
+            if max_wait is not None:
+                remaining_max_wait = max(
+                    0,
+                    (start + max_wait) - time.monotonic(),
+                )
+            else:
+                remaining_max_wait = None
             many_ars.wait_for_all(
                 raise_on_failure=raise_on_failure,
-                max_wait=max_wait,
+                max_wait=remaining_max_wait,
             )
         return many_ars
 

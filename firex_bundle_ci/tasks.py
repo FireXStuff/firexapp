@@ -1,18 +1,19 @@
 import subprocess
-
-from firexapp.engine.celery import app
-from firexapp.testing.config_base import discover_tests
-from celery.utils.log import get_task_logger
 import datetime
 import os
+
+import lxml.etree as et
+from xunitmerge import merge_trees
+
+from firexapp.testing.config_base import discover_tests
+from firexapp.engine.celery import app
 from firexapp import firex_subprocess
 from firexapp.common import silent_mkdir
-import lxml.etree as et
 from firexkit.result import get_results
-from xunitmerge import merge_trees
 from firexkit.task import flame, FireXTask
+from firexapp.engine.logging import get_firex_logger
 
-logger = get_task_logger(__name__)
+logger = get_firex_logger(__name__)
 
 
 @app.task(returns='flow_test_run_time')
@@ -133,7 +134,7 @@ def RunAllIntegrationTests(
         any_failed = False
         for k, p in promises.as_dict().items():
             if not p.fx_is_successful():
-                print(f'Failed test: {k}')
+                logger.print(f'Failed test: {k}')
                 any_failed = True
         if any_failed:
             raise AssertionError('Some tests failed')

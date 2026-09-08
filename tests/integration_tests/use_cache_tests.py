@@ -118,7 +118,7 @@ def Abc(arg):
     return arg
 
 @app.task(bind=True)
-def RunAbcConcurrently(self, num_runs=25):
+def RunAbcConcurrently(self: FireXTask, num_runs=25):
 
     parallel_chains_1 = [Abc.s(1)]*num_runs
     parallel_chains_2 = [Abc.s(2)]*num_runs
@@ -140,10 +140,4 @@ def RunAbcConcurrently(self, num_runs=25):
 
 class TestCachingParallelInvocations(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
-        return ['submit', '--chain', RunAbcConcurrently.name]
-
-    def assert_expected_firex_output(self, cmd_output, cmd_err):
-        assert not cmd_err, "Errors are not expected"
-
-    def assert_expected_return_code(self, ret_value):
-        assert_is_good_run(ret_value)
+        return ['submit', '--chain', 'RunAbcConcurrently']

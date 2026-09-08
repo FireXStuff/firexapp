@@ -478,7 +478,29 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         self._cache = None
         self.backend.forget(self.id)
         (self._ARS_BY_ID or {}).pop(self.id, None)
-        # self.backend = None # needed, or does forget take care of it?
+
+    def _handle_fx_ready(self) -> str:
+        # If failure happened in a chain, raise from the failing task within the chain
+        _check_for_failure_in_parents(self)
+
+        result_state = self.fx_get_state()
+        if result_state == REVOKED:
+            # Wait for revoked tasks to actually finish running
+            # Somewhat long max_wait in case a task does work when revoked, like
+            # killing a child run launched by the task.
+            ManyFxAsyncResults.fx_ars_from_single(self).wait_for_running(
+                max_wait=5*60
+            )
+            raise ChainRevokedException(
+                task_id=self.id,
+                task_name=self.fx_get_name(),
+            )
+        if result_state == PENDING:
+            # Pending tasks can be in revoke list. State will still be PENDING.
+            raise ChainRevokedPreRunException(self.id, self.fx_get_name())
+        if result_state == FAILURE:
+            raise _chain_interrupted_ex(self)
+        return result_state
 
     def fx_wait_no_state_update(
         self,
@@ -512,26 +534,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
                 callbacks=callbacks,
                 last_callback_time=last_callback_time,
             )
-            # If failure happened in a chain, raise from the failing task within the chain
-            _check_for_failure_in_parents(self)
-
-            result_state = self.fx_get_state()
-            if result_state == REVOKED:
-                # Wait for revoked tasks to actually finish running
-                # Somewhat long max_wait in case a task does work when revoked, like
-                # killing a child run launched by the task.
-                ManyFxAsyncResults.fx_ars_from_single(self).wait_for_running(
-                    max_wait=5*60
-                )
-                raise ChainRevokedException(
-                    task_id=self.id,
-                    task_name=self.fx_get_name(),
-                )
-            if result_state == PENDING:
-                # Pending tasks can be in revoke list. State will still be PENDING.
-                raise ChainRevokedPreRunException(self.id, self.fx_get_name())
-            if result_state == FAILURE:
-                raise _chain_interrupted_ex(self)
+            result_state = self._handle_fx_ready()
         except ChainInterruptedException as e:
             if raise_on_failure:
                 raise e
@@ -567,9 +570,20 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
                 raise_on_failure=raise_on_failure,
             )
 
-    def get_many_results(self, return_keys: Sequence[str]) -> tuple[Any, ...]:
+    def get_many_results(
+        self,
+        return_keys: Sequence[str],
+        raise_on_failure=True,
+    ) -> tuple[Any, ...]:
         assert return_keys, f'No return_keys supplied'
-        self.fx_wait()
+        if not self.fx_is_ready():
+            self.fx_wait(raise_on_failure=raise_on_failure)
+        else:
+            try:
+                self._handle_fx_ready()
+            except ChainInterruptedException as e:
+                if raise_on_failure:
+                    raise e
         return _get_results_tuple(self, return_keys=return_keys)
 
     def get_result_key(
@@ -577,9 +591,11 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         return_key: str,
         raise_on_failure=True,
     ) -> Any:
-        self.fx_wait(raise_on_failure=raise_on_failure)
         # FIXME: fail if key not present and success!
-        return self.get_many_results([return_key])[0]
+        return self.get_many_results(
+            [return_key],
+            raise_on_failure=raise_on_failure,
+        )[0]
 
     def legacy_extract_results(
         self,
