@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from functools import wraps
+from typing import Any
 
+from celery.exceptions import NotRegistered
 from celery.states import SUCCESS
 from celery.utils.log import get_task_logger
 
@@ -17,9 +19,8 @@ class ReportGenerator(ABC):
     loaders = tuple()
 
     @staticmethod
-    def pre_run_report(**kwarg):
+    def pre_run_report(*args, **kwarg):
         """ This runs in the context of __main__ """
-        pass
 
     @abstractmethod
     def add_entry(self, key_name, value, priority, formatters, **extra):
@@ -30,10 +31,13 @@ class ReportGenerator(ABC):
         pass
 
     @abstractmethod
-    def post_run_report(self, root_id=None, **kwargs):
+    def post_run_report(
+        self,
+        root_async_result: FxAsyncResult,
+        **kwargs,
+    ):
         """ This could runs in the context of __main__ if --sync, other in the context of celery.
             So the instance cannot be assumed be the same as in pre_run_report() """
-        pass
 
     def filter_formatters(self, all_formatters):
         if not self.formatters:
@@ -56,7 +60,7 @@ class ReportersRegistry:
     _generators = None
 
     @classmethod
-    def get_generators(cls):
+    def get_generators(cls) -> list[ReportGenerator]:
         if not cls._generators:
             cls._generators = [c() for c in ReportGenerator.__subclasses__()]
         return cls._generators
@@ -67,65 +71,65 @@ class ReportersRegistry:
             report_gen.pre_run_report(**kwargs)
 
     @classmethod
-    def post_run_report(cls, results, kwargs):
-        if kwargs is None:
-            kwargs = {}
+    def post_run_report(
+        cls,
+        root_async_result: FxAsyncResult,
+        chain_args: dict[str, Any],
+    ):
+        chain_args = chain_args or {}
 
-        if results:
-            from celery import current_app
-            report_uids = get_current_reports_uids(current_app.backend)
-            report_results = [
-                FxAsyncResult(r, backend=current_app.backend)
-                for r in report_uids
-            ]
-            logger.debug(f"Processing reports for {report_uids}")
-            for task_result in report_results:
+        fx_app = root_async_result.app
+        report_results : list[FxAsyncResult] = [
+            FxAsyncResult(r, backend=fx_app.backend)
+            for r in get_current_reports_uids(fx_app.backend)
+        ]
+        for task_result in report_results:
+            try:
+                # only report on successful tasks
+                if (
+                    task_result.state != SUCCESS
+                    or not (task_name := task_result.fx_get_name())
+                ):
+                    continue
+
                 try:
-                    # only report on successful tasks
-                    if task_result.state != SUCCESS:
-                        continue
+                    task = fx_app.get_app_task(task_name)
+                except NotRegistered:
+                    continue
 
-                    task_name = task_result.fx_get_name()
-                    if task_name not in current_app.tasks:
-                        continue
+                report_entries = task.report_meta
 
-                    task = current_app.tasks[task_name]
-                    report_entries = getattr(task, 'report_meta')
+                task_ret = task_result.result
+                for report_gen in cls.get_generators():
+                    for report_entry in report_entries:
+                        formatters = report_entry.get("formatters", [])
+                        loaders = report_entry.get("loaders", [])
+                        key_name = report_entry["key_name"]
+                        logger.debug(f"Processing report entry for task {task_name} with key_name {key_name}")
+                        if len(loaders) > 0:
+                            logger.debug(f'Loading report data for task {task_name}')
+                            filtered_loaders = report_gen.filter_loaders(loaders)
 
-                    task_ret = task_result.result
-                    for report_gen in cls.get_generators():
-                        for report_entry in report_entries:
-                            formatters = report_entry.get("formatters", [])
-                            loaders = report_entry.get("loaders", [])
-                            key_name = report_entry["key_name"]
-                            logger.debug(f"Processing report entry for task {task_name} with key_name {key_name}")
-                            if len(loaders) > 0:
-                                logger.debug(f'Loading report data for task {task_name}')
-                                filtered_loaders = report_gen.filter_loaders(loaders)
+                            if filtered_loaders is None:
+                                continue
 
-                                if filtered_loaders is None:
-                                    continue
-
-                                try:
-                                    report_gen.load_data(
-                                        key_name=key_name,
-                                        value=task_ret[key_name] if key_name else task_ret,
-                                        loaders=filtered_loaders,
-                                        all_task_returns=task_ret,
-                                        task_name=task_name,
-                                        task_uuid=task_result.id
-                                    )
-                                    logger.debug(f'Completed loading report data for task {task_name}')
-                                except Exception:
-                                    logger.error(f'Error during report data loading for task {task_name}...skipping', exc_info=True)
-                                    continue
-                            if len(formatters) > 0:
-                                logger.debug(f'Adding report entry for task {task_name}')
-                                filtered_formatters = report_gen.filter_formatters(formatters)
-
-                                if filtered_formatters is None:
-                                    continue
-
+                            try:
+                                report_gen.load_data(
+                                    key_name=key_name,
+                                    value=task_ret[key_name] if key_name else task_ret,
+                                    loaders=filtered_loaders,
+                                    all_task_returns=task_ret,
+                                    task_name=task_name,
+                                    task_uuid=task_result.id
+                                )
+                                logger.debug(f'Completed loading report data for task {task_name}')
+                            except Exception:
+                                logger.error(f'Error during report data loading for task {task_name}...skipping', exc_info=True)
+                                continue
+                        if len(formatters) > 0:
+                            logger.debug(f'Adding report entry for task {task_name}')
+                            filtered_formatters = report_gen.filter_formatters(formatters)
+                            if filtered_formatters is not None:
                                 try:
                                     report_gen.add_entry(
                                         key_name=key_name,
@@ -138,17 +142,19 @@ class ReportersRegistry:
                                     logger.debug(f'Completed adding report entry for task {task_name}')
                                 except Exception:
                                     logger.error(f'Error during report generation for task {task_name}...skipping', exc_info=True)
-                                    continue
 
-                except Exception:
-                    logger.error(f"Failed to add report entry for task result {task_result}", exc_info=True)
+            except Exception:
+                logger.error(f"Failed to add report entry for task result {task_result}", exc_info=True)
 
             logger.debug("Completed processing results data for reports")
 
         for report_gen in cls.get_generators():
             try:
                 logger.debug(f'Running post_run_report for {report_gen}')
-                report_gen.post_run_report(root_id=results, **kwargs)
+                report_gen.post_run_report(
+                    root_async_result=root_async_result,
+                    **chain_args,
+                )
                 logger.debug(f'Completed post_run_report for {report_gen}')
             except Exception:
                 # Failure in one report generator should not impact another

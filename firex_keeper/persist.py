@@ -2,18 +2,18 @@ import json
 import logging
 import os
 from contextlib import contextmanager
+from sqlite3 import OperationalError as SqlLiteOperationalError
 from time import perf_counter, sleep
 
-from firexapp.submit.uid import Uid
 from sqlalchemy import create_engine
-from sqlalchemy.sql import select, and_
-from sqlalchemy.sql.selectable import Select
 from sqlalchemy.exc import OperationalError
-from sqlite3 import OperationalError as SqlLiteOperationalError
+from sqlalchemy.sql import and_, select
+from sqlalchemy.sql.selectable import Select
 
-from firexapp.events.model import FireXTask, FireXRunMetadata, COMPLETE_RUNSTATES
+from firex_keeper.db_model import firex_run_metadata, firex_tasks, metadata
 from firexapp.common import wait_until
-from firex_keeper.db_model import metadata, firex_run_metadata, firex_tasks
+from firexapp.events.model import COMPLETE_RUNSTATES, FireXRunMetadata, FireXTask
+from firexapp.submit.uid import Uid
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,7 @@
+from celery.signals import task_postrun
+
 from firexapp.engine.celery import app
 from firexkit.task import FireXTask
-from celery.signals import task_postrun
 
 
 @app.task(base=FireXTask)

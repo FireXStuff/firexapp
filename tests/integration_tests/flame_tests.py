@@ -1,35 +1,52 @@
 import abc
-import re
-import os
 import json
-import psutil
+import os
 import signal
-import time
-import requests
-import requests.exceptions
-import urllib.parse
 import tempfile
+import time
+import urllib.parse
 from pathlib import Path
 
-from bs4 import BeautifulSoup
+import psutil
+import requests
+import requests.exceptions
 import socketio
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run
-from firexapp.submit.uid import Uid
+from bs4 import BeautifulSoup
+
+from firex_flame.flame_helper import (
+    REVOKE_REASON_KEY,
+    deep_merge,
+    filter_paths,
+    get_flame_pid,
+    json_file_fn,
+    kill_and_wait,
+    kill_flame,
+    wait_until,
+    wait_until_path_exist,
+    wait_until_pid_not_exist,
+    wait_until_web_request_ok,
+)
+from firex_flame.flame_task_graph import is_task_dict_complete
+from firex_flame.model_dumper import (
+    find_flame_model_dir,
+    get_model_full_tasks_by_names,
+    get_model_slim_tasks_by_names,
+    get_run_metadata,
+    get_run_metadata_file,
+    get_tasks_slim_file,
+    is_dump_complete,
+    load_slim_tasks,
+    load_task_representation,
+    wait_and_get_flame_url,
+)
 from firexapp.engine.celery import app
-from firexapp.firex_subprocess import check_output
+from firexapp.events.event_aggregator import RunStates
 from firexapp.events.model import EXTERNAL_COMMANDS_KEY
+from firexapp.firex_subprocess import check_output
+from firexapp.submit.uid import Uid
+from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run
 from firexkit.chain import returns
 from firexkit.task import flame
-
-from firexapp.events.event_aggregator import RunStates
-from firex_flame.flame_helper import get_flame_pid, wait_until_pid_not_exist, wait_until, \
-    kill_flame, kill_and_wait, json_file_fn, wait_until_path_exist, deep_merge, wait_until_web_request_ok, \
-    filter_paths, REVOKE_REASON_KEY
-from firex_flame.flame_task_graph import is_task_dict_complete
-from firex_flame.model_dumper import get_tasks_slim_file, get_model_full_tasks_by_names, is_dump_complete, \
-    get_run_metadata_file, wait_and_get_flame_url, find_flame_model_dir, load_task_representation, load_slim_tasks, \
-    get_run_metadata, get_model_slim_tasks_by_names
-
 
 test_data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 
@@ -628,7 +645,7 @@ def check_live_file_monitoring(host, log_dir, flame_url):
 
     with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
         # Open file permissions so flame will allow live file viewing.
-        from stat import S_IRUSR, S_IRGRP, S_IROTH
+        from stat import S_IRGRP, S_IROTH, S_IRUSR
         os.chmod(f.name, S_IRUSR | S_IRGRP | S_IROTH)
 
         initial_content = '1 2\n'

@@ -1,50 +1,61 @@
+import argparse
+import json
+import logging
 import multiprocessing
+import os
 import pathlib
 import re
 import sys
-import json
-import logging
-import os
-import argparse
 import time
-from getpass import getuser
-from typing import Optional, Any
-
-from shutil import copyfile
 from contextlib import contextmanager
+from getpass import getuser
+from shutil import copyfile
+from typing import Any, TypeVar
 
 from celery.exceptions import NotRegistered
-from firexapp.discovery import get_all_pkg_versions_str
-from firexapp.engine.default_celery_config import primary_worker_minimum_concurrency
-from firexapp.engine.logging import add_hostname_to_log_records
 
+from firexapp.application import JSON_ARGS_PATH_ARG_NAME
+from firexapp.broker_manager.broker_factory import BrokerFactory
+from firexapp.broker_manager.redis_manager import RedisManager
+from firexapp.celery_manager import CeleryManager
+from firexapp.common import create_link, dict2str, silent_mkdir
+from firexapp.discovery import get_all_pkg_versions_str
+from firexapp.engine.default_celery_config import FxCeleryConfig
+from firexapp.engine.logging import add_hostname_to_log_records
+from firexapp.fileregistry import FileRegistry
+from firexapp.plugins import plugin_support_parser
+from firexapp.reporters.json_reporter import FireXJsonReportGenerator, FireXRunData
+from firexapp.submit.arguments import (
+    ChainArgException,
+    InputConverter,
+    find_unused_arguments,
+    get_chain_args,
+    whitelist_arguments,
+)
+from firexapp.submit.console import setup_console_logging
+from firexapp.submit.install_configs import (
+    INSTALL_CONFIGS_ENV_NAME,
+    FireXInstallConfigs,
+    load_new_install_configs,
+)
+from firexapp.submit.shutdown import (
+    DEFAULT_CELERY_SHUTDOWN_TIMEOUT,
+    launch_background_shutdown,
+)
+from firexapp.submit.tracking_service import get_service_name, get_tracking_services
+from firexapp.submit.uid import Uid
+from firexkit.chain import InjectArgs, InvalidChainArgsException
+from firexkit.firex_celery import FireXCelery
 from firexkit.result import (
     ChainRevokedException,
     ChainRevokedPreRunException,
-    FxAsyncResult
+    FxAsyncResult,
 )
-from firexkit.chain import InjectArgs, InvalidChainArgsException
-from firexapp.fileregistry import FileRegistry
-from firexapp.submit.uid import Uid
-from firexapp.submit.arguments import InputConverter, ChainArgException, get_chain_args, find_unused_arguments
-from firexapp.submit.tracking_service import get_tracking_services, get_service_name
-from firexapp.plugins import plugin_support_parser
-from firexapp.submit.console import setup_console_logging
-from firexapp.application import (
-    get_app_tasks, get_app_task, JSON_ARGS_PATH_ARG_NAME
-)
-from firexapp.engine.celery import app
-from firexapp.broker_manager.redis_manager import RedisManager
-from firexapp.broker_manager.broker_factory import BrokerFactory
-from firexapp.submit.shutdown import launch_background_shutdown, DEFAULT_CELERY_SHUTDOWN_TIMEOUT
-from firexapp.submit.install_configs import load_new_install_configs, FireXInstallConfigs, INSTALL_CONFIGS_ENV_NAME
-from firexapp.submit.arguments import whitelist_arguments
-from firexapp.common import dict2str, silent_mkdir, create_link
-from firexapp.reporters.json_reporter import FireXJsonReportGenerator, FireXRunData
 
 add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
 
+T = TypeVar('T', bound=FireXCelery)
 
 SUBMISSION_FILE_REGISTRY_KEY = 'firex_submission'
 FileRegistry().register_file(SUBMISSION_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'submission.txt'))
@@ -85,11 +96,17 @@ class OptionalBoolean(argparse.Action):
 
 class AdjustCeleryConcurrency(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        concurrency = max([values, primary_worker_minimum_concurrency])
+        concurrency = max([values, FxCeleryConfig.primary_worker_minimum_concurrency])
         setattr(namespace, self.dest, concurrency)
 
 
-def _safe_create_completed_run_json(uid, chain_result, run_revoked, chain_args, shutdown_reason):
+def _safe_create_completed_run_json(
+    uid: Uid,
+    chain_result: FxAsyncResult,
+    run_revoked: bool,
+    chain_args: dict[str, Any],
+    shutdown_reason: str,
+):
     if uid:
         chain_args = dict(chain_args or {})
         for k in ['uid', 'root_id', 'run_revoked', 'shutdown_reason']:
@@ -107,7 +124,7 @@ def _safe_create_completed_run_json(uid, chain_result, run_revoked, chain_args, 
         logger.warning("No uid; run.json will not be updated.")
 
 
-def safe_create_initial_run_json(**kwargs) -> Optional[FireXRunData]:
+def safe_create_initial_run_json(**kwargs) -> FireXRunData | None:
     try:
         return FireXJsonReportGenerator.create_initial_run_json(**kwargs)
     except Exception as e:
@@ -119,16 +136,14 @@ class SubmitBaseApp:
     SUBMISSION_LOGGING_FORMATTER = '[%(asctime)s %(levelname)s] %(message)s'
     DEFAULT_MICROSERVICE = None
 
-    install_configs: FireXInstallConfigs
-
-    def __init__(self, submission_tmp_file=None):
+    def __init__(self, submission_tmp_file: str | None=None):
         self.submission_tmp_file = submission_tmp_file
         self.uid = None
-        self.broker = None
+        self.broker : RedisManager | None = None
         self.is_sync = None
         # TODO: migrate tracking services to inside install-config.
         self.enabled_tracking_services = None
-        self.install_configs = None
+        self.install_configs : FireXInstallConfigs | None = None
         self.submit_args = None
         self.submit_parser = None
         self.arg_parser = None
@@ -247,8 +262,7 @@ class SubmitBaseApp:
         sep_len = len(banner_title) + 6
         err_msg = err_msg.split('\n')
         for l in err_msg:
-            if len(l) > sep_len:
-                sep_len = len(l)
+            sep_len = max(sep_len, len(l))
 
         top_sep_len = int((sep_len - len(banner_title) + 1) / 2)
         top_banner = '*' * top_sep_len + banner_title + '*' * top_sep_len
@@ -292,8 +306,10 @@ class SubmitBaseApp:
             sys.exit(-1)
         except Exception as e:
             logger.debug(e, exc_info=True)
-            self.main_error_exit_handler(chain_details=(root_task_result_promise, chain_args),
-                                         reason=str(e))
+            self.main_error_exit_handler(
+                chain_details=(root_task_result_promise, chain_args),
+                reason=str(e),
+            )
             rc = e.firex_returncode if isinstance(e, FireXReturnCodeException) else -1
             sys.exit(rc)
         else:
@@ -339,9 +355,11 @@ class SubmitBaseApp:
         logger.info("FireX ID: %s", uid)
         logger.info('Logs: %s', uid.logs_dir)
 
-        self.install_configs = load_new_install_configs(uid.identifier,
-                                                        uid.logs_dir,
-                                                        args_from_first_pass.install_configs)
+        self.install_configs = load_new_install_configs(
+            uid.identifier,
+            uid.logs_dir,
+            args_from_first_pass.install_configs,
+        )
         args, others = self.resolve_install_configs_args(args_from_first_pass, other_args_from_first_pass)
 
         chain_args = self.process_other_chain_args(args, others)
@@ -358,22 +376,27 @@ class SubmitBaseApp:
 
         chain_args = self.convert_chain_args(chain_args)
 
-        chain_args = self.start_engine(args=args, chain_args=chain_args, uid=uid)
+        fx_app, chain_args = self.start_engine(
+            fx_app_cls=FireXCelery,
+            args=args,
+            chain_args=chain_args,
+            uid=uid,
+        )
 
         # Write .chain sentinel files
         self.create_chain_sentinel_files(chain_args['chain'])
 
         # Execute chain
         try:
-            root_task_name = app.conf.get("root_task")
+            root_task_name = fx_app.conf.get("root_task")
             if root_task_name is None:
                 raise NotRegistered("No root task configured")
-            root_task = get_app_task(root_task_name)
+            root_task = fx_app.get_app_task(root_task_name)
         except NotRegistered as e:
             logger.error(e)
             self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
-        self.wait_tracking_services_task_ready()
+        self.wait_tracking_services_task_ready(fx_app)
 
         safe_create_initial_run_json(**chain_args)
 
@@ -412,24 +435,22 @@ class SubmitBaseApp:
 
     def start_engine(
         self,
+        fx_app_cls: type[T],
         args: argparse.Namespace,
         chain_args: dict[str, Any],
         uid: Uid,
-    ) -> dict[str, Any]:
+    ) -> tuple[T, dict[str, Any]]:
         # Start Broker
-        broker = self.start_broker(args=args)
-        _set_broker_in_app(broker)
+        broker = self.start_broker(uid.logs_dir, args=args)
 
         try:
-            # start backend
-            app.backend.set('uid', str(uid))
-            app.backend.set('logs_dir', uid.logs_dir)
-            app.backend.set('resources_dir', uid.resources_dir)
-
-            # IMPORT ALL THE MICROSERVICE ONLY AFTER BROKER HAD STARTED
-            all_tasks, plugin_path_mapping = app.import_microservices(
-                chain_args.get("plugins", args.plugins)
+            fx_app = fx_app_cls.create_submit_fx_app(
+                uid,
+                broker,
+                plugins=chain_args.get("plugins", args.plugins),
             )
+
+            all_tasks, plugin_path_mapping = fx_app.import_microservices()
             if plugin_path_mapping:
                 chain_args['plugin_path_mapping'] = plugin_path_mapping
                 chain_args['plugins'] = ','.join(plugin_path_mapping.values())
@@ -443,9 +464,8 @@ class SubmitBaseApp:
             self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
 
-        # locate task objects
         try:
-            app_tasks = get_app_tasks(chain_args['chain'])
+            app_tasks = fx_app.get_app_tasks(chain_args['chain'])
         except NotRegistered as e:
             reason = "Could not find task %s" % str(e)
             logger.error(reason)
@@ -479,24 +499,29 @@ class SubmitBaseApp:
 
         # Start Celery
         with self.graceful_exit_on_failure("Unable to start Celery:"):
-            self.start_celery(args, chain_args.get("plugins", args.plugins))
-        return chain_args
+            self.start_celery(fx_app, args, chain_args.get("plugins", args.plugins))
+        return fx_app, chain_args
 
-    def start_celery(self, args, plugins):
-        from firexapp.celery_manager import CeleryManager
+    def start_celery(
+        self,
+        fx_app: FireXCelery,
+        args,
+        plugins,
+    ):
         if args.celery_concurrency:
             autoscale=None
         else:
-            auto_scale_min = primary_worker_minimum_concurrency
+            auto_scale_min = FxCeleryConfig.primary_worker_minimum_concurrency
             auto_scale_max = multiprocessing.cpu_count()*8
             autoscale = (auto_scale_min, auto_scale_max)
 
         assert self.uid
         CeleryManager(
             logs_dir=self.uid.logs_dir,
+            fx_env=fx_app.conf.fx_env,
             plugins=plugins,
-        ).start(
-            workername=app.conf.primary_worker_name,
+        ).start_celery_worker(
+            workername=fx_app.conf.primary_worker_name,
             wait=True,
             concurrency=args.celery_concurrency,
             autoscale=autoscale,
@@ -526,9 +551,11 @@ class SubmitBaseApp:
 
         return chain_args
 
-    def start_broker(self, args) -> RedisManager:
-        from firexapp.broker_manager.broker_factory import BrokerFactory
-        self.broker = BrokerFactory.create_new_broker_manager(self.uid.logs_dir)
+    def start_broker(self, logs_dir: str, args) -> RedisManager:
+        self.broker = BrokerFactory.load_broker_manager(
+            redis_bin_base=BrokerFactory.get_redis_bin_dir(),
+            logs_dir=logs_dir,
+        )
         self.broker.start(
             save_db=args.save_redis_db,
             redis_server_extra_opts=args.redis_server_extra_opts,
@@ -537,7 +564,7 @@ class SubmitBaseApp:
 
     def start_tracking_services(self, args, **chain_args) -> dict[str, Any]:
         assert self.enabled_tracking_services is None, "Cannot start tracking services twice."
-        self.enabled_tracking_services = []
+        enabled_tracking_services = []
         services = get_tracking_services()
         if services:
             logger.debug("Tracking services:")
@@ -558,16 +585,17 @@ class SubmitBaseApp:
                     detail += ' '
                 logger.debug(f"\t{service_name} {detail}")
                 if is_requested and not is_cli_disabled:
-                    self.enabled_tracking_services.append(service)
+                    enabled_tracking_services.append(service)
 
             # disabled via CLI overrides required from install config.
             required_service_names = set(requested_service_names or []).difference(cli_disabled_service_names)
-            enabled_service_names = {get_service_name(s) for s in self.enabled_tracking_services}
+            enabled_service_names = {get_service_name(s) for s in enabled_tracking_services}
             missing_require_services = required_service_names.difference(enabled_service_names)
             assert not missing_require_services, \
                 "Missing the following tracking services required by install config. Ensure the pip packages that " \
                 f"contribute these tracking services are installed: {missing_require_services}"
 
+        self.enabled_tracking_services = enabled_tracking_services
         additional_chain_args = {}
         for service in self.enabled_tracking_services:
             extra = service.start(args, install_configs=self.install_configs, **chain_args)
@@ -604,9 +632,9 @@ class SubmitBaseApp:
             wait_duration = time.time() - start_wait_time
             logger.debug("Waited %.1f secs for tracking services to be %s." % (wait_duration, description))
 
-    def wait_tracking_services_task_ready(self, timeout=5)->None:
+    def wait_tracking_services_task_ready(self, fx_app, timeout=5)->None:
         self.wait_tracking_services_pred(
-            lambda s: s.ready_for_tasks(celery_app=app),
+            lambda s: s.ready_for_tasks(celery_app=fx_app),
             'ready for tasks',
             timeout)
 
@@ -617,32 +645,47 @@ class SubmitBaseApp:
             'ready to release console',
             timeout)
 
-    def main_error_exit_handler(self, chain_details=None, reason=None, run_revoked=False):
+    def main_error_exit_handler(
+        self,
+        chain_details: tuple[FxAsyncResult, dict[str, Any]] | None=None,
+        reason=None,
+        run_revoked=False,
+    ):
         mssg = 'Aborting FireX submission...'
         if reason:
             mssg += '\n' + str(reason)
         logger.error(mssg)
-        self.self_destruct(chain_details=chain_details, reason=reason, run_revoked=run_revoked)
+        self.self_destruct(
+            chain_details=chain_details,
+            reason=reason,
+            run_revoked=run_revoked,
+        )
         if self.uid:
             self.copy_submission_log()
 
-    def self_destruct(self, chain_details=None, reason=None, run_revoked=False):
+    def self_destruct(
+        self,
+        chain_details: tuple[FxAsyncResult, dict[str, Any]] | None=None,
+        reason: str | None=None,
+        run_revoked: bool=False,
+    ):
         if not chain_details:
-            chain_result = chain_args = None
+            root_async_result = chain_args = None
         else:
-            chain_result, chain_args = chain_details
+            root_async_result, chain_args = chain_details
 
         _safe_create_completed_run_json(
-            self.uid, chain_result, run_revoked, chain_args, reason
+            self.uid, root_async_result, run_revoked, chain_args, reason
         )
         if self.broker:
-            if chain_result:
+            if root_async_result:
                 try:
                     logger.debug("Generating reports")
                     from firexapp.submit.reporting import ReportersRegistry
                     ReportersRegistry.post_run_report(
-                        results=chain_result,
-                        kwargs=chain_args)
+                        root_async_result=root_async_result,
+                        chain_args=chain_args or {},
+                    )
                     logger.debug('Reports successfully generated')
                 except Exception:
                     # Under no circumstances should report generation prevent celery and broker cleanup
@@ -707,17 +750,7 @@ class SubmitBaseApp:
             sys.exit(-1)
 
 
-def _set_broker_in_app(broker: RedisManager):
-    broker_url = broker.get_url()
-    BrokerFactory.set_broker_env(broker_url)
-
-    from firexapp.engine.celery import app
-    app.conf.result_backend = broker_url
-    app.conf.broker_url = broker_url
-    app.conf.mc = RedisManager.get_hostname_port_from_url(broker_url)[0]
-
-
-def get_firex_id_from_output(cmd_output: str) -> Optional[str]:
+def get_firex_id_from_output(cmd_output: str) -> str | None:
     for line in cmd_output.splitlines():
         match = re.match('.*FireX ID: (.*)', line)
         if match:

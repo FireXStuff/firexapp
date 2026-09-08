@@ -1,8 +1,7 @@
+import logging
 import os
 import sys
-import logging
 from collections import OrderedDict, namedtuple
-from typing import Dict
 
 from entrypoints import EntryPoint
 
@@ -29,10 +28,7 @@ def prune_duplicate_module_entry_points(entry_points) -> list[EntryPoint]:
 
     for e in entry_points:
         key = (e.name, e.module_name, e.object_name)
-        if key not in id_to_entry_points:
-            id_to_entry_points[key] = e
-        # Replace the currently stored entry point for this key if the distro is None.
-        elif id_to_entry_points[key].distro is None and e.distro is not None:
+        if key not in id_to_entry_points or id_to_entry_points[key].distro is None and e.distro is not None:
             id_to_entry_points[key] = e
 
     return list(id_to_entry_points.values())
@@ -48,7 +44,7 @@ def _get_entrypoints(name, prune_duplicates=True, path=None) -> list[EntryPoint]
     return eps
 
 
-def loaded_firex_core_entry_points(path=None) -> Dict[EntryPoint, object]:
+def loaded_firex_core_entry_points(path=None) -> dict[EntryPoint, object]:
     return _load_firex_entry_points('firex.core', path=path)
 
 
@@ -61,7 +57,7 @@ def loaded_firex_entry_points(path=None):
     bundles = _loaded_firex_bundles_entry_points(path=path)
     return cores | bundles
 
-def _load_firex_entry_points(entrypoint_name, path=None) -> Dict[EntryPoint, object]:
+def _load_firex_entry_points(entrypoint_name, path=None) -> dict[EntryPoint, object]:
     global _loaded_firex_bundles
     key = str(path)
     try:

@@ -1,17 +1,17 @@
-import subprocess
 import datetime
 import os
+import subprocess
 
 import lxml.etree as et
 from xunitmerge import merge_trees
 
-from firexapp.testing.config_base import discover_tests
-from firexapp.engine.celery import app
 from firexapp import firex_subprocess
 from firexapp.common import silent_mkdir
-from firexkit.result import get_results
-from firexkit.task import flame, FireXTask
+from firexapp.engine.celery import app
 from firexapp.engine.logging import get_firex_logger
+from firexapp.testing.config_base import discover_tests
+from firexkit.result import get_results
+from firexkit.task import FireXTask, flame
 
 logger = get_firex_logger(__name__)
 
@@ -134,7 +134,7 @@ def RunAllIntegrationTests(
         any_failed = False
         for k, p in promises.as_dict().items():
             if not p.fx_is_successful():
-                logger.print(f'Failed test: {k}')
+                logger.error(f'Failed test: {k}')
                 any_failed = True
         if any_failed:
             raise AssertionError('Some tests failed')

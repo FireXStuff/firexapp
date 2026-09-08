@@ -1,12 +1,16 @@
-import os
 import gzip
 import json
+import os
 
-from firex_flame.model_dumper import find_flame_model_dir, get_model_full_tasks_by_names, \
-    index_tasks_by_names, get_full_tasks_by_slim_pred
-from firex_flame.flame_task_graph import TASK_ARGS
-from firex_flame.flame_helper import find_rec_file, find
 from firex_flame.controller import FlameAppController
+from firex_flame.flame_helper import find, find_rec_file
+from firex_flame.flame_task_graph import TASK_ARGS
+from firex_flame.model_dumper import (
+    find_flame_model_dir,
+    get_full_tasks_by_slim_pred,
+    get_model_full_tasks_by_names,
+    index_tasks_by_names,
+)
 
 
 def load_events_from_rec_file(recording_file):

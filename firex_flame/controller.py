@@ -1,18 +1,21 @@
+import copy
+import json
 import logging
-from typing import Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
-import json
-import copy
+from typing import Any, Optional
 
 import jsonpath_ng
 import socketio
-from gevent import spawn, sleep
+from gevent import sleep, spawn
 from gevent.queue import JoinableQueue
 
 from firex_flame.flame_helper import get_dict_json_md5
-from firex_flame.flame_task_graph import FlameTaskGraph, FlameModelDumper, NoWritngModelDumper
-
+from firex_flame.flame_task_graph import (
+    FlameModelDumper,
+    FlameTaskGraph,
+    NoWritngModelDumper,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +24,7 @@ logger = logging.getLogger(__name__)
 class _LoadedQueryConfig:
 
     query_config: dict[str, Any]
-    model_file_name: Optional[str]
+    model_file_name: str | None
     md5_hash: str
     latest_full_query_result: dict[str, dict[str, Any]] = None
     listening_client_sids: set[str] = field(default_factory=set)
@@ -162,7 +165,7 @@ class FlameAppController:
         self.running_dumper_queue = RunningModelDumper(self)
 
         # Set after creation as a startup optimization.
-        self.sio_server : Optional[socketio.Server] = None
+        self.sio_server : socketio.Server | None = None
 
     def update_graph_and_sio_clients(self, events: list[dict[str, Any]]) -> None:
         new_data_by_task_uuid, slim_update_data_by_uuid = self.graph.update_graph_from_celery_events(
@@ -318,8 +321,8 @@ class QueueItemType(Enum):
 @dataclass
 class _QueueItem:
     item_type : QueueItemType
-    task_uuid: Optional[str] = None
-    celery_event_type: Optional[str] = None
+    task_uuid: str | None = None
+    celery_event_type: str | None = None
 
 
 class RunningModelDumper:

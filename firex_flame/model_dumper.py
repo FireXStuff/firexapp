@@ -1,13 +1,13 @@
 import json
 import logging
 import os
-from pathlib import Path
 import tempfile
-from typing import Optional
+from pathlib import Path
+
 from gevent.fileobject import FileObject
 
-from firexapp.common import wait_until
 from firex_flame.flame_helper import get_flame_debug_dir
+from firexapp.common import wait_until
 
 logger = logging.getLogger(__name__)
 
@@ -75,14 +75,14 @@ def legacy_is_flame_revoked(firex_logs_dir) -> bool:
     return False
 
 
-def _get_flame_url(firex_logs_dir) -> Optional[str]:
+def _get_flame_url(firex_logs_dir) -> str | None:
     metadata = get_run_metadata(firex_logs_dir)
     if metadata:
         return metadata.get('flame_url')
     return None
 
 
-def wait_and_get_flame_url(firex_logs_dir: str, timeout=15, sleep_for=0.5) -> Optional[str]:
+def wait_and_get_flame_url(firex_logs_dir: str, timeout=15, sleep_for=0.5) -> str | None:
     return wait_until(
         _get_flame_url,
         timeout=timeout,

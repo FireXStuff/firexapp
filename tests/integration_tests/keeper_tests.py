@@ -1,15 +1,18 @@
 import os
 
-from firexapp.engine.celery import app
-from firexapp.submit.submit import get_log_dir_from_output
-from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run, assert_is_bad_run
-from firexapp.events.model import RunStates
-from firexapp.common import wait_until
-from firexkit.chain import returns
-from firexkit.task import FireXTask
-
 from firex_keeper import task_query
 from firex_keeper.persist import get_db_manager, task_by_uuid_exp
+from firexapp.common import wait_until
+from firexapp.engine.celery import app
+from firexapp.events.model import RunStates
+from firexapp.submit.submit import get_log_dir_from_output
+from firexapp.testing.config_base import (
+    FlowTestConfiguration,
+    assert_is_bad_run,
+    assert_is_good_run,
+)
+from firexkit.chain import returns
+from firexkit.task import FireXTask
 
 
 @app.task()
@@ -126,7 +129,7 @@ class CausingFailureTest(FlowTestConfiguration):
         f"{failed_by_child} should have been failed by {failed_by_self}"
 
         failed_ancestors = task_query.failed_by_tasks(logs_dir, failed_by_self.uuid)
-        assert len(failed_ancestors) == 2, f'Expected 2 failed ancestors'
+        assert len(failed_ancestors) == 2, 'Expected 2 failed ancestors'
         expected_failed_ancestor_uuids = {failed_by_child.uuid, failed_by_grandchild.uuid}
         actual_failed_ancestor_uuids = {t.uuid for t in failed_ancestors}
         assert expected_failed_ancestor_uuids == actual_failed_ancestor_uuids, \

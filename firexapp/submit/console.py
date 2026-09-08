@@ -1,10 +1,12 @@
+import logging
 import os
 import sys
-import logging
+import warnings
+
 import colorlog
 from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
+
 from firexkit.result import ChainInterruptedException
-import warnings
 
 # BeautifulSoup thinks we're giving it an URL because there is an URL in msg.
 # Not good. Keep stderr clean by ignoring this warning.
@@ -43,7 +45,7 @@ class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
         if not prefixes:
             # Use a minimal format without the hostname and time
             self._style._fmt = '%(log_color)s%(message)s'
-        msg = super(FireXColoredConsoleFormatter, self).format(record)
+        msg = super().format(record)
         # Restore original formats
         self._style._fmt = format_orig
         if override_exc_text:
@@ -88,7 +90,7 @@ def setup_console_logging(module=None,
 
         def __init__(self, level):
             self.level = level
-            super(LogLevelFilter, self).__init__()
+            super().__init__()
 
         def filter(self, record):
             # "<" instead of "<=": since logger.setLevel is inclusive, this should

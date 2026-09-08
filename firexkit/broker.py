@@ -1,8 +1,13 @@
 import time
-from typing import Callable, Any, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 from celery.utils.log import get_task_logger
+
 logger = get_task_logger(__name__)
+
+FX_QUEUES_KEY = 'QUEUES'
+FX_FORGOTTEN_AR_IDS_KEY = 'FX_FORGOTTEN_AR_IDS'
 
 R = TypeVar('R')
 
@@ -13,7 +18,7 @@ def handle_broker_timeout(
     timeout=15*60,
     retry_delay=1,
     reraise_on_timeout=True,
-) -> R:
+) -> R | None:
     kwargs = kwargs or {}
     maximum_retry_delay = retry_delay * 10
     timeout_time = time.monotonic() + timeout if timeout else None

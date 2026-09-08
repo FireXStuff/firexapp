@@ -1,17 +1,17 @@
 import os
-from psutil import Process, TimeoutExpired
 import subprocess
 import time
 
+from psutil import Process, TimeoutExpired
+
+from firex_blaze.fast_blaze_helper import get_blaze_dir
+from firexapp.common import qualify_firex_bin
+from firexapp.discovery import PkgVersionInfo
+from firexapp.engine.default_celery_config import FxEnvVars
+from firexapp.submit.console import setup_console_logging
 from firexapp.submit.install_configs import FireXInstallConfigs
 from firexapp.submit.submit import OptionalBoolean
 from firexapp.submit.tracking_service import TrackingService
-from firexapp.common import qualify_firex_bin, select_env_vars
-from firexapp.submit.console import setup_console_logging
-
-from firex_blaze.fast_blaze_helper import get_blaze_dir
-from firexapp.discovery import PkgVersionInfo
-
 
 logger = setup_console_logging(__name__)
 
@@ -116,7 +116,7 @@ class FireXBlazeLauncher(TrackingService):
                 stdout=f,
                 stderr=subprocess.STDOUT,
                 close_fds=True,
-                env=select_env_vars(['PATH']),
+                env=FxEnvVars.select_minimal_fx_env_from_os_env(),
                 cwd=blaze_debug_dir,
             ).pid
 

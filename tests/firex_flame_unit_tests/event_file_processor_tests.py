@@ -2,7 +2,10 @@ import os
 import unittest
 
 from firex_flame.controller import FlameAppController
-from firex_flame.event_file_processor import process_recording_file, get_model_or_rec_full_tasks_by_uuids
+from firex_flame.event_file_processor import (
+    get_model_or_rec_full_tasks_by_uuids,
+    process_recording_file,
+)
 
 parent = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 test_data_dir = os.path.join(parent, "data")

@@ -4,15 +4,13 @@ Process events from Celery.
 
 import abc
 import logging
-from pathlib import Path
 import threading
-import traceback
 import time
-from typing import Optional
+import traceback
+from pathlib import Path
 
 from celery.app.base import Celery
 from celery.events import EventReceiver
-
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +23,16 @@ class BrokerEventConsumerThread(threading.Thread):
     def __init__(
         self,
         celery_app: Celery,
-        max_retry_attempts: Optional[int]=None,
-        receiver_ready_file: Optional[str]=None,
+        max_retry_attempts: int | None=None,
+        receiver_ready_file: str | None=None,
     ):
         threading.Thread.__init__(self)
         self.celery_app = celery_app
         self.max_try_interval = 2**max_retry_attempts if max_retry_attempts is not None else 32
         self.ready = False
-        self.celery_event_receiver : Optional[EventReceiver] = None
+        self.celery_event_receiver : EventReceiver | None = None
 
-        self.receiver_ready_file : Optional[Path]
+        self.receiver_ready_file : Path | None
 
         if receiver_ready_file:
             self.receiver_ready_file = Path(receiver_ready_file)
@@ -103,7 +101,6 @@ class BrokerEventConsumerThread(threading.Thread):
 
     def _on_ready(self):
         """Called a single time when the thread is ready to start receiving events."""
-        pass
 
     def _on_event(self, event):
         try:
@@ -124,7 +121,6 @@ class BrokerEventConsumerThread(threading.Thread):
     @abc.abstractmethod
     def _is_root_complete(self) -> bool:
         """Return True only when the root task is complete and normal shutdown can occur."""
-        pass
 
     def _all_tasks_complete(self) -> bool:
         """Return True only when all tasks are complete and the event receiver can be stopped."""
@@ -133,12 +129,9 @@ class BrokerEventConsumerThread(threading.Thread):
     @abc.abstractmethod
     def _on_celery_event(self, event):
         """Callback invoked when a event is received from Celery."""
-        pass
 
     def _on_external_shutdown(self):
         """Callback invoked when the thread is shutdown externally (e.g. signal)"""
-        pass
 
     def _on_cleanup(self):
         """Callback invoked when the receiver has stopped listening, for any reason."""
-        pass

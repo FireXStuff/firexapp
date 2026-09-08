@@ -1,16 +1,16 @@
+import dataclasses
+import datetime
 import json
 import os
-import dataclasses
-from typing import Optional
-import datetime
-from pathlib import Path
-import string
 import secrets
+import string
+from pathlib import Path
+from typing import Optional
+
+from celery.utils.log import get_task_logger
 
 from firexapp.common import silent_mkdir
 from firexapp.submit.uid import Uid
-from celery.utils.log import get_task_logger
-
 
 logger = get_task_logger(__name__)
 
@@ -25,18 +25,18 @@ class RevokeDetails:
     # ensure loading is backwards compatible
     #
     logs_dir: str
-    reason: Optional[str] # FIXME: try to make this always set.
+    reason: str | None # FIXME: try to make this always set.
     task_uuid: str
     root_revoke: bool
-    revoking_user: Optional[str] = None
+    revoking_user: str | None = None
     revoke_start_time: datetime.datetime = dataclasses.field(default_factory=_now_utc)
-    revoke_complete_time: Optional[datetime.datetime] = None
-    _id: Optional[str] = None
+    revoke_complete_time: datetime.datetime | None = None
+    _id: str | None = None
 
     def is_revoke_completed(self) -> bool:
         return self.revoke_complete_time is not None
 
-    def write_revoke_complete(self, revoke_complete_time: Optional[datetime.datetime]=None):
+    def write_revoke_complete(self, revoke_complete_time: datetime.datetime | None=None):
         if self.revoke_complete_time is None:
             self.revoke_complete_time = revoke_complete_time or _now_utc()
             self.write()

@@ -1,5 +1,6 @@
 import os
 import unittest
+
 from firexapp.discovery import discover_package_modules
 
 

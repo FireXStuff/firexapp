@@ -2,27 +2,39 @@
 Process events from Celery.
 """
 
-from enum import Enum, auto
 import logging
 import queue
 import threading
-from time import sleep
+from enum import Enum, auto
 from pathlib import Path
-from typing import Optional, Any
-
-from firexapp.events.broker_event_consumer import BrokerEventConsumerThread
-from firexapp.events.event_aggregator import DEFAULT_AGGREGATOR_CONFIG, AbstractFireXEventAggregator
-from firexapp.events.model import FireXRunMetadata, get_task_data, RunMetadataColumn
-import sqlalchemy.exc
 from sqlite3 import DatabaseError as SqlLiteDatabaseError
-from firexapp.events.model import RunStates
+from time import sleep
+from typing import Any
+
+import sqlalchemy.exc
 
 from firex_keeper.db_model import firex_run_metadata, firex_tasks
-from firex_keeper.persist import (get_keeper_complete_file_path,
-    task_by_uuid_exp, FireXRunDbManager, get_keeper_query_ready_file_path,
-    RETRYING_DB_EXCEPTIONS, retry, connect_db, get_db_file,
+from firex_keeper.persist import (
+    RETRYING_DB_EXCEPTIONS,
+    FireXRunDbManager,
+    connect_db,
+    get_db_file,
+    get_keeper_complete_file_path,
+    get_keeper_query_ready_file_path,
+    retry,
+    task_by_uuid_exp,
 )
-
+from firexapp.events.broker_event_consumer import BrokerEventConsumerThread
+from firexapp.events.event_aggregator import (
+    DEFAULT_AGGREGATOR_CONFIG,
+    AbstractFireXEventAggregator,
+)
+from firexapp.events.model import (
+    FireXRunMetadata,
+    RunMetadataColumn,
+    RunStates,
+    get_task_data,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +159,7 @@ class KeeperEventAggregator(AbstractFireXEventAggregator):
         # All task UUIDs stored, but only incomplete
         # tasks kept here (None for complete task UUIDs).
         # This minimizes memory usage.
-        self.maybe_tasks_by_uuid : dict[str, Optional[dict]] = {}
+        self.maybe_tasks_by_uuid : dict[str, dict | None] = {}
         self.root_task_uuid = None
 
     def aggregate_events(self, events):
@@ -223,13 +235,13 @@ class KeeperEventAggregator(AbstractFireXEventAggregator):
             return True
         return bool(self._query_task_by_uuid(task_uuid))
 
-    def _query_task_by_uuid(self, task_uuid: str) -> Optional[dict[str, Any]]:
+    def _query_task_by_uuid(self, task_uuid: str) -> dict[str, Any] | None:
         tasks = self.run_db_manager.query_tasks(task_by_uuid_exp(task_uuid))
         if not tasks:
             return None
         return tasks[0]._asdict()
 
-    def _get_task(self, task_uuid: str) -> Optional[dict[str, Any]]:
+    def _get_task(self, task_uuid: str) -> dict[str, Any] | None:
         maybe_task = self.maybe_tasks_by_uuid.get(task_uuid)
         if maybe_task is not None:
             return maybe_task
@@ -263,7 +275,7 @@ class TaskDatabaseAggregatorThread(BrokerEventConsumerThread):
         celery_app,
         run_metadata: FireXRunMetadata,
         max_retry_attempts: int = None,
-        receiver_ready_file: Optional[str] = None
+        receiver_ready_file: str | None = None
     ):
         super().__init__(celery_app, max_retry_attempts, receiver_ready_file)
 

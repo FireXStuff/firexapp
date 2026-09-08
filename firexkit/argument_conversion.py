@@ -1,14 +1,13 @@
 import inspect
 import os
-
 from collections import namedtuple
 from datetime import datetime
 from functools import wraps
-from celery.utils.log import get_task_logger
+
 from celery.local import PromiseProxy
+from celery.utils.log import get_task_logger
 
 from firexkit.bag_of_goodies import BagOfGoodies
-
 
 logger = get_task_logger(__name__)
 
@@ -222,7 +221,7 @@ class ConverterRegister:
         return reg.get_visit_order(pre_task=pre_task)
 
 
-class SingleArgDecorator(object):
+class SingleArgDecorator:
     """
     Decorator to simplify a common use case for argument converters, in which a single argument in the
     bag of goodies needs to be validated or converted. Converter is only called if the argument is in
@@ -280,25 +279,20 @@ class SingleArgDecorator(object):
 
 class ArgumentConversionException(Exception):
     """An exception occurred while executing a converter"""
-    pass
 
 
 class ConverterRegistrationException(Exception):
     """A coding error in the registration of the converter"""
-    pass
 
 
 class MissingConverterDependencyError(ConverterRegistrationException):
     """A converter was registered with a dependency that does not exist."""
-    pass
 
 
 class CircularDependencyException(ConverterRegistrationException):
     """A converter was registered with a dependency that is itself directly or indirectly dependent on it."""
-    pass
 
 
 class NameDuplicationException(ConverterRegistrationException):
     """A converter was registered with the same name as another converter. This creates conflicts during dependency
     check, and is not allow"""
-    pass

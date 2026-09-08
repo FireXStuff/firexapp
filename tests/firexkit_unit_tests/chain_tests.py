@@ -1,13 +1,14 @@
 import unittest
+from collections import namedtuple
+from functools import wraps
+
 from celery.app.task import Task
 from celery.canvas import chain
-from collections import namedtuple
 
+from firexkit.chain import InjectArgs, InvalidChainArgsException, returns
 from firexkit.result import RETURN_KEYS_KEY, ReturnsCodingException
 from firexkit.task import FireXTask, get_attr_unwrapped
-from firexkit.chain import returns, InvalidChainArgsException, InjectArgs
 from firexkit.testing import ut_celery_app
-from functools import wraps
 
 
 def assertTupleAlmostEqual(t1, t2):
@@ -117,9 +118,8 @@ class ReturnsTests(unittest.TestCase):
             return the_goods, the_other_goods
 
         for bad_input in [{1,2,3}, (1,2,3), [1,2,3], 'some_string']:
-            with self.subTest():
-                with self.assertRaises(TypeError):
-                    f_task(the_goods='something', the_other_goods=bad_input)
+            with self.subTest(), self.assertRaises(TypeError):
+                f_task(the_goods='something', the_other_goods=bad_input)
 
         # validate that order is preserved
         @test_app.task(base=FireXTask, returns=['stuff', FireXTask.DYNAMIC_RETURN, "more_stuff"])
@@ -127,7 +127,7 @@ class ReturnsTests(unittest.TestCase):
             return "first", {"stuff": "final", "more_stuff": "first"}, "final2"
 
         with self.subTest("Precedence"):
-            for _ in range(0, 5):  # run multiple times to avoid false positives if dict are used
+            for _ in range(5):  # run multiple times to avoid false positives if dict are used
                 ret = g_task()
                 self.assertEqual(ret["stuff"], "final", "Dynamic did not override stuff")
                 self.assertEqual(ret["more_stuff"], "final2", "explicit did not override dynamic")
@@ -572,7 +572,7 @@ class InjectArgsTest(unittest.TestCase):
             pass  # pragma: no cover
 
         with self.subTest("Inject directly"):
-            c = InjectArgs(needed='stuff', **{})
+            c = InjectArgs(needed='stuff')
             c = c | injected_task2.s()
             c.verify_args()
 

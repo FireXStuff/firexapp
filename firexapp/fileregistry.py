@@ -1,9 +1,9 @@
 # This module serves as a Singleton that will store
 # a registry of the ouptut files needed
 import json
-from firexapp.submit.uid import Uid
-
 import os
+
+from firexapp.submit.uid import Uid
 
 
 class KeyAlreadyRegistered(Exception):
@@ -19,7 +19,7 @@ class Singleton(type):
 
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+            cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
 
 

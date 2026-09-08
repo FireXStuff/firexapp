@@ -1,17 +1,18 @@
+import html
 import logging
+import os
 import re
 import uuid
-
-import celery.utils.log
 from _socket import gethostname
 from logging.handlers import WatchedFileHandler
-import html
-from celery.signals import after_setup_task_logger, after_setup_logger
-import os
-from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
-from firexkit.firexkit_common import JINJA_ENV
+
+import celery.utils.log
 from celery._state import get_current_task
+from celery.signals import after_setup_logger, after_setup_task_logger
 from celery.utils import functional
+
+from firexkit.firexkit_common import JINJA_ENV
+from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
 
 RAW_LEVEL_NAME = 'RAW'
 PRINT_LEVEL_NAME = 'PRINT'
@@ -209,4 +210,4 @@ class FireXLogger(logging.Logger):
         pass
 
 def get_firex_logger(name: str) -> FireXLogger:
-    return celery.utils.log.get_task_logger(name) # noqa
+    return celery.utils.log.get_task_logger(name)

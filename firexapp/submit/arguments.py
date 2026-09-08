@@ -1,11 +1,11 @@
 import os
-import sys
 import re
-from firexkit.argument_conversion import ConverterRegister
-from typing import Union, Any
-from firexapp.submit.console import setup_console_logging
-from firexapp.plugins import plugins_has
+import sys
+from typing import Any
 
+from firexapp.plugins import plugins_has
+from firexapp.submit.console import setup_console_logging
+from firexkit.argument_conversion import ConverterRegister
 
 logger = setup_console_logging(__name__)
 
@@ -193,7 +193,7 @@ def auto_load_pydev_debugging_plugin(kwargs):
 _global_argument_whitelist = set()
 
 
-def whitelist_arguments(argument_list: Union[str, list]):
+def whitelist_arguments(argument_list: str | list):
     """
     Function for adding argument keys to the global argument whitelist. Used during validation of input arguments
 

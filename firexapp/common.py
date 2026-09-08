@@ -1,13 +1,13 @@
-import threading
-import time
 import os
-import psutil
 import re
 import socket
+import threading
+import time
 from threading import get_native_id
 
-from jinja2 import Template
+import psutil
 from celery.utils.log import get_task_logger
+from jinja2 import Template
 
 logger = get_task_logger(__name__)
 
@@ -25,7 +25,7 @@ def delimit2list(
         return str_to_split
 
     # regex for only comma is (([^,'"]|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')+)
-    regex = """(([^""" + "".join(delimiters).replace(" ", "\s") + """'"]|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')+)"""
+    regex = """(([^""" + "".join(delimiters).replace(" ", r"\s") + """'"]|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')+)"""
     tokens = re.findall(regex, str_to_split)
 
     # unquote "tokens" if necessary
@@ -83,7 +83,8 @@ def poll_until_dir_empty(dir_path, timeout=15):
     return not os.listdir(dir_path)
 
 
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 T = TypeVar('T')
 
@@ -111,10 +112,6 @@ def qualify_firex_bin(bin_name):
     if FIREX_BIN_DIR_ENV in os.environ:
         return os.path.join(os.environ[FIREX_BIN_DIR_ENV], bin_name)
     return bin_name
-
-
-def select_env_vars(env_names):
-    return {k: v for k, v in os.environ.items() if k in env_names}
 
 
 def find(keys, input_dict):

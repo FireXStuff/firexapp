@@ -1,11 +1,9 @@
 import os
 
-from firexapp.firex_subprocess import check_output
-from firexkit.proc_utils import kill_procs_by_name_and_cmdline
-from firexapp.testing.config_base import assert_is_bad_run
-
 from firexapp.engine.celery import app
-from firexapp.testing.config_base import FlowTestConfiguration
+from firexapp.firex_subprocess import check_output
+from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
+from firexkit.proc_utils import kill_procs_by_name_and_cmdline
 
 
 @app.task(soft_time_limit=5)

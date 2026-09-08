@@ -1,6 +1,6 @@
+import inspect
 import os
 import sys
-import inspect
 
 
 def find_in_stack(file_to_find)->bool:

@@ -1,21 +1,21 @@
-import os
 import argparse
 import logging
+import os
 import subprocess
-import time
-from psutil import Process, TimeoutExpired
-from collections import namedtuple
-from typing import Optional
 import tempfile
+import time
+from collections import namedtuple
 
-from celery import Celery
-import redis.exceptions
 import kombu.exceptions
+import redis.exceptions
+from celery import Celery
+from psutil import Process, TimeoutExpired
 
+from firexapp.broker_manager.broker_factory import BrokerFactory
 from firexapp.celery_manager import CeleryManager
+from firexapp.common import qualify_firex_bin
+from firexapp.engine.default_celery_config import FxEnvVars
 from firexapp.submit.uid import Uid
-from firexapp.broker_manager.broker_factory import BrokerFactory, REDIS_BIN_ENV
-from firexapp.common import qualify_firex_bin, select_env_vars
 from firexkit.inspect import get_active, ping
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ MaybeCeleryActiveTasks = namedtuple('MaybeCeleryActiveTasks', ['celery_read_succ
 
 
 def _launch_shutdown_subprocess(shutdown_cmd: list[str], logs_dir: str) -> int:
-    shutdown_subprocess_env = select_env_vars([REDIS_BIN_ENV, 'PATH'])
+    shutdown_subprocess_env = FxEnvVars.select_minimal_fx_env_from_os_env()
     shutdown_cwd = logs_dir if os.path.isdir(logs_dir) else tempfile.gettempdir()
     try:
         import detach # noqa
@@ -49,7 +49,7 @@ def _launch_shutdown_subprocess(shutdown_cmd: list[str], logs_dir: str) -> int:
         )
 
 
-def launch_background_shutdown(logs_dir, reason, celery_shutdown_timeout=DEFAULT_CELERY_SHUTDOWN_TIMEOUT) -> Optional[int]:
+def launch_background_shutdown(logs_dir, reason, celery_shutdown_timeout=DEFAULT_CELERY_SHUTDOWN_TIMEOUT) -> int | None:
     try:
         shutdown_cmd = [qualify_firex_bin("firex_shutdown"),
                         "--logs_dir",  logs_dir,
@@ -205,11 +205,14 @@ def _shutdown_run(logs_dir: str, celery_shutdown_timeout, reason='No reason prov
     logger.info(f"Shutting down due to reason: {reason}")
     logger.info(f"Shutting down with logs: {logs_dir}.")
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
-    logger.info(f"Shutting down with broker: {broker.broker_url_safe_print}.")
-
-    celery_manager = CeleryManager(logs_dir=logs_dir, broker=broker)
-    celery_app = Celery(broker=broker.broker_url,
-                        accept_content=['pickle', 'json'])
+    celery_manager = CeleryManager(
+        logs_dir=logs_dir,
+        fx_env=FxEnvVars.load_firex_env_vars_from_env(),
+    )
+    celery_app = Celery(
+        broker=broker.broker_url,
+        accept_content=['pickle', 'json'],
+    )
     try:
         if is_celery_responsive(broker, celery_app):
             revoke_active_tasks(broker, celery_app)

@@ -26,3 +26,4 @@ git push origin "refs/tags/$(uv version --short)"
 ```
 Do not use a `v` prefix or `git push --tags`. Published versions and tags are
 immutable; fixes require a new version.
+

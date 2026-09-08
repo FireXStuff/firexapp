@@ -1,10 +1,10 @@
 import os
 import subprocess
-import unittest
 import tempfile
+import unittest
 
-from firexkit import firex_exceptions
 import firexapp.firex_subprocess
+from firexkit import firex_exceptions
 
 TEST_TEXT = 'This is a good test'
 
@@ -39,12 +39,12 @@ class SubprocessRunnerTests(unittest.TestCase):
             self.assertIsNotNone(ee.exception.stdout)
 
         with self.subTest("PYTHONPATH doesn't exist in call's env"):
-            self.assertEqual(runner(f'/bin/echo $PYTHONPATH', shell=True).strip(),
+            self.assertEqual(runner('/bin/echo $PYTHONPATH', shell=True).strip(),
                              '')
 
         with self.subTest("remove_firex_pythonpath set to False"):
             python_path = 'some value'
-            self.assertEqual(runner(f'/bin/echo $PYTHONPATH', shell=True, remove_firex_pythonpath=False,
+            self.assertEqual(runner('/bin/echo $PYTHONPATH', shell=True, remove_firex_pythonpath=False,
                                     env={'PYTHONPATH': python_path}).strip(),
                              python_path)
 
@@ -53,7 +53,7 @@ class SubprocessRunnerTests(unittest.TestCase):
             env = {'PYTHONPATH': 'start_path'}
             os.environ['PYTHONPATH'] = env['PYTHONPATH']
             env['PYTHONPATH'] = env['PYTHONPATH'] + ':' + new_path
-            self.assertEqual(runner(f'/bin/echo $PYTHONPATH', shell=True, env=env).strip(),
+            self.assertEqual(runner('/bin/echo $PYTHONPATH', shell=True, env=env).strip(),
                              new_path)
 
         with self.subTest("user injected multiple PYTHONPATH"):
@@ -61,26 +61,26 @@ class SubprocessRunnerTests(unittest.TestCase):
             env = {'PYTHONPATH': 'start_path'}
             os.environ['PYTHONPATH'] = env['PYTHONPATH']
             env['PYTHONPATH'] = env['PYTHONPATH'] + ':' + new_path
-            self.assertEqual(runner(f'/bin/echo $PYTHONPATH', shell=True, env=env).strip(),
+            self.assertEqual(runner('/bin/echo $PYTHONPATH', shell=True, env=env).strip(),
                              new_path)
 
         with self.subTest("user set PYTHONPATH to empty string"):
             env = os.environ.copy()
             env.pop('PYTHONPATH', None)
-            self.assertEqual(runner(f'/bin/echo $PYTHONPATH', shell=True, env=env).strip(),
+            self.assertEqual(runner('/bin/echo $PYTHONPATH', shell=True, env=env).strip(),
                              '')
 
         with self.subTest("user removed PYTHONPATH"):
             env = os.environ.copy()
             env['PYTHONPATH'] = ''
-            self.assertEqual(runner(f'/bin/echo $PYTHONPATH', shell=True, env=env).strip(),
+            self.assertEqual(runner('/bin/echo $PYTHONPATH', shell=True, env=env).strip(),
                              '')
 
         with self.subTest("No inactivity_timeout triggered when outputting to monitored file"):
             tmp_dir = "/var/tmp"
             with tempfile.NamedTemporaryFile(dir=tmp_dir, delete=True) as f:
                 cmd = f'bash -c "for v in {{1..{2}}};do echo \'{TEST_TEXT}\' >> {f.name};sleep 1;done"'
-                return_val = runner(cmd, inactivity_timeout=1, monitor_activity_files=[f"./*"], cwd = tmp_dir)
+                return_val = runner(cmd, inactivity_timeout=1, monitor_activity_files=["./*"], cwd = tmp_dir)
                 self.assertEqual(return_val, "")
                 self.assertEqual(TEST_TEXT, f.readline().strip().decode('utf-8'))
 

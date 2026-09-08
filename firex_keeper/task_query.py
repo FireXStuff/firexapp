@@ -1,18 +1,29 @@
 import logging
-from typing import List, Optional
 import os
-from tempfile import TemporaryDirectory
 import shutil
 import subprocess
+from tempfile import TemporaryDirectory
 
-from firexapp.events.model import TaskColumn, RunStates, FireXTask, is_chain_exception, get_chain_exception_child_uuid
-from firex_keeper.db_model import firex_tasks
-from firex_keeper.persist import get_db_manager, task_by_uuid_exp, get_keeper_complete_file_path, \
-    get_db_file, get_keeper_query_ready_file_path
-from firex_keeper.keeper_helper import FireXTreeTask
-from firexapp.common import wait_until
-from sqlalchemy.sql import and_, select
 from sqlalchemy import literal
+from sqlalchemy.sql import and_, select
+
+from firex_keeper.db_model import firex_tasks
+from firex_keeper.keeper_helper import FireXTreeTask
+from firex_keeper.persist import (
+    get_db_file,
+    get_db_manager,
+    get_keeper_complete_file_path,
+    get_keeper_query_ready_file_path,
+    task_by_uuid_exp,
+)
+from firexapp.common import wait_until
+from firexapp.events.model import (
+    FireXTask,
+    RunStates,
+    TaskColumn,
+    get_chain_exception_child_uuid,
+    is_chain_exception,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +43,7 @@ def _task_col_eq(task_col, val):
     return firex_tasks.c[task_col.value] == val
 
 
-def _wait_and_query(logs_dir, query, db_file_query_ready_timeout, **kwargs) -> List[FireXTask]:
+def _wait_and_query(logs_dir, query, db_file_query_ready_timeout, **kwargs) -> list[FireXTask]:
     wait_on_keeper_query_ready(logs_dir, db_file_query_ready_timeout)
     with get_db_manager(logs_dir) as db_manager:
         return db_manager.query_tasks(query, **kwargs)
@@ -86,7 +97,7 @@ def _copy_keeper_db_for_local_query(existing_db_file: str, new_tmp_db_file: str,
     logger.info('Copied keeper DB for local query using shutil.copyfile')
 
 
-def _query_tasks(logs_dir, query, db_file_query_ready_timeout=15, copy_before_query=False, **kwargs) -> List[FireXTask]:
+def _query_tasks(logs_dir, query, db_file_query_ready_timeout=15, copy_before_query=False, **kwargs) -> list[FireXTask]:
     if copy_before_query:
         tmp_base_dir = '/dev/shm' if os.path.isdir('/dev/shm') else None
         with TemporaryDirectory(dir=tmp_base_dir) as temp_log_dir:
@@ -101,11 +112,11 @@ def _query_tasks(logs_dir, query, db_file_query_ready_timeout=15, copy_before_qu
     return query_results
 
 
-def all_tasks(logs_dir, **kwargs) -> List[FireXTask]:
+def all_tasks(logs_dir, **kwargs) -> list[FireXTask]:
     return _query_tasks(logs_dir, True, **kwargs)
 
 
-def tasks_by_name(logs_dir, name, **kwargs) -> List[FireXTask]:
+def tasks_by_name(logs_dir, name, **kwargs) -> list[FireXTask]:
     if '.' in name:
         col = TaskColumn.LONG_NAME
     else:
@@ -136,32 +147,32 @@ def task_by_uuid(logs_dir, uuid, wait_for_exp_exist=None, max_wait=3, **kwargs) 
     return tasks[0]
 
 
-def task_by_name_and_arg_pred(logs_dir, name, arg, pred) -> List[FireXTask]:
+def task_by_name_and_arg_pred(logs_dir, name, arg, pred) -> list[FireXTask]:
     tasks_with_name = tasks_by_name(logs_dir, name)
     return [t for t in tasks_with_name if arg in t.firex_bound_args and pred(t.firex_bound_args[arg])]
 
 
-def task_by_name_and_arg_value(logs_dir, name, arg, value) -> List[FireXTask]:
+def task_by_name_and_arg_value(logs_dir, name, arg, value) -> list[FireXTask]:
     pred = lambda arg_value: arg_value == value
     return task_by_name_and_arg_pred(logs_dir, name, arg, pred)
 
 
-def failed_tasks(logs_dir, **kwargs) -> List[FireXTask]:
+def failed_tasks(logs_dir, **kwargs) -> list[FireXTask]:
     return _query_tasks(logs_dir, _task_col_eq(TaskColumn.STATE, RunStates.FAILED.value), **kwargs)
 
 
-def revoked_tasks(logs_dir, **kwargs) -> List[FireXTask]:
+def revoked_tasks(logs_dir, **kwargs) -> list[FireXTask]:
     return _query_tasks(
         logs_dir,
         firex_tasks.c[TaskColumn.STATE.value].in_(REVOKED_RUNSTATES),
         **kwargs)
 
 
-def running_tasks(logs_dir, **kwargs) -> List[FireXTask]:
+def running_tasks(logs_dir, **kwargs) -> list[FireXTask]:
     return _query_tasks(logs_dir, firex_tasks.c[TaskColumn.STATE.value].in_(INCOMPLETE_RUNSTATES), **kwargs)
 
 
-def running_not_blocked_tasks(logs_dir, **kwargs) -> List[FireXTask]:
+def running_not_blocked_tasks(logs_dir, **kwargs) -> list[FireXTask]:
     return _query_tasks(
         logs_dir,
         and_(
@@ -170,7 +181,7 @@ def running_not_blocked_tasks(logs_dir, **kwargs) -> List[FireXTask]:
         ),
         **kwargs)
 
-def failed_by_tasks(logs_dir, failed_uuid: str, **kwargs) -> List[FireXTask]:
+def failed_by_tasks(logs_dir, failed_uuid: str, **kwargs) -> list[FireXTask]:
     # TODO: make this work with copy_before_query without copying twice,
     # or tune page size to make NFS queries faster.
     # assert is_failed(task_by_uuid(logs_dir, failed_uuid, **kwargs)), \
@@ -219,7 +230,7 @@ def _get_tree_tasks_by_uuid(root_uuid, tasks_by_uuid):
     return tree_tasks_by_uuid
 
 
-def _create_task_tree(logs_dir, root_uuid=None, **kwargs) -> Optional[FireXTreeTask]:
+def _create_task_tree(logs_dir, root_uuid=None, **kwargs) -> FireXTreeTask | None:
     with get_db_manager(logs_dir) as db_manager:
         if root_uuid is None:
             root_uuid = db_manager.query_single_run_metadata().root_uuid
@@ -270,7 +281,7 @@ def task_tree_to_task(task_tree: FireXTreeTask) -> FireXTask:
     return FireXTask(**task_tree_dict)
 
 
-def flatten_tree(task_tree: FireXTreeTask) -> List[FireXTreeTask]:
+def flatten_tree(task_tree: FireXTreeTask) -> list[FireXTreeTask]:
     flat_tasks = []
     to_check = [task_tree]
     while to_check:
@@ -281,7 +292,7 @@ def flatten_tree(task_tree: FireXTreeTask) -> List[FireXTreeTask]:
     return flat_tasks
 
 
-def get_descendants(logs_dir, uuid) -> List[FireXTreeTask]:
+def get_descendants(logs_dir, uuid) -> list[FireXTreeTask]:
     # TODO: historically a FireXTreeTask was returned because
     # the graph needed to be created within the application anyways.
     # Now that sqlite recursive query is managing the tree,

@@ -1,8 +1,8 @@
-from typing import Optional
 import logging
 
 from celery.app.base import Celery
-from firexapp.reporters.json_reporter import RevokeDetails, FireXRunData
+
+from firexapp.reporters.json_reporter import FireXRunData, RevokeDetails
 
 logger = logging.getLogger(__name__)
 
@@ -11,8 +11,8 @@ class FireXRunController:
 
     def __init__(
         self,
-        celery_app: Optional[Celery]=None,
-        logs_dir: Optional[str]=None,
+        celery_app: Celery | None=None,
+        logs_dir: str | None=None,
     ):
         #
         # Celery apps are a nightmare, and sometimes we inspect from contexts where
@@ -30,7 +30,7 @@ class FireXRunController:
         else:
             raise AssertionError('Must supply at least one of celery_app, logs_dir')
         self.celery_app = celery_app
-        self._run_revoke_dir: Optional[str] = None
+        self._run_revoke_dir: str | None = None
 
     def revoke_task(
         self,
@@ -61,14 +61,14 @@ class FireXRunController:
             or self.run_revoke_complete()
         )
 
-    def get_current_run_revoke(self) -> Optional[RevokeDetails]:
+    def get_current_run_revoke(self) -> RevokeDetails | None:
         if self.celery_app and not _backend_get_root_revoked(self.celery_app):
             return None
         return RevokeDetails.load_latest_run_revoke_details(
             self.logs_dir,
         )
 
-    def get_task_revoke(self, task_uuid: str) -> Optional[RevokeDetails]:
+    def get_task_revoke(self, task_uuid: str) -> RevokeDetails | None:
         return RevokeDetails.load_latest_revoke_details(
             self.logs_dir, task_uuid=task_uuid,
         )

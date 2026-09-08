@@ -1,9 +1,9 @@
 import os
 
-from firexkit.chain import returns
 from firexapp.engine.celery import app
 from firexapp.submit.reporting import ReportGenerator, report
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_good_run
+from firexkit.chain import returns
 
 
 class CustomTestReportGenerator(ReportGenerator):
@@ -30,7 +30,7 @@ class CustomTestReportGenerator(ReportGenerator):
         assert formatters["good"](value["the_secret_to_success"]) == "perseverance", "Formatter did not work"
         self.had_entries += 1
 
-    def post_run_report(self, uid, **kwargs):
+    def post_run_report(self, root_async_result, uid, **kwargs):
         if self.had_entries == 1:
             success_file = os.path.join(uid.logs_dir, "success")
             with open(success_file, 'w+'):

@@ -1,7 +1,7 @@
 import datetime
-from typing import Optional
 
 from celery.utils.log import get_task_logger
+
 from firexkit.inspect import get_revoked
 
 logger = get_task_logger(__name__)
@@ -29,12 +29,12 @@ class RevokedRequests:
 
     def __init__(
         self,
-        revoked_uuids : Optional[set[str]]=None,
+        revoked_uuids : set[str] | None=None,
         timer_expiry_secs: int=60,
     ):
         self.timer_expiry = datetime.timedelta(seconds=timer_expiry_secs)
         self._revoked_uuids : set[str] = revoked_uuids or set()
-        self.last_updated : Optional[datetime.datetime] = _now_utc()
+        self.last_updated : datetime.datetime | None = _now_utc()
         from firexkit.firex_celery import FireXCelery
         self.app = FireXCelery.app_or_default()
 

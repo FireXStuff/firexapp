@@ -1,15 +1,18 @@
-import os
-import unittest
-import tempfile
-from pathlib import Path
 import json
+import os
+import tempfile
+import unittest
+from pathlib import Path
 
-from firex_flame.controller import FlameAppController, RunningModelDumper
-from firex_flame.model_dumper import load_slim_tasks, get_full_task_path, get_tasks_slim_file, load_full_task, \
-    _get_base_model_dir
+from firex_flame.controller import FlameAppController
 from firex_flame.flame_helper import wait_until_path_exist
-
-import gevent
+from firex_flame.model_dumper import (
+    _get_base_model_dir,
+    get_full_task_path,
+    get_tasks_slim_file,
+    load_full_task,
+    load_slim_tasks,
+)
 
 test_data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 

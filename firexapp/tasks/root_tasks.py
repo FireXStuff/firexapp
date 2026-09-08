@@ -1,22 +1,20 @@
 import os
-from typing import Any
-
 from importlib import import_module
-from celery import bootsteps
+
 from celery.signals import task_postrun
-from celery.states import REVOKED, RETRY
+from celery.states import RETRY, REVOKED
 from celery.utils.log import get_task_logger
+
+from firexapp.engine.celery import app
 from firexkit.chain import InjectArgs
-from firexkit.task import FireXTask
 from firexkit.result import (
-    find_unsuccessful_in_chain,
-    get_results,
     RUN_RESULTS_NAME,
     RUN_UNSUCCESSFUL_NAME,
     FxAsyncResult,
+    find_unsuccessful_in_chain,
+    get_results,
 )
-from firexapp.application import get_app_tasks
-from firexapp.engine.celery import app
+from firexkit.task import FireXTask
 
 logger = get_task_logger(__name__)
 
@@ -32,7 +30,7 @@ def RootTask(
     dict[str, list[FxAsyncResult]],
 ]:
     c = InjectArgs(chain=chain, **chain_args)
-    for task in get_app_tasks(chain):
+    for task in app.get_app_tasks(chain):
         c |= task.s()
     promise = self.enqueue_child(c, block=True, raise_exception_on_failure=False)
     unsuccessful_services = find_unsuccessful_in_chain(promise)
@@ -77,24 +75,8 @@ def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_c
     submit_app.self_destruct(
         chain_details=(result, kwargs),
         reason=f'Root task completion ({result.state}) detected via postrun signal.',
-        run_revoked=is_revoked)
+        run_revoked=is_revoked,
+    )
 
     logger.info("Root task post run signal completed")
 
-
-class BrokerShutdown(bootsteps.StartStopStep):
-    """ This celery shutdown step will cleanup redis """
-    label = "Broker"
-
-    # noinspection PyMethodMayBeStatic
-    def shutdown(self, parent):
-        if parent.hostname.startswith(app.conf.primary_worker_name + "@"):
-            # shut down the broker
-            from firexapp.broker_manager.broker_factory import BrokerFactory
-            BrokerFactory.broker_manager_from_env(logs_dir=app.conf.get('logs_dir')).shutdown()
-            logger.debug("Broker shut down from boot step.")
-        else:
-            logger.debug("Not the primary celery instance. Broker will not be shut down.")
-
-
-app.steps['consumer'].add(BrokerShutdown)

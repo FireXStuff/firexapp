@@ -1,9 +1,9 @@
 from celery.utils.log import get_task_logger
-from firexkit.chain import InjectArgs
-from firexkit.task import flame, flame_collapse, FireXTask, PauseTasks
 
-from firexapp.submit.arguments import whitelist_arguments
 from firexapp.engine.celery import app
+from firexapp.submit.arguments import whitelist_arguments
+from firexkit.chain import InjectArgs
+from firexkit.task import FireXTask, PauseTasks, flame, flame_collapse
 
 logger = get_task_logger(__name__)
 

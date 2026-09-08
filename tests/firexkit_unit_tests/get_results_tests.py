@@ -1,5 +1,6 @@
 import unittest
-from firexkit.result import DYNAMIC_RETURN, get_results, RETURN_KEYS_KEY
+
+from firexkit.result import DYNAMIC_RETURN, RETURN_KEYS_KEY, get_results
 from firexkit.testing import MockFxAsyncResult
 
 
