@@ -1486,6 +1486,7 @@ class FireXTask(Task):
                 c,
                 forget=forget,
                 callbacks=callbacks,
+                raise_exception_on_failure=False, # handled later
             )
             scheduled.append(promise)
             promises_by_key[key] = promise
