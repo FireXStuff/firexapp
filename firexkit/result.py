@@ -1016,43 +1016,53 @@ def _is_worker_alive(result: FxAsyncResult) -> bool:
                 logger.debug(f'Cannot get run info for {result.fx_logging_name()}; assuming task is alive. hostname: {hostname}')
                 return True
 
-            task_info : dict[str, list[dict[str, Any]]] = fx_inspect.get_task(
+            inspected_task : Optional[fx_inspect.InspectedTask] = fx_inspect.InspectedTask.inspect_query_single_task(
                 celery_app=result.app,
-                method_args=(result.id,),
-                destination=(hostname,),
-                timeout=180) or {}
-            if any(task_info.values()):
-                return True
+                query_task_id=result.id,
+                destinations=[hostname],
+                timeout=180,
+            )
+            if not inspected_task:
+                # Try get_active and get_reserved, since we suspect query_task (the api used by get_task above)
+                # may be broken sometimes.
+                hostname_active_tasks : list[fx_inspect.InspectedTask] = fx_inspect.InspectedTask.inspect_active_single_destination(
+                    celery_app=result.app,
+                    destination=hostname,
+                    timeout=180,
+                )
+                inspected_task = next(
+                    (t for t in hostname_active_tasks if t.id == result.id),
+                    None,
+                )
+                hostname_reserved_tasks : Optional[list[fx_inspect.InspectedTask]]
+                if not inspected_task:
+                    hostname_reserved_tasks = fx_inspect.InspectedTask.inspect_reserved_single_destination(
+                        celery_app=result.app,
+                        destination=hostname,
+                        timeout=180,
+                    )
+                    inspected_task = next(
+                        (t for t in hostname_reserved_tasks if t.id == result.id),
+                        None,
+                    )
+                else:
+                    hostname_reserved_tasks = None
+                logger.debug(
+                    f'Task inspection for {result.fx_logging_name()} on {hostname} with id '
+                    f'of {result.id} could not find the task.\n'
+                    f'Active tasks:\n{pformat(hostname_active_tasks)}\n'
+                    f'Reserved tasks:\n{pformat(hostname_reserved_tasks)}'
+                )
+            if inspected_task:
+                if inspected_task.is_dead_active_localhost_proc():
+                    logger.warning(
+                        f'Found task {inspected_task.id} on localhost {inspected_task.hostname} '
+                        f'with pid {inspected_task.worker_pid} is dead, worker task is not alive.')
+                    return False
+                else:
+                    return True
 
-            # Try get_active and get_reserved, since we suspect query_task (the api used by get_task above)
-            # may be broken sometimes.
-            active_tasks_by_dest : dict[str, list[dict[str, Any]]] = fx_inspect.get_active(
-                celery_app=result.app,
-                destination=(hostname,),
-                timeout=180) or {}
-            if any(
-                t.get('id') == result.id
-                for t in active_tasks_by_dest.get(hostname) or []
-            ):
-                return True
-
-            reserved_tasks_by_dest : dict[str, list[dict[str, str]]] = fx_inspect.get_reserved(
-                celery_app=result.app,
-                destination=(hostname,),
-                timeout=180) or {}
-            if any(
-                t.get('id') == result.id
-                for t in reserved_tasks_by_dest.get(hostname) or []
-            ):
-                return True
-
-            logger.debug(
-                f'Task inspection for {result.fx_logging_name()} on {hostname} with id '
-                f'of {result.id} returned:\n{pformat(task_info)}\n'
-                f'Active tasks:\n{pformat(active_tasks_by_dest)}\n'
-                f'Reserved tasks:\n{pformat(reserved_tasks_by_dest)}')
-
-        elif state == PENDING or state == RETRY:
+        elif state in [PENDING, RETRY]:
             # Check if task queue is alive
             if not (
                 (task_queue := result.fx_get_queue())
@@ -1069,10 +1079,11 @@ def _is_worker_alive(result: FxAsyncResult) -> bool:
             if task_queue in active_queues:
                 return True
 
-            logger.debug(f'Active queues inspection for {result.fx_logging_name()} on queue {task_queue} returned:\n'
-                         f'{pformat(queues_by_dest)}\n'
-                         f'Active queues: {pformat(active_queues)}')
-
+            logger.debug(
+                f'Active queues inspection for {result.fx_logging_name()} on queue {task_queue} returned:\n'
+                f'{pformat(queues_by_dest)}\n'
+                f'Active queues: {pformat(active_queues)}'
+            )
         elif state == SUCCESS:
             return True  # Timing; possible if task state changed after we waited on it but before we got here
         else:
