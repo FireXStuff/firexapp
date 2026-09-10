@@ -851,6 +851,7 @@ class ManyFxAsyncResults(Generic[K]):
         raise_on_failure: bool=True,
     ) -> 'ManyFxAsyncResults[K]':
         failures : list[Exception] = []
+        revokes : list[Exception] = []
         start_time = time.monotonic()
         last_callback_time = {c.func: start_time for c in callbacks}
         if first_ar := next(iter(self), None):
@@ -868,18 +869,16 @@ class ManyFxAsyncResults(Generic[K]):
                             # processed below.
                             raise_on_failure=True,
                         )
-                    except (ChainRevokedException, ChainInterruptedException) as e:
+                    except ChainRevokedException as e:
+                        revokes.append(e)
+                    except ChainInterruptedException as e:
                         failures.append(e)
+        if revokes:
+            raise revokes[0]
+
         if (
             failures
-            and (
-                raise_on_failure
-                or any(
-                    # historically ChainRevokedException are not swallowed by
-                    # raise_exception_on_failure=True
-                    isinstance(e, ChainRevokedException) for e in failures
-                )
-            )
+            and raise_on_failure
         ):
             if len(failures) == 1:
                 raise failures[0]
@@ -891,6 +890,7 @@ class ManyFxAsyncResults(Generic[K]):
                     ),
                     failures=tuple(failures),
                 )
+
         return self
 
     def wait_for_running(self, max_wait: int=2*60) -> bool:
