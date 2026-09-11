@@ -4,6 +4,7 @@ import os
 import sys
 from argparse import Action, ArgumentParser
 from types import ModuleType
+import logging
 
 from celery.utils.log import get_task_logger
 
@@ -195,7 +196,8 @@ class FxPluginRegistry:
     def _import_plugin_files(
         cls,
         fx_app,
-        plugin_files: str | list[str]
+        plugin_files: str | list[str],
+        log_level: int,
     ) -> list[str]:
         # Modules that contribute overriding (i.e. plugin) tasks, in increasing
         # order of priority. This is not limited to the modules backing the
@@ -244,10 +246,11 @@ class FxPluginRegistry:
                         if module_name not in plugin_module_names:
                             plugin_module_names.append(module_name)
 
-                    logger.info(
+                    logger.log(
+                        log_level,
                         f'{len(new_task_names)} new service{"s" if len(new_task_names)>1 else ""} '
                         f'imported from plugin modules {plugin_modules_info}'
-                        f'found in {mod.__file__ if mod else plugin_file}'
+                        f'found in {mod.__file__ if mod else plugin_file}',
                     )
 
             if plugin_file_module_names:
@@ -286,11 +289,13 @@ class FxPluginRegistry:
         self,
         fx_app,
         plugin_files: str | list[str],
+        log_level: int,
     ):
         self.set_plugins_env(plugin_files)
         imported_module_names = self._import_plugin_files(
             fx_app,
             plugin_files,
+            log_level,
         )
         if imported_module_names:
             self._unregister_duplicate_tasks(fx_app, imported_module_names)

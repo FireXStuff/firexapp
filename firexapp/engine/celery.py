@@ -1,6 +1,3 @@
-import os
-import sys
-
 from celery import platforms
 
 # Prevent main celery proc from killing pre-forked procs,
@@ -15,10 +12,6 @@ from firexapp.engine.default_celery_config import FxEnvVars
 from firexkit.firex_celery import FireXCelery
 
 logger = get_task_logger(__name__)
-
-# needed otherwise this module isn't considered as available when celery tries
-# to load "app" module instance
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 if CeleryManager.is_current_env_fx_celery_worker():
     # this is in a Celery main process with infra already

@@ -3,6 +3,7 @@ import os
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import ClassVar
+import logging
 
 import celery.signals
 from celery.app import app_or_default
@@ -327,6 +328,7 @@ class FireXCelery(Celery):
     def import_microservices(
         self,
         imports: tuple[str, ...] | None=None,
+        log_level=logging.INFO,
     ) -> tuple[
         dict[str, FireXTask],
         dict[str, str]
@@ -337,12 +339,17 @@ class FireXCelery(Celery):
 
         assert self.conf.fx_env, 'fx_env must be set before service tasks can be loaded.'
         plugin_path_mapping = self._load_plugins(
-            self.conf.fx_env.get_plugin_files()
+            self.conf.fx_env.get_plugin_files(),
+            log_level=log_level,
         )
 
         return self.tasks, plugin_path_mapping
 
-    def _load_plugins(self, plugins_files: list[str]):
+    def _load_plugins(
+        self,
+        plugins_files: list[str],
+        log_level,
+    ):
         original_plugins = convert_plugins_to_list(plugins_files)
         resolved_plugins = self.fx_plugins_reg.resolve_plugin_paths(original_plugins)
 
@@ -354,7 +361,11 @@ class FireXCelery(Celery):
                 raise FileNotFoundError(resolved)
             plugin_path_mapping[original] = resolved
 
-        self.fx_plugins_reg.load_plugin_modules(self, resolved_plugins)
+        self.fx_plugins_reg.load_plugin_modules(
+            self,
+            resolved_plugins,
+            log_level,
+        )
 
         return plugin_path_mapping
 

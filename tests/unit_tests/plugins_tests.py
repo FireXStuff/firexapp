@@ -1,6 +1,7 @@
 import os
 import unittest
 from unittest.mock import patch
+import logging
 
 from firexapp.plugins import (
     FxPluginRegistry,
@@ -160,17 +161,17 @@ class ResolvePathTests(unittest.TestCase):
 
         self.assertFalse(get_active_plugins())
         FxPluginRegistry.set_plugins_env("")
-        plugin_registry.load_plugin_modules(test_app, get_active_plugins())
+        plugin_registry.load_plugin_modules(test_app, get_active_plugins(), logging.INFO)
         FxPluginRegistry.set_plugins_env(__file__)
         self.assertEqual(get_active_plugins(), __file__)
-        plugin_registry.load_plugin_modules(test_app, __file__)
+        plugin_registry.load_plugin_modules(test_app, __file__, logging.INFO)
 
         @test_app.task(base=FireXTask)
         def override_me():
             pass  # pragma: no cover
 
         mock = os.path.join(os.path.dirname(__file__), "data", "plugins", "mock_plugin.py")
-        plugin_registry.load_plugin_modules(test_app, mock)
+        plugin_registry.load_plugin_modules(test_app, mock, logging.INFO)
         # original registration is now pointing to overrider
         self.assertEqual(test_app.tasks['plugins_tests.override_me'],
                          test_app.tasks['mock_plugin.override_me'])
@@ -183,10 +184,10 @@ class ResolvePathTests(unittest.TestCase):
         # name matches preexisting python module
         # noinspection PyUnresolvedReferences
         sp = os.path.join(os.path.dirname(__file__), "data", "plugins", "subprocess.py")
-        plugin_registry.load_plugin_modules(test_app, sp)
+        plugin_registry.load_plugin_modules(test_app, sp, logging.INFO)
 
         new = os.path.join(os.path.dirname(__file__), "data", "plugins", "new.py")
-        plugin_registry.load_plugin_modules(test_app, new)
+        plugin_registry.load_plugin_modules(test_app, new, logging.INFO)
 
     @patch.dict(os.environ, {'firex_plugins': ''})
     def test_indirectly_imported_plugin_module_overrides(self):
@@ -200,7 +201,7 @@ class ResolvePathTests(unittest.TestCase):
             pass  # pragma: no cover
 
         plugin = os.path.join(os.path.dirname(__file__), "data", "plugins", "indirect_override_plugin.py")
-        priority_module_names = plugin_registry._import_plugin_files(test_app, plugin)
+        priority_module_names = plugin_registry._import_plugin_files(test_app, plugin, logging.INFO)
         self.assertIn('indirect_override_defs', priority_module_names)
         # the plugin file's own module outranks the modules it imported
         self.assertEqual(priority_module_names[-1], 'indirect_override_plugin')
