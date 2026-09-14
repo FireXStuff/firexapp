@@ -192,6 +192,9 @@ class FxCeleryConfig:
 
     root_task = f"{FIREX_APP_ROOT_TASK_MODULE}.RootTask"
     worker_autoscaler = FireXAutoscaler
+    # Dotted string, NOT the class: default_celery_config is imported *by*
+    # firexkit.firex_celery, so importing FireXTaskPool here would be a cycle.
+    worker_pool = 'firexkit.firex_celery:FireXTaskPool'
 
     accept_content = ['pickle', 'json']
     task_serializer = 'pickle'
@@ -208,6 +211,13 @@ class FxCeleryConfig:
     primary_worker_name = 'mc'
 
     task_soft_time_limit : int = 72 * 60
+
+    # The run's *total* time budget, as opposed to task_soft_time_limit, which keeps its
+    # celery meaning of a per-task default. Seeded at submit from --soft_time_limit,
+    # falling back to task_soft_time_limit, and monotonically increasable at runtime via
+    # FireXTask.ensure_run_time_remaining. Read it via FireXCelery.get_run_soft_time_limit,
+    # which goes to the broker: this attribute is only the value seeded at worker startup.
+    run_soft_time_limit : int | None = None
 
     primary_worker_minimum_concurrency : ClassVar[int] = 4
 

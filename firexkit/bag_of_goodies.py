@@ -565,8 +565,13 @@ def _pydantic_validate_args(
                         )
                     )
                 ):
+                    adapter = _get_annotation_validator(param.annotation).get_adapter(pydantic_validate)
+                    if adapter is None:
+                        # pydantic can't do anything useful with this annotation.
+                        # Already logged once when the annotation was classified.
+                        continue
                     init_value = input_service_args[arg_name]
-                    adapted_value = _pydantic_adapt_type(init_value, param.annotation)
+                    adapted_value = adapter.validate_python(init_value)
                 elif fx_model_cls:
                     # if the parameter is a FireXBaseModel and wasn't explicitly
                     # suppplied by name, see if it can be constructed from the abog.
@@ -575,7 +580,11 @@ def _pydantic_validate_args(
                     adapted_value = fx_model_cls.firex_load(init_value)
                 else:
                     adapted_value = init_value = input_service_args # noop
-            except ValueError as e:
+            except (ValueError, pydantic.PydanticUserError) as e:
+                # pydantic.ValidationError is a ValueError, but schema problems
+                # (e.g. a model with unresolved refs) are PydanticUserErrors, which
+                # are RuntimeErrors. Neither should escape an ATTEMPTed validation.
+                #
                 # if a default of None can't be filled in, that's OK the default is fine.
                 if not attempting_expand_default:
                     msg = f'Failed to convert arg {arg_name} to {param.annotation}'
@@ -589,27 +598,151 @@ def _pydantic_validate_args(
     return adapter_updates
 
 
-def _pydantic_adapt_type(init_value: Any, annotation):
-    if _arbitrary_types_allowed(init_value, annotation):
-        pydantic_config=pydantic.ConfigDict(
-            arbitrary_types_allowed=True
+@dataclasses.dataclass(frozen=True)
+class _AnnotationValidator:
+    """
+        What pydantic is able to do with a single annotation.
+
+        This is a property of the annotation alone, so it's determined once and
+        cached. It is deliberately separate from the per-call question of whether
+        some value satisfies that annotation.
+    """
+
+    # None when pydantic can't build a schema for the annotation at all, either
+    # because nothing in it is modellable or because it can't be resolved.
+    adapter: pydantic.TypeAdapter | None
+
+    # True when every leaf pydantic generated is a bare isinstance() check, i.e.
+    # the annotation names types pydantic knows nothing about. Such a schema can
+    # never coerce a value, it can only reject one.
+    is_instance_only: bool
+
+    def get_adapter(self, pydantic_validate: ValidateArgs) -> pydantic.TypeAdapter | None:
+        if (
+            self.is_instance_only
+            and pydantic_validate != ValidateArgs.REQUIRE
+        ):
+            # An isinstance() assertion can never repair a value, it can only turn a
+            # working run in to a failing one (e.g. a JSON round-tripped child result
+            # arriving as a dict), so only apply it when validation is REQUIREd.
+            return None
+        return self.adapter
+
+
+_UNVALIDATABLE_ANNOTATION = _AnnotationValidator(adapter=None, is_instance_only=False)
+
+# Building a TypeAdapter is expensive, and the result only depends on the annotation.
+_ANNOTATION_VALIDATORS : dict[Any, _AnnotationValidator] = {}
+
+
+def _get_annotation_validator(annotation) -> _AnnotationValidator:
+    try:
+        cached = _ANNOTATION_VALIDATORS.get(annotation)
+    except TypeError:
+        return _build_annotation_validator(annotation) # unhashable annotation
+    if cached is None:
+        cached = _ANNOTATION_VALIDATORS[annotation] = _build_annotation_validator(annotation)
+    return cached
+
+
+def _build_annotation_validator(annotation) -> _AnnotationValidator:
+    if isinstance(annotation, str):
+        # 'from __future__ import annotations' (PEP 563) leaves annotations as strings.
+        # pydantic treats a str as a ForwardRef and resolves it against the namespace of
+        # whoever constructed the TypeAdapter -- i.e. this module -- not the task's module,
+        # so it must never be handed one. See _get_signature_with_resolved_annotations.
+        logger.debug(f'Cannot validate unresolved annotation {annotation!r}.')
+        return _UNVALIDATABLE_ANNOTATION
+
+    try:
+        adapter = pydantic.TypeAdapter(
+            annotation,
+            # pydantic rejects a config outright for types that carry their own.
+            config=(
+                None if _annotation_has_own_pydantic_config(annotation)
+                else pydantic.ConfigDict(arbitrary_types_allowed=True)
+            ),
         )
+        if not adapter.pydantic_complete:
+            # An unresolvable forward ref raises nothing during construction, it
+            # installs a mock validator that only fails once it's used. Turn that
+            # in to the exception it should have been, without offering firexkit's
+            # namespace to resolve names that belong to the task's module.
+            adapter.rebuild(raise_errors=True, _parent_namespace_depth=0)
+    except Exception as e:
+        # Schema generation failures are PydanticUserErrors (RuntimeError), not
+        # ValueErrors, and a third-party __get_pydantic_core_schema__ can raise anything.
+        logger.debug(f'Pydantic cannot model annotation {annotation}: {e!r}')
+        return _UNVALIDATABLE_ANNOTATION
+
+    is_instance_only = _schema_is_instance_only(adapter.core_schema)
+    if is_instance_only:
+        logger.debug(
+            f'Pydantic can only isinstance() check annotation {annotation};'
+            ' it will not be converted.'
+        )
+    return _AnnotationValidator(adapter=adapter, is_instance_only=is_instance_only)
+
+
+def _annotation_has_own_pydantic_config(annotation) -> bool:
+    # Mirrors pydantic.type_adapter._type_has_config, which is private.
+    if typing.get_origin(annotation) is typing.Annotated:
+        annotation = typing.get_args(annotation)[0]
+    try:
+        return (
+            issubclass(annotation, pydantic.BaseModel)
+            or dataclasses.is_dataclass(annotation)
+            or is_typeddict(annotation)
+        )
+    except TypeError:
+        return False # annotation is not a class
+
+
+def _schema_is_instance_only(schema) -> bool:
+    """ True when every leaf pydantic generated for a core schema is a bare isinstance() check. """
+    if not isinstance(schema, dict):
+        return False
+    schema_type = schema.get('type')
+    if schema_type == 'is-instance':
+        return True
+    if schema_type == 'union':
+        inner_schemas = [
+            # choices entries are either a schema or a (schema, tag) tuple.
+            choice[0] if isinstance(choice, tuple) else choice
+            for choice in schema.get('choices', [])
+        ]
     else:
-        pydantic_config=None
-    # FIXME: creating typadapters is expensive so they should be cached
-    return pydantic.TypeAdapter(
-        annotation,
-        config=pydantic_config,
-    ).validate_python(init_value)
+        inner_schemas = [
+            schema[key]
+            for key in ('schema', 'items_schema', 'values_schema')
+            if key in schema
+        ]
+    return bool(inner_schemas) and all(_schema_is_instance_only(s) for s in inner_schemas)
 
 
-def _arbitrary_types_allowed(init_value: Any, annotation) -> bool:
-    return bool(
-        not isinstance(init_value, pydantic.BaseModel)
-        and not dataclasses.is_dataclass(init_value)
-        and not isinstance(init_value, type)
-        and not is_typeddict(annotation)
-    )
+def log_unvalidatable_annotations(task_name: str, sig: inspect.Signature) -> None:
+    """
+        Classify (and therefore cache) every annotation of a task's signature so that
+        annotations pydantic can't do anything with are reported once, at registration,
+        instead of from inside a running service.
+    """
+    for arg_name, param in sig.parameters.items():
+        if (
+            not param.annotation
+            or param.annotation is param.empty
+        ):
+            continue
+        validator = _get_annotation_validator(param.annotation)
+        if validator.adapter is None:
+            logger.debug(
+                f'{task_name}: arg {arg_name} annotation {param.annotation!r} cannot be'
+                ' modelled by pydantic; it will never be validated.'
+            )
+        elif validator.is_instance_only:
+            logger.debug(
+                f'{task_name}: arg {arg_name} annotation {param.annotation} is only an'
+                ' isinstance() check to pydantic; it will not be converted.'
+            )
 
 
 def _validate_var_pos_arg(var_pos_name: str, var_pos_value) -> tuple[Any, ...]:

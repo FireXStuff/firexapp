@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "firexapp"
-version = "5.7.203"
+version = "5.7.204"
 description = "Core firex application libraries"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -51,6 +51,7 @@ dependencies = [
     "jinja2",
     "pydantic==2.13.0",
     "typing-extensions==4.16.0",
+    "flufl.lock",
 ]
 
 [project.optional-dependencies]
@@ -91,6 +92,7 @@ docs = [
 ]
 integration = []
 dev = [
+    "pytest>=9.1.1",
     "ruff>=0.16.6",
 ]
 

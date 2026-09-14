@@ -44,42 +44,104 @@ def _simulate_chain_args_kwargs(
     return simulated_pos_args, simulated_kwargs
 
 
+def _task_python_signature(task_obj) -> inspect.Signature:
+    py_sig = getattr(task_obj, 'sig', None)
+    if py_sig is None:
+        # the UT app sometimes doesn't set the FireXTask base class, so 'sig' is missing.
+        py_sig = inspect.signature(task_obj.run)
+    return py_sig
+
+
+def _with_adopted_defaults(
+    params: list[inspect.Parameter],
+    defaults_by_arg: dict[str, Any],
+) -> list[inspect.Parameter]:
+    """
+        Fill in the defaults an overridden service gives to args that this service
+        declares without one, skipping the ones python's Signature won't accept.
+
+        A positional arg can only take a default when every positional arg of the
+        same kind after it already has one, so the params are walked right to left.
+    """
+    adopted : list[inspect.Parameter] = []
+    trailing_kind = None
+    trailing_all_have_defaults = True
+    for param in reversed(params):
+        if param.kind != trailing_kind:
+            # each kind is a run of params that's ordered independently of the others.
+            trailing_kind = param.kind
+            trailing_all_have_defaults = True
+
+        if (
+            param.default is param.empty
+            and param.name in defaults_by_arg
+            # *args/**kwargs can never have a default.
+            and param.kind not in (param.VAR_POSITIONAL, param.VAR_KEYWORD)
+            and (
+                trailing_all_have_defaults
+                or param.kind not in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD)
+            )
+        ):
+            param = param.replace(default=defaults_by_arg[param.name])
+
+        trailing_all_have_defaults &= param.default is not param.empty
+        adopted.append(param)
+
+    adopted.reverse()
+    return adopted
+
+
 def _merged_python_signature(task_obj) -> inspect.Signature:
-    py_sig = getattr(task_obj, 'sig', inspect.signature(task_obj.run))
+    """
+        Get a service's signature extended with the args of the services it overrides.
 
-    try:
-        merged_params : dict[str, inspect.Parameter] = dict(py_sig.parameters)
-        orig_task = getattr(task_obj, 'orig', None)
-        while orig_task:
-            orig_task_py_sig = getattr(orig_task, 'sig', inspect.signature(orig_task.run))
-            for orig_arg, orig_param in orig_task_py_sig.parameters.items():
-                # auto-inject args must not have defaults since it makes
-                # priority resolution too complicated for the user.
-                if not BagOfGoodies.get_auto_inject_type(orig_param.annotation):
-                    if orig_arg not in merged_params:
-                        # hack avoid # non-default argument follows default argument
-                        if orig_param.default != orig_param.empty:
-                            new_default = orig_param.default
-                        else:
-                            new_default = None
-                        merged_params[orig_arg] = orig_param.replace(default=new_default)
-                    else:
-                        existing_param = merged_params[orig_arg]
-                        if (
-                            existing_param.default == existing_param.empty
-                            and orig_param.default != orig_param.empty
-                        ):
-                            merged_params[orig_arg] = existing_param.replace(
-                                default=orig_param.default
-                            )
-            orig_task = getattr(orig_task, 'orig', None)
+        An override is expected to be given the args of the service it replaces, so
+        chain arg validation needs to consider both. Args only the overridden service
+        declares are added as optional keyword-only params, which is always a valid
+        position and never claims a positional arg the overriding service wants.
+    """
+    py_sig = _task_python_signature(task_obj)
 
-        return py_sig.replace(
-            parameters=list(merged_params.values()),
-        )
-    except ValueError:
-        # FIXME: only take orig defaults when they don't break arg no default arg order :/
-        return py_sig
+    own_params : dict[str, inspect.Parameter] = dict(py_sig.parameters)
+    added_params : dict[str, inspect.Parameter] = {}
+    # the nearest override wins, matching how the args themselves resolve.
+    orig_defaults : dict[str, Any] = {}
+
+    orig_task = getattr(task_obj, 'orig', None)
+    while orig_task:
+        for orig_arg, orig_param in _task_python_signature(orig_task).parameters.items():
+            # auto-inject args must not have defaults since it makes
+            # priority resolution too complicated for the user.
+            if BagOfGoodies.get_auto_inject_type(orig_param.annotation):
+                continue
+            if orig_arg in own_params:
+                if orig_param.default is not orig_param.empty:
+                    orig_defaults.setdefault(orig_arg, orig_param.default)
+            elif orig_arg not in added_params and orig_param.kind not in (
+                orig_param.VAR_POSITIONAL,
+                orig_param.VAR_KEYWORD,
+            ):
+                # *args/**kwargs are skipped: they can't carry the default that keeps
+                # the arg optional, and this service doesn't accept what they'd accept.
+                added_params[orig_arg] = orig_param.replace(
+                    kind=orig_param.KEYWORD_ONLY,
+                    # an arg this service doesn't declare can't be mandatory for it.
+                    default=(
+                        orig_param.default if orig_param.default is not orig_param.empty
+                        else None
+                    ),
+                )
+        orig_task = getattr(orig_task, 'orig', None)
+
+    return py_sig.replace(
+        parameters=sorted(
+            _with_adopted_defaults(list(own_params.values()), orig_defaults)
+            + list(added_params.values()),
+            # a stable sort keeps each kind's params in their declared order while
+            # putting the added keyword-only params ahead of any **kwargs.
+            key=lambda p: p.kind,
+        ),
+    )
 
 
 def _fake_validation_bog(

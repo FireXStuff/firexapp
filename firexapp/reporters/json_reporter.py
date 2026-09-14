@@ -3,10 +3,11 @@ import datetime
 import enum
 import json
 import os
+from contextlib import contextmanager
 from getpass import getuser
 from socket import gethostname
 from tempfile import NamedTemporaryFile
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 import celery.exceptions
 import psutil
@@ -17,7 +18,7 @@ from celery.utils.log import get_task_logger
 from typing_extensions import Self
 
 from firexapp.common import create_link, silent_mkdir, wait_until
-from firexapp.engine.firex_revoke import RevokeDetails
+from firexapp.events.model import RevokeDetails
 from firexapp.submit.uid import FIREX_ID_REGEX, Uid
 from firexkit.result import (
     RUN_RESULTS_NAME,
@@ -47,6 +48,7 @@ def _norm_chain_names(fx_app, chain) -> list[str]:
     except celery.exceptions.NotRegistered:
         return [s.split('.')[-1] for s in _chain_to_list(chain)]
 
+
 @dataclasses.dataclass
 class FireXRunData:
     firex_id: str
@@ -60,9 +62,15 @@ class FireXRunData:
     inputs: dict[str, Any]
     results: dict[str, Any] | None = None
     revoked: bool = False
-    revoked_details: Optional['RevokeDetails'] = None
+    revoked_details: RevokeDetails | None = None
     completed_timestamp: datetime.datetime | None = None
     submit_proc_start_timestamp: datetime.datetime | None = None
+    # The run's total time budget in seconds, as it currently stands. Only written once a
+    # task has raised it at runtime (FireXTask.ensure_run_time_remaining); None means the
+    # run is still on the budget it was submitted with, i.e. inputs['soft_time_limit'].
+    # Recorded here, and not only in the broker, because the things that decide whether a
+    # run has overrun -- kill_runs above all -- outlive that run's broker.
+    run_soft_time_limit: float | None = None
 
     _extra_fields: dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -219,9 +227,58 @@ class FireXRunData:
             except Exception as e:
                 logger.warning(f'Failed to normalize chain names: {e}')
         try:
+            self._refresh_run_soft_time_limit()
             _write_run_json(self, _get_initial_run_json_path(self.logs_path))
         except Exception as e:
             logger.warning(f'Failed to update run.json with input args: {e}')
+
+    def _refresh_run_soft_time_limit(self):
+        """
+            Adopts a budget raise that a worker recorded in run.json.
+
+            The submit process holds this object for the life of the run, so its view of
+            the budget goes stale the moment a task raises it; both of the writes this
+            process makes would otherwise put the submitted budget back.
+
+            No lock: run.json is only ever replaced atomically, so a reader sees one whole
+            version or another, never a partial file.
+        """
+        try:
+            persisted = self.load_initial(self.logs_path).run_soft_time_limit
+        except (OSError, ValueError) as e:
+            logger.warning(f'Failed reading the recorded run_soft_time_limit: {e}')
+            return
+
+        if persisted is not None and (
+            self.run_soft_time_limit is None
+            or persisted > self.run_soft_time_limit
+        ):
+            self.run_soft_time_limit = persisted
+
+    @classmethod
+    def persist_run_soft_time_limit(
+        cls,
+        logs_dir: str,
+        run_soft_time_limit: float,
+    ) -> float:
+        """
+            Records a raised run time budget in run.json; returns the value now recorded.
+
+            Monotonic, mirroring the broker-side budget this shadows, so raises arriving
+            from different tasks converge on the largest rather than on the last writer.
+            The whole read-modify-write is under a lock because the requests come from
+            arbitrary worker hosts -- the atomic replace in _write_run_json makes each
+            write indivisible, but does nothing for two overlapping read-modify-writes.
+        """
+        with _run_json_lock(logs_dir):
+            run_data = cls.load_initial(logs_dir)
+            recorded = run_data.run_soft_time_limit
+            if recorded is not None and recorded >= run_soft_time_limit:
+                return recorded
+
+            run_data.run_soft_time_limit = run_soft_time_limit
+            _write_run_json(run_data, _get_initial_run_json_path(logs_dir))
+            return run_soft_time_limit
 
     def get_results(self) -> dict[str, Any]:
         return (self.results or {}).get(RUN_RESULTS_NAME, {})
@@ -264,6 +321,11 @@ class FireXRunData:
                     root_task_uuid,
                     now,
                 )
+
+        # Readers prefer the completion report over the initial one, so a raise recorded
+        # by a worker has to be carried across or it disappears the moment the run ends --
+        # exactly when kill_runs starts asking whether the run overran.
+        self._refresh_run_soft_time_limit()
 
         completed_json_filepath = self._get_completion_run_json_path(self.logs_path)
         _write_run_json(self, completed_json_filepath)
@@ -449,7 +511,7 @@ def _get_completed_revoke_details(
     shutdown_revoke_reason: str,
     root_task_uuid: str | None,
     completed_timestamp: datetime.datetime | None,
-) -> Optional['RevokeDetails']:
+) -> RevokeDetails | None:
     try:
         tracked_revoked_details = RevokeDetails.load_latest_run_revoke_details(
             logs_dir
@@ -524,6 +586,32 @@ def _write_run_json(data: FireXRunData, report_file: str):
 
 def _run_json_link_path_from_logs_dir(logs_dir) -> str:
     return os.path.join(logs_dir, 'run.json')
+
+
+# flufl.lock rather than fcntl: logs dirs are on NFS, where flock is unreliable, and the
+# writers are on different hosts. lifetime is the break-in period if a holder dies.
+_RUN_JSON_LOCK_LIFETIME = 5
+_RUN_JSON_LOCK_TIMEOUT = 30
+
+
+@contextmanager
+def _run_json_lock(logs_dir: str):
+    """Serialises read-modify-writes of a run's run.json across hosts."""
+    # Imported here rather than at module scope: this module is imported by nearly
+    # everything, while the lock is only needed on the rare budget-raise path.
+    from flufl.lock import Lock
+
+    reporter_dir = os.path.join(
+        logs_dir,
+        FireXJsonReportGenerator.reporter_dirname,
+    )
+    silent_mkdir(reporter_dir)
+    with Lock(
+        os.path.join(reporter_dir, 'run_json.lock'),
+        lifetime=_RUN_JSON_LOCK_LIFETIME,
+        default_timeout=_RUN_JSON_LOCK_TIMEOUT,
+    ):
+        yield
 
 
 class FireXJsonReportGenerator:

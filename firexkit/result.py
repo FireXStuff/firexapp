@@ -25,6 +25,11 @@ from celery.utils.log import get_task_logger
 import firexkit.broker
 from firexkit import inspect as fx_inspect
 from firexkit.revoke import RevokedRequests
+from firexkit.run_time import (
+    RunTimeReserve,
+    describe_wait,
+    resolve_remaining_wait,
+)
 
 RETURN_KEYS_KEY = '__task_return_keys'
 DYNAMIC_RETURN = '__DYNAMIC_RETURN__'
@@ -511,7 +516,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
     def fx_wait_no_state_update(
         self,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         log_msg: bool=True,
         start_time: float | None=None,
@@ -557,7 +562,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
     def fx_wait(
         self,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         log_msg: bool=True,
         start_time: float | None=None,
@@ -796,7 +801,7 @@ class ManyFxAsyncResults(Generic[K]):
 
     def wait_for_any(
         self,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         raise_on_failure: bool=True,
     ) -> FxAsyncResult:
@@ -810,7 +815,7 @@ class ManyFxAsyncResults(Generic[K]):
 
     def get_as_completed(
         self,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         poll_max_wait: float | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         raise_on_failure: bool=True,
@@ -828,9 +833,15 @@ class ManyFxAsyncResults(Generic[K]):
             with first_ar.update_parent_task_blocked_states():
                 remaining_ars = ManyFxAsyncResults(self._fx_ars_by_key)
                 while remaining_ars:
-                    if max_wait and max_wait < time.time() - start_time:
+                    # Re-resolved every iteration rather than once up front, so a
+                    # RunTimeReserve tracks a run budget raised while we were blocked.
+                    remaining_wait = resolve_remaining_wait(
+                        max_wait, start_time, time.time(), app=first_ar.app,
+                    )
+                    if remaining_wait is not None and remaining_wait <= 0:
                         raise WaitOnChainTimeoutError(
-                            f'Results {remaining_ars} were still not ready after {max_wait} seconds'
+                            f'Results {remaining_ars} were still not ready after'
+                            f' {describe_wait(max_wait)}'
                         )
                     for k, ar in dict(remaining_ars._fx_ars_by_key).items():
                         try:
@@ -851,7 +862,7 @@ class ManyFxAsyncResults(Generic[K]):
 
     def wait_for_all(
         self,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         log_msg: bool=True,
         raise_on_failure: bool=True,
@@ -1101,7 +1112,7 @@ def _is_worker_alive(result: FxAsyncResult) -> bool:
 def _poll_for_ar_complete(
     result: FxAsyncResult,
     start_time: float,
-    max_wait: float | None,
+    max_wait: float | RunTimeReserve | None,
     max_sleep: float,
     callbacks: Iterable[WaitLoopCallBack],
     last_callback_time: dict[Callable, float],
@@ -1114,9 +1125,14 @@ def _poll_for_ar_complete(
         _check_for_failure_in_parents(result)
 
         current_time = time.monotonic()
-        if max_wait and (current_time - start_time) > max_wait:
+        # Re-resolved every iteration; see get_as_completed.
+        remaining_wait = resolve_remaining_wait(
+            max_wait, start_time, current_time, app=result.app,
+        )
+        if remaining_wait is not None and remaining_wait <= 0:
             raise WaitOnChainTimeoutError(
-                f'Result ID {result.fx_logging_name()} was not ready in {max_wait} seconds'
+                f'Result ID {result.fx_logging_name()} was not ready in'
+                f' {describe_wait(max_wait)}'
             )
 
         # callbacks
@@ -1162,7 +1178,7 @@ def _sleep_exponential_backoff(
 def wait_on_async_results(
     # FIXME: crazy type sig
     results: FxAsyncResult | list[FxAsyncResult] | None,
-    max_wait: float | None=None,
+    max_wait: float | RunTimeReserve | None=None,
     callbacks: Iterable[WaitLoopCallBack] = tuple(),
     log_msg: bool=True,
     raise_exception_on_failure: bool=True,
