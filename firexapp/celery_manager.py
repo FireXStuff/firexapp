@@ -41,7 +41,13 @@ class CeleryManager:
         self.logs_dir = logs_dir
         self.app = app
 
-        fx_env.firex_plugins = ",".join(FxPluginRegistry.resolve_plugin_paths(plugins))
+        fx_env = fx_env.model_copy(
+            update={
+                'firex_plugins': ",".join(
+                    FxPluginRegistry.resolve_plugin_paths(plugins)
+                ),
+            },
+        )
         self.env = os.environ | fx_env.model_dump() | {
             'CELERY_RDBSIG': '1',
             'FIREX_START_CELERY_WORKER': 'True',
@@ -61,7 +67,7 @@ class CeleryManager:
 
     @classmethod
     def unset_start_fx_celery_worker_env(cls):
-        os.environ.pop('FIREX_START_CELERY_WORKER')
+        os.environ.pop('FIREX_START_CELERY_WORKER', None)
 
     @classmethod
     def log(cls, msg, header=None, level=DEBUG):
@@ -95,9 +101,6 @@ class CeleryManager:
             self._celery_pids_dir = _celery_pids_dir
         return self._celery_pids_dir
 
-    def _get_pid_file(self, worker_and_host):
-        return
-
     @staticmethod
     def __get_pid_file(pids_logs_dir, worker_and_host):
         return os.path.join(pids_logs_dir, f'{worker_and_host}.pid')
@@ -123,7 +126,7 @@ class CeleryManager:
         workername: str,
         queues=None,
         wait=True,
-        timeout=60,
+        timeout=15*60,
         concurrency=None,
         cap_concurrency=None,
         cwd=None,

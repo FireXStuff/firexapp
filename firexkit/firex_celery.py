@@ -2,7 +2,7 @@ import importlib
 import os
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import ClassVar
+from typing import ClassVar, Optional
 import logging
 
 import celery.signals
@@ -49,8 +49,10 @@ class FireXCelery(Celery):
         fx_plugins_reg=FxPluginRegistry(),
         fx_expect_tasks=True,
         strict_typing=False,
+        plugin_load_log_level=logging.INFO,
         **kwargs,
     ):
+        self.plugin_load_log_level = plugin_load_log_level
         self._fx_task_execution_wired = False
         super().__init__(
             *args,
@@ -79,7 +81,7 @@ class FireXCelery(Celery):
         fx_env = FxEnvVars.load_firex_env_vars_from_env()
         if existing_fx_app and existing_fx_app._fx_task_execution_wired:
             fx_app = existing_fx_app
-            if not fx_env.firex_id != ( app_fid := fx_app.conf.fx_env.firex_id ):
+            if fx_env.firex_id != ( app_fid := fx_app.conf.fx_env.firex_id ):
                 logger.error(f'Found existing fx_app {app_fid} not equal to current environment run ID {fx_env.firex_id}')
         else:
             fx_app = cls._get_promotable_app()
@@ -159,7 +161,8 @@ class FireXCelery(Celery):
 
     def load_backend_conf_fields(self):
         # consumers (e.g. firex_signals.py, task.py) read this via app.conf.resources_dir
-        self.conf.resources_dir = self.backend.get('resources_dir').decode()
+        resources_dir = self.backend.get('resources_dir')
+        self.conf.resources_dir = resources_dir.decode()
         self.conf.load_install_config()
 
     @classmethod
@@ -231,12 +234,17 @@ class FireXCelery(Celery):
         if fx_app is not None:
             fx_app._apply_fx_config(fx_env=fx_env)
         else:
-            fx_app = cls(fx_env=fx_env)
+            fx_app = cls(
+                fx_env=fx_env,
+                plugin_load_log_level=logging.PRINT,
+            )
 
         # set OS ENV vars for this run.
         fx_app.conf.fx_env.set_fx_os_env()
 
         fx_app.set_attr_in_conf_and_backend('resources_dir', uid.resources_dir)
+        fx_app.backend.set('logs_dir', str(fx_app.conf.fx_env.logs_dir).encode('utf-8'))
+        fx_app.backend.set('uid', str(fx_app.conf.fx_env.firex_id).encode('utf-8'))
         fx_app.conf.load_install_config()
         cls._set_global_fx_app(fx_app)
         return fx_app
@@ -328,7 +336,7 @@ class FireXCelery(Celery):
     def import_microservices(
         self,
         imports: tuple[str, ...] | None=None,
-        log_level=logging.INFO,
+        log_level: Optional[int]=None,
     ) -> tuple[
         dict[str, FireXTask],
         dict[str, str]
@@ -338,6 +346,8 @@ class FireXCelery(Celery):
             importlib.import_module(module_name)
 
         assert self.conf.fx_env, 'fx_env must be set before service tasks can be loaded.'
+        if log_level is None:
+            log_level = self.plugin_load_log_level
         plugin_path_mapping = self._load_plugins(
             self.conf.fx_env.get_plugin_files(),
             log_level=log_level,
@@ -457,6 +467,7 @@ class FireXCelery(Celery):
         fx_app = cls(
             fx_expect_tasks=False,
             fx_env=FxEnvVars.create_no_task_exec_fx_env(plugins),
+            plugin_load_log_level=logging.PRINT,
         )
         cls._set_global_fx_app(fx_app)
         try:
@@ -470,11 +481,19 @@ class FireXCelery(Celery):
 
     @classmethod
     def _set_global_fx_app(cls, fx_app: Self, global_pkg_path=None):
+        # Resolve (and therefore import, if this is the first reference) the
+        # module that holds the global "app" *before* asserting current/default.
+        # That module's body constructs a placeholder app of its own, and a
+        # Celery() construction claims set_current() -- so importing it after
+        # set_current() would immediately overwrite what we just published.
+        # The worker re-asserts current/default via
+        # trace.setup_worker_optimizations(), but the submit process does not.
+        global_app_module = cls._get_global_fx_app_module(
+            global_pkg_path=global_pkg_path,
+        )
         fx_app.set_current()
         fx_app.set_default()
-        cls._get_global_fx_app_module(
-            global_pkg_path=global_pkg_path,
-        ).app = fx_app
+        global_app_module.app = fx_app
 
 
 class _DisabledTasksLoader(BaseLoader):

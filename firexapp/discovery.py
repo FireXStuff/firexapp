@@ -68,7 +68,7 @@ def _load_firex_entry_points(entrypoint_name, path=None) -> dict[EntryPoint, obj
         try:
             _loaded_firex_bundles[key][entrypoint_name] = loaded_eps
         except KeyError:
-            _loaded_firex_bundles[key] = dict(entrypoint_name=loaded_eps)
+            _loaded_firex_bundles[key] = {entrypoint_name: loaded_eps}
         return loaded_eps
 
 
