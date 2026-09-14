@@ -179,6 +179,8 @@ class InspectedTask(pydantic.BaseModel):
         timeout=_DEFAULT_INSPECT_TIMEOUT,
     ) -> dict[str, list[Self]]:
         assert query_task_status in ['active', 'reserved', 'scheduled', 'revoked']
+        if destinations is not None:
+            destinations = tuple(destinations)
         tasks_by_dest : dict[str, list[dict[str, Any]]] = inspect_with_retry(
             inspect_method=query_task_status,
             celery_app=celery_app,
@@ -235,13 +237,41 @@ class InspectedTask(pydantic.BaseModel):
         ).get(destination) or []
 
     @classmethod
+    def inspect_scheduled(
+        cls,
+        celery_app,
+        destinations: str,
+        timeout=_DEFAULT_INSPECT_TIMEOUT,
+    ):
+        return cls._inspect_status(
+            celery_app=celery_app,
+            query_task_status='scheduled',
+            destinations=destinations,
+            timeout=timeout,
+        )
+
+    @classmethod
+    def inspect_reserved(
+        cls,
+        celery_app,
+        destinations: str,
+        timeout=_DEFAULT_INSPECT_TIMEOUT,
+    ) -> list[Self]:
+        return cls._inspect_status(
+            celery_app=celery_app,
+            query_task_status='reserved',
+            destinations=destinations,
+            timeout=timeout,
+        )
+
+    @classmethod
     def inspect_reserved_single_destination(
         cls,
         celery_app,
         destination: str,
         timeout=_DEFAULT_INSPECT_TIMEOUT,
     ) -> list[Self]:
-        return cls._inspect_status(
+        return cls.inspect_reserved(
             celery_app=celery_app,
             query_task_status='reserved',
             destinations=[destination],

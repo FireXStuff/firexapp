@@ -65,7 +65,9 @@ class InfoBaseApp:
 
     def run_list(self, args):
         if args.microservices:
-            self.print_available_microservices(args.plugins)
+            self.print_available_microservices(
+                args.plugins,
+            )
         elif args.arguments:
             self.print_argument_used(args.plugins)
 

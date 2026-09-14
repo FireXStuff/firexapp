@@ -450,9 +450,7 @@ class SubmitBaseApp:
                 plugins=chain_args.get("plugins", args.plugins),
             )
 
-            all_tasks, plugin_path_mapping = fx_app.import_microservices(
-                log_level=PRINT,
-            )
+            all_tasks, plugin_path_mapping = fx_app.import_microservices()
             if plugin_path_mapping:
                 chain_args['plugin_path_mapping'] = plugin_path_mapping
                 chain_args['plugins'] = ','.join(plugin_path_mapping.values())
