@@ -255,12 +255,13 @@ class FxPluginRegistry:
 
             if plugin_file_module_names:
                 uniq_mods = len(set(plugin_file_module_names))
-                logger.info(
+                logger.log(
+                    log_level,
                     f'--> {len(new_tasks)} total new service{"s" if len(new_tasks)>1 else ""} imported '
                     f'from {uniq_mods} plugin module{"s" if uniq_mods > 1 else ""} '
                     f'{plugin_file_module_names}')
             else:
-                logger.info(f'No new services imported from {plugin_files}!')
+                logger.log(log_level, f'No new services imported from {plugin_files}!')
 
             # Mark tasks defined by any of these plugin modules with
             # "from_plugin". This intentionally does NOT rely solely on

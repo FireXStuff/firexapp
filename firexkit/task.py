@@ -231,6 +231,7 @@ class FxWorkerHostName(FxWorkerName):
         return f'{self.queue_and_sgroup()}@{self.host}'
 
 
+@dataclasses.dataclass
 class FxWorkerId(FxWorkerHostName):
     uniq_slug: str = dataclasses.field(
         default_factory=lambda: str(uuid.uuid4())[:8]
