@@ -198,7 +198,13 @@ class SubmitBaseApp:
                                    help='A comma delimited list of tracking services to disable.', default='')
         submit_parser.add_argument('--logs_link',
                                    help="Create a symlink back the root of the run's logs directory")
-        submit_parser.add_argument('--soft_time_limit', help="Task default soft_time_limit", type=int)
+        submit_parser.add_argument(
+            '--soft_time_limit', '--run_soft_time_limit',
+            dest='soft_time_limit',
+            help="The run's total time limit, in seconds. Also the default soft_time_limit "
+                 "of tasks that don't specify their own.",
+            type=int,
+        )
         submit_parser.add_argument('--install_configs', help="Path to JSON file specifying installation-wide configs",
                                    type=str, default=os.environ.get(INSTALL_CONFIGS_ENV_NAME, None))
         submit_parser.add_argument('--celery_concurrency', '--celery_work_slots',
@@ -451,6 +457,7 @@ class SubmitBaseApp:
                 uid,
                 broker,
                 plugins=chain_args.get("plugins", args.plugins),
+                run_soft_time_limit=args.soft_time_limit,
             )
 
             all_tasks, plugin_path_mapping = fx_app.import_microservices()

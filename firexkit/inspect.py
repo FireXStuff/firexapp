@@ -101,7 +101,7 @@ def get_active_queues(**kwargs):
     return inspect_with_retry(inspect_method='active_queues', **kwargs)
 
 
-def get_task(**kwargs):
+def _get_task(**kwargs):
     kwargs.pop('inspect_method', None)
     return inspect_with_retry(inspect_method='query_task', **kwargs)
 
@@ -299,7 +299,7 @@ class InspectedTask(pydantic.BaseModel):
                     dict[str, Any], # task, not sure what all possibilies are.
                 ]
             ]
-        ] = get_task(
+        ] = _get_task(
             celery_app=celery_app,
             method_args=tuple(query_task_ids),
             destination=destinations,

@@ -19,7 +19,6 @@ from firex_flame.api import (
 )
 from firex_flame.controller import FlameAppController
 from firex_flame.flame_helper import FlameServerConfig, get_flame_url_from_port
-from firexapp.engine.run_controller import FireXRunController
 from firexapp.submit.reporting import REL_COMPLETION_REPORT_PATH
 
 logger = logging.getLogger(__name__)
@@ -187,9 +186,7 @@ def start_web_server(
         create_revoke_api(
             controller,
             web_app,
-            FireXRunController(
-                celery_app,
-                controller.run_metadata['logs_dir']),
+            celery_app,
             server_config.authed_user_request_path,
         )
 

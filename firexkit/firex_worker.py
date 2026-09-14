@@ -148,19 +148,18 @@ class FxWorkerId(FxWorkerHostName):
         parts = worker_host_id.split('@')
         name_part = parts[0]
         name_parts = parts[0].split(':')
-        if len(name_parts) > 1:
-            sgroup = name_parts[1] or None
-            if len(name_parts) > 2:
-                uniq_slug = name_parts[2]
-            else:
-                raise ValueError(f'Value {worker_host_id} does not have enough parts before "@" to a worker ID, maybe its a name?')
+        uniq_slug = name_parts[-1]
+        if len(name_parts) > 2:
+
+            name_part = ':'.join(name_parts[:-1])
         else:
             raise ValueError(f'Value {worker_host_id} does not have enough parts before "@" to a worker ID, maybe its a name?')
 
         worker_name = FxWorkerName.fx_worker_name_from_str(name_part)
         return cls(
-            queue_name=name_parts[0],
+            queue_name=worker_name.queue_name,
             spawn_group=worker_name.spawn_group,
             host=parts[-1],
+            uniq_slug=uniq_slug,
         )
 

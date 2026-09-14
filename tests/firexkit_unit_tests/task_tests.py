@@ -1,5 +1,7 @@
+import time
 import types
 import unittest
+from contextlib import contextmanager
 from unittest import mock
 
 from firexkit.argument_conversion import ConverterRegister
@@ -456,3 +458,129 @@ class ConvertToSerializableTests(unittest.TestCase):
         with self.subTest('max_recrusive_depth reached'):
             expected_result = [self.d, dict(level1=dict(level2=repr(level3)))]
             self.assertListEqual(convert_to_serializable(d2, max_recursive_depth=3), expected_result)
+
+
+class RunTimeLimitTests(unittest.TestCase):
+    """
+        A task deciding the run needs to be longer than it was submitted for.
+    """
+
+    def create_task(self, task_id='me', own_soft_time_limit=100, elapsed_in_task=0):
+        test_app = ut_celery_app()
+
+        @test_app.task(base=FireXTask, bind=True)
+        def LongTask(self):
+            pass
+
+        task = LongTask
+        task.increase_calls = []
+        task.app.increase_run_soft_time_limit = mock.Mock(
+            side_effect=task.increase_calls.append,
+        )
+        task.app.set_task_soft_time_limit = mock.Mock()
+        task.request.id = task_id
+        task.request.hostname = 'my_worker'
+        task.request.timelimit = [None, own_soft_time_limit]
+        task.duration = lambda: elapsed_in_task
+        return task
+
+    @contextmanager
+    def run_time_remaining(self, remaining, elapsed=3600):
+        """Pretends the run has `remaining` seconds left, `elapsed` seconds in."""
+        with mock.patch(
+            'firexkit.run_time.get_run_deadline',
+            side_effect=lambda app=None: time.time() + remaining,
+        ), mock.patch(
+            'firexkit.task.get_run_start_time',
+            side_effect=lambda app=None: time.time() - elapsed,
+        ):
+            yield
+
+    def test_reports_the_run_time_left_after_a_reserve(self):
+        task = self.create_task()
+        with self.run_time_remaining(10 * 60 * 60):
+            self.assertAlmostEqual(
+                9 * 60 * 60, task.get_run_time_remaining(reserve=60 * 60), delta=2,
+            )
+
+    def test_a_sufficient_budget_is_left_alone(self):
+        task = self.create_task(own_soft_time_limit=None)
+        with self.run_time_remaining(10 * 60 * 60):
+            task.ensure_run_time_remaining(60 * 60)
+
+        task.app.increase_run_soft_time_limit.assert_not_called()
+
+    def test_raises_the_budget_to_cover_the_need_and_the_reserve(self):
+        task = self.create_task()
+        with self.run_time_remaining(60 * 60, elapsed=3600):
+            task.ensure_run_time_remaining(9 * 60 * 60, reserve=60 * 60)
+
+        required_total, = task.increase_calls
+        # 1h elapsed + 9h needed + 1h reserve.
+        self.assertAlmostEqual(11 * 60 * 60, required_total, delta=2)
+
+    def test_extends_its_own_limit_even_when_the_budget_is_already_enough(self):
+        # The run has 10h left, but this task was given 100s.
+        task = self.create_task(own_soft_time_limit=100, elapsed_in_task=10)
+        with self.run_time_remaining(10 * 60 * 60):
+            task.ensure_run_time_remaining(9 * 60 * 60)
+
+        task.app.increase_run_soft_time_limit.assert_not_called()
+        task.app.set_task_soft_time_limit.assert_called_once_with(
+            'me', 10 + 9 * 60 * 60,
+            destination=['my_worker'], increase_only=True,
+        )
+
+    def test_leaves_its_own_limit_alone_when_it_already_covers_the_need(self):
+        task = self.create_task(own_soft_time_limit=10 * 60 * 60)
+        with self.run_time_remaining(10 * 60 * 60):
+            task.ensure_run_time_remaining(60 * 60)
+
+        task.app.set_task_soft_time_limit.assert_not_called()
+
+    def test_a_task_with_no_limit_of_its_own_still_extends_itself(self):
+        # A published timelimit of None does not mean unlimited: billiard falls back to
+        # the worker pool's default soft_timeout, which FireX seeds from the run budget
+        # and a pool child cannot read. So the request goes out and the worker, which
+        # can see the real limit, drops it if the task already has more.
+        task = self.create_task(own_soft_time_limit=None)
+        with self.run_time_remaining(10 * 60 * 60):
+            task.ensure_run_time_remaining(9 * 60 * 60)
+
+        task.app.set_task_soft_time_limit.assert_called_once_with(
+            'me', 9 * 60 * 60,
+            destination=['my_worker'], increase_only=True,
+        )
+
+    def test_the_increase_is_confirmed_against_its_own_worker(self):
+        # increase_run_soft_time_limit does not collect replies, so nothing about it
+        # says this task's own limit has moved yet. Naming the one worker that can
+        # answer is both the confirmation and the reason the wait is short: a wait
+        # that lasted a fixed timeout would spend the seconds just asked for.
+        task = self.create_task(own_soft_time_limit=None, elapsed_in_task=12)
+        with self.run_time_remaining(-9, elapsed=12):
+            task.ensure_run_time_remaining(10)
+
+        self.assertEqual(1, len(task.increase_calls))
+        task.app.set_task_soft_time_limit.assert_called_once_with(
+            'me', 12 + 10, destination=['my_worker'], increase_only=True,
+        )
+
+    def test_a_need_smaller_than_the_resolve_floor_still_raises_the_budget(self):
+        # The run is 9s past its deadline, so there is no time for a 10s need. Deciding
+        # against get_run_time_remaining() would see DEFAULT_MINIMUM_RUN_TIME_REMAINING
+        # instead -- time the run does not have -- and skip the increase entirely.
+        task = self.create_task()
+        with self.run_time_remaining(-9, elapsed=12):
+            task.ensure_run_time_remaining(10)
+
+        required_total, = task.increase_calls
+        # 12s elapsed + 10s needed.
+        self.assertAlmostEqual(22, required_total, delta=2)
+
+    def test_returns_the_run_time_remaining_after_the_increase(self):
+        task = self.create_task(own_soft_time_limit=None)
+        with self.run_time_remaining(10 * 60 * 60):
+            remaining = task.ensure_run_time_remaining(60 * 60, reserve=60 * 60)
+
+        self.assertAlmostEqual(9 * 60 * 60, remaining, delta=2)
