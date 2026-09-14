@@ -1,4 +1,5 @@
 import dataclasses
+import functools
 import os
 from typing import Annotated, Any, ClassVar
 
@@ -163,11 +164,10 @@ class FxEnvVars(pydantic.BaseModel):
 # discovery, because importing them has registration side-effects that the run
 # depends on (e.g. firexapp.submit.report_trigger registers the root-task
 # converter that triggers pre-run reports, firexapp.tasks.root_tasks registers
-# the root-task postrun completion handler).
-# Apps that override FxCeleryConfig.imports to skip bundle discovery must still
-# include these.
+# the root-task postrun completion handler that self-destructs the run).
 FIREX_APP_ROOT_TASK_MODULE = "firexapp.tasks.root_tasks"
 FIREXAPP_INFRA_IMPORTS = (
+    FIREX_APP_ROOT_TASK_MODULE,
     "firexapp.tasks.core_tasks",
     "firexapp.submit.report_trigger",
     "firexapp.reporters.json_reporter",
@@ -269,11 +269,14 @@ class FxCeleryConfig:
             logger.debug('Bundles discovered:\n' + '\n'.join([f'\t - {b}' for b in bundles]))
         return bundles
 
-    @property
+    @functools.cached_property
     def imports(self) -> tuple[str, ...]:
         return tuple(
-            self._fx_discover_bundles()
-        ) + (
-            FIREX_APP_ROOT_TASK_MODULE,
-            "firexapp.tasks.example",
-        ) + FIREXAPP_INFRA_IMPORTS
+            dict.fromkeys(
+                tuple(
+                    self._fx_discover_bundles()
+                ) + (
+                    "firexapp.tasks.example",
+                ) + FIREXAPP_INFRA_IMPORTS
+            )
+        )
