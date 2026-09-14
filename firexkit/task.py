@@ -34,6 +34,7 @@ from firexkit.bag_of_goodies import (
     AutoInjectSpec,
     BagOfGoodies,
     ValidateArgs,
+    log_unvalidatable_annotations,
 )
 from firexkit.chain import InjectArgs, SignatureX
 from firexkit.firex_worker import FxWorkerTypes
@@ -53,6 +54,7 @@ from firexkit.result import (
     forget_chain_results,
     last_causing_chain_interrupted_exception,
 )
+from firexkit.run_time import RunTimeReserve, get_run_start_time
 
 ADDITIONAL_CHILDREN_KEY = 'additional_children'
 REPLACEMENT_TASK_NAME_POSTFIX = REPLACEMENT_TASK_NAME_POSTFIX
@@ -133,6 +135,24 @@ def _nop():
 
 def _empty_bog() -> BagOfGoodies:
     return BagOfGoodies(inspect.signature(_nop), tuple(), {}, ValidateArgs.DISABLED)
+
+
+def _get_signature_with_resolved_annotations(run_func) -> inspect.Signature:
+    """
+        Get a task's signature with its annotations evaluated to real types.
+
+        Modules using 'from __future__ import annotations' (PEP 563) keep their
+        annotations as strings. Strings are useless for arg validation, since
+        resolving them needs the namespace of the module that defined the task.
+    """
+    try:
+        return inspect.signature(run_func, eval_str=True)
+    except Exception as e:
+        # Annotations that only exist under typing.TYPE_CHECKING can't be resolved.
+        # Un-evaluated annotations are never validated, but everything else about
+        # the signature still works.
+        logger.debug(f'Could not resolve annotations of {run_func}: {e!r}')
+        return inspect.signature(run_func)
 
 
 @dataclasses.dataclass
@@ -339,6 +359,13 @@ class FireXTask(Task):
     # tasks are loaded via Celery. This is crazy.
     orig : typing.ClassVar[typing.Optional['FireXTask']] = None
 
+    # Seconds this task wants left of the run after it finishes. Set it via
+    # @app.task(run_time_limit_reserve=60*60) to say "run for the whole rest of the run,
+    # less an hour", instead of soft_time_limit's fixed duration. Unlike soft_time_limit
+    # it is resolved when the task is published, so it tracks a run budget that grew
+    # after this module was imported, and a later increase re-arms it mid-run.
+    run_time_limit_reserve : typing.ClassVar[float | None] = None
+
     def __init__(self):
 
         check_name_for_override_posfix = getattr(self, 'check_name_for_override_posfix', True)
@@ -346,7 +373,8 @@ class FireXTask(Task):
             raise IllegalTaskNameException(f'Task names should never end with {REPLACEMENT_TASK_NAME_POSTFIX!r}')
 
         self.undecorated = undecorate(self)
-        self.sig : inspect.Signature = inspect.signature(self.run)
+        self.sig : inspect.Signature = _get_signature_with_resolved_annotations(self.run)
+        log_unvalidatable_annotations(self.name, self.sig)
 
         _task_return_keys = self._get_task_return_keys()
         _decorated_return_keys = getattr(self.undecorated, "_decorated_return_keys", None)
@@ -471,6 +499,99 @@ class FireXTask(Task):
     @property
     def request_soft_time_limit(self):
         return self.request.timelimit[1]
+
+    def get_run_time_remaining(self, reserve: float=0) -> float:
+        """
+            Seconds of run time left, less `reserve`.
+
+            Never returns zero or less: see
+            :const:`firexkit.run_time.DEFAULT_MINIMUM_RUN_TIME_REMAINING`.
+        """
+        return RunTimeReserve(reserve).resolve(self.app)
+
+    def ensure_run_time_remaining(self, need: float, reserve: float=0) -> float:
+        """
+            Guarantees at least `need` seconds of run time remain from now, with
+            `reserve` seconds left over afterwards for cleanup and post-processing.
+
+            Call this when a task discovers the real runtime is larger than the run was
+            submitted for -- a scheduler estimate, say. It raises the run's total time
+            budget if it isn't already large enough, extends this task and every other
+            running task that was following the run budget -- including the ancestors
+            blocked waiting on this one -- and raises the default limit of tasks
+            enqueued from here on. The increase is a monotonic max, so calling this
+            unconditionally, or again on a retry, is safe: a budget that is already
+            sufficient makes it a no-op.
+
+            `need` is a floor, not a margin: asking for exactly as long as the work
+            takes leaves this task's own limit landing exactly on its last second. Pad
+            the estimate.
+
+            When the work being waited for is a blocking wait with a RunTimeReserve,
+            pass that same reserve here. The wait subtracts it from what remains, so
+            asking for `need` alone buys time the wait then refuses to use, and the wait
+            can expire on its first poll even though the increase was granted.
+
+            Returns the run time remaining, less `reserve`, once the call has taken
+            effect. Blocks only as long as this task's own worker takes to acknowledge
+            the new limit, so the time it costs does not come out of `need`.
+
+                estimate = query_scheduler_estimate(...)
+                self.ensure_run_time_remaining(estimate, reserve=60*60)
+        """
+        # remaining(), not get_run_time_remaining(): resolve()'s floor exists to keep a
+        # resolved soft time limit usable, and applying it to this decision would credit
+        # the run with up to DEFAULT_MINIMUM_RUN_TIME_REMAINING seconds it does not have,
+        # silently skipping the increase for any task asking for less than that.
+        remaining = RunTimeReserve(reserve).remaining(self.app)
+        if remaining >= need:
+            # The run has the time; make sure this task itself does too, since it may
+            # have been given a fixed limit smaller than what it now knows it needs.
+            self._ensure_own_soft_time_limit(need)
+            return self.get_run_time_remaining(reserve)
+
+        required_total = (time.time() - get_run_start_time(self.app)) + need + reserve
+        logger.warning(
+            f'Increasing the run time limit to {required_total:.0f}s:'
+            f' this task needs {need:.0f}s more (leaving {reserve:.0f}s),'
+            f' but only {remaining:.0f}s of the run remain.'
+        )
+        self.app.increase_run_soft_time_limit(required_total)
+        # The broadcast above is fire-and-forget, so returning now would hand control
+        # back to a task whose own soft time limit may still be the old one. This waits
+        # on our own worker only, and since a worker handles its pidbox messages in
+        # order, its reply also says the run-relative extension above has landed.
+        self._ensure_own_soft_time_limit(need)
+        return self.get_run_time_remaining(reserve)
+
+    def _ensure_own_soft_time_limit(self, need: float):
+        """
+            Extends this task's own soft time limit to cover `need` more seconds.
+
+            A budget raise does not cover a task published with an explicit limit, on
+            the grounds that the number was chosen for the task rather than derived from
+            the run. That deference is wrong for the one task that just said out loud
+            how much longer it needs, which is why it asks separately here.
+        """
+        elapsed = self.duration() or 0
+        own_limit = self.request_soft_time_limit
+        if own_limit is not None and (own_limit - elapsed) >= need:
+            return
+
+        # A limit of None is not "unlimited": billiard falls back to the pool's default
+        # soft_timeout, which FireX seeds from the run's time budget. A pool child cannot
+        # read that default, so ask for the limit this task needs and let increase_only
+        # discard the request at the worker if the task already has more.
+        #
+        # Naming our own worker is what keeps this cheap: it is the only one that can
+        # answer, and it lets the reply collector stop as soon as it does instead of
+        # waiting out the timeout.
+        self.app.set_task_soft_time_limit(
+            self.request.id,
+            elapsed + need,
+            destination=[self.request.hostname] if self.request.hostname else None,
+            increase_only=True,
+        )
 
     def s(self, *args, **kwargs) -> SignatureX:
         return super().s(*args, **kwargs)
@@ -1026,7 +1147,7 @@ class FireXTask(Task):
 
     def wait_for_any_children(
         self,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         poll_max_wait: float | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
     ):
@@ -1046,7 +1167,7 @@ class FireXTask(Task):
         pending_only=True,
         forget: bool=False,
         raise_exception_on_failure: bool=True,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         **kwargs,
     ):
@@ -1107,7 +1228,7 @@ class FireXTask(Task):
         child_results: FxAsyncResult | list[FxAsyncResult],
         forget: bool=False,
         raise_exception_on_failure: bool=True,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
     ):
         """Wait for the explicitly provided child_results to run and complete"""
@@ -1173,12 +1294,12 @@ class FireXTask(Task):
         chain: SignatureX,
         queue: str | None=None,
         priority: int | None=None,
-        soft_time_limit: int | None=None,
+        soft_time_limit: int | RunTimeReserve | None=None,
         add_to_enqueued_children: bool=True,
         block: bool=False,
         raise_exception_on_failure: bool | None=None,
         forget: bool=False,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         enqueue_once_key: str | None=None,
         **kwargs,
@@ -1206,7 +1327,9 @@ class FireXTask(Task):
         if priority is not None:
             chain.set_priority(priority)
 
-        if soft_time_limit:
+        if soft_time_limit is not None:
+            # `is not None`, not truthiness: RunTimeReserve(0) means "all the run time
+            # that's left", which is a real limit rather than an absent one.
             chain.set_soft_time_limit(soft_time_limit)
 
         enqueue_once_spec = _setup_enqueue_once(self, enqueue_once_key)
@@ -1259,14 +1382,14 @@ class FireXTask(Task):
         chain: SignatureX,
         queue: str | None="auto",
         priority: int | None=None,
-        soft_time_limit: int | None=None,
+        soft_time_limit: int | RunTimeReserve | None=None,
         return_keys: str | tuple[str, ...] = (),
         return_keys_only: bool = True,
         merge_children_results: bool = False,
         extract_from_parents: bool = True,
         forget: bool = False,
         raise_exception_on_failure: bool=True,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         block: bool=True,
         enqueue_once_key: str | None=None,
@@ -1324,7 +1447,7 @@ class FireXTask(Task):
         chain: SignatureX,
         queue: str | None="auto",
         priority: int | None=None,
-        soft_time_limit: int | None=None,
+        soft_time_limit: int | RunTimeReserve | None=None,
         return_keys: str | tuple[str, ...] = tuple(),
         extract_from_children: bool = True,
         extract_task_returns_only: bool = False,
@@ -1332,7 +1455,7 @@ class FireXTask(Task):
         extract_from_parents: bool | None = None,
         forget: bool = False,
         raise_exception_on_failure: bool=True,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         block=True,
     ) -> tuple | dict:
@@ -1411,7 +1534,7 @@ class FireXTask(Task):
         block=False,
         raise_on_failure=False,
         forget: bool=False,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
     ) -> ManyFxAsyncResults[int]: ...
 
@@ -1423,7 +1546,7 @@ class FireXTask(Task):
         block=False,
         raise_on_failure=False,
         forget: bool=False,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
     ) -> ManyFxAsyncResults[K]: ...
 
@@ -1434,7 +1557,7 @@ class FireXTask(Task):
         block=False,
         raise_on_failure=False,
         forget: bool=False,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
     ) -> ManyFxAsyncResults[Any]:
         """
@@ -1467,7 +1590,11 @@ class FireXTask(Task):
         many_ars = ManyFxAsyncResults.fx_ars_from_dict(promises_by_key)
 
         if block or raise_on_failure:
-            if max_wait is not None:
+            if isinstance(max_wait, RunTimeReserve):
+                # Already absolute -- it resolves against the run's deadline, so the time
+                # spent enqueueing above is accounted for without subtracting anything.
+                remaining_max_wait = max_wait
+            elif max_wait is not None:
                 remaining_max_wait = max(
                     0,
                     (start + max_wait) - time.monotonic(),
@@ -1487,7 +1614,7 @@ class FireXTask(Task):
         wait_for_completion=True,
         raise_exception_on_failure=False,
         forget: bool=False,
-        max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         **_kwargs,
     ) -> list[FxAsyncResult]:

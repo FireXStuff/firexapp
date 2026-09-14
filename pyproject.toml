@@ -51,6 +51,7 @@ dependencies = [
     "jinja2",
     "pydantic==2.13.0",
     "typing-extensions==4.16.0",
+    "flufl.lock",
 ]
 
 [project.optional-dependencies]
@@ -91,6 +92,7 @@ docs = [
 ]
 integration = []
 dev = [
+    "pytest>=9.1.1",
     "ruff>=0.16.6",
 ]
 

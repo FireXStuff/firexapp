@@ -1,4 +1,5 @@
 import datetime
+import time
 import unittest
 from contextlib import contextmanager
 from unittest import mock
@@ -18,6 +19,7 @@ from firexkit.result import (
     wait_on_async_results,
 )
 from firexkit.revoke import RevokedRequests, _now_utc
+from firexkit.run_time import RunTimeReserve
 from firexkit.testing import MockFxAsyncResult, ut_celery_app
 
 
@@ -344,3 +346,67 @@ class WalkExceptionTests(unittest.TestCase):
         non_chain_interrupted = first_non_chain_interrupted_exception(e3)
         self.assertIs(e1, non_chain_interrupted)
 
+
+
+class RunRelativeWaitTests(unittest.TestCase):
+    """
+        The case the run time budget exists for: a task blocked on children allowed to
+        run for nearly the whole run, whose wait must move when the budget does.
+    """
+
+    def setUp(self):
+        setup_revoke()
+        self.test_app, mock_results = get_mocks(['long-running'])
+        self.result = mock_results[0]
+        self.result._state = STARTED
+        # Stands in for the deadline derived from the budget held in the result backend.
+        self.run_deadline = time.time() + 0.2
+
+    @contextmanager
+    def patched_run_deadline(self):
+        with mock.patch(
+            'firexkit.run_time.get_run_deadline',
+            side_effect=lambda app=None: self.run_deadline,
+        ):
+            yield
+
+    def wait(self, max_wait, **kwargs):
+        with self.patched_run_deadline():
+            wait_on_async_results(self.result, max_wait=max_wait, **kwargs)
+
+    def test_gives_up_when_the_run_is_out_of_time(self):
+        with self.assertRaises(WaitOnChainTimeoutError):
+            self.wait(RunTimeReserve(0))
+
+    def test_the_reserve_shortens_the_wait(self):
+        # Wants 10s left at the end of a run with 0.2s to go: already out of time.
+        started = time.time()
+        with self.assertRaises(WaitOnChainTimeoutError):
+            self.wait(RunTimeReserve(10))
+        self.assertLess(time.time() - started, 0.2)
+
+    def test_a_budget_raised_mid_wait_extends_an_already_blocked_waiter(self):
+        # The heart of the feature: nothing signals the blocked wait, it just
+        # re-resolves the run deadline on every poll.
+        original_deadline = self.run_deadline
+
+        def raise_the_budget_then_complete():
+            now = time.time()
+            if now > original_deadline - 0.1 and self.run_deadline == original_deadline:
+                # Some task discovered the run needs longer and raised the budget.
+                self.run_deadline = now + 5
+            elif now > original_deadline + 0.3:
+                # Well past the point this wait would originally have given up.
+                self.result._state = SUCCESS
+            return self.result._state
+
+        self.result._state = raise_the_budget_then_complete
+
+        self.wait(RunTimeReserve(0))
+
+        self.assertEqual(SUCCESS, self.result.state)
+
+    def test_a_plain_max_wait_ignores_the_budget(self):
+        self.run_deadline = time.time() + 3600
+        with self.assertRaises(WaitOnChainTimeoutError):
+            self.wait(0.2)

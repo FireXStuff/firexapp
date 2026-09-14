@@ -18,7 +18,7 @@ from firex_flame.controller import FlameAppController
 from firex_flame.flame_helper import REVOKE_REASON_KEY, wait_until
 from firex_flame.flame_task_graph import FlameTaskGraph, is_task_dict_complete
 from firex_flame.model_dumper import wait_and_get_flame_url
-from firexapp.engine.run_controller import FireXRunController
+from firexkit.firex_celery import FireXCelery
 
 logger = logging.getLogger(__name__)
 
@@ -321,7 +321,7 @@ def _uuid_and_reason_from_revoke_data(revoke_data):
 def create_revoke_api(
     controller: FlameAppController,
     web_app,
-    run_controller: FireXRunController,
+    celery_app: FireXCelery,
     authed_user_request_path,
 ):
     assert controller.sio_server is not None
@@ -392,7 +392,7 @@ def create_revoke_api(
             return False
 
         if not is_task_dict_complete(task):
-            run_controller.revoke_task(
+            celery_app.revoke_task(
                 uuid,
                 revoke_reason,
                 revoking_user=user,

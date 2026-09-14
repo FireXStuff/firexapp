@@ -29,6 +29,7 @@ from firexapp.events.event_aggregator import transform_task_state
 from firexapp.events.model import (
     ADDITIONAL_CHILDREN_KEY,
     EXTERNAL_COMMANDS_KEY,
+    TASK_REVOKE_REASON_KEY,
     RunStates,
 )
 
@@ -161,6 +162,12 @@ FIELD_CONFIG = {
         'copy_celery': True,
     },
     'was_revoked': {
+        'copy_celery': True,
+    },
+    # Why this task was revoked, sent with task-revoke-completed. Deliberately not a
+    # slim field: it's only ever set on revoked tasks and is only needed once a task is
+    # opened, so it doesn't belong in the payload sent for every node on graph load.
+    TASK_REVOKE_REASON_KEY: {
         'copy_celery': True,
     },
 }

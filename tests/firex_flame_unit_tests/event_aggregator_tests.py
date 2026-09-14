@@ -5,6 +5,7 @@ from firex_flame.flame_task_graph import (
     FlameTaskGraph,
     _TaskFieldSentile,
 )
+from firexapp.events.model import TASK_REVOKE_REASON_KEY, RunStates
 
 basic_event = {
     'uuid': '1',
@@ -149,6 +150,30 @@ class EventAggregatorTests(unittest.TestCase):
         # The rule for the celery key 'url' creates a new key 'logs_url'. This test verifies non-celery keys are
         # propagated.
         self.assertEqual('some_url', aggregator._tasks_by_uuid[basic_event['uuid']].get_field('logs_url'))
+
+    def test_revoke_reason_is_full_task_only(self):
+        graph = FlameTaskGraph({})
+
+        graph.update_graph_from_celery_events([
+            basic_event,
+            {
+                'uuid': basic_event['uuid'],
+                'type': RunStates.REVOKE_COMPLETED.to_celery_event_type(),
+                'local_received': 1,
+                TASK_REVOKE_REASON_KEY: 'user cancelled the run',
+            },
+        ])
+
+        self.assertEqual(
+            'user cancelled the run',
+            graph.get_full_task_dict(basic_event['uuid'])[TASK_REVOKE_REASON_KEY],
+        )
+        # Only set on revoked tasks and only needed once a task is opened, so it must
+        # stay out of the payload sent for every node on graph load.
+        self.assertNotIn(
+            TASK_REVOKE_REASON_KEY,
+            graph.get_slim_tasks_by_uuid()[basic_event['uuid']],
+        )
 
     def test_late_root_uuid(self):
         graph  = FlameTaskGraph({})
