@@ -2,7 +2,7 @@ import importlib
 import os
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import ClassVar
+from typing import ClassVar, Optional
 import logging
 
 import celery.signals
@@ -49,8 +49,10 @@ class FireXCelery(Celery):
         fx_plugins_reg=FxPluginRegistry(),
         fx_expect_tasks=True,
         strict_typing=False,
+        plugin_load_log_level=logging.INFO,
         **kwargs,
     ):
+        self.plugin_load_log_level = plugin_load_log_level
         self._fx_task_execution_wired = False
         super().__init__(
             *args,
@@ -231,7 +233,10 @@ class FireXCelery(Celery):
         if fx_app is not None:
             fx_app._apply_fx_config(fx_env=fx_env)
         else:
-            fx_app = cls(fx_env=fx_env)
+            fx_app = cls(
+                fx_env=fx_env,
+                plugin_load_log_level=logging.PRINT,
+            )
 
         # set OS ENV vars for this run.
         fx_app.conf.fx_env.set_fx_os_env()
@@ -328,7 +333,7 @@ class FireXCelery(Celery):
     def import_microservices(
         self,
         imports: tuple[str, ...] | None=None,
-        log_level=logging.INFO,
+        log_level: Optional[int]=None,
     ) -> tuple[
         dict[str, FireXTask],
         dict[str, str]
@@ -338,6 +343,8 @@ class FireXCelery(Celery):
             importlib.import_module(module_name)
 
         assert self.conf.fx_env, 'fx_env must be set before service tasks can be loaded.'
+        if log_level is None:
+            log_level = self.plugin_load_log_level
         plugin_path_mapping = self._load_plugins(
             self.conf.fx_env.get_plugin_files(),
             log_level=log_level,
@@ -457,6 +464,7 @@ class FireXCelery(Celery):
         fx_app = cls(
             fx_expect_tasks=False,
             fx_env=FxEnvVars.create_no_task_exec_fx_env(plugins),
+            plugin_load_log_level=logging.PRINT,
         )
         cls._set_global_fx_app(fx_app)
         try:
