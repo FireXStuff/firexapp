@@ -21,7 +21,7 @@ from firexapp.celery_manager import CeleryManager
 from firexapp.common import create_link, dict2str, silent_mkdir
 from firexapp.discovery import get_all_pkg_versions_str
 from firexapp.engine.default_celery_config import FxCeleryConfig
-from firexapp.engine.logging import add_hostname_to_log_records, PRINT
+from firexapp.engine.logging import add_hostname_to_log_records
 from firexapp.fileregistry import FileRegistry
 from firexapp.plugins import plugin_support_parser
 from firexapp.reporters.json_reporter import FireXJsonReportGenerator, FireXRunData
@@ -450,9 +450,7 @@ class SubmitBaseApp:
                 plugins=chain_args.get("plugins", args.plugins),
             )
 
-            all_tasks, plugin_path_mapping = fx_app.import_microservices(
-                log_level=PRINT,
-            )
+            all_tasks, plugin_path_mapping = fx_app.import_microservices()
             if plugin_path_mapping:
                 chain_args['plugin_path_mapping'] = plugin_path_mapping
                 chain_args['plugins'] = ','.join(plugin_path_mapping.values())

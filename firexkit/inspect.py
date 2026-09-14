@@ -9,6 +9,8 @@ from celery.local import Proxy
 from celery.utils.log import get_task_logger
 from typing_extensions import Self
 
+from firexkit.firex_worker import FxWorkerHostName
+
 logger = get_task_logger(__name__)
 
 
@@ -175,10 +177,12 @@ class InspectedTask(pydantic.BaseModel):
         cls,
         celery_app,
         query_task_status: str,
-        destinations: Sequence[str] | None=None,
+        destinations: Sequence[str | FxWorkerHostName] | None=None,
         timeout=_DEFAULT_INSPECT_TIMEOUT,
     ) -> dict[str, list[Self]]:
         assert query_task_status in ['active', 'reserved', 'scheduled', 'revoked']
+        if destinations is not None:
+            destinations = tuple(str(d) for d in destinations)
         tasks_by_dest : dict[str, list[dict[str, Any]]] = inspect_with_retry(
             inspect_method=query_task_status,
             celery_app=celery_app,
@@ -186,9 +190,10 @@ class InspectedTask(pydantic.BaseModel):
             timeout=timeout,
         ) or {}
 
-        modelled_tasks_by_dest : dict[str, list[Self]] = {
-            d: [] for d in (destinations or [])
-        }
+        # Only destinations that replied are present: a requested destination
+        # that didn't answer is absent, which is not the same as a destination
+        # that answered with no tasks (present with an empty list).
+        modelled_tasks_by_dest : dict[str, list[Self]] = {}
         for d, ts in tasks_by_dest.items():
             modelled_tasks : list[Self] = []
             for t in ts:
@@ -228,11 +233,40 @@ class InspectedTask(pydantic.BaseModel):
         destination: str,
         timeout=_DEFAULT_INSPECT_TIMEOUT,
     ) -> list[Self]:
+        # Absent when the destination didn't respond, so tolerate a missing entry.
         return cls.inspect_active(
             celery_app,
             destinations=[destination],
             timeout=timeout,
         ).get(destination) or []
+
+    @classmethod
+    def inspect_scheduled(
+        cls,
+        celery_app,
+        destinations: Sequence[str] | None=None,
+        timeout=_DEFAULT_INSPECT_TIMEOUT,
+    ) -> dict[str, list[Self]]:
+        return cls._inspect_status(
+            celery_app=celery_app,
+            query_task_status='scheduled',
+            destinations=destinations,
+            timeout=timeout,
+        )
+
+    @classmethod
+    def inspect_reserved(
+        cls,
+        celery_app,
+        destinations: Sequence[str] | None=None,
+        timeout=_DEFAULT_INSPECT_TIMEOUT,
+    ) -> dict[str, list[Self]]:
+        return cls._inspect_status(
+            celery_app=celery_app,
+            query_task_status='reserved',
+            destinations=destinations,
+            timeout=timeout,
+        )
 
     @classmethod
     def inspect_reserved_single_destination(
@@ -241,9 +275,9 @@ class InspectedTask(pydantic.BaseModel):
         destination: str,
         timeout=_DEFAULT_INSPECT_TIMEOUT,
     ) -> list[Self]:
-        return cls._inspect_status(
+        # Absent when the destination didn't respond, so tolerate a missing entry.
+        return cls.inspect_reserved(
             celery_app=celery_app,
-            query_task_status='reserved',
             destinations=[destination],
             timeout=timeout,
         ).get(destination) or []

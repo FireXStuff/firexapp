@@ -1,7 +1,7 @@
+import logging
 import os
 import unittest
 from unittest.mock import patch
-import logging
 
 from firexapp.plugins import (
     FxPluginRegistry,

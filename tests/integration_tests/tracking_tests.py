@@ -7,7 +7,6 @@ from firexapp.submit.tracking_service import TrackingService, get_tracking_servi
 from firexapp.testing.config_base import (
     FlowTestConfiguration,
     assert_is_bad_run,
-    assert_is_good_run,
 )
 
 test_data_dir = os.path.join(os.path.dirname(__file__), "data", "tracking_services")
