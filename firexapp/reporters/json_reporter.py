@@ -33,13 +33,19 @@ logger = get_task_logger(__name__)
 T = TypeVar('T', bound='FireXRunData')
 
 
+def _chain_to_list(chain) -> list[str]:
+    # Coerce a chain in to a list of (possibly qualified) task names without
+    # consulting the app's task registry.
+    if isinstance(chain, str):
+        chain = chain.split(',')
+    return [str(s).strip() for s in chain]
+
+
 def _norm_chain_names(fx_app, chain) -> list[str]:
     try:
         return [t.short_name for t in fx_app.get_app_tasks(chain)]
     except celery.exceptions.NotRegistered:
-        if isinstance(chain, str):
-            chain = chain.split(',')
-        return [s.strip().split('.')[-1] for s in chain]
+        return [s.split('.')[-1] for s in _chain_to_list(chain)]
 
 @dataclasses.dataclass
 class FireXRunData:
@@ -73,7 +79,11 @@ class FireXRunData:
         from firexkit.firex_celery import FireXCelery
         fx_app = FireXCelery.app_or_default()
         if chain:
-            chain = _norm_chain_names(fx_app, chain)
+            # Deliberately not normalized against the app's task registry: this runs
+            # before import_microservices, so querying the registry here would finalize
+            # the app before the task modules have been imported. The chain is
+            # normalized later, by write_update_input_args.
+            chain = _chain_to_list(chain)
 
         viewers = uid.viewers or {}
         _extra_fields = dict(viewers) # backwards compat
@@ -200,6 +210,14 @@ class FireXRunData:
                 'original_cli', 'json_file',
             ]
         }
+        if self.chain:
+            # The app is initialized (import_microservices has run) by the time this is
+            # called, so the chain names can now be resolved against the task registry.
+            try:
+                from firexkit.firex_celery import FireXCelery
+                self.chain = _norm_chain_names(FireXCelery.app_or_default(), self.chain)
+            except Exception as e:
+                logger.warning(f'Failed to normalize chain names: {e}')
         try:
             _write_run_json(self, _get_initial_run_json_path(self.logs_path))
         except Exception as e:

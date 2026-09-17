@@ -341,6 +341,17 @@ class FireXCelery(Celery):
         dict[str, FireXTask],
         dict[str, str]
     ]:
+        if self.finalized:
+            # Celery only finalizes once, so anything imported from here on will
+            # register against whichever app it was decorated with and never be
+            # replayed on to this one. Fail here, where the premature finalize is
+            # still on the stack, instead of at task lookup much later.
+            raise RuntimeError(
+                f'{self} was already finalized before import_microservices; '
+                'tasks imported from here on will not be registered. Something '
+                'accessed app.tasks (or called finalize) too early.'
+            )
+
         imports = imports or self.conf.imports
         for module_name in imports:
             importlib.import_module(module_name)

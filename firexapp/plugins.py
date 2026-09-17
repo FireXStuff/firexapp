@@ -368,8 +368,15 @@ def _should_import(
     if module_name in sys.modules:
         # a module with this name is already loaded. See if we should replace it.
         existing_mod = sys.modules[module_name]
-        module_source = existing_mod.__file__
-        if module_source != plugin_file:
+        # Builtin and namespace modules have no __file__, so a plugin file whose
+        # basename collides with one of those must not raise AttributeError here.
+        module_source = getattr(existing_mod, '__file__', None)
+        # Compare resolved paths so that the same file reached through a symlink
+        # isn't mistaken for a different module of the same name.
+        if (
+            module_source is None
+            or os.path.realpath(module_source) != os.path.realpath(plugin_file)
+        ):
             if not replace:
                 logger.error(f'Plugin module {module_name!r} was NOT imported from {plugin_file!r}. '
                              f'A module with the same name was already imported from {module_source!r}')
@@ -391,19 +398,38 @@ def _should_import(
     return should_import, already_loaded
 
 
-def _import_plugin(module_name, plugin_file):
+def _import_plugin(module_name: str, plugin_file: str) -> ModuleType:
     spec = importlib.util.spec_from_file_location(module_name, plugin_file)
+    if spec is None or spec.loader is None:
+        raise PluginLoadError(
+            f'Cannot load plugin {plugin_file!r}: not an importable Python module.'
+        )
     module = importlib.util.module_from_spec(spec)
     module_directory = os.path.dirname(os.path.realpath(plugin_file))
     if module_directory not in sys.path:
         sys.path.append(module_directory)
-    mod = sys.modules[module_name] = module
+
+    previously_loaded = sys.modules.get(module_name)
+    sys.modules[module_name] = module
+    loaded = False
     try:
         spec.loader.exec_module(module)
-    except BaseException:
+        loaded = True
+    except Exception as e:
         logger.exception(f'Failed to load {plugin_file}')
-        raise PluginLoadError(f'Fatal Error loading plugin {plugin_file!r}')
-    return mod
+        raise PluginLoadError(f'Fatal Error loading plugin {plugin_file!r}') from e
+    finally:
+        if not loaded:
+            # Don't leave a partially executed module behind: _should_import would
+            # hand it to the next caller as though it had imported successfully.
+            # Note this also runs for BaseExceptions (e.g. KeyboardInterrupt),
+            # which are deliberately not converted to PluginLoadError.
+            if previously_loaded is not None:
+                sys.modules[module_name] = previously_loaded
+            else:
+                sys.modules.pop(module_name, None)
+    # The module may have replaced itself in sys.modules.
+    return sys.modules[module_name]
 
 
 def get_active_plugins() -> str:

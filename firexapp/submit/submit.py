@@ -398,7 +398,10 @@ class SubmitBaseApp:
             sys.exit(-1)
         self.wait_tracking_services_task_ready(fx_app)
 
-        safe_create_initial_run_json(**chain_args)
+        run_info = safe_create_initial_run_json(**chain_args)
+        if run_info:
+            # Normalizes the chain names now that the app's tasks are imported.
+            run_info.write_update_input_args(chain_args)
 
         root_task_result_promise = root_task.s(submit_app=self, **chain_args).delay()
 
@@ -467,7 +470,7 @@ class SubmitBaseApp:
         try:
             app_tasks = fx_app.get_app_tasks(chain_args['chain'])
         except NotRegistered as e:
-            reason = "Could not find task %s" % str(e)
+            reason = f"Could not find task {e}"
             logger.error(reason)
             self.main_error_exit_handler(reason=reason)
             sys.exit(-1)
