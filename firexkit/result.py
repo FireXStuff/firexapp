@@ -993,7 +993,7 @@ def _check_for_failure_in_parents(result: FxAsyncResult):
 def _chain_interrupted_ex(ar: FxAsyncResult):
     return ChainInterruptedException(
         task_id=ar.id,
-        task_name=ar.fx_logging_name(),
+        task_name=ar.fx_get_name(),
         cause=ar.fx_exception_result(),
     )
 

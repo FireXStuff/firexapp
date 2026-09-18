@@ -230,6 +230,36 @@ class WaitOnResultsTests(unittest.TestCase):
             wait_on_async_results(mock_results[1])
         self.assertTrue(isinstance(context.exception.__cause__, OSError))
 
+    def test_chain_interrupted_task_name_is_celery_name_not_logging_name(self):
+        setup_revoke()
+        fail_name = 'microservices.lumens_tasks.LumensQuery'
+        fail_uuid = 'd4f7b612-f497-4f2c-9b21-9fa8075d12b4'
+        cause = Exception('Lumens returned status code: <Response [400]>')
+        _test_app, mock_results = get_mocks([fail_uuid])
+        ar = mock_results[0]
+        ar._state = FAILURE
+        ar._result = cause
+        ar._fx_name = fail_name
+        with mock.patch.object(ar, 'fx_backend_get_name', return_value=fail_name):
+            with self.assertRaises(ChainInterruptedException) as context:
+                wait_on_async_results(ar)
+        e = context.exception
+        self.assertEqual(e.task_id, fail_uuid)
+        self.assertEqual(
+            e.task_name,
+            fail_name,
+            f'task_name should be the celery name, not the logging name; got {e.task_name!r}',
+        )
+        self.assertEqual(
+            repr(e),
+            f"ChainInterruptedException('{fail_uuid}', '{fail_name}', {cause!r})",
+        )
+        self.assertEqual(
+            str(e),
+            'The chain has been interrupted by a failure in microservice '
+            f'{fail_name}[{fail_uuid}]',
+        )
+
     def test_timeout(self):
         setup_revoke()
         test_app, mock_result = get_mocks()

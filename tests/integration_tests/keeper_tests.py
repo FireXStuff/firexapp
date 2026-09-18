@@ -12,6 +12,7 @@ from firexapp.testing.config_base import (
     assert_is_good_run,
 )
 from firexkit.chain import returns
+from firexkit.result import ChainInterruptedException
 from firexkit.task import FireXTask
 
 
@@ -135,6 +136,105 @@ class CausingFailureTest(FlowTestConfiguration):
         assert expected_failed_ancestor_uuids == actual_failed_ancestor_uuids, \
             f"{expected_failed_ancestor_uuids} != {actual_failed_ancestor_uuids}"
 
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_bad_run(ret_value)
+
+
+def expected_chain_interrupted_strings(fail_name: str, fail_uuid: str) -> dict:
+    """Expected ChainInterruptedException task_name / repr / str.
+
+    Flame/Keeper store repr(exception). __str__ appends [task_id] after task_name.
+    task_name must be the celery name only, not the logging name (name[uuid]).
+    """
+    task_name = fail_name
+    cause_repr = "Exception('failing')"
+    return {
+        'task_name': task_name,
+        'repr': f"ChainInterruptedException('{fail_uuid}', '{task_name}', {cause_repr})",
+        'str': (
+            'The chain has been interrupted by a failure in microservice '
+            f'{task_name}[{fail_uuid}]'
+        ),
+    }
+
+
+@app.task(bind=True)
+@returns('cie_task_id', 'cie_task_name', 'cie_repr', 'cie_str', 'fail_uuid', 'fail_name')
+def CaptureChainInterruptedFormat(self: FireXTask):
+    fail = Fail.s()
+    fail_result = fail.freeze()
+    try:
+        self.enqueue_child_and_get_results(fail)
+    except ChainInterruptedException as e:
+        return (
+            e.task_id,
+            e.task_name,
+            repr(e),
+            str(e),
+            fail_result.id,
+            Fail.name,
+        )
+    raise AssertionError('Expected ChainInterruptedException from Fail')
+
+
+class ChainInterruptedExceptionStringFormatTest(FlowTestConfiguration):
+    """Captures live ChainInterruptedException task_name / repr / str.
+
+    task_name must be the celery name only. __str__ appends [task_id];
+    using the logging name (name[uuid]) would double the uuid.
+    """
+
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "CaptureChainInterruptedFormat"]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        logs_dir = get_log_dir_from_output(cmd_output)
+        keeper_complete = task_query.wait_on_keeper_complete(logs_dir)
+        assert keeper_complete, "Keeper database is not complete."
+
+        results = self.completed_run.chain_results()
+        fail_uuid = results['fail_uuid']
+        fail_name = results['fail_name']
+        expected = expected_chain_interrupted_strings(fail_name, fail_uuid)
+
+        assert results['cie_task_id'] == fail_uuid, (
+            f"task_id {results['cie_task_id']!r} != failing uuid {fail_uuid!r}"
+        )
+        assert results['cie_task_name'] == expected['task_name'], (
+            f"task_name {results['cie_task_name']!r} != {expected['task_name']!r}\n"
+            f"repr={results['cie_repr']}\nstr={results['cie_str']}"
+        )
+        assert results['cie_repr'] == expected['repr'], (
+            f"repr {results['cie_repr']!r} != {expected['repr']!r}"
+        )
+        assert results['cie_str'] == expected['str'], (
+            f"str {results['cie_str']!r} != {expected['str']!r}"
+        )
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_good_run(ret_value)
+
+
+class ChainInterruptedExceptionKeeperReprTest(FlowTestConfiguration):
+    """Keeper/Flame store repr(ChainInterruptedException); this is the user-facing form."""
+
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "FailByChild"]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        logs_dir = get_log_dir_from_output(cmd_output)
+        keeper_complete = task_query.wait_on_keeper_complete(logs_dir)
+        assert keeper_complete, "Keeper database is not complete."
+
+        failed = task_query.single_task_by_name(logs_dir, Fail.__name__)
+        waiter = task_query.single_task_by_name(logs_dir, FailByChild.__name__)
+        assert waiter.exception, f"{waiter} should have a ChainInterruptedException"
+
+        expected = expected_chain_interrupted_strings(failed.long_name, failed.uuid)
+        assert waiter.exception.strip() == expected['repr'], (
+            f"Keeper exception {waiter.exception!r} != {expected['repr']!r}"
+        )
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
