@@ -5,10 +5,11 @@ from unittest.mock import patch
 
 from firexapp.plugins import (
     FxPluginRegistry,
-    PluginModules,
+    LoadedPlugin,
     _get_plugin_module_name,
     _hash_file,
     _identify_duplicate_tasks,
+    _priority_module_names,
     get_active_plugins,
     merge_plugins,
     plugin_support_parser,
@@ -192,56 +193,60 @@ class ResolvePathTests(unittest.TestCase):
         new = os.path.join(os.path.dirname(__file__), "data", "plugins", "new.py")
         plugin_registry.load_plugin_modules(test_app, new, logging.INFO)
 
+
+class PluginPrecedenceTests(unittest.TestCase):
+    """
+    The plugin listed last wins, everywhere, for every copy of the task it overrides.
+    """
+
     @patch.dict(os.environ, {'firex_plugins': ''})
-    def test_indirectly_imported_plugin_module_overrides(self):
-        # A plugin file commonly only imports the module that defines the overriding
-        # microservices, so that imported module must be given plugin priority too.
+    def test_imported_module_does_not_outrank_an_earlier_plugins_override(self):
+        """
+        A module a plugin file merely imports does not get that plugin's precedence,
+        even when it defines tasks of its own. Such modules are routinely shared
+        between plugins (firex_cisco's plugins/nxpidt/*), so handing one the precedence
+        of whichever plugin happened to import it first would silently outrank the
+        genuine overrides of every plugin listed before that one.
+        """
         from firexapp.engine.celery import app as test_app
-        from firexapp.plugins import PluginModules
         plugin_registry = test_app.fx_plugins_reg
 
-        @test_app.task(base=FireXTask)
-        def indirect_override_me():
-            pass  # pragma: no cover
+        plugins_dir = os.path.join(os.path.dirname(__file__), "data", "plugins")
+        plugin_registry.load_plugin_modules(
+            test_app,
+            [
+                # Genuinely overrides indirect_override_me...
+                os.path.join(plugins_dir, "direct_override_plugin.py"),
+                # ...and is listed after it, but only imports a module that happens to
+                # define the same short name.
+                os.path.join(plugins_dir, "indirect_override_plugin.py"),
+            ],
+            logging.INFO,
+        )
 
-        plugin = os.path.join(os.path.dirname(__file__), "data", "plugins", "indirect_override_plugin.py")
-        plugin_groups = plugin_registry._import_plugin_files(test_app, plugin, logging.INFO)
-        # Should return a list of PluginModules, not a list of strings
-        self.assertIsInstance(plugin_groups, list)
-        if plugin_groups:
-            self.assertIsInstance(plugin_groups[0], PluginModules)
-        # Find the group for indirect_override_plugin
-        indirect_group = None
-        for group in plugin_groups:
-            if group.module_name == 'indirect_override_plugin':
-                indirect_group = group
-                break
-        self.assertIsNotNone(indirect_group)
-        # The group should contain indirect_override_defs (imported) and indirect_override_plugin (plugin file)
-        self.assertIn('indirect_override_defs', indirect_group.task_module_names)
-        # the plugin file's own module outranks the modules it imported
-        self.assertEqual(indirect_group.task_module_names[-1], 'indirect_override_plugin')
+        loaded = plugin_registry._loaded_plugins
+        self.assertTrue(all(isinstance(p, LoadedPlugin) for p in loaded))
+        priority_names = _priority_module_names(loaded)
+        self.assertEqual(
+            priority_names[-2:],
+            ['direct_override_plugin', 'indirect_override_plugin'],
+        )
+        # The imported module registered a task, but is not itself a precedence slot.
+        self.assertIn('indirect_override_defs.indirect_override_me', test_app.tasks)
+        self.assertNotIn('indirect_override_defs', priority_names)
 
-        plugin_registry._unregister_duplicate_tasks(test_app, plugin_groups)
-        self.assertEqual(test_app.tasks['plugins_tests.indirect_override_me'],
-                         test_app.tasks['indirect_override_defs.indirect_override_me'])
-        self.assertEqual(test_app.tasks['plugins_tests.indirect_override_me'].orig,
-                         test_app.tasks['plugins_tests.indirect_override_me_orig'])
-
-
-class LocalPluginGroupTests(unittest.TestCase):
-    """
-    Tests for plugin-local override semantics: a plugin keeps the tasks of its own
-    modules, but a separate, higher-precedence plugin file still overrides it.
-    """
+        self.assertEqual(
+            test_app.tasks['indirect_override_defs.indirect_override_me'],
+            test_app.tasks['direct_override_plugin.indirect_override_me'],
+            "an imported module must not outrank a listed plugin's override",
+        )
 
     @patch.dict(os.environ, {'firex_plugins': ''})
     def test_later_plugin_file_overrides_an_earlier_plugins_internal_reference(self):
         """
-        The limit of plugin-local resolution: it is scoped to one plugin file's group,
-        so a plugin listed later still replaces an earlier plugin's task even where
-        that earlier plugin references it internally. Intercepting a plugin's own
-        services is what listing a test plugin after it is for.
+        A plugin listed later replaces an earlier plugin's task even where that
+        earlier plugin references it internally. Intercepting a plugin's own services
+        is what listing a test plugin after it is for.
 
         This is the production failure: ci_plugins/bazel_readiness.py calls the
         _InvokeXrbuildPims it defines, and prio1/bazel_readiness_tests.py was listed
@@ -288,17 +293,6 @@ class LocalPluginGroupTests(unittest.TestCase):
             'an in-plugin reference must still be interceptable by a later plugin',
         )
 
-        # Neither is plugin-local: this is an ordinary override across plugin files,
-        # so apply_async must republish under the overridden name as it always has.
-        for long_name in [
-            'local_ref_plugin.shared_helper',
-            'competing_helper_plugin.shared_helper',
-        ]:
-            self.assertFalse(
-                getattr(test_app.tasks[long_name], 'plugin_local_override', False),
-                f'{long_name} is not a plugin-local override',
-            )
-
         # The .orig chain still reaches the overridden implementation.
         self.assertEqual(
             test_app.tasks['competing_helper_plugin.shared_helper'].orig,
@@ -306,16 +300,15 @@ class LocalPluginGroupTests(unittest.TestCase):
         )
 
     @patch.dict(os.environ, {'firex_plugins': ''})
-    def test_plugin_importing_another_plugins_module_keeps_both_local(self):
+    def test_module_imported_by_a_plugin_is_overridden_by_that_plugin(self):
         """
-        A plugin file that imports another plugin's module pulls that module's tasks
-        into its own group. Resolution is still per defining module, so the imported
-        module keeps reaching its own task.
+        The module a plugin file imports ranks below the plugin file itself, so the
+        plugin's version wins -- including for the imported module's own internal
+        reference to the task.
 
-        This is the production failure: plugins/nxospinvebringup_slurm.py imports
-        nxpidt.nxospibringup_slurm and also defines checkout_git_branch, and
-        nxpidt.nxospibringup_slurm.BringupTestbed ended up running
-        nxospinvebringup_slurm's checkout_git_branch.
+        This is deliberate, and is the long-standing behaviour: such modules are
+        shared between plugins, so giving one plugin precedence for a module it merely
+        imported would let it outrank plugins listed after it.
         """
         from firexapp.engine.celery import app as test_app
         from firexkit.chain import SignatureX
@@ -332,65 +325,60 @@ class LocalPluginGroupTests(unittest.TestCase):
         self.assertIn(imported_name, test_app.tasks)
         self.assertIn(importing_name, test_app.tasks)
 
-        # The imported module's registry entry must NOT have been rewritten to the
-        # importing plugin's version.
-        self.assertEqual(test_app.tasks[imported_name].name, imported_name)
+        self.assertEqual(test_app.tasks[imported_name], test_app.tasks[importing_name])
 
         child_sig = test_app.tasks[
             'nested_defs.cross_plugin_defs.task_calling_cross_helper'].run()
         self.assertIsInstance(child_sig, SignatureX)
-        self.assertEqual(
-            child_sig.task,
-            imported_name,
-            'a module must reach the task it defines, not the same-named task of the '
-            'plugin file that imported it',
-        )
-
-        # Kept local, so apply_async must not republish it under the overridden name.
-        self.assertTrue(test_app.tasks[imported_name].plugin_local_override)
-        self.assertFalse(test_app.tasks[importing_name].plugin_local_override)
+        self.assertEqual(child_sig.task, importing_name)
 
     @patch.dict(os.environ, {'firex_plugins': ''})
-    def test_core_module_imported_by_plugin_is_not_plugin_owned(self):
+    def test_plugin_file_reimported_under_another_name_is_still_overridden(self):
         """
-        The boundary of plugin ownership: a core module that a plugin happens to
-        import first stays core. Neither its precedence nor its tasks become the
-        plugin's, so the plugin's override of a core task still takes effect.
+        A plugin file is imported under a module name derived from its basename alone,
+        so a later plugin importing it by package path executes it a second time as a
+        second module and registers a second copy of its tasks. That copy must be
+        overridden by the later plugin too.
+
+        This is the production failure: prio1/bazel_pr_ops_mgr_tests.py does 'from
+        ci_plugins import bazel_pr_ops' and overrides _SelectPrOps, but
+        ci_plugins.bazel_pr_ops._SelectPrOps ran instead of the override.
         """
         from firexapp.engine.celery import app as test_app
+        from firexkit.chain import SignatureX
         plugin_registry = test_app.fx_plugins_reg
 
-        original_imports = test_app.conf.imports
-        self.addCleanup(setattr, test_app.conf, 'imports', original_imports)
-        test_app.conf.imports = tuple(original_imports) + ('core_like_defs',)
-
-        plugin = os.path.join(
-            os.path.dirname(__file__), "data", "plugins", "core_importing_plugin.py"
-        )
-        plugin_groups = plugin_registry._import_plugin_files(
-            test_app, plugin, logging.INFO)
-        group = next(
-            g for g in plugin_groups if g.module_name == 'core_importing_plugin')
-        self.assertNotIn(
-            'core_like_defs', group.task_module_names,
-            'a core module must not inherit the precedence of the plugin that '
-            'imported it',
-        )
-        self.assertNotIn(
-            'core_like_defs.core_and_plugin_task', group.task_long_names,
-            "a core module's tasks are not the importing plugin's to own",
+        plugins_dir = os.path.join(os.path.dirname(__file__), "data", "plugins")
+        # Listed in precedence order, exactly as the CLI --plugins arg is.
+        plugin_registry.load_plugin_modules(
+            test_app,
+            [
+                os.path.join(plugins_dir, "reimported_defs", "reimported_plugin.py"),
+                os.path.join(plugins_dir, "reimporting_plugin.py"),
+            ],
+            logging.INFO,
         )
 
-        plugin_registry._unregister_duplicate_tasks(test_app, plugin_groups)
-        self.assertEqual(
-            test_app.tasks['core_like_defs.core_and_plugin_task'],
-            test_app.tasks['core_importing_plugin.core_and_plugin_task'],
-            'a plugin override of a core task must take effect',
-        )
-        self.assertEqual(
-            test_app.tasks['core_importing_plugin.core_and_plugin_task'].orig,
-            test_app.tasks['core_like_defs.core_and_plugin_task_orig'],
-        )
+        override_name = 'reimporting_plugin.reimported_helper'
+        self.assertIn(override_name, test_app.tasks)
+
+        for long_name in [
+            # The copy from loading the plugin file itself...
+            'reimported_plugin.reimported_helper',
+            # ...and the copy from the later plugin importing that same file.
+            'reimported_defs.reimported_plugin.reimported_helper',
+        ]:
+            self.assertIn(long_name, test_app.tasks)
+            self.assertEqual(
+                test_app.tasks[long_name],
+                test_app.tasks[override_name],
+                f'{long_name} must be overridden by the plugin listed after it',
+            )
+
+        child_sig = test_app.tasks[
+            'reimported_defs.reimported_plugin.task_using_reimported_helper'].run()
+        self.assertIsInstance(child_sig, SignatureX)
+        self.assertEqual(child_sig.task, override_name)
 
 
 def test_replacement_task_of_a_plugin_task_is_still_from_a_plugin(monkeypatch):
@@ -517,29 +505,28 @@ def test_hash_file_of_unreadable_path_is_none(tmp_path):
     assert _hash_file(str(tmp_path)) is None  # a directory
 
 
-def _group(plugin_file, module_name='m', file_hash='h'):
-    return PluginModules(
+def _loaded(plugin_file, module_name='m', file_hash='h'):
+    return LoadedPlugin(
         plugin_file=plugin_file,
         module_name=module_name,
-        task_module_names=(module_name,),
         plugin_file_hash=file_hash,
     )
 
 
 def test_is_same_plugin():
     # Same path is the same plugin regardless of hash.
-    assert _group('/x/p.py', file_hash=None).is_same_plugin(_group('/x/p.py', file_hash=None))
+    assert _loaded('/x/p.py', file_hash=None).is_same_plugin(_loaded('/x/p.py', file_hash=None))
     # Different path, same module name and content: the duplicated-install case.
-    assert _group('/site-packages/p.py').is_same_plugin(_group('/ws/p.py'))
+    assert _loaded('/site-packages/p.py').is_same_plugin(_loaded('/ws/p.py'))
     # Same content but a different module name is a different plugin.
-    assert not _group('/a/p.py', module_name='p').is_same_plugin(
-        _group('/b/q.py', module_name='q'))
+    assert not _loaded('/a/p.py', module_name='p').is_same_plugin(
+        _loaded('/b/q.py', module_name='q'))
     # Same module name but different content is a genuine collision, not one plugin.
-    assert not _group('/a/p.py', file_hash='h1').is_same_plugin(
-        _group('/b/p.py', file_hash='h2'))
+    assert not _loaded('/a/p.py', file_hash='h1').is_same_plugin(
+        _loaded('/b/p.py', file_hash='h2'))
     # An unknown hash must never be treated as matching another unknown hash.
-    assert not _group('/a/p.py', file_hash=None).is_same_plugin(
-        _group('/b/p.py', file_hash=None))
+    assert not _loaded('/a/p.py', file_hash=None).is_same_plugin(
+        _loaded('/b/p.py', file_hash=None))
 
 
 class MergePluginsTests(unittest.TestCase):
