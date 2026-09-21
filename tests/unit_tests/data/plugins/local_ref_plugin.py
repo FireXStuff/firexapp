@@ -1,7 +1,7 @@
 """
 A plugin file that defines a task and a helper, and the task references the helper.
-This allows us to assert through SignatureX that the same-plugin reference binds to
-the local version even when a higher-precedence plugin also defines the helper.
+This allows us to assert through SignatureX which version that same-plugin reference
+binds to once a separate, higher-precedence plugin file also defines the helper.
 """
 from firexapp.engine.celery import app
 from firexkit.task import FireXTask
@@ -16,8 +16,9 @@ def shared_helper():
 @app.task(base=FireXTask)
 def task_using_helper():
     """
-    Task that references shared_helper within the same plugin.
-    SignatureX(task_using_helper.s()).task should resolve to
-    'local_ref_plugin.shared_helper', not a competing plugin's.
+    Task that references shared_helper within the same plugin. A plugin file listed
+    after this one must still be able to intercept that reference, so
+    SignatureX(task_using_helper.s()).task resolves to the overriding plugin's
+    shared_helper rather than this file's.
     """
     return shared_helper.s()

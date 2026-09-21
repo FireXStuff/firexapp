@@ -230,14 +230,22 @@ class ResolvePathTests(unittest.TestCase):
 
 
 class LocalPluginGroupTests(unittest.TestCase):
-    """Tests for plugin-local override semantics: a plugin keeps its own tasks."""
+    """
+    Tests for plugin-local override semantics: a plugin keeps the tasks of its own
+    modules, but a separate, higher-precedence plugin file still overrides it.
+    """
 
     @patch.dict(os.environ, {'firex_plugins': ''})
-    def test_plugin_local_override_shared_helper(self):
+    def test_later_plugin_file_overrides_an_earlier_plugins_internal_reference(self):
         """
-        When a plugin has multiple tasks where one references another, the reference
-        should bind to the plugin's version even if a higher-precedence plugin
-        defines the same short name.
+        The limit of plugin-local resolution: it is scoped to one plugin file's group,
+        so a plugin listed later still replaces an earlier plugin's task even where
+        that earlier plugin references it internally. Intercepting a plugin's own
+        services is what listing a test plugin after it is for.
+
+        This is the production failure: ci_plugins/bazel_readiness.py calls the
+        _InvokeXrbuildPims it defines, and prio1/bazel_readiness_tests.py was listed
+        after it to replace that call, but bazel_readiness' own version ran.
         """
         from firexapp.engine.celery import app as test_app
         from firexkit.chain import SignatureX
@@ -260,33 +268,41 @@ class LocalPluginGroupTests(unittest.TestCase):
         self.assertIn('local_ref_plugin.shared_helper', test_app.tasks)
         self.assertIn('competing_helper_plugin.shared_helper', test_app.tasks)
 
-        # The critical assertion: task_using_helper.s() should reference
-        # local_ref_plugin.shared_helper, not competing_helper_plugin.shared_helper
+        self.assertEqual(
+            test_app.tasks['local_ref_plugin.shared_helper'],
+            test_app.tasks['competing_helper_plugin.shared_helper'],
+            'a separate, higher-precedence plugin file must override the earlier '
+            "plugin's task",
+        )
+
+        # The critical assertion: task_using_helper.s() must reach the overriding
+        # plugin's shared_helper, even though it names the one in its own file.
         task_using_helper = test_app.tasks['local_ref_plugin.task_using_helper']
         child_sig = task_using_helper.run()
         # Asserted rather than guarded on: if this stopped being a signature the
         # in-plugin reference check below would silently never run.
         self.assertIsInstance(child_sig, SignatureX)
-        # This verifies that the reference from within local_ref_plugin stays local
         self.assertEqual(
             child_sig.task,
+            'competing_helper_plugin.shared_helper',
+            'an in-plugin reference must still be interceptable by a later plugin',
+        )
+
+        # Neither is plugin-local: this is an ordinary override across plugin files,
+        # so apply_async must republish under the overridden name as it always has.
+        for long_name in [
             'local_ref_plugin.shared_helper',
-            "In-plugin reference should use the plugin's own version"
-        )
+            'competing_helper_plugin.shared_helper',
+        ]:
+            self.assertFalse(
+                getattr(test_app.tasks[long_name], 'plugin_local_override', False),
+                f'{long_name} is not a plugin-local override',
+            )
 
-        # The group-dominant shared_helper task should have plugin_local_override=True
-        # because it's shadowed by a higher-precedence plugin's version
-        local_shared_helper = test_app.tasks['local_ref_plugin.shared_helper']
-        self.assertTrue(
-            getattr(local_shared_helper, 'plugin_local_override', False),
-            "Group-local dominant should have plugin_local_override=True"
-        )
-
-        # The competing plugin's shared_helper is the global dominant
-        competing_shared_helper = test_app.tasks['competing_helper_plugin.shared_helper']
-        self.assertFalse(
-            getattr(competing_shared_helper, 'plugin_local_override', False),
-            "Global dominant should have plugin_local_override=False"
+        # The .orig chain still reaches the overridden implementation.
+        self.assertEqual(
+            test_app.tasks['competing_helper_plugin.shared_helper'].orig,
+            test_app.tasks['local_ref_plugin.shared_helper_orig'],
         )
 
     @patch.dict(os.environ, {'firex_plugins': ''})

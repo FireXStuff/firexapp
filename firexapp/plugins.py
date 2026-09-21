@@ -254,23 +254,25 @@ class FxPluginRegistry:
         plugin_groups: list[PluginModules],
     ):
         sigs = _get_signals_with_connections()
-        # The tasks plugins actually *defined*. Keyed on the task long names captured
-        # while a plugin was imported rather than on module name, because a module's
-        # name outlives any single plugin import: tasks registered into one of a
-        # plugin's modules afterwards were not defined by the plugin.
+        # Which plugin group defined each task, for the tasks plugins actually
+        # *defined*. Keyed on the task long names captured while a plugin was imported
+        # rather than on module name, because a module's name outlives any single
+        # plugin import: tasks registered into one of a plugin's modules afterwards
+        # were not defined by the plugin.
         #
-        # Deliberately a flat set rather than a per-plugin-group mapping. Resolution
-        # is per *defining module*, and a plugin group routinely spans several
-        # modules: a plugin file that imports another plugin's module (e.g.
-        # 'from nxpidt.nxospibringup_slurm import config_ixia_license') pulls that
-        # module's tasks into its own group, so resolving per group would make the
-        # importing plugin's task displace the imported module's same-named task --
-        # exactly the collision this is meant to prevent. Since a given module
-        # contributes at most one long name per short name, per-module resolution
-        # means a plugin-defined name simply always resolves to itself.
-        plugin_defined_long_names = {
-            long_name
-            for group in plugin_groups
+        # The group matters, and not merely whether a plugin defined the name at all.
+        # Overriding between separate plugin files is the whole point of plugin
+        # precedence -- a test plugin listed after the plugin it intercepts must
+        # replace that plugin's task even where that plugin references it internally
+        # -- so a lower-precedence group's tasks stay overridable. What must not
+        # happen is a group displacing its *own* modules' tasks: a plugin file that
+        # imports another plugin's module ('from nxpidt.nxospibringup_slurm import
+        # config_ixia_license') pulls that module's tasks into its group, and matching
+        # on short name alone would then make the importing plugin's task shadow the
+        # imported module's same-named task.
+        group_index_by_long_name = {
+            long_name: group_index
+            for group_index, group in enumerate(plugin_groups)
             for long_name in group.task_long_names
         }
 
@@ -282,21 +284,32 @@ class FxPluginRegistry:
         )
         for single_task_long_names in overridden_short_names_to_long.values():
             final_long_name = single_task_long_names[-1]
+            final_group_index = group_index_by_long_name.get(final_long_name)
+
+            def _same_group_as_winner(long_name) -> bool:
+                # None is "not defined by any plugin group" (core code, or a task
+                # registered into a plugin's module after the plugin loaded), which is
+                # nobody's group rather than a group of its own.
+                return (
+                    final_group_index is not None
+                    and group_index_by_long_name.get(long_name) == final_group_index
+                )
 
             for index in range(len(single_task_long_names) - 1):
                 original_name = single_task_long_names[index]
                 original_task = fx_app.tasks[original_name]
 
-                if original_name not in plugin_defined_long_names:
-                    # Core code, or a task registered into a plugin's module after the
-                    # plugin loaded: the highest-precedence plugin wins, as before.
+                if not _same_group_as_winner(original_name):
+                    # A different plugin file, or core code: the highest-precedence
+                    # plugin wins, as before.
                     fx_app.tasks[original_name] = fx_app.tasks[final_long_name]
-                # else: defined by a plugin, so the module that defined it keeps
-                # reaching its own version. Overriding is matched on short name only,
-                # so two unrelated plugins that both define e.g. 'checkout_git_branch'
-                # would otherwise silently run each other's code. Nothing outside that
-                # module refers to this long name -- core code and the CLI chain
-                # resolve the short name to the dominant.
+                # else: the winner is another module of this task's own plugin, so the
+                # module that defined this one keeps reaching its own version.
+                # Overriding is matched on short name only, so a plugin file that
+                # imports another plugin's module would otherwise silently make that
+                # module run the importing plugin's same-named task. Nothing outside
+                # the defining module refers to this long name -- core code and the
+                # CLI chain resolve the short name to the dominant.
 
                 new_task = self.create_replacement_task(
                     fx_app,
@@ -308,7 +321,7 @@ class FxPluginRegistry:
                 fx_app.tasks[overrider].orig = new_task
 
             for long_name in single_task_long_names[:-1]:
-                if long_name in plugin_defined_long_names:
+                if _same_group_as_winner(long_name):
                     # Reachable only from its own module: everywhere else this short
                     # name resolves to the global dominant. apply_async consults this
                     # so the task isn't republished under the name it overrides, which
