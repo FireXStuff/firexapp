@@ -1,3 +1,4 @@
+import dataclasses
 import importlib.util
 import inspect
 import os
@@ -17,6 +18,31 @@ PLUGINS_ENV_NAME = "firex_plugins"
 
 class PluginLoadError(Exception):
     pass
+
+
+@dataclasses.dataclass(frozen=True)
+class PluginModules:
+    """
+        The modules a single plugin file contributed tasks from.
+
+        A plugin file very commonly just imports the module that actually defines the
+        overriding tasks, so a plugin is a *group* of modules, not only the module
+        backing the plugin file itself.
+
+        'task_module_names' is ordered by increasing priority and always ends with
+        'module_name', so that a plugin file that both imports and redefines a task
+        wins over the module it imported.
+
+        'task_long_names' is what the plugin actually defined, and is deliberately
+        kept separate from 'task_module_names': a module's name outlives any single
+        plugin import, so tasks registered into one of these modules *after* the
+        plugin was loaded are not part of the plugin and must not be treated as
+        group-local.
+    """
+    plugin_file: str
+    module_name: str
+    task_module_names: tuple[str, ...]
+    task_long_names: frozenset[str] = frozenset()
 
 
 def plugins_has(plugins: str | list[str], query_basename: str) -> bool:
@@ -40,6 +66,10 @@ def plugins_has(plugins: str | list[str], query_basename: str) -> bool:
 
 def _get_short_name(long_name: str) -> str:
     return long_name.split('.')[-1]
+
+
+def _get_module_name(long_task_name: str) -> str:
+    return long_task_name.rsplit('.', 1)[0]
 
 
 def convert_plugins_to_list(plugin_files: None | str | list[str]) -> list[str]:
@@ -79,6 +109,11 @@ def _get_signals_with_connections():
 
 class FxPluginRegistry:
 
+    def __init__(self):
+        # Track all loaded plugin groups so that _unregister_duplicate_tasks can
+        # compute group dominants correctly across multiple load_plugin_modules calls.
+        self._loaded_plugin_groups: list[PluginModules] = []
+
     def create_replacement_task(
         self,
         fx_app,
@@ -111,6 +146,7 @@ class FxPluginRegistry:
                 "use_cache",
                 "pending_child_strategy",
                 "from_plugin",
+                "plugin_local_override",
                 "pydantic_validate", # FIXME: shouldn't need to duplicate.
             ]
             if key in dir(original)
@@ -166,21 +202,62 @@ class FxPluginRegistry:
     def _unregister_duplicate_tasks(
         self,
         fx_app,
-        imported_module_names: list[str],
+        plugin_groups: list[PluginModules],
     ):
         sigs = _get_signals_with_connections()
+        # Which plugin group, if any, actually *defined* each task. Keyed on the task
+        # long names captured while the plugin was imported rather than on module
+        # name, because a module's name outlives any single plugin import: tasks
+        # registered into one of a group's modules afterwards were not defined by the
+        # plugin and must not be treated as group-local.
+        long_name_to_group_index = {
+            long_name: group_index
+            for group_index, group in enumerate(plugin_groups)
+            for long_name in group.task_long_names
+        }
+
         overridden_short_names_to_long = _identify_duplicate_tasks(
             # Registration order matters: it's the tie-breaker for tasks whose
             # modules have equal priority, so this must not become a set.
             list(fx_app.tasks),
-            imported_module_names,
+            _priority_module_names(plugin_groups),
         )
         for single_task_long_names in overridden_short_names_to_long.values():
             final_long_name = single_task_long_names[-1]
+
+            # A plugin that defines a task keeps using its own version of that task,
+            # even when a higher-precedence plugin happens to define one with the same
+            # short name -- overriding is matched on short name only, so two unrelated
+            # plugins that both define e.g. 'CreateSeed' would otherwise silently run
+            # each other's code. Only references from outside every plugin defining the
+            # name (core bundle code, the CLI chain) get the dominant, i.e. the
+            # highest-precedence, one.
+            group_index_to_dominant_long_name : dict[int, str] = {}
+            for long_name in single_task_long_names:  # increasing priority
+                group_index = long_name_to_group_index.get(long_name)
+                if group_index is not None:
+                    group_index_to_dominant_long_name[group_index] = long_name
+
             for index in range(len(single_task_long_names) - 1):
                 original_name = single_task_long_names[index]
                 original_task = fx_app.tasks[original_name]
-                fx_app.tasks[original_name] = fx_app.tasks[final_long_name]
+                group_index = long_name_to_group_index.get(original_name)
+
+                if group_index is not None:
+                    # Defined by a plugin: resolve within that plugin. This is a no-op
+                    # when this entry is its group's own highest-precedence version,
+                    # which is exactly the "plugin keeps its own task" case.
+                    resolved_long_name = group_index_to_dominant_long_name[group_index]
+                else:
+                    # Core code, or a task registered into a plugin's module after the
+                    # plugin loaded: the highest-precedence plugin wins, as before.
+                    resolved_long_name = final_long_name
+
+                if resolved_long_name != original_name:
+                    # Only entries before 'index' have been rewritten, and a group's
+                    # dominant is never before its own members, so this always picks up
+                    # the task actually defined under 'resolved_long_name'.
+                    fx_app.tasks[original_name] = fx_app.tasks[resolved_long_name]
 
                 new_task = self.create_replacement_task(
                     fx_app,
@@ -191,19 +268,40 @@ class FxPluginRegistry:
                 overrider = single_task_long_names[index+1]
                 fx_app.tasks[overrider].orig = new_task
 
+            for group_index, dominant_long_name in group_index_to_dominant_long_name.items():
+                if dominant_long_name != final_long_name:
+                    # Reachable only from within its own plugin: everywhere else this
+                    # short name resolves to the global dominant. apply_async consults
+                    # this so the task isn't republished under the name it overrides.
+                    fx_app.tasks[dominant_long_name].plugin_local_override = True
+
+    @classmethod
+    def _core_module_names(cls, fx_app) -> frozenset[str]:
+        """
+            Modules the app considers its own. A plugin file that merely happens to be
+            the first thing to import a core task module must not hand that core module
+            plugin precedence, or the core implementation would outrank a genuine
+            override from a lower-precedence plugin.
+        """
+        return frozenset(getattr(fx_app.conf, 'imports', None) or ())
+
     @classmethod
     def _import_plugin_files(
         cls,
         fx_app,
         plugin_files: str | list[str],
         log_level: int,
-    ) -> list[str]:
-        # Modules that contribute overriding (i.e. plugin) tasks, in increasing
-        # order of priority. This is not limited to the modules backing the
-        # plugin files themselves: a plugin file very commonly just imports the
-        # module that actually defines the overriding tasks, and those tasks
-        # must take priority over the tasks they override just the same.
-        plugin_module_names: list[str] = []
+    ) -> list[PluginModules]:
+        # One group per plugin file that contributed tasks, in increasing order of
+        # priority. A group is not limited to the module backing the plugin file
+        # itself: a plugin file very commonly just imports the module that actually
+        # defines the overriding tasks, and those tasks must take priority over the
+        # tasks they override just the same.
+        plugin_groups: list[PluginModules] = []
+        # Every module already claimed by a group, so that a module imported by two
+        # plugin files keeps the priority of the first (i.e. least significant) one.
+        claimed_module_names: set[str] = set()
+        core_module_names = cls._core_module_names(fx_app)
         # Names of every module backing a plugin file in this call,
         # regardless of whether importing it actually executed fresh
         # code (see below for why this is tracked independently of
@@ -223,28 +321,49 @@ class FxPluginRegistry:
                     new_task_names : list[str] = [
                         t for t in fx_app.tasks if t not in pre_import_task_names
                     ]
-                    if new_task_names:
-                        new_tasks.update(new_task_names)
-                        new_tasks_modules_from_this_import = list(
-                            dict.fromkeys(
-                                t.rsplit('.', 1)[0] for t in new_task_names
-                            )
+                    new_tasks.update(new_task_names)
+                    new_tasks_modules_from_this_import = list(
+                        dict.fromkeys(
+                            _get_module_name(t) for t in new_task_names
                         )
-                        plugin_modules_info = f'{new_tasks_modules_from_this_import} '
-                    else:
-                        new_tasks_modules_from_this_import = []
-                        plugin_modules_info = ''
+                    )
 
                     # The plugin file's own module is appended last so that it
                     # outranks the modules it imported: a plugin file that both
                     # imports and redefines a task must win over the import.
-                    for module_name in [
-                        m for m in new_tasks_modules_from_this_import
-                        if m != mod.__name__
-                    ] + [mod.__name__]:
-                        if module_name not in plugin_module_names:
-                            plugin_module_names.append(module_name)
+                    group_module_names = tuple(
+                        m for m in [
+                            m for m in new_tasks_modules_from_this_import
+                            if m != mod.__name__ and m not in core_module_names
+                        ] + [mod.__name__]
+                        if m not in claimed_module_names
+                    )
+                    if group_module_names:
+                        claimed_module_names.update(group_module_names)
+                        group_task_long_names = set(new_task_names)
+                        if not group_task_long_names:
+                            # import_plugin_file() returned an already-imported module
+                            # without re-executing it, so the pre/post diff is empty.
+                            # Fall back to the tasks currently registered under this
+                            # group's modules, otherwise a second load of the same
+                            # plugin file would own nothing and group-local resolution
+                            # would silently do nothing.
+                            group_task_long_names = {
+                                t for t in fx_app.tasks
+                                if _get_module_name(t) in group_module_names
+                            }
+                        plugin_groups.append(
+                            PluginModules(
+                                plugin_file=plugin_file,
+                                module_name=mod.__name__,
+                                task_module_names=group_module_names,
+                                task_long_names=frozenset(group_task_long_names),
+                            )
+                        )
 
+                    plugin_modules_info = (
+                        f'{list(group_module_names)} ' if group_module_names else ''
+                    )
                     logger.log(
                         log_level,
                         f'{len(new_task_names)} new service{"s" if len(new_task_names)>1 else ""} '
@@ -277,7 +396,7 @@ class FxPluginRegistry:
                 if t in new_tasks or getattr(task, '__module__', None) in plugin_file_module_names:
                     task.from_plugin = True
 
-        return plugin_module_names
+        return plugin_groups
 
     @classmethod
     def set_plugins_env(cls, plugin_files):
@@ -292,13 +411,31 @@ class FxPluginRegistry:
         log_level: int,
     ):
         self.set_plugins_env(plugin_files)
-        imported_module_names = self._import_plugin_files(
+        plugin_groups = self._import_plugin_files(
             fx_app,
             plugin_files,
             log_level,
         )
-        if imported_module_names:
-            self._unregister_duplicate_tasks(fx_app, imported_module_names)
+        if plugin_groups:
+            # _unregister_duplicate_tasks must see every group loaded so far, not just
+            # this call's: otherwise a plugin loaded by an earlier call is invisible
+            # when a later, higher-precedence plugin arrives, and both would keep
+            # their own version of a shared short name.
+            for group in plugin_groups:
+                existing = next(
+                    (
+                        i for i, g in enumerate(self._loaded_plugin_groups)
+                        if g.plugin_file == group.plugin_file
+                    ),
+                    None,
+                )
+                if existing is None:
+                    self._loaded_plugin_groups.append(group)
+                else:
+                    # Reloading a plugin file must refresh what it owns without
+                    # changing where it sits in the precedence order.
+                    self._loaded_plugin_groups[existing] = group
+            self._unregister_duplicate_tasks(fx_app, self._loaded_plugin_groups)
 
     @classmethod
     def find_plugin_file(cls, file_path: str) -> str:
@@ -324,6 +461,15 @@ class FxPluginRegistry:
         ]
 
 
+def _priority_module_names(plugin_groups: list[PluginModules]) -> list[str]:
+    """Every plugin module, flattened in increasing order of priority."""
+    return [
+        module_name
+        for group in plugin_groups
+        for module_name in group.task_module_names
+    ]
+
+
 def _identify_duplicate_tasks(
     all_task_long_names: list[str],
     new_plugin_module_names: list[str],
@@ -346,7 +492,7 @@ def _identify_duplicate_tasks(
     def priority_index(long_task_name):
         try:
             return new_plugin_module_names.index(
-                os.path.splitext(long_task_name)[0]
+                _get_module_name(long_task_name)
             )
         except ValueError:
             return -1
