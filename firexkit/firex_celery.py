@@ -63,11 +63,7 @@ class FireXCelery(Celery):
         self._apply_fx_config(
             fx_env=fx_env,
             fx_celery_config=fx_celery_config,
-            # Constructed per-instance: a FxPluginRegistry() default argument would be
-            # evaluated once at def time, so every app built without an explicit
-            # registry would share one, and the plugin groups it accumulates would
-            # leak between unrelated apps.
-            fx_plugins_reg=fx_plugins_reg if fx_plugins_reg is not None else FxPluginRegistry(),
+            fx_plugins_reg=fx_plugins_reg or FxPluginRegistry(),
             fx_expect_tasks=fx_expect_tasks,
         )
 

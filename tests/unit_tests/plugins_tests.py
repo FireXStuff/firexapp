@@ -5,7 +5,9 @@ from unittest.mock import patch
 
 from firexapp.plugins import (
     FxPluginRegistry,
+    PluginModules,
     _get_plugin_module_name,
+    _hash_file,
     _identify_duplicate_tasks,
     get_active_plugins,
     merge_plugins,
@@ -262,13 +264,15 @@ class LocalPluginGroupTests(unittest.TestCase):
         # local_ref_plugin.shared_helper, not competing_helper_plugin.shared_helper
         task_using_helper = test_app.tasks['local_ref_plugin.task_using_helper']
         child_sig = task_using_helper.run()
-        if isinstance(child_sig, SignatureX):
-            # This verifies that the reference from within local_ref_plugin stays local
-            self.assertEqual(
-                child_sig.task,
-                'local_ref_plugin.shared_helper',
-                "In-plugin reference should use the plugin's own version"
-            )
+        # Asserted rather than guarded on: if this stopped being a signature the
+        # in-plugin reference check below would silently never run.
+        self.assertIsInstance(child_sig, SignatureX)
+        # This verifies that the reference from within local_ref_plugin stays local
+        self.assertEqual(
+            child_sig.task,
+            'local_ref_plugin.shared_helper',
+            "In-plugin reference should use the plugin's own version"
+        )
 
         # The group-dominant shared_helper task should have plugin_local_override=True
         # because it's shadowed by a higher-precedence plugin's version
@@ -285,8 +289,197 @@ class LocalPluginGroupTests(unittest.TestCase):
             "Global dominant should have plugin_local_override=False"
         )
 
+    @patch.dict(os.environ, {'firex_plugins': ''})
+    def test_plugin_importing_another_plugins_module_keeps_both_local(self):
+        """
+        A plugin file that imports another plugin's module pulls that module's tasks
+        into its own group. Resolution is still per defining module, so the imported
+        module keeps reaching its own task.
+
+        This is the production failure: plugins/nxospinvebringup_slurm.py imports
+        nxpidt.nxospibringup_slurm and also defines checkout_git_branch, and
+        nxpidt.nxospibringup_slurm.BringupTestbed ended up running
+        nxospinvebringup_slurm's checkout_git_branch.
+        """
+        from firexapp.engine.celery import app as test_app
+        from firexkit.chain import SignatureX
+        plugin_registry = test_app.fx_plugins_reg
+
+        # Only the importing plugin is loaded; the nested module comes along with it.
+        plugin = os.path.join(
+            os.path.dirname(__file__), "data", "plugins", "cross_importing_plugin.py"
+        )
+        plugin_registry.load_plugin_modules(test_app, plugin, logging.INFO)
+
+        imported_name = 'nested_defs.cross_plugin_defs.cross_helper'
+        importing_name = 'cross_importing_plugin.cross_helper'
+        self.assertIn(imported_name, test_app.tasks)
+        self.assertIn(importing_name, test_app.tasks)
+
+        # The imported module's registry entry must NOT have been rewritten to the
+        # importing plugin's version.
+        self.assertEqual(test_app.tasks[imported_name].name, imported_name)
+
+        child_sig = test_app.tasks[
+            'nested_defs.cross_plugin_defs.task_calling_cross_helper'].run()
+        self.assertIsInstance(child_sig, SignatureX)
+        self.assertEqual(
+            child_sig.task,
+            imported_name,
+            'a module must reach the task it defines, not the same-named task of the '
+            'plugin file that imported it',
+        )
+
+        # Kept local, so apply_async must not republish it under the overridden name.
+        self.assertTrue(test_app.tasks[imported_name].plugin_local_override)
+        self.assertFalse(test_app.tasks[importing_name].plugin_local_override)
+
+    @patch.dict(os.environ, {'firex_plugins': ''})
+    def test_core_module_imported_by_plugin_is_not_plugin_owned(self):
+        """
+        The boundary of plugin ownership: a core module that a plugin happens to
+        import first stays core. Neither its precedence nor its tasks become the
+        plugin's, so the plugin's override of a core task still takes effect.
+        """
+        from firexapp.engine.celery import app as test_app
+        plugin_registry = test_app.fx_plugins_reg
+
+        original_imports = test_app.conf.imports
+        self.addCleanup(setattr, test_app.conf, 'imports', original_imports)
+        test_app.conf.imports = tuple(original_imports) + ('core_like_defs',)
+
+        plugin = os.path.join(
+            os.path.dirname(__file__), "data", "plugins", "core_importing_plugin.py"
+        )
+        plugin_groups = plugin_registry._import_plugin_files(
+            test_app, plugin, logging.INFO)
+        group = next(
+            g for g in plugin_groups if g.module_name == 'core_importing_plugin')
+        self.assertNotIn(
+            'core_like_defs', group.task_module_names,
+            'a core module must not inherit the precedence of the plugin that '
+            'imported it',
+        )
+        self.assertNotIn(
+            'core_like_defs.core_and_plugin_task', group.task_long_names,
+            "a core module's tasks are not the importing plugin's to own",
+        )
+
+        plugin_registry._unregister_duplicate_tasks(test_app, plugin_groups)
+        self.assertEqual(
+            test_app.tasks['core_like_defs.core_and_plugin_task'],
+            test_app.tasks['core_importing_plugin.core_and_plugin_task'],
+            'a plugin override of a core task must take effect',
+        )
+        self.assertEqual(
+            test_app.tasks['core_importing_plugin.core_and_plugin_task'].orig,
+            test_app.tasks['core_like_defs.core_and_plugin_task_orig'],
+        )
+
+
+def _write_plugin(directory, filename, content):
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, filename)
+    with open(path, 'w') as f:
+        f.write(content)
+    return path
+
+
+def test_same_plugin_reached_through_two_paths_is_not_an_error(tmp_path, caplog):
+    """
+    firex_cisco ships ci_plugins both in site-packages and in the workspace, so the
+    very same plugin is routinely offered under two absolute paths. That must not be
+    reported as a name collision, and the resident module must still be handed back
+    so the plugin contributes its tasks and its priority.
+    """
+    content = 'DUPLICATED = True\n'
+    first = _write_plugin(str(tmp_path / 'a'), 'dup_content_plugin.py', content)
+    second = _write_plugin(str(tmp_path / 'b'), 'dup_content_plugin.py', content)
+
+    first_mod = FxPluginRegistry.import_plugin_file(first)
+    assert first_mod is not None
+
+    with caplog.at_level(logging.DEBUG, logger='firexapp.plugins'):
+        second_mod = FxPluginRegistry.import_plugin_file(second)
+
+    # Same code, so the already-resident module is this plugin.
+    assert second_mod is first_mod
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING], \
+        'identical content reached by another path should not be warned about'
+    assert any('identical in content' in r.getMessage() for r in caplog.records)
+
+
+def test_reloading_the_very_same_plugin_file_is_not_warned_about(tmp_path, caplog):
+    """
+    Loading a plugin that is already resident under the same path is routine, not a
+    problem: script_plugins re-imports every preceding plugin in each forked child,
+    and a fork inherits the parent's sys.modules. Nothing is lost, so nothing to warn.
+    """
+    plugin = _write_plugin(str(tmp_path / 'a'), 'reloaded_plugin.py', 'RELOADED = True\n')
+
+    first_mod = FxPluginRegistry.import_plugin_file(plugin)
+    assert first_mod is not None
+
+    with caplog.at_level(logging.DEBUG, logger='firexapp.plugins'):
+        # replace=True too, since that is how script_plugins loads them.
+        second_mod = FxPluginRegistry.import_plugin_file(plugin, replace=True)
+
+    assert second_mod is first_mod
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING], \
+        'reloading the same plugin file should not be warned about'
+    assert any('was already imported' in r.getMessage() for r in caplog.records)
+
+
+def test_different_plugin_with_colliding_name_still_errors(tmp_path, caplog):
+    """A genuine name collision is still lost work, so it keeps its error."""
+    first = _write_plugin(str(tmp_path / 'a'), 'diff_content_plugin.py', 'VALUE = 1\n')
+    second = _write_plugin(str(tmp_path / 'b'), 'diff_content_plugin.py', 'VALUE = 2\n')
+
+    assert FxPluginRegistry.import_plugin_file(first) is not None
+
+    with caplog.at_level(logging.DEBUG, logger='firexapp.plugins'):
+        second_mod = FxPluginRegistry.import_plugin_file(second)
+
+    assert second_mod is None
+    assert [
+        r for r in caplog.records
+        if r.levelno == logging.ERROR and 'was NOT imported' in r.getMessage()
+    ]
+
+
+def test_hash_file_of_unreadable_path_is_none(tmp_path):
+    assert _hash_file(None) is None
+    assert _hash_file(str(tmp_path / 'does_not_exist.py')) is None
+    assert _hash_file(str(tmp_path)) is None  # a directory
+
+
+def _group(plugin_file, module_name='m', file_hash='h'):
+    return PluginModules(
+        plugin_file=plugin_file,
+        module_name=module_name,
+        task_module_names=(module_name,),
+        plugin_file_hash=file_hash,
+    )
+
+
+def test_is_same_plugin():
+    # Same path is the same plugin regardless of hash.
+    assert _group('/x/p.py', file_hash=None).is_same_plugin(_group('/x/p.py', file_hash=None))
+    # Different path, same module name and content: the duplicated-install case.
+    assert _group('/site-packages/p.py').is_same_plugin(_group('/ws/p.py'))
+    # Same content but a different module name is a different plugin.
+    assert not _group('/a/p.py', module_name='p').is_same_plugin(
+        _group('/b/q.py', module_name='q'))
+    # Same module name but different content is a genuine collision, not one plugin.
+    assert not _group('/a/p.py', file_hash='h1').is_same_plugin(
+        _group('/b/p.py', file_hash='h2'))
+    # An unknown hash must never be treated as matching another unknown hash.
+    assert not _group('/a/p.py', file_hash=None).is_same_plugin(
+        _group('/b/p.py', file_hash=None))
+
 
 class MergePluginsTests(unittest.TestCase):
+
     def test_merge_plugins(self):
         with self.subTest('identical plugins'):
             plugins_list_1 = 'a,b,c'
