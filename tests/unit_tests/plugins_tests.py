@@ -173,11 +173,12 @@ class ResolvePathTests(unittest.TestCase):
         mock = os.path.join(os.path.dirname(__file__), "data", "plugins", "mock_plugin.py")
         plugin_registry.load_plugin_modules(test_app, mock, logging.INFO)
         # original registration is now pointing to overrider
-        self.assertEqual(test_app.tasks['plugins_tests.override_me'],
+        plugins_tests_task = test_app.tasks['plugins_tests.override_me']
+        self.assertEqual(plugins_tests_task,
                          test_app.tasks['mock_plugin.override_me'])
         # there is a reference to the original for use
-        self.assertTrue(hasattr(test_app.tasks['plugins_tests.override_me'], "orig"))
-        self.assertEqual(test_app.tasks['plugins_tests.override_me'].orig,
+        self.assertTrue(hasattr(plugins_tests_task, "orig"))
+        self.assertEqual(plugins_tests_task.orig,
                          test_app.tasks['plugins_tests.override_me_orig'])
         self.assertEqual(override_me.name, 'plugins_tests.override_me')
 
@@ -194,6 +195,7 @@ class ResolvePathTests(unittest.TestCase):
         # A plugin file commonly only imports the module that defines the overriding
         # microservices, so that imported module must be given plugin priority too.
         from firexapp.engine.celery import app as test_app
+        from firexapp.plugins import PluginModules
         plugin_registry = test_app.fx_plugins_reg
 
         @test_app.task(base=FireXTask)
@@ -201,16 +203,87 @@ class ResolvePathTests(unittest.TestCase):
             pass  # pragma: no cover
 
         plugin = os.path.join(os.path.dirname(__file__), "data", "plugins", "indirect_override_plugin.py")
-        priority_module_names = plugin_registry._import_plugin_files(test_app, plugin, logging.INFO)
-        self.assertIn('indirect_override_defs', priority_module_names)
+        plugin_groups = plugin_registry._import_plugin_files(test_app, plugin, logging.INFO)
+        # Should return a list of PluginModules, not a list of strings
+        self.assertIsInstance(plugin_groups, list)
+        if plugin_groups:
+            self.assertIsInstance(plugin_groups[0], PluginModules)
+        # Find the group for indirect_override_plugin
+        indirect_group = None
+        for group in plugin_groups:
+            if group.module_name == 'indirect_override_plugin':
+                indirect_group = group
+                break
+        self.assertIsNotNone(indirect_group)
+        # The group should contain indirect_override_defs (imported) and indirect_override_plugin (plugin file)
+        self.assertIn('indirect_override_defs', indirect_group.task_module_names)
         # the plugin file's own module outranks the modules it imported
-        self.assertEqual(priority_module_names[-1], 'indirect_override_plugin')
+        self.assertEqual(indirect_group.task_module_names[-1], 'indirect_override_plugin')
 
-        plugin_registry._unregister_duplicate_tasks(test_app, priority_module_names)
+        plugin_registry._unregister_duplicate_tasks(test_app, plugin_groups)
         self.assertEqual(test_app.tasks['plugins_tests.indirect_override_me'],
                          test_app.tasks['indirect_override_defs.indirect_override_me'])
         self.assertEqual(test_app.tasks['plugins_tests.indirect_override_me'].orig,
                          test_app.tasks['plugins_tests.indirect_override_me_orig'])
+
+
+class LocalPluginGroupTests(unittest.TestCase):
+    """Tests for plugin-local override semantics: a plugin keeps its own tasks."""
+
+    @patch.dict(os.environ, {'firex_plugins': ''})
+    def test_plugin_local_override_shared_helper(self):
+        """
+        When a plugin has multiple tasks where one references another, the reference
+        should bind to the plugin's version even if a higher-precedence plugin
+        defines the same short name.
+        """
+        from firexapp.engine.celery import app as test_app
+        from firexkit.chain import SignatureX
+        plugin_registry = test_app.fx_plugins_reg
+
+        # Load the local_ref_plugin first (lower precedence), then the competing one
+        local_plugin = os.path.join(
+            os.path.dirname(__file__),
+            "data", "plugins", "local_ref_plugin.py"
+        )
+        competing_plugin = os.path.join(
+            os.path.dirname(__file__),
+            "data", "plugins", "competing_helper_plugin.py"
+        )
+
+        plugin_registry.load_plugin_modules(test_app, local_plugin, logging.INFO)
+        plugin_registry.load_plugin_modules(test_app, competing_plugin, logging.INFO)
+
+        # Verify both versions of shared_helper are registered
+        self.assertIn('local_ref_plugin.shared_helper', test_app.tasks)
+        self.assertIn('competing_helper_plugin.shared_helper', test_app.tasks)
+
+        # The critical assertion: task_using_helper.s() should reference
+        # local_ref_plugin.shared_helper, not competing_helper_plugin.shared_helper
+        task_using_helper = test_app.tasks['local_ref_plugin.task_using_helper']
+        child_sig = task_using_helper.run()
+        if isinstance(child_sig, SignatureX):
+            # This verifies that the reference from within local_ref_plugin stays local
+            self.assertEqual(
+                child_sig.task,
+                'local_ref_plugin.shared_helper',
+                "In-plugin reference should use the plugin's own version"
+            )
+
+        # The group-dominant shared_helper task should have plugin_local_override=True
+        # because it's shadowed by a higher-precedence plugin's version
+        local_shared_helper = test_app.tasks['local_ref_plugin.shared_helper']
+        self.assertTrue(
+            getattr(local_shared_helper, 'plugin_local_override', False),
+            "Group-local dominant should have plugin_local_override=True"
+        )
+
+        # The competing plugin's shared_helper is the global dominant
+        competing_shared_helper = test_app.tasks['competing_helper_plugin.shared_helper']
+        self.assertFalse(
+            getattr(competing_shared_helper, 'plugin_local_override', False),
+            "Global dominant should have plugin_local_override=False"
+        )
 
 
 class MergePluginsTests(unittest.TestCase):

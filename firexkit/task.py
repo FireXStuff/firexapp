@@ -368,6 +368,10 @@ class FireXTask(Task):
         self.code_filepath = self.get_module_file_location()
 
         self.from_plugin = False
+        # True when this task is a plugin's own version of a task name that a
+        # higher-precedence plugin also defines: it stays reachable from within its
+        # own plugin, but does not override anything outside it.
+        self.plugin_local_override = False
         self.context : TaskContext = self.initialize_context()
         self.name : str
 
@@ -403,13 +407,20 @@ class FireXTask(Task):
 
     def apply_async(self, *args, **kwargs):
         original_name = self.name
-        if self.from_plugin and not original_name.endswith(REPLACEMENT_TASK_NAME_POSTFIX):
+        if (
+            self.from_plugin
+            and not self.plugin_local_override
+            and not original_name.endswith(REPLACEMENT_TASK_NAME_POSTFIX)
+        ):
             # If the task is overridden, and is not an intermediate override, then
             # let's use the original name for serialization, in case that
             # override name isn't available in the execution context.
             # This can obviously be dangerous (but a risk we're deliberately taking)
             # since we bind the args/kwargs/runtime options with the ovverriden service
             # but might end up executing in a context that doesn't have it.
+            # Skipped for plugin_local_override tasks: this task is only reachable by
+            # its own name, since the name it overrides resolves to the dominant
+            # (i.e. highest-precedence plugin's) task everywhere.
             self.name = self.root_orig.name_without_orig
 
         try:
