@@ -181,8 +181,6 @@ class FxPluginRegistry:
                 "flame",
                 "use_cache",
                 "pending_child_strategy",
-                "from_plugin",
-                "plugin_local_override",
                 "pydantic_validate", # FIXME: shouldn't need to duplicate.
             ]
             if key in dir(original)
@@ -194,6 +192,21 @@ class FxPluginRegistry:
             check_name_for_override_posfix=False,
             **options
         )(fun=func)
+
+        # Set on the instance rather than passed through 'options' above: celery puts
+        # task options on the generated task *class*, but FireXTask.__init__ then
+        # assigns self.from_plugin, and the instance attribute shadows the class one.
+        # Passed as an option it therefore had no effect at all, and every replacement
+        # task came out from_plugin=False -- so an intermediate override (a plugin
+        # whose own overrider is a plugin too) reported itself as not being from a
+        # plugin, both in its 'STARTED:' banner and in the task-started-info event
+        # Flame renders from.
+        #
+        # plugin_local_override is not carried over for the same reason it isn't
+        # worth carrying: apply_async is its only reader and already excludes names
+        # ending in the replacement postfix, so a replacement task's value is never
+        # consulted.
+        new_task.from_plugin = original.from_plugin
 
         new_task.orig = getattr(original, "orig", None)
         if hasattr(original, "report_meta"):

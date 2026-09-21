@@ -377,6 +377,54 @@ class LocalPluginGroupTests(unittest.TestCase):
         )
 
 
+def test_replacement_task_of_a_plugin_task_is_still_from_a_plugin(monkeypatch):
+    """
+    A plugin overridden by another plugin must still report itself as coming from a
+    plugin. Its work is done by a replacement ('_orig') task, and from_plugin is what
+    both the 'STARTED:' banner and the task-started-info event Flame renders carry, so
+    getting it wrong makes the middle link of a chain look like core code.
+    """
+    monkeypatch.setenv('firex_plugins', '')
+    from firexapp.engine.celery import app as test_app
+    plugin_registry = test_app.fx_plugins_reg
+
+    # Named into a module of its own so the chain's precedence doesn't depend on
+    # whether an earlier test happened to load this test module as a plugin.
+    @test_app.task(base=FireXTask, name='chained_core_defs.chained_override_me')
+    def chained_override_me():
+        pass  # pragma: no cover
+
+    plugins_dir = os.path.join(os.path.dirname(__file__), 'data', 'plugins')
+    plugin_registry.load_plugin_modules(
+        test_app,
+        # Increasing precedence, in one call: core <- mid <- top.
+        [os.path.join(plugins_dir, f'{n}.py')
+         for n in ('mid_override_plugin', 'top_override_plugin')],
+        logging.INFO,
+    )
+
+    dominant = test_app.tasks['top_override_plugin.chained_override_me']
+    mid = dominant.orig
+    core = mid.orig
+
+    assert (dominant.name, mid.name, core.name) == (
+        'top_override_plugin.chained_override_me',
+        'mid_override_plugin.chained_override_me_orig',
+        'chained_core_defs.chained_override_me_orig_orig',
+    )
+
+    assert dominant.from_plugin
+    assert mid.from_plugin, \
+        'a replacement standing in for a plugin task is still from that plugin'
+    assert not core.from_plugin, \
+        "core's own version must not be reported as coming from a plugin"
+
+    # What the event stream reports alongside from_plugin, so Flame attributes the
+    # flag to the plugin's real task name rather than to the replacement's.
+    assert mid.name_without_orig == 'mid_override_plugin.chained_override_me'
+    assert core.name_without_orig == 'chained_core_defs.chained_override_me'
+
+
 def _write_plugin(directory, filename, content):
     os.makedirs(directory, exist_ok=True)
     path = os.path.join(directory, filename)
