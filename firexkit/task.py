@@ -184,9 +184,8 @@ class PendingChildStrategy(Enum):
     of the parent microservice.
     """
 
-    Block = 0, "Default"
-    Revoke = 1
-    Continue = 2
+    BLOCK = 0
+    CONTINUE = 1
 
 
 class IllegalTaskNameException(Exception):
@@ -366,6 +365,14 @@ class FireXTask(Task):
     # after this module was imported, and a later increase re-arms it mid-run.
     run_time_limit_reserve : typing.ClassVar[float | None] = None
 
+    # Whether this task's results are dropped from the backend once the task that
+    # enqueued it is done with them. Set it via @app.task(forget=True) for tasks whose
+    # results are big and of no interest once they've been consumed. It only supplies
+    # the default, and only where the enqueuing task waits for the results: the enqueuer
+    # has the final say, so passing forget=False to enqueue_child keeps the results of
+    # even a task declared this way, and forget=True drops those of one that isn't.
+    forget : typing.ClassVar[bool] = False
+
     def __init__(self):
 
         check_name_for_override_posfix = getattr(self, 'check_name_for_override_posfix', True)
@@ -382,7 +389,7 @@ class FireXTask(Task):
             raise ReturnsCodingException(f"You can't specify both a @returns decorator and a returns in the app task for {self.name}")
         self._return_keys : tuple[str, ...] | None = _decorated_return_keys or _task_return_keys
 
-        self._lagging_children_strategy = get_attr_unwrapped(self, 'pending_child_strategy', PendingChildStrategy.Block)
+        self._lagging_children_strategy = get_attr_unwrapped(self, 'pending_child_strategy', PendingChildStrategy.BLOCK)
 
         super().__init__()
 
@@ -788,7 +795,7 @@ class FireXTask(Task):
         try:
             converted_result = self._process_arguments_and_run(*args, **kwargs)
 
-            if self._lagging_children_strategy is PendingChildStrategy.Block:
+            if self._lagging_children_strategy is PendingChildStrategy.BLOCK:
                 try:
                     self.wait_for_children()
                 except Exception as e:
@@ -799,10 +806,9 @@ class FireXTask(Task):
             return converted_result
         except Exception as e:
             self.handle_exception(e)
-            raise # typehint
         finally:
             try:
-                if self._lagging_children_strategy is not PendingChildStrategy.Continue:
+                if self._lagging_children_strategy is not PendingChildStrategy.CONTINUE:
                     self.revoke_nonready_children()
             finally:
                 self.remove_task_logfile_handler()
@@ -1181,9 +1187,7 @@ class FireXTask(Task):
             wait_child_ars = list(self.context.enqueued_children.keys())
 
         self.wait_for_specific_children(
-            child_results=[
-                ar for ar in wait_child_ars if not ar.fx_is_forgotten()
-            ],
+            child_results=wait_child_ars,
             forget=forget,
             raise_exception_on_failure=raise_exception_on_failure,
             max_wait=max_wait,
@@ -1236,7 +1240,15 @@ class FireXTask(Task):
     ):
         """Wait for the explicitly provided child_results to run and complete"""
 
-        async_results = ManyFxAsyncResults.create_fx_ars(child_results)
+        if isinstance(child_results, FxAsyncResult):
+            child_results = [child_results]
+
+        async_results = ManyFxAsyncResults.create_fx_ars([
+            # a child enqueued to forget itself drops its results at its own postrun,
+            # so there is nothing left to wait for and it would only ever time out.
+            ar for ar in child_results or []
+            if not ar.fx_is_forgotten()
+        ])
         if async_results:
             logger.debug(f'Waiting for enqueued children: {async_results}')
             try:
@@ -1301,7 +1313,7 @@ class FireXTask(Task):
         add_to_enqueued_children: bool=True,
         block: bool=False,
         raise_exception_on_failure: bool | None=None,
-        forget: bool=False,
+        forget: bool | None=None,
         max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         enqueue_once_key: str | None=None,
@@ -1323,6 +1335,16 @@ class FireXTask(Task):
                 state=celery.states.SUCCESS,
                 app=self.app,
             )
+
+        if forget is None:
+            # Nothing was asked for either way, so fall back to what the enqueued tasks
+            # declared via @app.task(forget=True) -- but only when this call waits for the
+            # results, and so can snapshot them before dropping them. A non-blocking
+            # enqueue makes the child drop its own results at its postrun instead, which
+            # would pull them out from under a caller that never asked to give them up.
+            forget = forget_declared_by_task = block and chain.declares_forget()
+        else:
+            forget_declared_by_task = False
 
         if resolved_queue := self._resolve_queue(queue):
             chain.set_queue(resolved_queue)
@@ -1374,7 +1396,10 @@ class FireXTask(Task):
                         self.forget_specific_children_results([child_result])
                         child_result = eager_fx_ar
                     else:
-                        logger.error(f'Since {chain.get_label()} is being enqueued once, it cannot be forgotten.')
+                        # only worth an error when forgetting was actually asked for;
+                        # a task declaring it gets enqueued this way all the time.
+                        log = logger.debug if forget_declared_by_task else logger.error
+                        log(f'Since {chain.get_label()} is being enqueued once, it cannot be forgotten.')
         elif forget:
             child_result.set_fx_forget()
 
@@ -1390,7 +1415,7 @@ class FireXTask(Task):
         return_keys_only: bool = True,
         merge_children_results: bool = False,
         extract_from_parents: bool = True,
-        forget: bool = False,
+        forget: bool | None = None,
         raise_exception_on_failure: bool=True,
         max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
@@ -1456,7 +1481,7 @@ class FireXTask(Task):
         extract_task_returns_only: bool = False,
         enqueue_once_key: str | None=None,
         extract_from_parents: bool | None = None,
-        forget: bool = False,
+        forget: bool | None = None,
         raise_exception_on_failure: bool=True,
         max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
@@ -1536,7 +1561,7 @@ class FireXTask(Task):
         max_parallel_chains=15,
         block=False,
         raise_on_failure=False,
-        forget: bool=False,
+        forget: bool | None=None,
         max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
     ) -> ManyFxAsyncResults[int]: ...
@@ -1548,7 +1573,7 @@ class FireXTask(Task):
         max_parallel_chains=15,
         block=False,
         raise_on_failure=False,
-        forget: bool=False,
+        forget: bool | None=None,
         max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
     ) -> ManyFxAsyncResults[K]: ...
@@ -1559,7 +1584,7 @@ class FireXTask(Task):
         max_parallel_chains=15,
         block=False,
         raise_on_failure=False,
-        forget: bool=False,
+        forget: bool | None=None,
         max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
     ) -> ManyFxAsyncResults[Any]:
@@ -1569,6 +1594,7 @@ class FireXTask(Task):
         """
         start = time.monotonic()
         keyed_chains = chains if isinstance(chains, Mapping) else dict(enumerate(chains))
+        will_wait = block or raise_on_failure
         promises_by_key : dict[Any, FxAsyncResult] = {}
         scheduled : list[FxAsyncResult] = []
         for key, c in keyed_chains.items():
@@ -1583,7 +1609,12 @@ class FireXTask(Task):
             logger.debug(f'Enqueueing: {c.get_label()}')
             promise = self.enqueue_child(
                 c,
-                forget=forget,
+                # Chains are always enqueued non-blocking so that they run in parallel,
+                # which leaves enqueue_child no chance to wait for and snapshot results
+                # it was asked to forget. Where this call waits below, it forgets them
+                # itself afterwards rather than let each child drop its own results at
+                # postrun while the wait is still reading them.
+                forget=False if will_wait else forget,
                 callbacks=callbacks,
                 block=False,
             )
@@ -1592,7 +1623,7 @@ class FireXTask(Task):
 
         many_ars = ManyFxAsyncResults.fx_ars_from_dict(promises_by_key)
 
-        if block or raise_on_failure:
+        if will_wait:
             if isinstance(max_wait, RunTimeReserve):
                 # Already absolute -- it resolves against the run's deadline, so the time
                 # spent enqueueing above is accounted for without subtracting anything.
@@ -1608,7 +1639,32 @@ class FireXTask(Task):
                 raise_on_failure=raise_on_failure,
                 max_wait=remaining_max_wait,
             )
+            many_ars = self._forget_waited_chains(keyed_chains, promises_by_key, forget)
         return many_ars
+
+    def _forget_waited_chains(
+        self,
+        keyed_chains: Mapping[Any, SignatureX],
+        promises_by_key: dict[Any, FxAsyncResult],
+        forget: bool | None,
+    ) -> ManyFxAsyncResults[Any]:
+        """
+            Drop the results of the chains that asked to be forgotten, now that they
+            have been waited on, and report every chain's results either way.
+
+            Each forgotten promise is replaced by a snapshot of what it resolved to, so
+            that the caller still receives the results it waited for.
+        """
+        for key, chain in keyed_chains.items():
+            # each chain declares forget independently, so it resolves per chain.
+            if not (chain.declares_forget() if forget is None else forget):
+                continue
+
+            promise = promises_by_key[key]
+            promises_by_key[key] = FxEagerResult(fx_ar=promise)
+            self.forget_specific_children_results([promise])
+
+        return ManyFxAsyncResults.fx_ars_from_dict(promises_by_key)
 
     def enqueue_in_parallel(
         self,
@@ -1616,7 +1672,7 @@ class FireXTask(Task):
         max_parallel_chains=15,
         wait_for_completion=True,
         raise_exception_on_failure=False,
-        forget: bool=False,
+        forget: bool | None=None,
         max_wait: float | RunTimeReserve | None=None,
         callbacks: Iterable[WaitLoopCallBack] = tuple(),
         **_kwargs,

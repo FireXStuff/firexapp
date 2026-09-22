@@ -295,6 +295,19 @@ class SignatureX(Signature):
     def is_multi_chain(self) -> bool:
         return len(self._get_sigs()) > 1
 
+    def declares_forget(self) -> bool:
+        """Whether any task of this chain was declared with ``@app.task(forget=True)``.
+
+        A chain's results are forgotten as a whole, so one task asking to be forgotten
+        makes the whole chain forgettable.
+        """
+        return any(
+            # a task of this chain isn't necessarily registered here, e.g. a signature
+            # built for a service that only lives on another worker.
+            getattr(s.app.tasks.get(s.task), 'forget', False)
+            for s in self._get_sigs()
+        )
+
     def delay(self, *partial_args, **partial_kwargs) -> FxAsyncResult:
         return super(*partial_args, **partial_kwargs).delay()
 
@@ -464,3 +477,4 @@ Signature._is_chain = SignatureX._is_chain
 Signature.remove_inject_args = SignatureX.remove_inject_args
 Signature._set = SignatureX._set
 Signature.is_multi_chain = SignatureX.is_multi_chain
+Signature.declares_forget = SignatureX.declares_forget
