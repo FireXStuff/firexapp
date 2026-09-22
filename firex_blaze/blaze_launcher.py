@@ -123,7 +123,7 @@ class FireXBlazeLauncher(TrackingService):
         try:
             Process(pid).wait(0.1)
         except TimeoutExpired:
-            logger.debug("Started background FireXBlaze with pid %s" % pid)
+            logger.debug(f"Started background FireXBlaze with pid {pid}")
         else:
             logger.error("Failed to start FireXBlaze -- task data will not be put on Kafka bus.")
 

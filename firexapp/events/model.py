@@ -225,7 +225,7 @@ class RevokeDetails:
             f'{scope_detail}:{self.task_uuid}:{self._id}.json',
         )
         try:
-            with open(file, 'tw', encoding='utf-8') as fp:
+            with open(file, 'w', encoding='utf-8') as fp:
                 json.dump(
                     dataclasses.asdict(self),
                     fp,
@@ -436,7 +436,7 @@ def get_chain_exception_child_uuid(task):
     exception_str = task.exception.strip()
     # example: ChainInterruptedException('ad9b0b79-86e9-4d76-8654-9c19886d50a1', ...).
     m = re.search(r'' + ChainInterruptedException.__name__ + r"\('([\da-f\-]+)'", exception_str)
-    assert m, "No UUID found in %s." % exception_str
+    assert m, f"No UUID found in {exception_str}."
     return m.group(1)
 
 

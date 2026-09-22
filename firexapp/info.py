@@ -149,7 +149,7 @@ class InfoBaseApp:
                     print(micro.name)
                 return
 
-            self._info_sub_parser.exit(status=-1, message="Microservice %s was not found!" % entity)
+            self._info_sub_parser.exit(status=-1, message=f"Microservice {entity} was not found!")
 
     @classmethod
     def parse_task_docstring(cls, task):
@@ -218,7 +218,7 @@ class InfoBaseApp:
         name = split_name[-1]
         path = '.'.join(split_name[0:-1])
         if path:
-            path = " (%s)" % path
+            path = f" ({path})"
         print("Name: " + name + path)
 
         header, arguments = cls.parse_task_docstring(task)
@@ -293,7 +293,7 @@ class InfoBaseApp:
 
 def get_argument_use(all_tasks) -> dict:
     argument_usage = {}
-    for _, task in all_tasks.items():
+    for task in all_tasks.values():
         if not hasattr(task, "required_args") or not hasattr(task, "optional_args"):
             continue
 

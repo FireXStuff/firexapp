@@ -57,7 +57,6 @@ from firexkit.result import (
 from firexkit.run_time import RunTimeReserve, get_run_start_time
 
 ADDITIONAL_CHILDREN_KEY = 'additional_children'
-REPLACEMENT_TASK_NAME_POSTFIX = REPLACEMENT_TASK_NAME_POSTFIX
 
 REDIS_DB_KEY_FOR_RESULTS_WITH_REPORTS = 'FIREX_RESULTS_WITH_REPORTS'
 REDIS_DB_KEY_FOR_ENQUEUE_ONCE_UIDS = 'FIREX_ENQUEUE_CHILD_ONCE_UIDS'
@@ -136,7 +135,7 @@ def _nop():
 
 
 def _empty_bog() -> BagOfGoodies:
-    return BagOfGoodies(inspect.signature(_nop), tuple(), {}, ValidateArgs.DISABLED)
+    return BagOfGoodies(inspect.signature(_nop), (), {}, ValidateArgs.DISABLED)
 
 
 def _get_signature_with_resolved_annotations(run_func) -> inspect.Signature:
@@ -149,7 +148,7 @@ def _get_signature_with_resolved_annotations(run_func) -> inspect.Signature:
     """
     try:
         return inspect.signature(run_func, eval_str=True)
-    except Exception as e:
+    except (NameError, TypeError, ValueError) as e:
         # Annotations that only exist under typing.TYPE_CHECKING can't be resolved.
         # Un-evaluated annotations are never validated, but everything else about
         # the signature still works.
@@ -284,7 +283,7 @@ def flame(flame_key=None, formatter=_default_flame_formatter, data_type='html', 
           on_next_args=(), decorator_name='flame'):
     def decorator(func):
         if type(func) is PromiseProxy:
-            raise Exception(f"@{decorator_name} must be applied to a function (after @app.task) on {func.__name__}")
+            raise TypeError(f"@{decorator_name} must be applied to a function (after @app.task) on {func.__name__}")
 
         undecorated = undecorate_func(func)
         if not hasattr(undecorated, 'flame_data_configs'):
@@ -420,7 +419,7 @@ class FireXTask(Task):
 
     @property
     def return_keys(self) -> tuple[str, ...]:
-        return self._return_keys or tuple()
+        return self._return_keys or ()
 
     def get_overridden_task(self) -> 'FireXTask':
         if not self.is_overriding_task():
@@ -466,7 +465,9 @@ class FireXTask(Task):
         new_self : FireXTask
         try:
             new_self = self.app.tasks[self.name]
-        except Exception:
+        # Celery can surface unrelated pending-task finalization errors on this lookup;
+        # retrying is the existing isolation workaround used by the unit-test app.
+        except Exception:  # noqa: BLE001
             # TODO: WTH
             # Some caching issue prevent tests from running
             # These tests should really run in forked processes (or use Celery PyTest fixtures)
@@ -507,7 +508,7 @@ class FireXTask(Task):
             microservices.testsuites_tasks.CreateWorkerConfigFromTestsuites (if there was no request id yet)
         """
         label = str(self.request.id or self.name)
-        label += '_%d' % self.request.retries if self.request.retries >= 1 else ''
+        label += f'_{self.request.retries:d}' if self.request.retries >= 1 else ''
         return label
 
     @property
@@ -620,7 +621,7 @@ class FireXTask(Task):
             bog=bog or self._create_bog(),
         )
 
-    def _create_bog(self, args: tuple[Any,...]=tuple(), kwargs: dict | None=None) -> BagOfGoodies:
+    def _create_bog(self, args: tuple[Any,...]=(), kwargs: dict | None=None) -> BagOfGoodies:
         if kwargs is None:
             kwargs = {}
         return BagOfGoodies(
@@ -692,7 +693,7 @@ class FireXTask(Task):
 
     @property
     def called_as_orig(self):
-        return True if self.name.endswith(REPLACEMENT_TASK_NAME_POSTFIX) else False
+        return bool(self.name.endswith(REPLACEMENT_TASK_NAME_POSTFIX))
 
     def has_report_meta(self) -> bool:
         """Does this task generate a report (e.g. decorated with @email)?"""
@@ -754,7 +755,7 @@ class FireXTask(Task):
         args_list = []
         for postfix, args in zip(['', ' (default)'], [self.bound_args, self.default_bound_args]):
             for k, v in (args or {}).items():
-                args_list.append('  %d. %s: %r%s' % (n, k, v, postfix))
+                args_list.append(f'  {n:d}. {k}: {v!r}{postfix}')
                 n += 1
         if args_list:
             content = 'ARGUMENTS\n' + '\n'.join(args_list)
@@ -775,13 +776,13 @@ class FireXTask(Task):
             if isinstance(result, dict):
                 n = 1
                 for k, v in result.items():
-                    results_list.append('  %d. %s: %r' % (n, k, v))
+                    results_list.append(f'  {n:d}. {k}: {v!r}')
                     n += 1
             else:
                 results_list.append(f'  {result!r}')
         if results_list:
             content = 'RETURNS\n' + '\n'.join(results_list)
-        logger.debug(banner('COMPLETED: %s' % self.name, ch='*', content=content, length=100),
+        logger.debug(banner(f'COMPLETED: {self.name}', ch='*', content=content, length=100),
                      extra={'span_class': 'task_completed'})
 
     def __call__(self, *args, **kwargs) -> dict[str, Any]:
@@ -802,12 +803,14 @@ class FireXTask(Task):
             if self._lagging_children_strategy is PendingChildStrategy.BLOCK:
                 try:
                     self.wait_for_children()
-                except Exception as e:
+                # Child failures are deliberately deferred to explicit result handling.
+                except Exception as e:  # noqa: BLE001
                     logger.debug(
                         "The following exception was thrown (and caught) when wait_for_children was "
                         "implicitly called by this task's base class:\n" + str(e),
                     )
             return converted_result
+        # Task functions may raise arbitrary user exceptions that require FireX bookkeeping.
         except Exception as e:
             self.handle_exception(e)
         finally:
@@ -820,7 +823,7 @@ class FireXTask(Task):
     def handle_exception(self, e, logging_extra: dict | None=None):
         extra = {'span_class': 'exception'} | (logging_extra or {})
 
-        if isinstance(e, ChainInterruptedException) or isinstance(e, ChainRevokedException):
+        if isinstance(e, (ChainInterruptedException, ChainRevokedException)):
             try:
                 causing_e = last_causing_chain_interrupted_exception(e)
                 exception_cause_uuid = causing_e.task_id
@@ -1043,11 +1046,11 @@ class FireXTask(Task):
             self.enqueue_child(
                 pause_task.s(
                     **(
-                        dict(
-                            pause_hours=pause_req.pause_hours,
-                            pause_point=pause_req.pause_point,
-                            send_pause_email_notification=self.context.pause_tasks().send_pause_email_notification,
-                        ) | self.abog
+                        {
+                            'pause_hours': pause_req.pause_hours,
+                            'pause_point': pause_req.pause_point,
+                            'send_pause_email_notification': self.context.pause_tasks().send_pause_email_notification,
+                        } | self.abog
                     )
                 ),
                 block=True,
@@ -1163,7 +1166,7 @@ class FireXTask(Task):
         self,
         max_wait: float | RunTimeReserve | None=None,
         poll_max_wait: float | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
     ):
         """Wait for any of the enqueued child tasks to run and complete"""
         for completed_child_result in ManyFxAsyncResults.fx_ars_from_list(
@@ -1182,7 +1185,7 @@ class FireXTask(Task):
         forget: bool=False,
         raise_exception_on_failure: bool=True,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
         **kwargs,
     ):
         """Wait for all enqueued child tasks to run and complete"""
@@ -1241,7 +1244,7 @@ class FireXTask(Task):
         forget: bool=False,
         raise_exception_on_failure: bool=True,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
     ):
         """Wait for the explicitly provided child_results to run and complete"""
 
@@ -1286,7 +1289,7 @@ class FireXTask(Task):
         # noinspection PyBroadException
         try:
             return self.request.delivery_info['routing_key']
-        except Exception:
+        except (AttributeError, KeyError, TypeError):
             return None
 
     def _resolve_queue(self, queue: str | None) -> str | None:
@@ -1320,7 +1323,7 @@ class FireXTask(Task):
         raise_exception_on_failure: bool | None=None,
         forget: bool | None=None,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
         enqueue_once_key: str | None=None,
         **kwargs,
     ) -> FxAsyncResult:
@@ -1424,7 +1427,7 @@ class FireXTask(Task):
         forget: bool | None = None,
         raise_exception_on_failure: bool=True,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
         block: bool=True,
         enqueue_once_key: str | None=None,
     ) -> dict[str, Any]:
@@ -1482,7 +1485,7 @@ class FireXTask(Task):
         queue: str | None="auto",
         priority: int | None=None,
         soft_time_limit: int | RunTimeReserve | None=None,
-        return_keys: str | tuple[str, ...] = tuple(),
+        return_keys: str | tuple[str, ...] = (),
         extract_from_children: bool = True,
         extract_task_returns_only: bool = False,
         enqueue_once_key: str | None=None,
@@ -1490,7 +1493,7 @@ class FireXTask(Task):
         forget: bool | None = None,
         raise_exception_on_failure: bool=True,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
         block=True,
     ) -> tuple | dict:
         """Apply a ``chain``, and extract results from it.
@@ -1569,7 +1572,7 @@ class FireXTask(Task):
         raise_on_failure=False,
         forget: bool | None=None,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
     ) -> ManyFxAsyncResults[int]: ...
 
     @typing.overload
@@ -1581,7 +1584,7 @@ class FireXTask(Task):
         raise_on_failure=False,
         forget: bool | None=None,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
     ) -> ManyFxAsyncResults[K]: ...
 
     def enqueue_many(
@@ -1592,7 +1595,7 @@ class FireXTask(Task):
         raise_on_failure=False,
         forget: bool | None=None,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
     ) -> ManyFxAsyncResults[Any]:
         """
             Execute the provided Signatures/Chains in parallel and return their results.
@@ -1680,7 +1683,7 @@ class FireXTask(Task):
         raise_exception_on_failure=False,
         forget: bool | None=None,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
         **_kwargs,
     ) -> list[FxAsyncResult]:
         """
@@ -1850,8 +1853,8 @@ class FireXTask(Task):
 
         task_logger = get_logger('celery.task')
         fh_task = logging.FileHandler(task_logfile, mode='a+')
-        original_file_handler = [handler for handler in task_logger.handlers if
-                                 isinstance(handler, WatchedFileHandler)][0]
+        original_file_handler = next(handler for handler in task_logger.handlers if
+                                 isinstance(handler, WatchedFileHandler))
         fh_task.setFormatter(original_file_handler.formatter)
         task_logger.addHandler(fh_task)
         self._temp_loghandlers[task_logger] = fh_task
@@ -1876,8 +1879,9 @@ class FireXTask(Task):
                 return float(
                     self.app.backend_hget_task_attr(self.request.id, '_fx_start_time')
                 )
+            # Timing is optional diagnostic data and backend implementations vary.
             except Exception:
-                pass
+                logger.debug('Failed to read task start time', exc_info=True)
         return None
 
     def _get_task_flame_configs(self) -> dict:
@@ -1911,8 +1915,8 @@ class FireXTask(Task):
             def safe_format(formatter, fromatter_args, formatter_kwargs):
                 try:
                     return formatter(*fromatter_args, **formatter_kwargs)
-                except Exception as e:
-                    logger.exception(e)
+                except Exception:
+                    logger.exception("Failed to format Flame data")
                     return None
 
             formatted_data = {}
@@ -2196,26 +2200,26 @@ class PauseTasks:
     @staticmethod
     def get_cli_opts() -> list[dict]:
         return [
-            dict(
-                task_abog_key='pause_on',
-                pause_point=_PausePoints.PAUSE_BEFORE,
-                hours_abog_key='pause_on_hours',
-            ),
-            dict(
-                task_abog_key='pause_before',
-                pause_point=_PausePoints.PAUSE_BEFORE,
-                hours_abog_key='pause_before_hours',
-            ),
-            dict(
-                task_abog_key='pause_after',
-                pause_point=_PausePoints.PAUSE_AFTER,
-                hours_abog_key='pause_after_hours',
-            ),
-            dict(
-                task_abog_key='pause_on_failure',
-                pause_point=_PausePoints.PAUSE_ON_FAILURE,
-                hours_abog_key='pause_on_failure_hours',
-            ),
+            {
+                'task_abog_key': 'pause_on',
+                'pause_point': _PausePoints.PAUSE_BEFORE,
+                'hours_abog_key': 'pause_on_hours',
+            },
+            {
+                'task_abog_key': 'pause_before',
+                'pause_point': _PausePoints.PAUSE_BEFORE,
+                'hours_abog_key': 'pause_before_hours',
+            },
+            {
+                'task_abog_key': 'pause_after',
+                'pause_point': _PausePoints.PAUSE_AFTER,
+                'hours_abog_key': 'pause_after_hours',
+            },
+            {
+                'task_abog_key': 'pause_on_failure',
+                'pause_point': _PausePoints.PAUSE_ON_FAILURE,
+                'hours_abog_key': 'pause_on_failure_hours',
+            },
         ]
 
     @staticmethod

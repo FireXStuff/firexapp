@@ -15,7 +15,7 @@ authors = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Operating System :: OS Independent",
+    "Operating System :: POSIX :: Linux",
 ]
 dependencies = [
     "distlib",
@@ -113,6 +113,3 @@ source-exclude = [
     "/firex_flame_ui_frontend/node_modules",
 ]
 wheel-exclude = ["firex_flame_ui/public-flame-ui-config.json"]
-
-[tool.uv]
-required-version = "==0.11.*"

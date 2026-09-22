@@ -49,7 +49,7 @@ class EventAggregatorTests(unittest.TestCase):
     def test_states_aggregated(self):
         aggregator = FireXEventAggregator()
 
-        event2 = basic_event | dict(type='task-blocked', local_received=1)
+        event2 = basic_event | {'type': 'task-blocked', 'local_received': 1}
 
         aggregator.aggregate_events([basic_event, event2])
         expected_states = [

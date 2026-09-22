@@ -16,7 +16,7 @@ SOME_CONSTANT = 'imported-to-force-module-load'
 @app.task(base=FireXTask)
 def cross_helper():
     """Defined by a merely-imported module, so overridden by the listed plugin."""
-    pass  # pragma: no cover
+    # pragma: no cover
 
 
 @app.task(base=FireXTask)
@@ -26,6 +26,6 @@ def task_calling_cross_helper():
 
 
 @app.task(base=FireXTask)
-def task_calling_cross_helper():
+def task_calling_cross_helper():  # noqa: F811 - duplicate registration is intentional test data
     """References cross_helper from the module that defines it."""
     return cross_helper.s()

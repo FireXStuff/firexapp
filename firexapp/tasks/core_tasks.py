@@ -24,7 +24,7 @@ def CopyBogKeys(self: FireXTask, bog_key_map: dict, strict: bool = False):
     :return: dict with keys from the values of bog_key_map, and values from the BoG.
     """
 
-    logger.debug('abog content: %r' % self.abog)
+    logger.debug(f'abog content: {self.abog!r}')
     flame_status = ""
 
     new = {}
@@ -50,7 +50,7 @@ def CopyBogKeys(self: FireXTask, bog_key_map: dict, strict: bool = False):
 # noinspection PyPep8Naming
 @app.task(bind=True, returns=FireXTask.DYNAMIC_RETURN)
 @flame_collapse('self')
-def ScheduleSubChain(self: FireXTask, chain, enqueue_args: dict = {}, catch_errors: bool = False,
+def ScheduleSubChain(self: FireXTask, chain, enqueue_args: dict | None = None, catch_errors: bool = False,
                      inject_abog: bool = True):
     """
     This service will schedule the chain provided and return all values returned by this chain.
@@ -67,6 +67,8 @@ def ScheduleSubChain(self: FireXTask, chain, enqueue_args: dict = {}, catch_erro
     :return: All values returned by the scheduled chain.
     """
 
+    if enqueue_args is None:
+        enqueue_args = {}
     results = {}
 
     sub_chain = chain

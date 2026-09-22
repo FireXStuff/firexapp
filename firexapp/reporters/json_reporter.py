@@ -11,7 +11,6 @@ from typing import Any, TypeVar
 
 import celery.exceptions
 import psutil
-import pytz
 from celery import bootsteps
 from celery.states import RETRY, REVOKED
 from celery.utils.log import get_task_logger
@@ -224,12 +223,14 @@ class FireXRunData:
             try:
                 from firexkit.firex_celery import FireXCelery
                 self.chain = _norm_chain_names(FireXCelery.app_or_default(), self.chain)
-            except Exception as e:
+            # Updating the report is best effort and must not fail the run.
+            except Exception as e:  # noqa: BLE001
                 logger.warning(f'Failed to normalize chain names: {e}')
         try:
             self._refresh_run_soft_time_limit()
             _write_run_json(self, _get_initial_run_json_path(self.logs_path))
-        except Exception as e:
+        # Updating the report is best effort and must not fail the run.
+        except Exception as e:  # noqa: BLE001
             logger.warning(f'Failed to update run.json with input args: {e}')
 
     def _refresh_run_soft_time_limit(self):
@@ -461,9 +462,9 @@ class FireXRunData:
                 return run_data.completed_timestamp
             else:
                 completed_json = cls._get_completion_run_json_path(logs_dir=logs_dir)
-                return pytz.utc.localize(
-                    datetime.datetime.fromtimestamp(
-                        os.path.getmtime(completed_json)),
+                return datetime.datetime.fromtimestamp(
+                    os.path.getmtime(completed_json),
+                    tz=datetime.timezone.utc,
                 )
         return None
 

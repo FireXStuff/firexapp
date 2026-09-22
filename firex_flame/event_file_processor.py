@@ -75,7 +75,7 @@ def get_model_or_rec_full_tasks_by_names(logs_dir, task_names):
         tasks_by_uuid, _ = get_tasks_from_rec_file(rec_filepath=rec_file)
         return index_tasks_by_names(tasks_by_uuid.values(), task_names)
 
-    raise Exception("Found neither model directory or rec_file, no source of task data in: %s" % logs_dir)
+    raise FileNotFoundError(f"Found neither model directory or rec_file, no source of task data in: {logs_dir}")
 
 
 def get_model_or_rec_full_tasks_by_uuids(logs_dir, uuids):
@@ -86,4 +86,4 @@ def get_model_or_rec_full_tasks_by_uuids(logs_dir, uuids):
         tasks_by_uuid, _ = get_tasks_from_rec_file(log_dir=logs_dir)
         return {u: t for u, t in tasks_by_uuid.items() if u in uuids}
 
-    raise Exception("Found neither model directory or rec_file, no source of task data in: %s" % logs_dir)
+    raise FileNotFoundError(f"Found neither model directory or rec_file, no source of task data in: {logs_dir}")

@@ -89,7 +89,7 @@ class CompleteTest(FlowTestConfiguration):
 
         for t in all_tasks:
             if t.state != RunStates.SUCCEEDED.value:
-                raise Exception(f"Task {t} did not succeed.")
+                raise AssertionError(f"Task {t} did not succeed.")
 
     def assert_expected_return_code(self, ret_value):
         assert_is_good_run(ret_value)
@@ -106,7 +106,8 @@ def FailByChild(self: FireXTask):
 
 @app.task(bind=True)
 def Fail(self: FireXTask):
-    raise Exception("failing")
+    # These tests intentionally verify serialization of a vanilla Exception.
+    raise Exception("failing")  # noqa: TRY002
 
 
 class CausingFailureTest(FlowTestConfiguration):

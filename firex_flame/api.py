@@ -85,7 +85,7 @@ def monitor_file(sio_server, sid, host, filename):
 
     else:
         # spawn ssh to host to tail -f the file - output to be sent to requesting client
-        logger.info("Will start monitoring file %s on host %s" % (filename, host))
+        logger.info(f"Will start monitoring file {filename} on host {host}")
         # noinspection PyBroadException
         try:
             ssh = paramiko.SSHClient()
@@ -93,7 +93,7 @@ def monitor_file(sio_server, sid, host, filename):
             ssh.connect(host, 22, timeout=60, compress=True)
 
             # Run find to locate file and match perms
-            _, stdout, stderr = ssh.exec_command("\\find %s -perm -004" % filename)
+            _, stdout, stderr = ssh.exec_command(f"\\find {filename} -perm -004")
             # Wait for command to return
             stdout.channel.recv_exit_status()
 
@@ -111,19 +111,21 @@ def monitor_file(sio_server, sid, host, filename):
                         # File no longer exists on remote host
                         emit_line_data('[Temporary file no longer exists - executed command has completed]\n')
                     else:
-                        emit_line_data("ERROR: Unexpected error while checking file existence and permissions: %s" %
-                                       res_err)
+                        emit_line_data(f"ERROR: Unexpected error while checking file existence and permissions: {res_err}")
                 return
             else:
                 res_out = res_out.decode('utf-8', 'ignore')
                 if filename not in res_out:
-                    emit_line_data("ERROR: Unexpected output while checking file existence and permissions: %s" % res_out)
+                    emit_line_data(f"ERROR: Unexpected output while checking file existence and permissions: {res_out}")
                     return
 
             try:
                 # File exists and has open permissions - tail it
-                _, stdout, _ = ssh.exec_command("""/bin/bash -c '/usr/bin/tail -n %d --follow=name %s 2>/dev/null' """ %
-                                            (max_lines, filename), bufsize=128, get_pty=True)
+                _, stdout, _ = ssh.exec_command(
+                    f"""/bin/bash -c '/usr/bin/tail -n {max_lines:d} --follow=name {filename} 2>/dev/null' """,
+                    bufsize=128,
+                    get_pty=True,
+                )
 
                 # Keep track of all spawned processes to be able to manage them later
                 subprocess_dict[sid] = ssh
@@ -169,7 +171,8 @@ def monitor_file(sio_server, sid, host, filename):
             except Exception:
                 logger.warning("Exception raised while trying to spawn subprocess to monitor file: ", exc_info=True)
 
-        except Exception as e:
+        # Socket handlers must turn any monitoring failure into a user-visible response.
+        except Exception as e:  # noqa: BLE001
             emit_line_data("ERROR: Spawned subprocess to monitor file failed:\n")
             emit_line_data(str(e))
 
@@ -293,17 +296,15 @@ def create_rest_task_api(
 
 
 def _data_from_environ_path(environ, path, default):
-    if len(path) == 3:
-        if path[0] == 'request' and path[1] == 'headers':
-            header_key = path[2]
-            return  environ.get(f'HTTP_{header_key.upper()}', default)
+    if len(path) == 3 and path[0] == 'request' and path[1] == 'headers':
+        header_key = path[2]
+        return  environ.get(f'HTTP_{header_key.upper()}', default)
     return default
 
 def _data_from_request_path(path):
-    if len(path) == 3:
-        if path[0] == 'request' and path[1] == 'headers':
-            header_key = path[2]
-            return request.headers.get(header_key)
+    if len(path) == 3 and path[0] == 'request' and path[1] == 'headers':
+        header_key = path[2]
+        return request.headers.get(header_key)
     return None
 
 def _uuid_and_reason_from_revoke_data(revoke_data):

@@ -100,9 +100,9 @@ def connect_db(db_file, read_only=False, metadata_to_create=metadata, is_run_com
         #   should be read-only and therefore safe for direct NFS access.
         execute_pragmas(engine, use_wal=False)
 
-        logger.info("Creating schema for %s" % db_file)
+        logger.info(f"Creating schema for {db_file}")
         metadata_to_create.create_all(engine)
-        logger.info("Schema creation complete for %s" % db_file)
+        logger.info(f"Schema creation complete for {db_file}")
 
     return engine.connect()
 
@@ -225,9 +225,8 @@ class FireXRunDbManager:
         for row in db_result:
             try:
                 result_tasks.append(FireXTask(*row))
-            except TypeError as e:
-                logger.error(f"Failed transforming {row[0]}")
-                logger.exception(e)
+            except TypeError:
+                logger.exception("Failed transforming %s", row[0])
                 raise
         return result_tasks
 
@@ -235,14 +234,14 @@ class FireXRunDbManager:
     def query_run_metadata(self, firex_id) -> FireXRunMetadata:
         result = self.db_conn.execute(select([firex_run_metadata]).where(firex_run_metadata.c.firex_id == firex_id))
         if not result:
-            raise Exception(f"Found no run data for {firex_id}")
-        return [_row_to_run_metadata(row) for row in result][0]
+            raise LookupError(f"Found no run data for {firex_id}")
+        return next(_row_to_run_metadata(row) for row in result)
 
     def _query_single_run_metadata_row(self):
         result = self.db_conn.execute(select([firex_run_metadata]))
         rows = [r for r in result]
         if len(rows) != 1:
-            raise Exception(f"Expected exactly one firex_run_metadata, but found {len(rows)}")
+            raise RuntimeError(f"Expected exactly one firex_run_metadata, but found {len(rows)}")
         return rows[0]
 
     @retry(RETRYING_DB_EXCEPTIONS)
@@ -255,4 +254,3 @@ class FireXRunDbManager:
 
     def close(self):
         self.db_conn.close()
-

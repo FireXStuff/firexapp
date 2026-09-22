@@ -127,7 +127,7 @@ def tasks_by_name(logs_dir, name, **kwargs) -> list[FireXTask]:
 def single_task_by_name(logs_dir, name, **kwargs) -> FireXTask:
     tasks = _query_tasks(logs_dir, _task_col_eq(TaskColumn.NAME, name), **kwargs)
     if len(tasks) != 1:
-        raise FireXTaskQueryException("Required exactly one task named '%s', found %s" % (name, len(tasks)))
+        raise FireXTaskQueryException(f"Required exactly one task named '{name}', found {len(tasks)}")
     return tasks[0]
 
 
@@ -193,7 +193,7 @@ def failed_by_tasks(logs_dir, failed_uuid: str, **kwargs) -> list[FireXTask]:
 
 
 def _child_ids_by_parent_id(tasks_by_uuid):
-    child_uuids_by_parent_id = {u: [] for u in tasks_by_uuid.keys()}
+    child_uuids_by_parent_id = {u: [] for u in tasks_by_uuid}
 
     for t in tasks_by_uuid.values():
         # TODO: what if a child is entered in to the DB before its parent? Ignore for now.
@@ -208,7 +208,7 @@ def _get_tree_tasks_by_uuid(root_uuid, tasks_by_uuid):
         root_uuid = next((t.uuid for t in tasks_by_uuid.values() if t.parent_id is None), None)
         # FIXME: handle multiple roots?
         if root_uuid is None:
-            raise Exception("Found no root task with null parent_id.")
+            raise FireXTaskQueryException("Found no root task with null parent_id.")
 
     child_ids_by_parent_id = _child_ids_by_parent_id(tasks_by_uuid)
 
@@ -323,7 +323,7 @@ def ancestor_by_long_name(logs_dir, uuid, ancestor_long_name, **kwargs) -> FireX
 
 
 def find_task_causing_chain_exception(task: FireXTreeTask):
-    assert task.exception, "Expected exception, received: %s" % task.exception
+    assert task.exception, f"Expected exception, received: {task.exception}"
 
     if not is_chain_exception(task) or not task.children:
         return task

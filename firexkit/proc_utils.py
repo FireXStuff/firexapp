@@ -36,8 +36,8 @@ def kill_procs_by_name_and_cmdline(proc_name, cmdline_regex_str=None) -> list[ps
                 try:
                     logger.debug(f"Killing {proc_info_dict['pid']}")
                     proc.kill()
-                except Exception as e:
-                    logger.debug(f'------ FAILED {e}' % e)
+                except psutil.Error as e:
+                    logger.debug(f'------ FAILED {e}')
                 else:
                     killed_procs.append(proc)
 

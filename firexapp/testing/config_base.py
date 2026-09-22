@@ -50,8 +50,8 @@ def assert_is_bad_run(ret_value):
 
 
 def assert_is_good_run(ret_value):
-    assert ret_value == 0, "Test expects a CLEAN run, but returned %s. " \
-                           "Check the err output to see what went wrong." % str(ret_value)
+    assert ret_value == 0, f"Test expects a CLEAN run, but returned {ret_value!s}. " \
+                           "Check the err output to see what went wrong."
 
 
 def skip_test(cls):
@@ -65,15 +65,15 @@ def discover_tests(tests, config_filter="") -> list:
 
         if not os.path.exists(tests_path):
             print("Error: --tests must be a directory or a python module containing test configs\n"
-                  "%s is not recognized" % tests_path, file=sys.stderr)
-            exit(-1)
+                  f"{tests_path} is not recognized", file=sys.stderr)
+            sys.exit(-1)
         configs += import_test_configs(tests_path)
     if config_filter:
         filters = [config_filter.strip() for config_filter in config_filter.split(",")]
         configs = [config for config in configs if config.__class__.__name__ in filters]
 
     if not configs:
-        raise Exception(f'No test configs found in {tests}')
+        raise ValueError(f'No test configs found in {tests}')
 
     [print("Skipping " + config.__class__.__name__, file=sys.stderr) for config in configs if hasattr(config,
                                                                                                       "skip_test")]

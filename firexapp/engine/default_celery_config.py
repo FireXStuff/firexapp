@@ -126,13 +126,13 @@ class FxEnvVars(pydantic.BaseModel):
         if not is_firex_id(firex_id):
             logger.error(f'Basename {firex_id} of log directory {logs_dir} is not a FireX ID')
         return cls.model_validate(
-            dict(
-                CURRENT_RUN_FIREX_ID=firex_id,
-                firex_logs_dir=logs_dir,
-                redis_bin_dir=broker_mgr.redis_bin_base,
-                BROKER=broker_mgr.broker_url,
-                firex_plugins=plugins,
-            )
+            {
+                'CURRENT_RUN_FIREX_ID': firex_id,
+                'firex_logs_dir': logs_dir,
+                'redis_bin_dir': broker_mgr.redis_bin_base,
+                'BROKER': broker_mgr.broker_url,
+                'firex_plugins': plugins,
+            }
         )
 
     @classmethod
@@ -142,13 +142,13 @@ class FxEnvVars(pydantic.BaseModel):
         logs_dir='',
     ) -> Self:
         return cls.model_validate(
-            dict(
-                CURRENT_RUN_FIREX_ID='',
-                firex_logs_dir=logs_dir,
-                redis_bin_dir='',
-                BROKER='',
-                firex_plugins=plugins,
-            )
+            {
+                'CURRENT_RUN_FIREX_ID': '',
+                'firex_logs_dir': logs_dir,
+                'redis_bin_dir': '',
+                'BROKER': '',
+                'firex_plugins': plugins,
+            }
         )
 
     @classmethod
@@ -196,7 +196,7 @@ class FxCeleryConfig:
     # firexkit.firex_celery, so importing FireXTaskPool here would be a cycle.
     worker_pool = 'firexkit.firex_celery:FireXTaskPool'
 
-    accept_content = ['pickle', 'json']
+    accept_content: ClassVar[list[str]] = ['pickle', 'json']
     task_serializer = 'pickle'
     result_serializer = 'pickle'
     result_expires = None

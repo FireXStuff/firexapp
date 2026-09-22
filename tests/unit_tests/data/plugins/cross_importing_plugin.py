@@ -9,13 +9,13 @@ plugin, so only this file gets plugin precedence. cross_plugin_defs' version is
 therefore overridden by this one, including for cross_plugin_defs' own reference to
 it.
 """
+from nested_defs.cross_plugin_defs import SOME_CONSTANT  # noqa: F401
+
 from firexapp.engine.celery import app
 from firexkit.task import FireXTask
-
-from nested_defs.cross_plugin_defs import SOME_CONSTANT  # noqa: F401
 
 
 @app.task(base=FireXTask)
 def cross_helper():
     """The listed plugin's version, which wins over the imported module's."""
-    pass  # pragma: no cover
+    # pragma: no cover

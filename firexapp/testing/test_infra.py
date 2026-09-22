@@ -1,8 +1,10 @@
 import argparse
+import importlib
 import os
 import shutil
 import sys
 import unittest
+from typing import ClassVar
 
 from xmlrunner.runner import XMLTestRunner
 
@@ -12,12 +14,12 @@ from firexkit.permissions import DEFAULT_UMASK
 
 TEST_EXE = os.path.realpath(os.path.abspath(__file__))
 if not os.path.isfile(TEST_EXE):
-    raise Exception("Some import changed the cwd. Can't locate relative files")
+    raise RuntimeError("Some import changed the cwd. Can't locate relative files")
 TEST_EXE_DIR = os.path.dirname(TEST_EXE)
 
 
 class FlowTestInfra(unittest.TestCase):
-    test_configs = []
+    test_configs: ClassVar[list] = []
     results_dir = None
     failures = 0
     max_acceptable_failures = None
@@ -26,7 +28,7 @@ class FlowTestInfra(unittest.TestCase):
     @classmethod
     def populate_tests(cls):
         if not cls.results_dir:
-            raise Exception("Results directory not set")
+            raise RuntimeError("Results directory not set")
 
         # noinspection PyTypeChecker
         cls.max_acceptable_failures = int((len(cls.test_configs) / 2.0) + 1)
@@ -38,10 +40,10 @@ class FlowTestInfra(unittest.TestCase):
                         cls.config_interpreter.run_integration_test(config, self.results_dir)
                         self.assertTrue(True)
                         print("\tPassed")
-                    except Exception as e:
+                    except Exception:
                         print("\tFailed")
                         cls.failures += 1
-                        raise e
+                        raise
 
             setattr(cls, 'test_' + test_config.__class__.__name__, sub_test)
 
@@ -80,11 +82,11 @@ def main(default_results_dir, default_test_dir):
     if args.coverage:
         # coverage requires eventlet, but firexapp does not
         try:
-            import eventlet
+            importlib.import_module('eventlet')
         except ModuleNotFoundError:
             print("eventlet is not installed. eventlet is necessary to get code coverage."
                   "Please run again without the --coverage option")
-            exit(-1)
+            sys.exit(-1)
     elif args.no_html:
         parser.error("--no_html cannot be used without --coverage")
 
@@ -109,7 +111,7 @@ def main(default_results_dir, default_test_dir):
     FlowTestInfra.populate_tests()
 
     # if running a single suite, rename the test to reflect the suite
-    xunit_file_name = "TEST-%s.%s-results.xml" % (FlowTestInfra.__module__, FlowTestInfra.__name__)
+    xunit_file_name = f"TEST-{FlowTestInfra.__module__}.{FlowTestInfra.__name__}-results.xml"
     if os.path.isfile(args.tests):
         FlowTestInfra.__name__ = os.path.splitext(os.path.basename(args.tests))[0]
         orig_output = os.path.join(args.logs, xunit_file_name.replace("FlowTestInfra",

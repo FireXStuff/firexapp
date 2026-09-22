@@ -43,7 +43,7 @@ class AmplifiedGreetGuestsTest(FlowTestConfiguration):
         expected_result = "Hello John! Hello Mohammad!".upper()
         actual_result = self.completed_run.chain_results()['amplified_greeting']
         assert actual_result == expected_result, \
-            "Expected '%s'  \n Received '%s'" % (expected_result, actual_result)
+            f"Expected '{expected_result}'  \n Received '{actual_result}'"
 
 
 class GreetGuestsWithFailureTest(FlowTestConfiguration):
@@ -55,7 +55,7 @@ class GreetGuestsWithFailureTest(FlowTestConfiguration):
         expected_result = "Hello John! And apologies to those not mentioned."
         actual_result = self.completed_run.chain_results()['guests_greeting']
         assert actual_result == expected_result, \
-            "Expected '%s'  \n Received '%s'" % (expected_result, actual_result)
+            f"Expected '{expected_result}'  \n Received '{actual_result}'"
 
 
 class GreetSpringfieldPowerPlantTest(FlowTestConfiguration):
@@ -73,7 +73,7 @@ class GreetSpringfieldPowerPlantTest(FlowTestConfiguration):
         expected_result = "HELLO EXECUTIVE ASSISTANT WAYLON SMITHERS! HELLO SUPERVISOR HOMER SIMPSON!"
         actual_result = self.completed_run.chain_results()['amplified_greeting']
         assert actual_result == expected_result, \
-            "Expected '%s'  \n Received '%s'" % (expected_result, actual_result)
+            f"Expected '{expected_result}'  \n Received '{actual_result}'"
 
 
 class GreetSpringfieldPowerPlantWithPluginTest(FlowTestConfiguration):
@@ -89,7 +89,7 @@ class GreetSpringfieldPowerPlantWithPluginTest(FlowTestConfiguration):
         expected_result = "HELLO CHANCELLOR HOMER SIMPSON! HELLO PRINCE WAYLON SMITHERS!"
         actual_result = self.completed_run.chain_results()['amplified_greeting']
         assert actual_result == expected_result, \
-            "Expected '%s'  \n Received '%s'" % (expected_result, actual_result)
+            f"Expected '{expected_result}'  \n Received '{actual_result}'"
 
 
 class GreetLeeAndTomTest(FlowTestConfiguration):

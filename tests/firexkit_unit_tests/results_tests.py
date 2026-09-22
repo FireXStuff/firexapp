@@ -42,7 +42,7 @@ def get_mocks(
     return test_app, mock_results
 
 
-def setup_revoke(revoked=tuple()):
+def setup_revoke(revoked=()):
     RevokedRequests._instance = RevokedRequests(revoked)
     # disable update
     RevokedRequests._instance.last_updated = _now_utc() + datetime.timedelta(days=1)
@@ -59,14 +59,14 @@ class ResultsLoggingNamesTests(unittest.TestCase):
             self.assertEqual(mock_result.fx_get_name(), "yes")
 
     def test_get_logging_name(self):
-        test_app, mock_result = get_mocks()
+        _test_app, mock_result = get_mocks()
         self.assertEqual(mock_result[0].fx_logging_name(), "[anything]")
 
 
 class ResultsReadyTests(unittest.TestCase):
 
     def test_is_ready(self):
-        test_app, mock_result = get_mocks()
+        _test_app, mock_result = get_mocks()
         mock_result = mock_result[0]
         mock_result._state = SUCCESS
         self.assertTrue(mock_result.fx_is_ready())
@@ -84,7 +84,7 @@ class ResultsReadyTests(unittest.TestCase):
         self.assertFalse(mock_result.fx_is_ready())
 
     def test_backend_exception(self):
-        test_app, mock_result = get_mocks()
+        _test_app, mock_result = get_mocks()
         mock_result = mock_result[0]
 
         # exceptions go up the stack
@@ -161,14 +161,14 @@ class WaitOnResultsTests(unittest.TestCase):
 
     def test_wait_on_many_results(self):
         setup_revoke()
-        test_app, mock_results = get_mocks(["a1", "a2", "a3"])
+        _test_app, mock_results = get_mocks(["a1", "a2", "a3"])
 
         with self.prime_mocks(mock_results, 3):
             self.assertIsNone(wait_on_async_results(mock_results))
 
     def test_wait_on_chain(self):
         setup_revoke()
-        test_app, mock_results = get_mocks(["a0", "a1", "a2"])
+        _test_app, mock_results = get_mocks(["a0", "a1", "a2"])
         MockFxAsyncResult.set_heritage(mock_results[1], mock_results[2])
         MockFxAsyncResult.set_heritage(mock_results[0], mock_results[1])
 
@@ -180,14 +180,14 @@ class WaitOnResultsTests(unittest.TestCase):
 
     def test_self_parent_recursion(self):
         setup_revoke()
-        test_app, mock_result = get_mocks(_state=SUCCESS)
+        _test_app, mock_result = get_mocks(_state=SUCCESS)
         mock_result = mock_result[0]
         MockFxAsyncResult.set_heritage(mock_result, mock_result)
         self.assertIsNone(wait_on_async_results(mock_result))
 
     def test_callbacks(self):
         setup_revoke()
-        test_app, mock_result = get_mocks()
+        _test_app, mock_result = get_mocks()
         mock_result = mock_result[0]
         mock_result._state = STARTED
 
@@ -204,7 +204,7 @@ class WaitOnResultsTests(unittest.TestCase):
 
     def test_Chain_interrupted(self):
         setup_revoke()
-        test_app, mock_results = get_mocks(["a0", "a1", "a2"])
+        _test_app, mock_results = get_mocks(["a0", "a1", "a2"])
         MockFxAsyncResult.set_heritage(mock_results[1], mock_results[2])
         MockFxAsyncResult.set_heritage(mock_results[0], mock_results[1])
         mock_results[0]._state = SUCCESS
@@ -223,7 +223,7 @@ class WaitOnResultsTests(unittest.TestCase):
 
     def test_Chain_interrupted_from_exc(self):
         setup_revoke()
-        test_app, mock_results = get_mocks(["a0", "a1"])
+        _test_app, mock_results = get_mocks(["a0", "a1"])
         MockFxAsyncResult.set_heritage(mock_results[0], mock_results[1])
         mock_results[0]._state = SUCCESS
         mock_results[1]._state = FAILURE
@@ -242,9 +242,11 @@ class WaitOnResultsTests(unittest.TestCase):
         ar._state = FAILURE
         ar._result = cause
         ar._fx_name = fail_name
-        with mock.patch.object(ar, 'fx_backend_get_name', return_value=fail_name):
-            with self.assertRaises(ChainInterruptedException) as context:
-                wait_on_async_results(ar)
+        with (
+            mock.patch.object(ar, 'fx_backend_get_name', return_value=fail_name),
+            self.assertRaises(ChainInterruptedException) as context,
+        ):
+            wait_on_async_results(ar)
         e = context.exception
         self.assertEqual(e.task_id, fail_uuid)
         self.assertEqual(
@@ -264,7 +266,7 @@ class WaitOnResultsTests(unittest.TestCase):
 
     def test_timeout(self):
         setup_revoke()
-        test_app, mock_result = get_mocks()
+        _test_app, mock_result = get_mocks()
         mock_result = mock_result[0]
         mock_result._state = STARTED
         with self.assertRaises(WaitOnChainTimeoutError):
@@ -272,7 +274,7 @@ class WaitOnResultsTests(unittest.TestCase):
 
     def test_wait_on_revoked_chain(self):
         setup_revoke()
-        test_app, mock_results = get_mocks(["a0", "a1", "a2"])
+        _test_app, mock_results = get_mocks(["a0", "a1", "a2"])
         MockFxAsyncResult.set_heritage(mock_results[1], mock_results[2])
         MockFxAsyncResult.set_heritage(mock_results[0], mock_results[1])
 
@@ -288,7 +290,7 @@ class WaitOnResultsTests(unittest.TestCase):
 
     def test_wait_on_revoked_result(self):
 
-        test_app, mock_result = get_mocks(["rev"])
+        _test_app, mock_result = get_mocks(["rev"])
         mock_result = mock_result[0]
         setup_revoke(["rev"])
         mock_result._state = PENDING
@@ -300,7 +302,7 @@ class WaitOnResultsTests(unittest.TestCase):
 
     def test_wait_for_all_even_on_failure(self):
         setup_revoke()
-        test_app, mock_results = get_mocks(["a0", "a1", "a2"])
+        _test_app, mock_results = get_mocks(["a0", "a1", "a2"])
 
         with self.prime_mocks(mock_results, 2):
             # a0 and a2 should both be hit, but not a1

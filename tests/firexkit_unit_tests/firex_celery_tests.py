@@ -528,7 +528,7 @@ class IncreaseRunSoftTimeLimitCommandTests(unittest.TestCase):
         # budget out of --soft_time_limit would strand it at the original number.
         undeclared = _create_request('undeclared')
         explicit = _create_request('explicit', time_limits=(None, 7200))
-        state, task_pool, active, reserved = self.create_state(
+        state, _task_pool, active, reserved = self.create_state(
             active=[run_relative, undeclared, explicit],
         )
 
@@ -553,7 +553,7 @@ class IncreaseRunSoftTimeLimitCommandTests(unittest.TestCase):
         prefetched = _create_request(
             'prefetched', reserve=60 * 60, time_limits=[None, 100],
         )
-        state, task_pool, active, reserved = self.create_state(reserved=[prefetched])
+        state, _task_pool, active, reserved = self.create_state(reserved=[prefetched])
 
         reply = self.run_command(state, active, reserved)
 
@@ -564,7 +564,7 @@ class IncreaseRunSoftTimeLimitCommandTests(unittest.TestCase):
         prefetched = _create_request(
             'prefetched', reserve=60 * 60, time_limits=[12345, 100],
         )
-        state, task_pool, active, reserved = self.create_state(reserved=[prefetched])
+        state, _task_pool, active, reserved = self.create_state(reserved=[prefetched])
 
         self.run_command(state, active, reserved)
 
@@ -573,7 +573,7 @@ class IncreaseRunSoftTimeLimitCommandTests(unittest.TestCase):
     def test_an_active_task_is_not_also_handled_as_reserved(self):
         # A request stays in reserved_requests while it is active.
         request = _create_request('both', reserve=60 * 60, time_limits=[None, 100])
-        state, task_pool, active, reserved = self.create_state(
+        state, _task_pool, active, reserved = self.create_state(
             active=[request], reserved=[request],
         )
 

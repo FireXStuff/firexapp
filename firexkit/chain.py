@@ -36,7 +36,7 @@ def _simulate_chain_args_kwargs(
             # as the fist positional arg. Crazy.
             [ prev_task_return_args ] + list(task_pos_args)
         )
-        simulated_kwargs = task_kwargs | dict(chain_depth=chain_depth)
+        simulated_kwargs = task_kwargs | {'chain_depth': chain_depth}
     else:
         simulated_pos_args = task_pos_args
         simulated_kwargs = task_kwargs
@@ -200,8 +200,7 @@ class SignatureX(Signature):
 
         prev_task_return_args : dict[str, Any] | None = None
         task_names_to_missing_required_arg_names : dict[str, set[str]] = {}
-        chain_depth = 0
-        for task_sig in [t for t in self._get_sigs()]:
+        for chain_depth, task_sig in enumerate(self._get_sigs()):
             simulated_pos_args, simulated_kwargs = _simulate_chain_args_kwargs(
                 prev_task_return_args,
                 task_sig.args,
@@ -213,8 +212,6 @@ class SignatureX(Signature):
             # to do with plugins, but it's not clear.
             task_obj : FireXTask = self.app.tasks[task_sig.task]
             task_bog = _fake_validation_bog(task_obj, simulated_pos_args, simulated_kwargs)
-            chain_depth += 1
-
             unbound_required_arg_names = task_bog.get_unbound_required_arg_names()
             if unbound_required_arg_names:
                 task_names_to_missing_required_arg_names[task_obj.name] = unbound_required_arg_names
@@ -391,10 +388,8 @@ class SignatureX(Signature):
             first_sig.kwargs[AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY] = auto_inject_reg
 
         if self._is_chain():
-            chain_depth = 0
-            for chain_sig in self._get_sigs():
+            for chain_depth, chain_sig in enumerate(self._get_sigs()):
                 chain_sig.kwargs['chain_depth'] = chain_depth
-                chain_depth += 1
 
         self.verify_args()
 
@@ -449,7 +444,7 @@ class InjectArgs(SignatureX):
 
     @property
     def options(self):
-        return dict()
+        return {}
 
     def __or__(self, other) -> SignatureX:
         if isinstance(other, InjectArgs):

@@ -109,7 +109,7 @@ class ShutdownHandler:
 
     def shutdown(self, reason):
         self.shutdown_received = True
-        logging.info("Stopping entire Flame Server for reason: %s" % reason)
+        logger.info(f"Stopping entire Flame Server for reason: {reason}")
 
         # Avoid race condition where webserver is started immediately after shutdown is called.
         wait_until(lambda: self.web_server is not None, timeout=5, sleep_for=0.5)
@@ -196,7 +196,7 @@ def main():
     t = NoopTimer() if args.terminate_on_complete else Timer(args.flame_timeout, shutdown_handler.timeout_handler)
     try:
         t.start()
-        logger.info('Starting Flame Server with args: %s' % args)
+        logger.info(f'Starting Flame Server with args: {args}')
         web_server = start_flame(
             _create_server_config(args),
             create_broker_processor_config(args),
@@ -209,7 +209,7 @@ def main():
         print(f"Flame server running on: {get_flame_url_from_port(web_server.server_port)}")
         web_server.serve_forever()
     except Exception as e:
-        logger.exception(e)
+        logger.exception('Flame server terminated due to an error')
         shutdown_handler.shutdown(str(e))
     finally:
         t.cancel()

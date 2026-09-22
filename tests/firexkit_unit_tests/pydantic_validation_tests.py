@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
-from typing import Optional, Union
 
 import pydantic
 import pytest
@@ -44,7 +43,7 @@ class ADataclass:
 def _bog(func, kwargs, pydantic_validate=ValidateArgs.ATTEMPT) -> BagOfGoodies:
     return BagOfGoodies(
         _get_signature_with_resolved_annotations(func),
-        tuple(),
+        (),
         kwargs,
         pydantic_validate=pydantic_validate,
     )
@@ -89,7 +88,7 @@ class TestResolvedAnnotations:
         value = [PlainDictSubclass({'a': 1})]
         # signature deliberately *not* resolved, as it was before the fix.
         bog = BagOfGoodies(
-            inspect.signature(func), tuple(), {'x': value},
+            inspect.signature(func), (), {'x': value},
             pydantic_validate=ValidateArgs.REQUIRE,
         )
         bog.update_validated_args()
@@ -108,10 +107,10 @@ class TestAnnotationClassification:
             (ADataclass, True, False),
             (PlainDictSubclass, True, True),
             (list[PlainDictSubclass], True, True),
-            (Optional[PlainDictSubclass], True, True),
+            (PlainDictSubclass | None, True, True),
             (dict[str, PlainDictSubclass], True, True),
             # a real leaf makes the annotation worth validating
-            (Union[int, PlainDictSubclass], True, False),
+            (int | PlainDictSubclass, True, False),
         ],
     )
     def test_classification(self, annotation, expect_adapter, expect_is_instance_only):

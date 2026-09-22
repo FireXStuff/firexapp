@@ -58,7 +58,6 @@ def loaded_firex_entry_points(path=None):
     return cores | bundles
 
 def _load_firex_entry_points(entrypoint_name, path=None) -> dict[EntryPoint, object]:
-    global _loaded_firex_bundles
     key = str(path)
     try:
         return _loaded_firex_bundles[key][entrypoint_name]
@@ -77,7 +76,7 @@ def get_firex_tracking_services_entry_points() -> list[EntryPoint]:
 
 
 def get_firex_dependant_package_versions() -> list[PkgVersionInfo]:
-    versions = list()
+    versions = []
     for ep, loaded_pkg in loaded_firex_entry_points().items():
         try:
             version = loaded_pkg.__version__

@@ -2,6 +2,7 @@ import time
 import types
 import unittest
 from contextlib import contextmanager
+from typing import ClassVar
 from unittest import mock
 
 from firexkit.argument_conversion import ConverterRegister
@@ -196,7 +197,7 @@ class TaskTests(unittest.TestCase):
             value = 1
 
             def post_task_run(self, results, extra_events=None):
-                the_test.assertEqual(self.args, tuple())
+                the_test.assertEqual(self.args, ())
                 the_test.assertDictEqual(self.kwargs, {'arg1': value})
                 the_test.assertListEqual(self.required_args, ['arg1'])
                 the_test.assertDictEqual(self.bound_args, {'arg1': value})
@@ -228,7 +229,7 @@ class TaskTests(unittest.TestCase):
             value = None
 
             def post_task_run(self, results, extra_events=None):
-                the_test.assertEqual(self.args, tuple())
+                the_test.assertEqual(self.args, ())
                 the_test.assertDictEqual(self.kwargs, {})
                 the_test.assertListEqual(self.required_args, [])
                 the_test.assertDictEqual(self.bound_args, {})
@@ -245,7 +246,7 @@ class TaskTests(unittest.TestCase):
             value = 1
 
             def post_task_run(self, results, extra_events=None):
-                the_test.assertEqual(self.args, tuple())
+                the_test.assertEqual(self.args, ())
                 the_test.assertDictEqual(self.kwargs, {'arg1': value})
                 the_test.assertListEqual(self.required_args, [])
                 the_test.assertDictEqual(self.bound_args, {'arg1': value})
@@ -283,7 +284,7 @@ class TaskTests(unittest.TestCase):
             value2 = 2
 
             def post_task_run(self, results, extra_events=None):
-                the_test.assertEqual(self.args, tuple())
+                the_test.assertEqual(self.args, ())
                 the_test.assertDictEqual(self.kwargs, {'arg1': value1,
                                                        'arg2': value2})
                 the_test.assertListEqual(self.required_args, ['arg1'])
@@ -400,7 +401,7 @@ class TaskCachingTests(unittest.TestCase):
 
 
 class ConvertToSerializableTests(unittest.TestCase):
-    d = dict(a=1, b=['2', '3'], c='4', d=dict(d1=5, d2='6'))
+    d: ClassVar[dict] = {"a": 1, "b": ['2', '3'], "c": '4', "d": {"d1": 5, "d2": '6'}}
 
     def test_dicts_returned_as_is(self):
         self.assertDictEqual(convert_to_serializable(self.d), self.d)
@@ -446,17 +447,17 @@ class ConvertToSerializableTests(unittest.TestCase):
                 return self.d
 
         serializable_obj = someClass()
-        level3 = dict(level3=serializable_obj)
-        level2 = dict(level2=level3)
-        level1 = dict(level1=level2)
+        level3 = {"level3": serializable_obj}
+        level2 = {"level2": level3}
+        level1 = {"level1": level2}
         d2 = [self.d, level1]
 
         with self.subTest('max_recrusive_depth not reached'):
-            expected_result = [self.d, dict(level1=dict(level2=dict(level3=self.d)))]
+            expected_result = [self.d, {"level1": {"level2": {"level3": self.d}}}]
             self.assertListEqual(convert_to_serializable(d2, max_recursive_depth=10), expected_result)
 
         with self.subTest('max_recrusive_depth reached'):
-            expected_result = [self.d, dict(level1=dict(level2=repr(level3)))]
+            expected_result = [self.d, {"level1": {"level2": repr(level3)}}]
             self.assertListEqual(convert_to_serializable(d2, max_recursive_depth=3), expected_result)
 
 

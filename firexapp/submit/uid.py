@@ -37,7 +37,7 @@ class FireXIdParts:
     def from_str(firex_id: str) -> 'FireXIdParts':
         maybe_parts = get_firex_id_parts(firex_id)
         if not maybe_parts:
-            raise Exception(f'Failed to find FireX ID in: {firex_id}')
+            raise ValueError(f'Failed to find FireX ID in: {firex_id}')
         return maybe_parts
 
 
@@ -46,13 +46,13 @@ def get_firex_id_parts(maybe_firex_id: str) -> FireXIdParts | None:
     if m:
         parts = m.groupdict()
         try:
-             tz_unaware_datetime = datetime.datetime.strptime(
+             tz_aware_datetime = datetime.datetime.strptime(
                 parts['datetime_str'],
-                _FIREX_ID_DATE_FMT)
+                _FIREX_ID_DATE_FMT,
+            ).replace(tzinfo=pytz.utc)
         except ValueError:
             pass # invalidate date format.
         else:
-            tz_aware_datetime = pytz.utc.localize(tz_unaware_datetime)
             return FireXIdParts(parts['user'], tz_aware_datetime, int(parts['random_int']))
     return None
 
@@ -76,7 +76,7 @@ def find_all_firex_ids_from_str(input_str: str | None) -> list[str]:
 def find_single_firex_id_from_str(input_str) -> str:
     firex_ids = find_all_firex_ids_from_str(input_str)
     if len(firex_ids) != 1:
-        raise Exception(
+        raise ValueError(
             f'Expected exactly one firex ID in {input_str}, found {len(firex_ids)}'
         )
     return firex_ids[0]

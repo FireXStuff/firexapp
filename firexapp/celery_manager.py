@@ -55,7 +55,7 @@ class CeleryManager:
         if env:
             self.update_env(env)
 
-        self.pid_files: dict[str, str] = dict()
+        self.pid_files: dict[str, str] = {}
 
         self._celery_logs_dir = None
         self._celery_pids_dir = None
@@ -74,7 +74,7 @@ class CeleryManager:
         if header is None:
             header = cls.__name__
         if header:
-            msg = '[%s] %s' % (header, msg)
+            msg = f'[{header}] {msg}'
         logger.log(level, msg)
 
     def update_env(self, env):
@@ -225,7 +225,7 @@ class CeleryManager:
             self.log(f'Killing  pid {proc.pid}', level=INFO)
             try:
                 proc.kill()
-            except Exception:
+            except psutil.Error:
                 self.log(f'Failed to kill pid {proc.pid}', level=WARNING)
 
     @classmethod
@@ -250,14 +250,14 @@ class CeleryManager:
             self.log(f'Attempting shutdown of {name}')
             try:
                 pid = _get_pid_from_file(pid_file)
-            except Exception as e:
+            except (AssertionError, OSError, ValueError) as e:
                 self.log(e)
             else:
                 try:
                     self.terminate(pid, timeout=timeout)
                 except (psutil.TimeoutExpired, psutil.NoSuchProcess):
                     self.kill_all_forked(pid_file)
-                except Exception as e:
+                except psutil.Error as e:
                     self.log(e)
 
     def wait_for_shutdown(self, timeout=15):
@@ -298,6 +298,7 @@ def _wait_until_active(
         deleted_pids = subprocess.run(
             ['/bin/pkill', '-e', '-f', pid_file],
             capture_output=True,
+            check=False,
             text=True,
         )
         extra_err_info += '\nAttempting to delete the invocation pids'

@@ -15,8 +15,8 @@ logger = get_task_logger(__name__)
 REL_COMPLETION_REPORT_PATH = 'completion_email.html'
 
 class ReportGenerator(ABC):
-    formatters = tuple()
-    loaders = tuple()
+    formatters = ()
+    loaders = ()
 
     @staticmethod
     def pre_run_report(*args, **kwarg):
@@ -124,7 +124,7 @@ class ReportersRegistry:
                                 )
                                 logger.debug(f'Completed loading report data for task {task_name}')
                             except Exception:
-                                logger.error(f'Error during report data loading for task {task_name}...skipping', exc_info=True)
+                                logger.exception(f'Error during report data loading for task {task_name}...skipping')
                                 continue
                         if len(formatters) > 0:
                             logger.debug(f'Adding report entry for task {task_name}')
@@ -141,10 +141,10 @@ class ReportersRegistry:
                                         task_uuid=task_result.id)
                                     logger.debug(f'Completed adding report entry for task {task_name}')
                                 except Exception:
-                                    logger.error(f'Error during report generation for task {task_name}...skipping', exc_info=True)
+                                    logger.exception(f'Error during report generation for task {task_name}...skipping')
 
             except Exception:
-                logger.error(f"Failed to add report entry for task result {task_result}", exc_info=True)
+                logger.exception(f"Failed to add report entry for task result {task_result}")
 
             logger.debug("Completed processing results data for reports")
 
@@ -158,7 +158,7 @@ class ReportersRegistry:
                 logger.debug(f'Completed post_run_report for {report_gen}')
             except Exception:
                 # Failure in one report generator should not impact another
-                logger.error(f'Error in the post_run_report for {report_gen}', exc_info=True)
+                logger.exception(f'Error in the post_run_report for {report_gen}')
 
 
 def report(key_name=None, priority=-1, **formatters):
@@ -171,8 +171,8 @@ def report(key_name=None, priority=-1, **formatters):
 
             # guard: prevent bad coding by catching bad return key
             if key_name and key_name not in cls.return_keys:
-                raise Exception("Task %s does not specify %s using the @returns decorator. "
-                                "It cannot be used in @report" % (cls.name, key_name))
+                raise ValueError(f"Task {cls.name} does not specify {key_name} using the @returns decorator. "
+                                 "It cannot be used in @report")
 
             report_entry = {
                 "key_name": key_name,
@@ -204,8 +204,8 @@ def report_data(key_name=None, **loaders):
 
             # guard: prevent bad coding by catching bad return key
             if key_name and key_name not in cls.return_keys:
-                raise Exception("Task %s does not specify %s using the @returns decorator. "
-                                "It cannot be used in @report" % (cls.name, key_name))
+                raise ValueError(f"Task {cls.name} does not specify {key_name} using the @returns decorator. "
+                                 "It cannot be used in @report")
 
             report_data = {
                 "key_name": key_name,

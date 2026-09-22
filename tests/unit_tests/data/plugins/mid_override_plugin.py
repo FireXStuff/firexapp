@@ -10,4 +10,4 @@ from firexkit.task import FireXTask
 @app.task(base=FireXTask)
 def chained_override_me():
     """An override that is itself overridden by a higher-precedence plugin."""
-    pass  # pragma: no cover
+    # pragma: no cover

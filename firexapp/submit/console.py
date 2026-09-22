@@ -39,7 +39,8 @@ class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
             record.exc_text = None
         try:
             record.msg = BeautifulSoup(record.msg, 'html.parser').get_text()
-        except Exception:
+        # Logging must still succeed for message objects BeautifulSoup cannot parse.
+        except Exception:  # noqa: BLE001, S110
             pass
         prefixes = getattr(record, 'prefixes', True)
         if not prefixes:
@@ -138,8 +139,6 @@ def setup_console_logging(module=None,
 
 
 def set_console_log_level(log_level):
-    global console_stdout
-    global console_stderr
     console_stdout.setLevel(log_level)
     if log_level == logging.CRITICAL:
         console_stderr.setLevel(log_level)

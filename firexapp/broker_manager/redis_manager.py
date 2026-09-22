@@ -12,6 +12,7 @@ from socket import gethostname
 from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
+from psutil import Error as PsutilError
 from psutil import Process
 
 from firexapp.common import get_available_port, silent_mkdir, wait_until
@@ -129,9 +130,9 @@ class RedisManager:
             self._redis_server_bin = redis_server_bin
 
     def get_redis_cli_cmd(self, port, include_host=False):
-        cmd = os.path.join(self.redis_bin_base, 'redis-cli') + ' -p %d -a %s' % (port, self._password)
+        cmd = os.path.join(self.redis_bin_base, 'redis-cli') + f' -p {port:d} -a {self._password}'
         if include_host or self.host != gethostname():
-            cmd += ' -h %s' % self.host
+            cmd += f' -h {self.host}'
         return cmd
 
     def get_redis_dump_cmd(self, include_host=False):
@@ -141,8 +142,7 @@ class RedisManager:
         return cmd
 
     def get_redis_server_cmd(self, port):
-        return self._redis_server_bin + ' --port %d --requirepass %s' \
-               % (port, self._password)
+        return self._redis_server_bin + f' --port {port:d} --requirepass {self._password}'
 
     @property
     def broker_url(self):
@@ -225,7 +225,7 @@ class RedisManager:
         if header is None:
             header = cls.__name__
         if header:
-            msg = '[%s] %s' % (header, msg)
+            msg = f'[{header}] {msg}'
         logger.log(level, msg, exc_info=exc_info)
 
     @classmethod
@@ -294,14 +294,14 @@ class RedisManager:
 
     def create_metadata_file(self):
         if self.metadata_file:
-            self.log('Creating %s' % self.metadata_file)
+            self.log(f'Creating {self.metadata_file}')
             data = {self._METADATA_BROKER_HOST_KEY: self.host, self._METADATA_BROKER_PORT_KEY: self.port}
             with open(self.metadata_file, 'w') as f:
                 json.dump(data, f, sort_keys=True, indent=2)
 
     def create_password_file(self):
         if self.password_file:
-            self.log('Creating %s' % self.password_file)
+            self.log(f'Creating {self.password_file}')
             data = {self._BROKER_PASSWORD_KEY: str(self._password)}
             # noinspection PyTypeChecker
             with open(self.password_file, 'w',  opener=partial(os.open, mode=0o600)) as f:
@@ -317,7 +317,7 @@ class RedisManager:
             port = self.port
         except RedisPortNotAssigned:
             port = get_available_port()
-        self.log('Starting new process (port %d)...' % port)
+        self.log(f'Starting new process (port {port:d})...')
         cmd = self.get_redis_server_cmd(port) + ' ' + '--loglevel debug ' \
                                                       '--protected-mode no ' \
                                                       '--daemonize yes ' \
@@ -371,10 +371,16 @@ class RedisManager:
                 )
             except (subprocess.CalledProcessError, RedisDidNotBecomeActive):
                 if trials >= max_trials:
-                    self.log('Redis did not come up after %d trial(s) (max_trials=%d)..Giving up!' %
-                             (trials, max_trials), level=logging.ERROR)
+                    self.log(
+                        f'Redis did not come up after {trials:d} trial(s) '
+                        f'(max_trials={max_trials:d})..Giving up!',
+                        level=logging.ERROR,
+                    )
                     raise
-                self.log('Redis did not come up after %d trial(s) (max_trials=%d)' % (trials, max_trials), level=logging.INFO)
+                self.log(
+                    f'Redis did not come up after {trials:d} trial(s) (max_trials={max_trials:d})',
+                    level=logging.INFO,
+                )
                 self.port = None  # Clear port in case the reason is didn't come up is because port was in use
             else:
                 if log_memory_info:
@@ -434,7 +440,7 @@ class RedisManager:
         try:
             self.log('force killing...')
             Process(self.pid).kill()
-        except Exception:
+        except PsutilError:
             self.log('could not force kill.')
 
     def get_url(self) -> str:
@@ -461,9 +467,11 @@ class RedisManager:
         raise RedisDidNotBecomeActive(f'Redis Server {self.host}:{port} did not respond after {timeout} seconds')
 
     @staticmethod
-    def get_broker_url(port=6379, hostname=gethostname(), password=None) -> str:
+    def get_broker_url(port=6379, hostname=None, password=None) -> str:
+        if hostname is None:
+            hostname = gethostname()
         preamble = f':{password}@' if password else ''
-        return 'redis://%s%s:%d/0' % (preamble, hostname, int(port))
+        return f'redis://{preamble}{hostname}:{int(port):d}/0'
 
     @staticmethod
     def get_hostname_port_from_url(broker_url) -> tuple[str, str]:
@@ -475,23 +483,23 @@ class RedisManager:
         return urlsplit(broker_url).password
 
     def get(self, key, timeout=None):
-        return self.cli('GET %s' % key, timeout=timeout)
+        return self.cli(f'GET {key}', timeout=timeout)
 
     def set(self, key, value, timeout=None):
-        rc = self.cli('SET %s %s' % (key, value), timeout=timeout)
-        assert rc == 'OK', 'The return value was %s' % rc
+        rc = self.cli(f'SET {key} {value}', timeout=timeout)
+        assert rc == 'OK', f'The return value was {rc}'
 
     def purge(self, timeout=None):
         return self.cli('MEMORY PURGE', timeout=timeout)
 
     def monitor(self, monitor_file):
-        cmd = os.path.join(self.redis_bin_base, 'redis-cli') + ' -p %d -a %s MONITOR &' % (self.port, self._password)
+        cmd = os.path.join(self.redis_bin_base, 'redis-cli') + f' -p {self.port:d} -a {self._password} MONITOR &'
         with open(monitor_file, 'w') as out:
             subprocess.check_call(cmd, shell=True, stdout=out, stderr=subprocess.STDOUT)
 
     def cli(self, cmd, port=None, include_host=False, timeout=None):
         port = self.port if port is None else port
-        cmd = self.get_redis_cli_cmd(port=port, include_host=include_host) + ' %s' % cmd
+        cmd = self.get_redis_cli_cmd(port=port, include_host=include_host) + f' {cmd}'
         with open(os.devnull, 'w') as null:
             return subprocess.check_output(
                 shlex.split(cmd),

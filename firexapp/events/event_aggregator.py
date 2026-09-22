@@ -3,8 +3,8 @@ Aggregates events in to the task data model.
 """
 import dataclasses
 import logging
+import time
 from collections.abc import Callable
-from datetime import datetime
 from typing import Any
 
 from firexapp.events.model import RunStates, TaskColumn
@@ -251,7 +251,7 @@ class AbstractFireXEventAggregator:
         :return:
         """
         new_events = []
-        now = datetime.now().timestamp()
+        now = time.time()
         for incomplete_task in self._get_incomplete_tasks():
             new_event = {
                 'uuid': incomplete_task['uuid'],

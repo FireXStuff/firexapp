@@ -146,7 +146,7 @@ class FlameAppController:
     def __init__(
         self,
         run_metadata: dict[str, Any],
-        extra_task_representations=tuple(),
+        extra_task_representations=(),
         dump_model=True,
         min_age_repr_dump=60,
     ):
@@ -195,10 +195,9 @@ class FlameAppController:
     def _update_slim_listening_sio_clients(self, slim_update_data_by_uuid):
         # sio_server can be lazy initialized. Since the event receiving process starts before the
         # web modules are loaded, extremely early events can't be delivered.
-        if self.sio_server:
-            # Avoid sending events if there aren't fields the downstream cares about.
-            if slim_update_data_by_uuid:
-                self.sio_server.emit('tasks-update', slim_update_data_by_uuid)
+        # Avoid sending events if there aren't fields the downstream cares about.
+        if self.sio_server and slim_update_data_by_uuid:
+            self.sio_server.emit('tasks-update', slim_update_data_by_uuid)
 
     def dump_updated_metadata(self, update: dict[str, Any]) -> None:
         self.run_metadata.update(update)
@@ -393,10 +392,9 @@ class RunningModelDumper:
                         [t for t in work_items if t.item_type == QueueItemType.EXTRA_REPR_DUMP_TYPE],
                     )
 
-            except Exception as e:
+            except Exception:
                 # TODO: narrow exception handling so that an error in handling of one dump_type doesn't fail others.
-                logger.error("Failure while processing task-dumping work queue entry.")
-                logger.exception(e)
+                logger.exception("Failure while processing task-dumping work queue entry.")
             finally:
                 for _ in range(len(work_items)):
                     self._queue.task_done()

@@ -51,7 +51,7 @@ def get_args_from_json_from_all_args(all_args: list[str]) -> list[str]:
         try:
             json_args_path = all_args[json_args_name_index + 1]
         except IndexError:
-            raise Exception(f'The {JSON_ARGS_PATH_ARG_NAME} argument is not followed by a value.')
+            raise ValueError(f'The {JSON_ARGS_PATH_ARG_NAME} argument is not followed by a value.')
         else:
             return get_args_from_json(json_args_path)
 
@@ -94,7 +94,7 @@ class FireXBaseApp:
         if self.submit_app.run_submit.__name__ not in arguments.func.__name__:
             if len(others):
                 # only submit supports 'other' arguments
-                msg = 'Unrecognized arguments: %s' % ' '.join(others)
+                msg = 'Unrecognized arguments: {}'.format(' '.join(others))
                 self.arg_parser.error(message=msg)
             arguments.func(arguments)
         else:
@@ -108,7 +108,7 @@ class FireXBaseApp:
             and hasattr(self.running_app, self.main_error_exit_handler.__name__)
         ):
             self.running_app.main_error_exit_handler(reason=reason, run_revoked=run_revoked)
-        exit(-1)
+        sys.exit(-1)
 
     def create_arg_parser(self, description=None)->ArgumentParser:
         if not description:
@@ -146,7 +146,7 @@ class ExitSignalHandler:
         def first_exit_handler(signal_num, _):
             def last_exit_handler(_, __):
                 logger.error(self.last_warning)
-                exit(-1)
+                sys.exit(-1)
 
             def second_exit_handler(_, __):
                 logger.error(self.second_warning)

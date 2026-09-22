@@ -51,9 +51,9 @@ class FileRegistryTests(unittest.TestCase):
         for k, v in registry.items():
             FileRegistry().register_file(k, v)
 
-        file_registry = tempfile.NamedTemporaryFile().name
-        FileRegistry().dump_to_file(file_registry)
-        FileRegistry().destroy()
-        FileRegistry(from_file=file_registry)
-        self.assertDictEqual(FileRegistry().file_registry, registry)
-
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_registry = os.path.join(temp_dir, 'file_registry.json')
+            FileRegistry().dump_to_file(file_registry)
+            FileRegistry().destroy()
+            FileRegistry(from_file=file_registry)
+            self.assertDictEqual(FileRegistry().file_registry, registry)

@@ -85,7 +85,8 @@ class BrokerEventConsumerThread(threading.Thread):
                 logger.exception("Received external shutdown.")
                 self._on_external_shutdown()
             # pylint: disable=C0321
-            except Exception:
+            # Receiver and callback implementations can raise arbitrary errors; this is the reconnect boundary.
+            except Exception:  # noqa: BLE001
                 if self._is_root_complete():
                     logger.info("Root task complete; stopping broker receiver thread.")
                     return
@@ -94,7 +95,7 @@ class BrokerEventConsumerThread(threading.Thread):
                     logger.warning("Maximum broker retry attempts exceeded, stopping receiver thread)."
                                    " Will no longer retry despite incomplete root task.")
                     return
-                logger.debug("Try interval %d secs, still worth retrying." % try_interval)
+                logger.debug(f"Try interval {try_interval:d} secs, still worth retrying.")
                 time.sleep(try_interval)
             else:
                 logger.debug("Celery receiver stopped")
@@ -114,8 +115,8 @@ class BrokerEventConsumerThread(threading.Thread):
                 and self.celery_event_receiver):
                 logger.info("Stopping Celery event receiver because all tasks are complete.")
                 self.celery_event_receiver.should_stop = True
-        except Exception as e:
-            logger.exception(e)
+        except Exception:
+            logger.exception("Failed to process Celery event")
             raise
 
     @abc.abstractmethod

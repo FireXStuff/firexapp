@@ -1,8 +1,9 @@
 import inspect
 import os
+import time
 from collections import namedtuple
-from datetime import datetime
 from functools import wraps
+from typing import ClassVar
 
 from celery.local import PromiseProxy
 from celery.utils.log import get_task_logger
@@ -21,7 +22,7 @@ class ConverterRegister:
     """Converters are a practical mechanism for altering the input values into microservices. They can
     also be used in upfront validation of the inputs."""
     _ConvertNode = namedtuple('ConvertNode', ['func', 'dependencies', 'file'])
-    _task_instances = {}
+    _task_instances: ClassVar[dict[str, 'ConverterRegister']] = {}
 
     def __init__(self):
         """A register for argument converter functions that take in kwargs and transforms them."""
@@ -65,16 +66,15 @@ class ConverterRegister:
         for node in self.get_visit_order(pre_task):
             if verbose:
                 logger.debug("Running converter " + node)
-            start = datetime.now()
+            start = time.monotonic()
             try:
                 converted_dict = converters[node].func(new_kwargs)
             except Exception as e:
                 logger.warning(f"Error in input converter {node}")
                 raise ArgumentConversionException(f'Converter {node} failed: {e}') from e
-            done = datetime.now()
-            delta = (done - start).total_seconds()
+            delta = time.monotonic() - start
             if verbose or delta >= 0.001:
-                logger.debug("Took %.3f seconds to convert %s" % (delta, node))
+                logger.debug(f"Took {delta:.3f} seconds to convert {node}")
             # handle when None is returned
             if converted_dict:
                 new_kwargs.update(converted_dict)
@@ -157,7 +157,7 @@ class ConverterRegister:
                 run_pre_task = arg
             else:
                 raise ConverterRegistrationException(
-                    "Converter incorrectly registered. Type %s not recognised" % str(type(arg)))
+                    f"Converter incorrectly registered. Type {type(arg)!s} not recognised")
 
         return self._sub_register(func=func, dependencies=dependencies, run_pre_task=run_pre_task)
 
@@ -264,7 +264,7 @@ class SingleArgDecorator:
                             logger.debug('The original exception thrown by the converter is:', exc_info=True)
                             raise ArgumentConversionException(k + ": " + str(e)) from None
                         if v != orig_value:
-                            logger.debug("Argument %s was converted from %s to %s" % (k, str(orig_value), str(v)))
+                            logger.debug(f"Argument {k} was converted from {orig_value!s} to {v!s}")
                         ret[k] = v
             return ret
 

@@ -80,9 +80,8 @@ class PollingTests(unittest.TestCase):
             poll_until_file_not_empty(os.path.join(os.path.dirname(__file__), "not_happening"), timeout=0.1)
 
         # Never going to have content
-        with self.assertRaises(AssertionError):
-            with NamedTemporaryFile(delete=True) as f:
-                poll_until_file_not_empty(f.name, timeout=0.1)
+        with self.assertRaises(AssertionError), NamedTemporaryFile(delete=True) as f:
+            poll_until_file_not_empty(f.name, timeout=0.1)
 
         # already exists and has content
         poll_until_file_exist(__file__, timeout=0.1)
@@ -93,6 +92,5 @@ class PollingTests(unittest.TestCase):
             t.start()
             poll_until_file_not_empty(file_name, timeout=0.5)
             t.join(timeout=1)
-
 
 

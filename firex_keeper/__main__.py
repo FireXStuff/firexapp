@@ -46,7 +46,7 @@ def init_keeper():
     os.makedirs(keeper_dir, exist_ok=True)
     logging.basicConfig(filename=os.path.join(keeper_dir, 'keeper.log.txt'), level=logging.DEBUG, filemode='w',
                         format='[%(asctime)s %(levelname)s] %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
-    logger.info('Starting Keeper with args: %s' % args)
+    logger.info(f'Starting Keeper with args: {args}')
 
     signal.signal(signal.SIGTERM, _sig_handler)
 
@@ -59,9 +59,8 @@ def main():
     try:
         TaskDatabaseAggregatorThread(celery_app, run_metadata,
                                      receiver_ready_file=receiver_ready_file).run()
-    except Exception as e:
-        logger.error("Keeper process terminating due to error.")
-        logger.exception(e)
+    except Exception:
+        logger.exception("Keeper process terminating due to error.")
         raise
     else:
         logger.info("Keeper process terminating gracefully.")

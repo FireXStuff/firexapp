@@ -160,7 +160,7 @@ class GetResultsTests(unittest.TestCase):
             self.assertDictEqual(get_results(r, merge_children_results=True), {'a': 1, 'd': 4})
 
         with self.subTest('parent and child have empty return keys'):
-            result = {'a': 1, 'b': 2, RETURN_KEYS_KEY: tuple()}
+            result = {'a': 1, 'b': 2, RETURN_KEYS_KEY: ()}
             c1_result = {'c': 3, 'd': 4, 'a': 5, RETURN_KEYS_KEY: ('d',)}
             c2_result = {'e': 6, 'c': 7, RETURN_KEYS_KEY: None}
             c1 = MockFxAsyncResult(result=c1_result)

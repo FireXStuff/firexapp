@@ -1,3 +1,3 @@
 # noinspection PyUnresolvedReferences
 # this is intentionally incorrect code
-print(asdf)
+print(asdf)  # noqa: F821

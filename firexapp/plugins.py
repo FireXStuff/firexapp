@@ -212,8 +212,9 @@ class FxPluginRegistry:
                         # new entry only replaces the
                         entry = ((r[0][0], _make_id(new_task)), r[1])
                         s.receivers.append(entry)
-        except Exception as e:
-            logger.error("Unable to copy signals while overriding %s:\n%s" % (original.name, str(e)))
+        # Celery signal internals and third-party receivers can fail in arbitrary ways.
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Unable to copy signals while overriding {original.name}:\n{e!s}")
         return new_task
 
     @classmethod

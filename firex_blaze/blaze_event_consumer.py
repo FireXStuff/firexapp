@@ -33,9 +33,17 @@ TASK_EVENT_TO_STATE = {
 BLAZE_SEND_EVENT_TYPES = tuple(
     list(TASK_EVENT_TO_STATE.keys()) + ['task-completed', 'task-results', 'task-instrumentation', 'task-args']
 )
+DEFAULT_SUBMITTER = getuser()
 
 
-def format_kafka_message(firex_id, event_data, uuid, logs_url, submitter=getuser(), firex_requester=None) -> dict[str, Any]:
+def format_kafka_message(
+    firex_id,
+    event_data,
+    uuid,
+    logs_url,
+    submitter=DEFAULT_SUBMITTER,
+    firex_requester=None,
+) -> dict[str, Any]:
     return {'FIREX_ID': firex_id,
             'SUBMITTER': submitter,
             'FIREX_REQUESTER': firex_requester,
@@ -71,7 +79,9 @@ def send_kafka_mssg(kafka_producer: Producer, kafka_mssg: dict[str, Any], kafka_
         logger.error(f'Failed to send Kafka message: {e}')
 
 
-def get_basic_event(name, event_type, timestamp=None, event_timestamp=time.time()):
+def get_basic_event(name, event_type, timestamp=None, event_timestamp=None):
+    if event_timestamp is None:
+        event_timestamp = time.time()
     if timestamp is None:
         timestamp = event_timestamp
 
@@ -149,10 +159,10 @@ class KafkaSenderThread(BrokerEventConsumerThread):
                 logger.info('Successfully created Kafka producer')
                 return producer
 
-            except KafkaException as e:
+            except KafkaException:
                 if _retries < config.max_kafka_connection_retries:
                     _retries += 1
-                    logger.exception(e)
+                    logger.exception('Failed to create Kafka producer')
                     logger.warning(f'Retrying connecting to bootstrap servers '
                                    f'[retry {_retries}/{config.max_kafka_connection_retries}]')
                     time.sleep(min(2 ** _retries, 30))  # Exponential backoff
@@ -269,8 +279,8 @@ class BlazeKafkaSenderThread(KafkaSenderThread):
         if celery_event.get('type') in BLAZE_SEND_EVENT_TYPES:
             try:
                 kafka_event = self._get_kafka_event(celery_event)
-            except NoNameForEvent as e:
-                logger.exception(e)
+            except NoNameForEvent:
+                logger.exception('Unable to send unnamed Celery event to Kafka')
             else:
                 send_kafka_mssg(kafka_producer=self.producer,
                                 kafka_mssg=kafka_event,

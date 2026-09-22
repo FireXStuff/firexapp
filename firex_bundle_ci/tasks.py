@@ -1,6 +1,6 @@
-import datetime
 import os
 import subprocess
+import time
 
 import lxml.etree as et
 from xunitmerge import merge_trees
@@ -42,7 +42,7 @@ def RunIntegrationTests(test_output_dir=None, flow_tests_configs=None, flow_test
         cmd += ['--coverage']
     if public_runs:
         cmd += ['--public_runs']
-    start = datetime.datetime.now()
+    start = time.monotonic()
     try:
         completed = firex_subprocess.run(cmd, capture_output=True, timeout=6 * 60, check=True, text=True)
     except (firex_subprocess.CommandFailed, subprocess.TimeoutExpired) as e:
@@ -59,13 +59,13 @@ def RunIntegrationTests(test_output_dir=None, flow_tests_configs=None, flow_test
             logger.error('Stderr:\n' + stderr)
         raise
     else:
-        done = datetime.datetime.now()
+        done = time.monotonic()
         if completed.stdout:
             logger.info('Stdout:\n' + completed.stdout)
         if completed.stderr:
             logger.info('Stderr:\n' + completed.stderr)
 
-    return (done - start).total_seconds()
+    return done - start
 
 
 @app.task(bind=True)
@@ -184,7 +184,7 @@ def CollectXunits(uid, integration_test_logs=None):
 # @flame('xunit_results', lambda location: get_link(get_firex_viewer_url(location), "xunit report"))
 def AggregateXunit(uid, xunit_result_files):
     if not len(xunit_result_files):
-        raise Exception("No xml results files provided")
+        raise ValueError("No xml results files provided")
 
     xml_trees = []
     for xunit_file in xunit_result_files:

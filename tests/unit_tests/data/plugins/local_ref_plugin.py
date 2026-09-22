@@ -10,7 +10,7 @@ from firexkit.task import FireXTask
 @app.task(base=FireXTask)
 def shared_helper():
     """Shared helper from local_ref_plugin."""
-    pass  # pragma: no cover
+    # pragma: no cover
 
 
 @app.task(base=FireXTask)

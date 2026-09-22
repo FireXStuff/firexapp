@@ -14,11 +14,11 @@ tracking_test_install_config_path = os.path.join(test_data_dir, 'install-configs
 
 
 def ready_task_msg(count):
-    return "%s ready for tasks check." % count
+    return f"{count} ready for tasks check."
 
 
 def ready_console_release_msg(count):
-    return "%s ready for console release check." % count
+    return f"{count} ready for console release check."
 
 
 class TestService(TrackingService):
@@ -80,7 +80,7 @@ class TrackingServiceTest(FlowTestConfiguration):
         assert ready_console_release_msg(1) in cmd_output
         assert ready_console_release_msg(2) not in cmd_output
 
-        assert not cmd_err, "Unexpected stderr %s" % cmd_err
+        assert not cmd_err, f"Unexpected stderr {cmd_err}"
 
 
 class TrackingServiceDisabledTest(FlowTestConfiguration):

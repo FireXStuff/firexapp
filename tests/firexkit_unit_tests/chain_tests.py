@@ -14,9 +14,9 @@ from firexkit.testing import ut_celery_app
 def assertTupleAlmostEqual(t1, t2):
     len_t1 = len(t1)
     len_t2 = len(t2)
-    assert len_t1 == len_t2, '%d != %d' % (len_t1, len_t2)
+    assert len_t1 == len_t2, f'{len_t1:d} != {len_t2:d}'
     for k in t1:
-        assert k in t2, '%r not in %r' % (k, t2)
+        assert k in t2, f'{k!r} not in {t2!r}'
 
 
 class ReturnsTests(unittest.TestCase):
@@ -73,7 +73,7 @@ class ReturnsTests(unittest.TestCase):
             return {'stuff': the_goods}, {'stuff2': the_other_goods}
 
         for task in [a_task, b_task, c_task]:
-            with self.subTest('Testing %s' % task.__name__):
+            with self.subTest(f'Testing {task.__name__}'):
                 ret = task(the_goods="the_goods", the_other_goods="the_other_goods")
                 self.assertTrue(type(ret) is dict)
                 self.assertTrue(len(ret) == 5)
@@ -107,7 +107,7 @@ class ReturnsTests(unittest.TestCase):
         def e_task(the_goods):
             return the_goods
 
-        for input_value in [None, '', (set(),), set(), dict(), (dict(),), (tuple(),)]:
+        for input_value in [None, '', (set(),), set(), {}, ({},), ((),)]:
             with self.subTest():
                 ret = e_task(the_goods=input_value)
                 self.assertTrue(type(ret) is dict)
@@ -150,7 +150,7 @@ class ReturnsTests(unittest.TestCase):
                 # Should not reach here
                 pass  # pragma: no cover
             # Need to instantiate the object (otherwise its just a Proxy), hence the next line
-            dup_return.__name__
+            _ = dup_return.__name__
 
         # @returns above @app.task
         with self.assertRaises(ReturnsCodingException):
@@ -205,8 +205,7 @@ class ReturnsTests(unittest.TestCase):
             def double_return():
                 return None
             # Need to instantiate the object (otherwise its just a Proxy), hence the next line
-            # noinspection PyStatementEffect
-            double_return.__name__
+            _ = double_return.__name__
 
     def test_returns_and_bind(self):
         test_app = ut_celery_app()
@@ -346,7 +345,7 @@ class ChainVerificationTests(unittest.TestCase):
         def task1_with_return():
             pass  # pragma: no cover
 
-        @test_app.task(base=FireXTask, returns=set(['stuff']))
+        @test_app.task(base=FireXTask, returns={'stuff'})
         def task1_with_task_return():
             pass  # pragma: no cover
 
@@ -464,10 +463,9 @@ class ChainVerificationTests(unittest.TestCase):
                 c.verify_args()
                 self.assertIsNotNone(chain)
 
-            with self.subTest():
-                with self.assertRaises(InvalidChainArgsException):
-                    c2 = b.s(start="something") | m.s(very_important="@not_there") | e.s(missing="not missing")
-                    c2.verify_args()
+            with self.subTest(), self.assertRaises(InvalidChainArgsException):
+                c2 = b.s(start="something") | m.s(very_important="@not_there") | e.s(missing="not missing")
+                c2.verify_args()
 
             with self.subTest():
                 c2 = b.s(start="something") | m.s(very_important="@final") | e.s(missing="not missing")
@@ -631,7 +629,7 @@ class LabelTests(unittest.TestCase):
 
         with self.subTest('Two Tasks with default label'):
             c = task1.s() | task2.s()
-            self.assertEqual(c.get_label(), '|'.join([task1.name, task2.name]))
+            self.assertEqual(c.get_label(), f'{task1.name}|{task2.name}')
 
         with self.subTest('InjectArgs with one task and label'):
             c = InjectArgs() | task1.s()

@@ -76,8 +76,7 @@ class FlameFlowTestConfiguration(FlowTestConfiguration):
 def assert_all_match_some_prefix(strs, allowed_prefixes):
     for string in strs:
         if not any(string.startswith(ignore) for ignore in allowed_prefixes):
-            raise AssertionError("Found string '%s' matching no expected prefix: %s"
-                                 % (string, allowed_prefixes))
+            raise AssertionError(f"Found string '{string}' matching no expected prefix: {allowed_prefixes}")
 
 
 def assert_flame_web_ok(flame_url, path):
@@ -99,11 +98,11 @@ class FlameLaunchesTest(FlameFlowTestConfiguration):
         return ["submit", "--chain", self.chain]
 
     def assert_on_flame_url(self, log_dir, flame_url):
-        assert get_flame_pid(log_dir) > 0, "Found no pid: %s" % get_flame_pid(log_dir)
+        assert get_flame_pid(log_dir) > 0, f"Found no pid: {get_flame_pid(log_dir)}"
         assert_flame_web_ok(flame_url, '/alive')
 
         root_request = requests.get(flame_url)
-        assert root_request.ok, 'Expected OK response when fetching main page: %s' % root_request.status_code
+        assert root_request.ok, f'Expected OK response when fetching main page: {root_request.status_code}'
 
         # Since there is no central_server supplied, expect all resources to be served relatively.
         main_page_bs = BeautifulSoup(root_request.content, 'html.parser')
@@ -115,7 +114,7 @@ class FlameLaunchesTest(FlameFlowTestConfiguration):
         tasks_api_request = requests.get(flame_url + '/api/tasks')
         assert tasks_api_request.status_code == 200
         task_names = [t['name'] for t in tasks_api_request.json().values()]
-        assert self.chain in task_names, "Task API endpoint didn't include executed chain (%s)." % self.chain
+        assert self.chain in task_names, f"Task API endpoint didn't include executed chain ({self.chain})."
 
 
 class FlameLaunchWithCentralServerTest(FlameFlowTestConfiguration):
@@ -136,7 +135,7 @@ class FlameLaunchWithCentralServerTest(FlameFlowTestConfiguration):
     def assert_on_flame_url(self, log_dir, flame_url):
         flame_url = json_file_fn(get_run_metadata_file(firex_logs_dir=log_dir), lambda d: d['flame_url'])
         root_request = requests.get(flame_url)
-        assert root_request.ok, 'Expected OK response when fetching main page: %s' % root_request.status_code
+        assert root_request.ok, f'Expected OK response when fetching main page: {root_request.status_code}'
 
         # Since there is no central_server supplied, expect all resources to be served relatively.
         main_page_bs = BeautifulSoup(root_request.content, 'html.parser')
@@ -270,8 +269,7 @@ class FlameRevokeNonExistantUuidTest(FlameFlowTestConfiguration):
         wait_until(lambda: resp['response'] is not None, timeout=15, sleep_for=1)
         sio_client.disconnect()
 
-        assert resp['response'] == FAILED_EVENT, "Expected response %s but received %s" \
-                                                 % (FAILED_EVENT, resp['response'])
+        assert resp['response'] == FAILED_EVENT, "Expected response {} but received {}".format(FAILED_EVENT, resp['response'])
 
 
 class FlameRevokeSuccessTest(FlameFlowTestConfiguration):
@@ -448,7 +446,7 @@ class FlameRedisKillCleanupTest(FlameFlowTestConfiguration):
 
         redis_pid = int(Path(log_dir, Uid.debug_dirname, 'redis', 'redis.pid').read_text())
         redis_killed = kill_and_wait(redis_pid, sig=signal.SIGKILL)
-        assert redis_killed, "Failed to kill redis with pid %s" % redis_pid
+        assert redis_killed, f"Failed to kill redis with pid {redis_pid}"
 
         wait_until_model_task_uuid_complete_runstate(log_dir)
 
@@ -582,10 +580,10 @@ class DumpExtraRepDataOnCompleteTest(FlameFlowTestConfiguration):
         dumped_file_data = load_task_representation(log_dir, test_query_file)
 
         assert len(dumped_file_data) == 1
-        single_task = list(dumped_file_data.values())[0]
+        single_task = next(iter(dumped_file_data.values()))
         assert single_task['name'] == 'Parent'
         assert len(single_task['descendants']) == 1
-        assert list(single_task['descendants'].values())[0]['name'] == 'GrandChild'
+        assert next(iter(single_task['descendants'].values()))['name'] == 'GrandChild'
 
 
 class QuertyLiveExtraRepData(FlameFlowTestConfiguration):
@@ -603,10 +601,10 @@ class QuertyLiveExtraRepData(FlameFlowTestConfiguration):
         dumped_file_data = json.loads(Path(dumped_file).read_text())
 
         assert len(dumped_file_data) == 1
-        single_task = list(dumped_file_data.values())[0]
+        single_task = next(iter(dumped_file_data.values()))
         assert single_task['name'] == 'Parent'
         assert len(single_task['descendants']) == 1
-        assert list(single_task['descendants'].values())[0]['name'] == 'GrandChild'
+        assert next(iter(single_task['descendants'].values()))['name'] == 'GrandChild'
 
 
 class FlameLiveMonitorLocalFile(FlameFlowTestConfiguration):
@@ -666,8 +664,7 @@ def check_live_file_monitoring(host, log_dir, flame_url):
 
             found_initial = wait_until(lambda: initial_content.strip() in container['content'],
                                        timeout=10, sleep_for=1)
-            assert found_initial, "Expected initial content '%s' but was not found in: %s." \
-                                  % (initial_content, container['content'])
+            assert found_initial, "Expected initial content '{}' but was not found in: {}.".format(initial_content, container['content'])
 
             update_listen_content = 'update content\n'
             f.write(update_listen_content)
@@ -675,8 +672,7 @@ def check_live_file_monitoring(host, log_dir, flame_url):
 
             found_update = wait_until(lambda: update_listen_content.strip() in container['content'],
                                           timeout=10, sleep_for=1)
-            assert found_update, "Expected update content '%s' but was not found in: %s." \
-                                 % (update_listen_content, container['content'])
+            assert found_update, "Expected update content '{}' but was not found in: {}.".format(update_listen_content, container['content'])
 
             sio_client.emit('stop-listen-file')
             time.sleep(1)
@@ -708,7 +704,7 @@ RETURN = 1
 @returns('flame_data_result')
 def FlameDataService(self, uid, arg1, arg2='default'):
 
-    self.send_flame(dict(custom_key=CUSTOM_VALUE))
+    self.send_flame({"custom_key": CUSTOM_VALUE})
     self.send_firex_html(unregistered=UNREGISTERED_HTML_VALUE)
 
     check_output(['/bin/echo', 'hello'])
@@ -739,7 +735,7 @@ class FlameDataServiceTest(FlameFlowTestConfiguration):
         assert service_flame_data['flame_data_result']['value'] == _flame_return_result_fn(RETURN)
         assert all(v['type'] == 'html' for v in service_flame_data.values())
 
-        external_command = list(task[EXTERNAL_COMMANDS_KEY].values())[0]
+        external_command = next(iter(task[EXTERNAL_COMMANDS_KEY].values()))
         assert external_command['cmd'] == ['/bin/echo', 'hello']
         assert external_command['result']['completed']
         assert external_command['result']['output'].strip() == 'hello'

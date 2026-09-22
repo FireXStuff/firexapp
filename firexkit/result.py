@@ -66,7 +66,7 @@ class FireXResults:
         results_tuple : tuple[Any, ...]
         if not return_keys and result in [ None, {} ]:
             #FIXME: should print error on no returns keys with returns.
-            results_tuple = tuple()
+            results_tuple = ()
         elif (
             # handle named tuples, they are a result, not all the results
             (
@@ -195,13 +195,12 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         timeout: int=_DEFAULT_AR_QUERY_TIMEOUT,
         retry_delay: int=_DEFAULT_AR_RETRY_DELAY,
     ) -> str | None:
-        if self._fx_name is None:
-            if b_name := self.fx_backend_get_name(
-                default='',
-                timeout=timeout,
-                retry_delay=retry_delay,
-            ):
-                self._fx_name = b_name
+        if self._fx_name is None and (b_name := self.fx_backend_get_name(
+            default='',
+            timeout=timeout,
+            retry_delay=retry_delay,
+        )):
+            self._fx_name = b_name
         return self._fx_name
 
     def fx_logging_name(self) -> str:
@@ -398,15 +397,16 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
                 finally:
                     try:
                         d.send('task-unblocked', uuid=parent_id)
+                    # Unblocking is cleanup and must not replace the original exception.
                     except Exception:
-                        pass
+                        logger.debug('Failed to send task-unblocked cleanup event', exc_info=True)
         else:
             yield
 
     def _handle_broker_timeout(
         self,
         callable_func: Callable[..., R],
-        args: tuple[Any, ...]=tuple(),
+        args: tuple[Any, ...]=(),
         timeout=_DEFAULT_AR_QUERY_TIMEOUT,
         retry_delay=_DEFAULT_AR_RETRY_DELAY,
     ) -> R:
@@ -517,7 +517,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
     def fx_wait_no_state_update(
         self,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
         log_msg: bool=True,
         start_time: float | None=None,
         max_sleep: float=_SLEEP_BETWEEN_ITERATIONS * 20 * 15,  # Somewhat arbitrary,
@@ -549,7 +549,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             result_state = self._handle_fx_ready()
         except ChainInterruptedException as e:
             if raise_on_failure:
-                raise e
+                raise
             if log_msg:
                 logger.warning(
                     f'Task {self.fx_logging_name()} failure caused by {first_non_chain_interrupted_exception(e)}'
@@ -563,7 +563,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
     def fx_wait(
         self,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
         log_msg: bool=True,
         start_time: float | None=None,
         max_sleep: float=_SLEEP_BETWEEN_ITERATIONS * 20 * 15,  # Somewhat arbitrary,
@@ -593,9 +593,9 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         else:
             try:
                 self._handle_fx_ready()
-            except ChainInterruptedException as e:
+            except ChainInterruptedException:
                 if raise_on_failure:
-                    raise e
+                    raise
         return _get_results_tuple(self, return_keys=return_keys)
 
     def get_result_key(
@@ -802,7 +802,7 @@ class ManyFxAsyncResults(Generic[K]):
     def wait_for_any(
         self,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
         raise_on_failure: bool=True,
     ) -> FxAsyncResult:
         return next(
@@ -817,7 +817,7 @@ class ManyFxAsyncResults(Generic[K]):
         self,
         max_wait: float | RunTimeReserve | None=None,
         poll_max_wait: float | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
         raise_on_failure: bool=True,
     ) -> Generator[FxAsyncResult, None, None]:
         poll_wait = poll_max_wait or 0.1
@@ -863,7 +863,7 @@ class ManyFxAsyncResults(Generic[K]):
     def wait_for_all(
         self,
         max_wait: float | RunTimeReserve | None=None,
-        callbacks: Iterable[WaitLoopCallBack] = tuple(),
+        callbacks: Iterable[WaitLoopCallBack] = (),
         log_msg: bool=True,
         raise_on_failure: bool=True,
     ) -> ManyFxAsyncResults[K]:
@@ -1179,7 +1179,7 @@ def wait_on_async_results(
     # FIXME: crazy type sig
     results: FxAsyncResult | list[FxAsyncResult] | None,
     max_wait: float | RunTimeReserve | None=None,
-    callbacks: Iterable[WaitLoopCallBack] = tuple(),
+    callbacks: Iterable[WaitLoopCallBack] = (),
     log_msg: bool=True,
     raise_exception_on_failure: bool=True,
     **_kwargs,
@@ -1225,7 +1225,7 @@ class ChainRevokedException(ChainException):
         if self.task_name:
             message += self.task_name
         if self.task_id:
-            message += '[%s]' % self.task_id
+            message += f'[{self.task_id}]'
         return message
 
 
@@ -1247,7 +1247,7 @@ class ChainInterruptedException(ChainException):
         if self.task_name:
             message += self.task_name
         if self.task_id:
-            message += '[%s]' % self.task_id
+            message += f'[{self.task_id}]'
         return message
 
 
@@ -1262,7 +1262,7 @@ class MultipleFailuresException(ChainInterruptedException):
     def __init__(
         self,
         task_ids: tuple[str, ...]=('UNKNOWN',),
-        failures: tuple[Exception, ...]=tuple(),
+        failures: tuple[Exception, ...]=(),
     ):
         self.task_ids = task_ids
         self.failures = failures
@@ -1345,7 +1345,7 @@ def _results2tuple(
     return_keys: str | Sequence[str],
 ) -> tuple[Any, ...]:
     if isinstance(return_keys, str):
-        return_keys = tuple([return_keys])
+        return_keys = (return_keys,)
     results_to_return : list[Any] = []
     for key in return_keys:
         if key == DYNAMIC_RETURN:
@@ -1425,7 +1425,7 @@ def _get_results_tuple(
 
 def get_results(
     result: FxAsyncResult,
-    return_keys: str | Sequence[str]=tuple(),
+    return_keys: str | Sequence[str]=(),
     parent_id: str | None=None,
     return_keys_only=True,
     merge_children_results=False,

@@ -2,6 +2,7 @@
 # a registry of the ouptut files needed
 import json
 import os
+from typing import ClassVar
 
 from firexapp.submit.uid import Uid
 
@@ -15,7 +16,7 @@ class KeyNotRegistered(Exception):
 
 
 class Singleton(type):
-    _instances = {}
+    _instances: ClassVar[dict[type, object]] = {}
 
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
@@ -36,7 +37,7 @@ class FileRegistry(metaclass=Singleton):
 
     def register_file(self, key, relative_path):
         if key in self.file_registry:
-            raise KeyAlreadyRegistered('%r already registered; callable=%s' % (key, self.file_registry[key]))
+            raise KeyAlreadyRegistered(f'{key!r} already registered; callable={self.file_registry[key]}')
         else:
             self.file_registry[key] = relative_path
 
@@ -44,7 +45,7 @@ class FileRegistry(metaclass=Singleton):
         try:
             return self.resolve_path(uid_or_logsdir, self.get_relative_path(key))
         except KeyError:
-            raise KeyNotRegistered('%r is not registered' % key)
+            raise KeyNotRegistered(f'{key!r} is not registered')
 
     def get_relative_path(self, key):
         return self.file_registry[key]

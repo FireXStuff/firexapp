@@ -37,7 +37,7 @@ def _launch_shutdown_subprocess(shutdown_cmd: list[str], logs_dir: str) -> int:
             shutdown_cmd,
             close_fds=True,
             env=shutdown_subprocess_env,
-            preexec_fn=os.setpgrp,
+            start_new_session=True,
             # Shutdown doesn't care about cwd, but Celery can crash with bad cwd :/
             cwd=shutdown_cwd,
         ).pid

@@ -200,10 +200,10 @@ class InspectedTask(pydantic.BaseModel):
                 try:
                     modelled_tasks.append(
                         cls.model_validate(
-                            t | dict(
-                                status=query_task_status,
-                                celery_destination=d,
-                            )
+                            t | {
+                                'status': query_task_status,
+                                'celery_destination': d,
+                            }
                         )
                     )
                 except ValueError as e:
@@ -317,10 +317,10 @@ class InspectedTask(pydantic.BaseModel):
                     status, task_dict = status_and_task
                     tasks.append(
                         cls.model_validate(
-                            task_dict | dict(
-                                status=status,
-                                celery_destination=celery_dest,
-                            )
+                            task_dict | {
+                                'status': status,
+                                'celery_destination': celery_dest,
+                            }
                         )
                     )
                 except ValueError as e:

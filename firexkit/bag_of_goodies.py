@@ -527,7 +527,7 @@ class FireXBaseBaseModel(pydantic.BaseModel):
         except pydantic.ValidationError as e:
             for e_entry in e.errors():
                 logger.error(e_entry)
-            raise e
+            raise
 
 
 def _get_fx_model_subclass(
@@ -676,7 +676,8 @@ def _build_annotation_validator(annotation) -> _AnnotationValidator:
             # in to the exception it should have been, without offering firexkit's
             # namespace to resolve names that belong to the task's module.
             adapter.rebuild(raise_errors=True, _parent_namespace_depth=0)
-    except Exception as e:
+    # Third-party Pydantic schema hooks are allowed to raise arbitrary exceptions.
+    except Exception as e:  # noqa: BLE001
         # Schema generation failures are PydanticUserErrors (RuntimeError), not
         # ValueErrors, and a third-party __get_pydantic_core_schema__ can raise anything.
         logger.debug(f'Pydantic cannot model annotation {annotation}: {e!r}')
@@ -865,10 +866,10 @@ class AutoInjectRegistry:
             if (
                 arg_name in self._specs_by_name_and_type
                 and (auto_in_arg := self._get_spec_by_name_and_instance(arg_name, arg_val) )
+                and auto_in_arg.value != arg_val
             ):
-                if auto_in_arg.value != arg_val:
-                    logger.info(f'Overwriting auto-inject arg {arg_name} with abog value: {arg_val}')
-                    auto_in_arg.value = arg_val
+                logger.info(f'Overwriting auto-inject arg {arg_name} with abog value: {arg_val}')
+                auto_in_arg.value = arg_val
 
     def _get_spec_by_name_and_instance(self, arg_name: str, val: typing.Any) -> AutoInjectSpec | None:
         for t, spec in self._specs_by_name_and_type[arg_name].items():
@@ -905,7 +906,7 @@ class AutoInjectRegistry:
                 # service definitions can be written assuming AutoInject is populated with a valide type,
                 # to adding a default at the service level confuses that and encourages "always have a default"
                 # needless defensive coding.
-                raise Exception(f'AutoInject arg {auto_inject_name} has a default value.')
+                raise TypeError(f'AutoInject arg {auto_inject_name} has a default value.')
 
             auto_inject_type = BagOfGoodies.get_auto_inject_type(param.annotation)
             if auto_inject_type:
@@ -919,7 +920,7 @@ class AutoInjectRegistry:
                         auto_in_v = spec.default_value
                     auto_inject_kwargs[auto_inject_name] = auto_in_v
             else:
-                raise Exception(
+                raise TypeError(
                     f'AutoInject arg {auto_inject_name} has no inner type. The "Foo" in AutoInject[Foo] is required.')
         if auto_inject_kwargs:
             logger.debug(f'Auto-Injecting args: {", ".join(auto_inject_kwargs)}')

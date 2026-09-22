@@ -17,7 +17,7 @@ from firexkit.task import FireXTask
 @app.task(base=FireXTask)
 def reimported_helper():
     """Exists once per copy of this module, and is overridden in both."""
-    pass  # pragma: no cover
+    # pragma: no cover
 
 
 @app.task(base=FireXTask)

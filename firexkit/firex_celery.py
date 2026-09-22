@@ -289,13 +289,13 @@ class FireXCelery(Celery):
     ) -> Self:
         # assert plugins and other envs not set?
         fx_env = FxEnvVars.model_validate(
-            dict(
-                CURRENT_RUN_FIREX_ID=str(uid),
-                firex_logs_dir=uid.logs_dir,
-                redis_bin_dir=broker_mngr.redis_bin_base,
-                BROKER=broker_mngr.broker_url,
-                firex_plugins=plugins,
-            )
+            {
+                'CURRENT_RUN_FIREX_ID': str(uid),
+                'firex_logs_dir': uid.logs_dir,
+                'redis_bin_dir': broker_mngr.redis_bin_base,
+                'BROKER': broker_mngr.broker_url,
+                'firex_plugins': plugins,
+            }
         )
         fx_app = cls._get_promotable_app()
         if fx_app is not None:
@@ -620,7 +620,8 @@ class FireXCelery(Celery):
                 self.get_run_logs_dir(),
                 run_soft_time_limit,
             )
-        except Exception as e:
+        # Persistence is best effort; the broker-backed limit has already taken effect.
+        except Exception as e:  # noqa: BLE001
             logger.warning(
                 f'Failed recording run_soft_time_limit {run_soft_time_limit} in run.json;'
                 f' the increase is in effect for this run, but processes outside it'
@@ -1328,7 +1329,8 @@ def statsd_task_postrun(
     if task.AsyncResult(task_id).fx_is_revoked():
         try:
             revoke_details = sender.app.complete_task_revoke(task_id)
-        except Exception as e:
+        # Revocation completion is best effort during Celery's post-run signal.
+        except Exception as e:  # noqa: BLE001
             revoke_details = None
             logger.warning(f'Failed to write revoke complete for task {task_id}: {e}')
 
@@ -1359,12 +1361,10 @@ def statsd_task_revoked(sender: FireXTask, request=None, *_args, **_kwargs):
 
 
 def _send_task_completed_event(task: FireXTask | None):
-    if task:
-        if ( actual_runtime := task.duration() ) is not None:
-            task.send_event(
-                'task-completed',
-                actual_runtime=convert_to_serializable(
-                    max(actual_runtime, 0)
-                )
+    if task and ( actual_runtime := task.duration() ) is not None:
+        task.send_event(
+            'task-completed',
+            actual_runtime=convert_to_serializable(
+                max(actual_runtime, 0)
             )
-
+        )

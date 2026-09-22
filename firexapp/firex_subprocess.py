@@ -108,8 +108,7 @@ def _sanitize_runner_kwargs(runner_type: _SubprocessRunnerType, kwargs: dict):
 
     for key in disallowed_keys:
         if key in kwargs:
-            logger.error('[%s] WARNING: %s argument not allowed, it will be overridden.' %
-                         (runner_type.name.lower(), key))
+            logger.error(f'[{runner_type.name.lower()}] WARNING: {key} argument not allowed, it will be overridden.')
             del kwargs[key]
 
 
@@ -121,7 +120,7 @@ def _subprocess_runner_retries(retries, retry_delay, **kwargs):
     retry_count = 0
     while True:
         try:
-            extra_header = '[retry %d/%d]' % (retry_count, retries) if retry_count else None
+            extra_header = f'[retry {retry_count:d}/{retries:d}]' if retry_count else None
             return _subprocess_runner(extra_header=extra_header, **kwargs)
         except (subprocess.SubprocessError, FileNotFoundError):
             if retry_count >= retries:
@@ -136,7 +135,8 @@ def _send_flame_subprocess(subprocess_data):
         from celery import current_task
         if current_task:
             current_task.send_firex_event_raw({EXTERNAL_COMMANDS_KEY: subprocess_data})
-    except Exception as e:
+    # Flame telemetry is best effort and must never prevent command execution.
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"Error while sending flame subprocess event: {e}")
 
 
@@ -235,9 +235,9 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
         live_link = _get_live_file_monitor_link()
         if live_link is None:
             live_link = ''
-        msg += [f'{live_link}'
+        msg += [(f'{live_link}'
                 f'<span class="command_line_prefix">{host}:{cwd_str}{sep}</span> '
-                f'<span class="command_line">{html_escape(cmd_str)}</span>']
+                f'<span class="command_line">{html_escape(cmd_str)}</span>')]
         span_class = 'command_extra_info' if file else 'hidden'
         msg += [f'<span class="{span_class}">output also written to: {filename}</span>']
         logger.log(log_level, '\n'.join(msg), extra={'label': subprocess_uuid,
@@ -270,7 +270,7 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
         return link
 
     def _hide_live_file_monitor_element():
-        logger.raw('<style>.%s {display: none;}</style>' % live_file_monitor_span_class)
+        logger.raw(f'<style>.{live_file_monitor_span_class} {{display: none;}}</style>')
 
     def _get_output_from_file():
         if not file or not chars or os.fstat(f.fileno()).st_size < chars:
@@ -282,9 +282,9 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
 
     def _log_output(contents, error=False):
         if not chars or len(contents) < chars:
-            log_msg = '%s Returned String:\n%s' % (log_header, contents)
+            log_msg = f'{log_header} Returned String:\n{contents}'
         else:
-            log_msg = '%s Last %d chars of Returned String:\n%s' % (log_header, chars, contents[-chars:])
+            log_msg = f'{log_header} Last {chars:d} chars of Returned String:\n{contents[-chars:]}'
         logger.log(log_level,
                    log_msg,
                    extra={'span_class': 'command_output command_output_error' if error else 'command_output'})
@@ -301,12 +301,12 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
                 proc.kill()
                 try:
                     proc.wait(timeout=6)
-                except (subprocess.TimeoutExpired, psutil.TimeoutExpired) as e:
+                except (subprocess.TimeoutExpired, psutil.TimeoutExpired):
                     # Give up at this point. It is undead.
-                    logger.exception(e)
-        except (PermissionError, psutil.AccessDenied, psutil.NoSuchProcess) as e:
+                    logger.exception("Process did not terminate after being killed")
+        except (PermissionError, psutil.AccessDenied, psutil.NoSuchProcess):
             # Possible if the underlying process is running under sudo or the like
-            logger.exception(e)
+            logger.exception("Unable to terminate process cleanly")
 
         if not children:
             return #  <- we are done
@@ -460,9 +460,10 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
         env = _get_env_without_pythonpath(env)
 
     if file:
-        f = open(file, 'wb+', buffering=0)
+        # The shared `with f:` below manages either kind of output file.
+        f = open(file, 'wb+', buffering=0)  # noqa: SIM115
     else:
-        f = tempfile.NamedTemporaryFile(delete=False, buffering=0)
+        f = tempfile.NamedTemporaryFile(delete=False, buffering=0)  # noqa: SIM115
     filename = f.name
     open_og_rw_permissions(filename)
 
@@ -520,7 +521,10 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
 
                 # Log
                 if now - last_log_time > 10 * 60:  # Log every 10 minutes
-                    time_str = datetime.datetime.fromtimestamp(last_output_clock_time).strftime('%Y-%m-%d %H:%M:%S')
+                    time_str = datetime.datetime.fromtimestamp(
+                        last_output_clock_time,
+                        tz=datetime.timezone.utc,
+                    ).astimezone().strftime('%Y-%m-%d %H:%M:%S')
                     mfs = f', and monitored files are {last_file_output_size} bytes.' if monitor_activity_files else '.'
                     logger.info(f'Waiting for command to finish...\n(Last command output was at {time_str}. '
                                 f'Output size is {last_output_size} bytes{mfs}')
@@ -564,7 +568,7 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
             if capture_output:
                 output = _get_output_from_file()
                 if log_level is not None:
-                    _log_output(output, error=True if p.returncode else False)
+                    _log_output(output, error=bool(p.returncode))
 
             # Should these exceptions be thrown after all the cleanups below?
             if slow_process:
@@ -593,7 +597,7 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
         try:
             os.remove(filename)
         except FileNotFoundError:
-            logger.error('Could not delete temp file: %s' % filename)
+            logger.error(f'Could not delete temp file: {filename}')
 
     # Raise exception on error, if requested
     if check and p.returncode:

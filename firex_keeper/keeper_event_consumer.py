@@ -274,7 +274,7 @@ class TaskDatabaseAggregatorThread(BrokerEventConsumerThread):
         self,
         celery_app,
         run_metadata: FireXRunMetadata,
-        max_retry_attempts: int = None,
+        max_retry_attempts: int | None = None,
         receiver_ready_file: str | None = None
     ):
         super().__init__(celery_app, max_retry_attempts, receiver_ready_file)
@@ -323,8 +323,8 @@ class WritingFireXRunDbManager(FireXRunDbManager, KeeperEventAggregator):
     def aggregate_events_and_update_db(self, celery_events):
         try:
             changed_uuids = self._insert_or_update_tasks(celery_events)
-        except (sqlalchemy.exc.DatabaseError, SqlLiteDatabaseError)  as e:
-            logger.exception(e)
+        except (sqlalchemy.exc.DatabaseError, SqlLiteDatabaseError):
+            logger.exception("Failed to update Keeper database from Celery events")
         else:
             # log DB write progress, similar to Celery event receive progress logging.
             for changed_uuid in changed_uuids:
@@ -381,8 +381,8 @@ class WritingFireXRunDbManager(FireXRunDbManager, KeeperEventAggregator):
 
         try:
             self._set_keeper_complete()
-        except (sqlalchemy.exc.DatabaseError, SqlLiteDatabaseError) as e:
-            logger.exception(e)
+        except (sqlalchemy.exc.DatabaseError, SqlLiteDatabaseError):
+            logger.exception("Failed to mark Keeper database complete")
 
         self.close() # close DB connection.
 

@@ -11,4 +11,4 @@ from firexkit.task import FireXTask
 @app.task(base=FireXTask)
 def chained_override_me():
     """The dominant override, which calls its orig -- mid_override_plugin's."""
-    pass  # pragma: no cover
+    # pragma: no cover

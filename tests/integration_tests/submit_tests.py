@@ -22,7 +22,7 @@ from firexkit.task import FireXTask, InjectArgs
 @SingleArgDecorator("barf")
 def do_i_barf(arg_value):
     if arg_value:
-        raise Exception("Barf")
+        raise ValueError("Barf")
 
 
 def get_submission_file(logs_dir: str):
@@ -163,18 +163,18 @@ class InvalidPluginArgumentError(FlowTestConfiguration):
 
 class ArgsFromJsonFile(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
-        self.json_args_path = NamedTemporaryFile(mode='w', delete=False)
-        json.dump(['--i_need_me_some_of_this', 'here is the arg'], self.json_args_path)
-        self.json_args_path.flush()
+        with NamedTemporaryFile(mode='w', delete=False) as json_args_file:
+            json.dump(['--i_need_me_some_of_this', 'here is the arg'], json_args_file)
+            self.json_args_path = json_args_file.name
         return ["submit",
                 '--chain', 'need_an_argument',
-                JSON_ARGS_PATH_ARG_NAME, self.json_args_path.name]
+                JSON_ARGS_PATH_ARG_NAME, self.json_args_path]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert not cmd_err
 
     def assert_expected_return_code(self, ret_value):
-        os.unlink(self.json_args_path.name)
+        os.unlink(self.json_args_path)
         assert_is_good_run(ret_value)
 
 @app.task(bind=True)

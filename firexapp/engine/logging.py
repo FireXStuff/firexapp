@@ -160,7 +160,7 @@ class FireXTaskFormatter(FireXFormatter):
 @after_setup_task_logger.connect
 def configure_task_logger(logger, loglevel, logfile, format, colorize, **_kwargs):
     # Find the WatchedFileHandler
-    file_handler = [handler for handler in logger.handlers if isinstance(handler, WatchedFileHandler)][0]
+    file_handler = next(handler for handler in logger.handlers if isinstance(handler, WatchedFileHandler))
     # set it's formatter to our custom Formatter
     file_handler.addFilter(AddHtmlElementsToLogRecords())
     file_handler.setFormatter(FireXTaskFormatter(format))
@@ -169,7 +169,7 @@ def configure_task_logger(logger, loglevel, logfile, format, colorize, **_kwargs
 @after_setup_logger.connect
 def configure_main_logger(logger, loglevel, logfile, format, colorize, **_kwargs):
     # Find the WatchedFileHandler
-    file_handler = [handler for handler in logger.handlers if isinstance(handler, WatchedFileHandler)][0]
+    file_handler = next(handler for handler in logger.handlers if isinstance(handler, WatchedFileHandler))
     # set it's formatter to our custom Formatter
     file_handler.addFilter(AddHtmlElementsToLogRecords())
     file_handler.setFormatter(FireXFormatter(format))
@@ -194,9 +194,7 @@ def configure_main_logger(logger, loglevel, logfile, format, colorize, **_kwargs
 
 class TaskHeaderFilter(logging.Filter):
     def filter(self, record):
-        if record.funcName == functional.head_from_fun.__name__:
-            return False
-        return True
+        return record.funcName != functional.head_from_fun.__name__
 
 
 # Filter out useless debug messages printed in functional.head_from_fun()

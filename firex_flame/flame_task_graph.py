@@ -9,7 +9,6 @@ import sys
 import tarfile
 import time
 from collections import OrderedDict
-from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
@@ -630,12 +629,8 @@ def _validate_task_queries(task_representation) -> bool:
     missing_criterias = [r for r in task_representation
                          if 'matchCriteria' not in r
                             or not isinstance(r['matchCriteria'], dict)]
-    if missing_criterias:
-        return False
-
     # TODO: validate matchCriteria themselves
-
-    return True
+    return not missing_criterias
 
 
 def _normalize_criteria_key(k):
@@ -679,7 +674,7 @@ def _matches_has_key_criteria(task: _FlameTask, key_path) -> bool:
                 for k in remaining_keys:
                     try:
                         tmp_dict = tmp_dict[k]
-                    except Exception:
+                    except (KeyError, TypeError):
                         return False
                 return True
     return False
@@ -1005,7 +1000,7 @@ class FlameEventAggregator:
         that is generated here so that the UI can show a non-incomplete runstate.
         :return:
         """
-        now: float = datetime.now().timestamp()
+        now = time.time()
         return [
             {
                 'uuid': task.get_uuid(),
@@ -1173,10 +1168,9 @@ class FlameModelDumper:
                 logger.info(f"Starting to dump task representation of: {model_file_name}.")
                 atomic_write_json(out_file, tasks_representation)
                 logger.info(f"Finished dumping {len(tasks_representation)} task representation of {model_file_name} to {out_file}.")
-        except Exception as ex:
+        except Exception:
             # Don't interfere with shutdown even if extra representation dumping fails.
-            logger.error(f"Failed to dump representation of {model_file_name}.")
-            logger.exception(ex)
+            logger.exception(f"Failed to dump representation of {model_file_name}.")
 
 
 class NoWritngModelDumper(FlameModelDumper):

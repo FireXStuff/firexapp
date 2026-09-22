@@ -2,6 +2,7 @@ import json
 import pprint
 from socket import gethostname
 from tempfile import NamedTemporaryFile
+from typing import ClassVar
 
 from firex_keeper import task_query
 from firexapp.common import poll_until_path_exist
@@ -9,6 +10,9 @@ from firexapp.engine.celery import app
 from firexapp.submit.submit import get_log_dir_from_output
 from firexapp.tasks.root_tasks import get_configured_root_task
 from firexapp.testing.config_base import FlowTestConfiguration
+
+with NamedTemporaryFile() as _json_file:
+    JSON_FILE_PATH = _json_file.name
 
 
 @app.task(returns='some_output')
@@ -47,11 +51,11 @@ def VerifyInitialJsonReport(uid, chain, submission_dir, json_file, argv, some_in
 
 
 class JsonReportsGetGenerated(FlowTestConfiguration):
-    json_file = NamedTemporaryFile().name
+    json_file = JSON_FILE_PATH
 
     some_service_arg = 'some_input'
     some_service_arg_value = 'some_value'
-    some_service_arg_dict = {some_service_arg: some_service_arg_value}
+    some_service_arg_dict: ClassVar[dict[str, str]] = {some_service_arg: some_service_arg_value}
 
     def initial_firex_options(self) -> list:
         return ["submit", "--chain", f"{SomePassThroughService.__name__},{VerifyInitialJsonReport.__name__}",
@@ -84,5 +88,5 @@ class JsonReportsGetGenerated(FlowTestConfiguration):
                       inputs=json_content['inputs'])
 
     def assert_expected_return_code(self, ret_value):
-        assert ret_value == 0, "Test expects a CLEAN run, but returned %s. " \
-                               "Check the err output to see what went wrong." % str(ret_value)
+        assert ret_value == 0, f"Test expects a CLEAN run, but returned {ret_value!s}. " \
+                               "Check the err output to see what went wrong."

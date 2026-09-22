@@ -1,4 +1,4 @@
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from time import time
 
 from celery.worker.autoscale import Autoscaler
@@ -48,10 +48,18 @@ class FireXAutoscaler(Autoscaler):
         })
         return frozenset(self._completed_task_ids)
 
-    @lru_cache(maxsize=4096)
-    def _get_task_postrun_info(self, task_id: str, _call_time):
-        return self.fx_app.task_id_has_postrun(task_id)
+    @cached_property
+    def _get_task_postrun_info(self):
+        @lru_cache(maxsize=4096)
+        def get_task_postrun_info(task_id: str, _call_time):
+            return self.fx_app.task_id_has_postrun(task_id)
 
-    @lru_cache(maxsize=4096)
-    def _get_task_prerun_info(self, task_id: str, _call_time) -> bool:
-        return self.fx_app.task_id_has_prerun(task_id)
+        return get_task_postrun_info
+
+    @cached_property
+    def _get_task_prerun_info(self):
+        @lru_cache(maxsize=4096)
+        def get_task_prerun_info(task_id: str, _call_time) -> bool:
+            return self.fx_app.task_id_has_prerun(task_id)
+
+        return get_task_prerun_info

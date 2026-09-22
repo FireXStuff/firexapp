@@ -13,4 +13,4 @@ from firexkit.task import FireXTask
 @app.task(base=FireXTask)
 def indirect_override_me():
     """The override that must survive a later plugin importing a same-named task."""
-    pass  # pragma: no cover
+    # pragma: no cover

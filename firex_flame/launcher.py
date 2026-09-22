@@ -69,7 +69,7 @@ def get_flame_args(uid, broker_recv_ready_file, args):
     for k, v in cmd_args.items():
         if v is not None:
             result.append(f'--{k}')
-            result.append('%s' % v)
+            result.append(f'{v}')
     return result
 
 
@@ -150,11 +150,12 @@ class FlameLauncher(TrackingService):
                                  stdout=f, stderr=subprocess.STDOUT,
                                  close_fds=True,
                                  env=FxEnvVars.select_minimal_fx_env_from_os_env(),
-                                 preexec_fn=os.setpgrp, # Avoid SIGINTs sent to FireX by having own process group.
+                                 # Avoid SIGINTs sent to FireX by creating a new process group.
+                                 start_new_session=True,
                                  cwd=flame_debug_dir,
                                  )
         except Exception as e:
-            logger.error("Flame subprocess start failed: %s." % e)
+            logger.error(f"Flame subprocess start failed: {e}.")
             raise
 
         return {}

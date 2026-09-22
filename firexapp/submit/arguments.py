@@ -5,7 +5,10 @@ from typing import Any
 
 from firexapp.plugins import plugins_has
 from firexapp.submit.console import setup_console_logging
-from firexkit.argument_conversion import ConverterRegister
+from firexkit.argument_conversion import (
+    ConverterRegister,
+    ConverterRegistrationException,
+)
 
 logger = setup_console_logging(__name__)
 
@@ -21,20 +24,20 @@ def get_chain_args(other_args: []):
             if no_value_exception:
                 # the error was earlier
                 raise no_value_exception
-            raise ChainArgException('Error: Argument should start with a proper dash (- or --)\n%s' % x)
+            raise ChainArgException(f'Error: Argument should start with a proper dash (- or --)\n{x}')
 
         try:
             value = next(it)
             if str(value).startswith("-"):
                 # there might be an error. we'll find out later
                 no_value_exception = ChainArgException(
-                    'Error: Arguments must have an accompanying value\n%s' % x)
+                    f'Error: Arguments must have an accompanying value\n{x}')
         except StopIteration:
-            raise ChainArgException('Error: Arguments must have an accompanying value\n%s' % x)
+            raise ChainArgException(f'Error: Arguments must have an accompanying value\n{x}')
 
         key = x.lstrip('-')
         if not re.match('^[A-Za-z].*', key):
-            raise ChainArgException('Error: Argument should start with a letter\n%s' % key)
+            raise ChainArgException(f'Error: Argument should start with a letter\n{key}')
         chain_arguments[key] = value
     return chain_arguments
 
@@ -100,8 +103,9 @@ class InputConverter:
             if not isinstance(arg, bool):
                 continue
             if arg and cls.pre_load_was_run:
-                raise Exception("Pre-microservice load conversion has already been run. "
-                                "You can only register post load")
+                raise ConverterRegistrationException(
+                    "Pre-microservice load conversion has already been run. You can only register post load"
+                )
             preload = arg
             break
         else:
@@ -122,16 +126,21 @@ class InputConverter:
                 # need to override the append method of the single argument converters
                 old_append = converter.append
 
-                def new_append(*more_ags):
+                def new_append(
+                    *more_args,
+                    _single_arg_decorator=single_arg_decorator,
+                    _converter=converter,
+                    _old_append=old_append,
+                ):
                     # special handling of first post load call
                     if cls.pre_load_was_run:
                         # re-register this converter, but in post
-                        single_arg_decorator.args.clear()
-                        InputConverter.register(converter)
+                        _single_arg_decorator.args.clear()
+                        InputConverter.register(_converter)
 
                         # restore original behaviour
-                        converter.append = old_append
-                    old_append(*more_ags)
+                        _converter.append = _old_append
+                    _old_append(*more_args)
                 converter.append = new_append
 
         return cls.instance().register(*args)
@@ -147,7 +156,7 @@ class InputConverter:
         # Auto set whether this is preload, unless explicitly specified
         pre_load = not cls.pre_load_was_run if pre_load is None else pre_load
         if pre_load and cls.pre_load_was_run:
-                raise Exception("Pre-microservice conversion was already run")
+                raise ConverterRegistrationException("Pre-microservice conversion was already run")
 
         ret = cls.instance().convert(pre_task=pre_load, **kwargs)
 
@@ -242,7 +251,7 @@ def find_unused_arguments(
 
     # build up used chain arg list
     used_chain_args = []
-    for _, task in all_tasks.items():
+    for task in all_tasks.values():
         used_chain_args.extend(getattr(task, "required_args", []))
         used_chain_args.extend(getattr(task, "optional_args", []))
 
@@ -259,16 +268,14 @@ def find_unused_arguments(
             # for unused args less than 10 chars long, use distance method, otherwise use ratio method.
             if len(unused_arg) < 10:
                 distance = Lev.distance(used_arg, unused_arg)
-                if distance < 3:
-                    if not close_match or close_match['distance'] > distance:
-                        close_match['arg'] = used_arg
-                        close_match['distance'] = distance
+                if distance < 3 and (not close_match or close_match['distance'] > distance):
+                    close_match['arg'] = used_arg
+                    close_match['distance'] = distance
             else:
                 match_ratio = Lev.ratio(used_arg, unused_arg)
-                if match_ratio > 0.9:
-                    if not close_match or close_match['ratio'] < match_ratio:
-                        close_match['arg'] = used_arg
-                        close_match['ratio'] = match_ratio
+                if match_ratio > 0.9 and (not close_match or close_match['ratio'] < match_ratio):
+                    close_match['arg'] = used_arg
+                    close_match['ratio'] = match_ratio
         # Store the closest match in the returned dict
         if close_match:
             close_matches[unused_arg] = close_match['arg']

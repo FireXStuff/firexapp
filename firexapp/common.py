@@ -66,7 +66,7 @@ def poll_until_existing_file_not_empty(file_path, timeout: float = 10):
     timeout_time = time.time() + timeout
     while os.stat(file_path).st_size == 0 and time.time() < timeout_time:
         time.sleep(0.1)
-    assert os.stat(file_path).st_size > 0, 'File %s size is zero' % file_path
+    assert os.stat(file_path).st_size > 0, f'File {file_path} size is zero'
 
 
 def poll_until_file_not_empty(file_path, timeout=10):
@@ -167,7 +167,7 @@ def create_link(src, target, delete_link=None, relative=False, create_target_dir
     try:
         os.symlink(src, temp_target)
         os.rename(temp_target, target)
-        logger.debug('Symbolic link created: %s -> %s' % (src, target))
+        logger.debug(f'Symbolic link created: {src} -> {target}')
     except Exception:
         try:
             os.remove(temp_target)
@@ -203,9 +203,9 @@ def dict2str(mydict, sort=False, sep='    ', usevrepr=True, line_prefix=''):
     for k, v in items:
         txt += line_prefix
         if usevrepr:
-            txt += '%s%s%r\n' % (k.ljust(maxlen, " "), sep, v)
+            txt += '{}{}{!r}\n'.format(k.ljust(maxlen, " "), sep, v)
         else:
             v = str(v)
             v = v.replace('\n', wrap_space)
-            txt += '%s%s%s\n' % (k.ljust(maxlen, " "), sep, v)
+            txt += '{}{}{}\n'.format(k.ljust(maxlen, " "), sep, v)
     return txt

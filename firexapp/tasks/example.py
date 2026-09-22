@@ -29,7 +29,7 @@ def getusername() -> str:
 @app.task(returns=['greeting'], flame=['greeting'])
 def greet(name: str = getuser()) -> str:
     assert len(name) > 1, "Cannot greet a name with 1 or fewer characters."
-    return 'Hello %s!' % name
+    return f'Hello {name}!'
 
 
 # Setting bind=True makes the first argument received by the service 'self'. It's most commonly used to invoke

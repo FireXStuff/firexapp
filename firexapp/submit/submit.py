@@ -90,7 +90,7 @@ class JsonFileAction(argparse.Action):
 class OptionalBoolean(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         if isinstance(values, str):
-            values = True if values.lower() == 'true' else False
+            values = values.lower() == 'true'
         setattr(namespace, self.dest, values)
 
 
@@ -118,8 +118,8 @@ def _safe_create_completed_run_json(
                 run_revoked=run_revoked,
                 shutdown_reason=shutdown_reason,
                 **chain_args)
-        except Exception as e:
-            logger.exception(f'Failed to generate completion run JSON: {e}')
+        except Exception:
+            logger.exception('Failed to generate completion run JSON')
     else:
         logger.warning("No uid; run.json will not be updated.")
 
@@ -127,8 +127,8 @@ def _safe_create_completed_run_json(
 def safe_create_initial_run_json(**kwargs) -> FireXRunData | None:
     try:
         return FireXJsonReportGenerator.create_initial_run_json(**kwargs)
-    except Exception as e:
-        logger.exception(f'Failed to generate initial run JSON: {e}')
+    except Exception:
+        logger.exception('Failed to generate initial run JSON')
         return None
 
 
@@ -263,7 +263,7 @@ class SubmitBaseApp:
     def error_banner(err_msg, banner_title='ERROR', logf=logger.error):
         err_msg = str(err_msg)
 
-        banner_title = ' %s ' % banner_title
+        banner_title = f' {banner_title} '
 
         sep_len = len(banner_title) + 6
         err_msg = err_msg.split('\n')
@@ -465,12 +465,11 @@ class SubmitBaseApp:
                 chain_args['plugin_path_mapping'] = plugin_path_mapping
                 chain_args['plugins'] = ','.join(plugin_path_mapping.values())
         except FileNotFoundError as e:
-            logger.error("\nError: FireX run failed. File %s is not found." % e)
+            logger.error(f"\nError: FireX run failed. File {e} is not found.")
             self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
         except Exception as e:
-            logger.error("An error occurred while loading modules")
-            logger.exception(e)
+            logger.exception("An error occurred while loading modules")
             self.main_error_exit_handler(reason=str(e))
             sys.exit(-1)
 
@@ -640,7 +639,7 @@ class SubmitBaseApp:
                 logger.warning('\t' + msg)
         else:
             wait_duration = time.time() - start_wait_time
-            logger.debug("Waited %.1f secs for tracking services to be %s." % (wait_duration, description))
+            logger.debug(f"Waited {wait_duration:.1f} secs for tracking services to be {description}.")
 
     def wait_tracking_services_task_ready(self, fx_app, timeout=5)->None:
         self.wait_tracking_services_pred(
@@ -699,7 +698,7 @@ class SubmitBaseApp:
                     logger.debug('Reports successfully generated')
                 except Exception:
                     # Under no circumstances should report generation prevent celery and broker cleanup
-                    logger.error('Error in generating reports', exc_info=True)
+                    logger.exception('Error in generating reports')
                 finally:
                     FxAsyncResult.disable_all_ar_backends()
 
@@ -744,7 +743,7 @@ class SubmitBaseApp:
         logger.error("Invalid arguments provided. The following arguments are not used by any microservices:")
         for arg in unused_chain_args:
             if arg in matches:
-                logger.error("--" + arg + " (Did you mean '%s'?)" % matches[arg])
+                logger.error("--" + arg + f" (Did you mean '{matches[arg]}'?)")
             else:
                 logger.error("--" + arg)
         return False
@@ -840,4 +839,3 @@ def _format_unsuccessful_services(
             items.append('The following microservices did not get a chance to run:')
             items += get_unsuccessful_items(not_run)
     return '\n'.join(items), returncode
-

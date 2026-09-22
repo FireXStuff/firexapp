@@ -32,7 +32,7 @@ def _get_event_lag(event_timestamp, celery_utcoffset):
             timezone(timedelta(hours=real_tz_offset_hr))
         )
         return (now_dt - event_datetime.replace(tzinfo=timezone.utc)).total_seconds()
-    except Exception:
+    except (AttributeError, OSError, OverflowError, TypeError, ValueError):
         return None
 
 
@@ -66,7 +66,8 @@ class BrokerEventConsumerThread(threading.Thread):
 
         self.open_recording_file : TextIOWrapper | None
         if recording_file:
-            self.open_recording_file = open(recording_file, "a", encoding="utf-8")
+            # Kept open for the consumer lifetime and explicitly closed by _cleanup().
+            self.open_recording_file = open(recording_file, "a", encoding="utf-8")  # noqa: SIM115
         else:
             self.open_recording_file = None
 
@@ -105,9 +106,8 @@ class BrokerEventConsumerThread(threading.Thread):
             if self.open_recording_file:
                 self.open_recording_file.close()
                 self.open_recording_file = None
-        except Exception as ex:
-            logger.error("Failed to cleanup during receiver completion.")
-            logger.exception(ex)
+        except Exception:
+            logger.exception("Failed to cleanup during receiver completion.")
         finally:
             logger.info("Completed receiver cleanup.")
             if self.terminate_on_complete and not self.stopped_externally:

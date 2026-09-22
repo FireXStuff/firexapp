@@ -19,7 +19,7 @@ class SubprocessRunnerTests(unittest.TestCase):
             return_val = runner(f'/bin/echo {TEST_TEXT}', copy_file_path=self.output_file)
             self.assertEqual(TEST_TEXT, return_val.strip())
             self.assertTrue(os.path.isfile(self.output_file))
-            with open(self.output_file, 'r') as f:
+            with open(self.output_file) as f:
                 self.assertEqual(TEST_TEXT, f.readline().strip())
             os.remove(self.output_file)
 
@@ -104,7 +104,7 @@ class SubprocessRunnerTests(unittest.TestCase):
             return_val = runner(f'/bin/echo {TEST_TEXT}', file=self.output_file)
             self.assertIsNone(return_val)
             self.assertTrue(os.path.isfile(self.output_file))
-            with open(self.output_file, 'r') as f:
+            with open(self.output_file) as f:
                 self.assertEqual(TEST_TEXT, f.readline().strip())
             os.remove(self.output_file)
 
@@ -132,7 +132,7 @@ class SubprocessRunnerTests(unittest.TestCase):
             self.assertIsInstance(return_val, subprocess.CompletedProcess)
             self.assertEqual(TEST_TEXT, return_val.stdout.strip())
             self.assertTrue(os.path.isfile(self.output_file))
-            with open(self.output_file, 'r') as f:
+            with open(self.output_file) as f:
                 self.assertEqual(TEST_TEXT, f.readline().strip())
             os.remove(self.output_file)
 

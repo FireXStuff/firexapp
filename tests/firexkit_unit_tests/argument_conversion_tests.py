@@ -193,7 +193,7 @@ class ArgConversionTests(unittest.TestCase):
         # single arg converter redundantly filters @indirect
         @SingleArgDecorator("filter")
         def boom(_):
-            raise Exception("Test Fail")  # pragma: no cover
+            raise RuntimeError("Test Fail")  # pragma: no cover
         boom({"filter": "@ya"})
 
     def test_failing_converters(self):

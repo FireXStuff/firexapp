@@ -113,7 +113,7 @@ def find(keys, input_dict, raise_error=False):
     for key in keys:
         try:
             result = result[key]
-        except Exception:
+        except (IndexError, KeyError, TypeError):
             if raise_error:
                 raise PathNotFoundException()
             return None

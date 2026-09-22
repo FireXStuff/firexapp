@@ -12,7 +12,10 @@ from firexapp.submit.arguments import (
     whitelist_arguments,
 )
 from firexapp.submit.uid import Uid
-from firexkit.argument_conversion import SingleArgDecorator
+from firexkit.argument_conversion import (
+    ConverterRegistrationException,
+    SingleArgDecorator,
+)
 from firexkit.task import FireXTask
 from firexkit.testing import ut_celery_app
 
@@ -53,10 +56,9 @@ class SubmitArgsTests(unittest.TestCase):
         class AppExited(BaseException):
             pass
 
-        with self.subTest("bad other args"):
-            with self.assertRaises(SystemExit):
-                main.submit_app.process_other_chain_args(args=None,
-                                                         other_args=['--one', '--two', 'two'])
+        with self.subTest("bad other args"), self.assertRaises(SystemExit):
+            main.submit_app.process_other_chain_args(args=None,
+                                                     other_args=['--one', '--two', 'two'])
 
         with self.subTest("bad ascii"):
             def exit_app(_, __):
@@ -73,7 +75,7 @@ class SubmitArgsTests(unittest.TestCase):
 
         with self.subTest("with no json file value"):
             main.arg_parser.print_usage = lambda _: _
-            with self.assertRaises(Exception):
+            with self.assertRaises(ValueError):
                 main.run(sys_argv=[JSON_ARGS_PATH_ARG_NAME])
 
 
@@ -103,7 +105,7 @@ class InputConversionTests(unittest.TestCase):
         InputConverter.convert(pre_load=True)
 
         # can't run pre a second time
-        with self.assertRaises(Exception):
+        with self.assertRaises(ConverterRegistrationException):
             InputConverter.convert(pre_load=True)
 
         # This on is ok, because it's marked as post convert
@@ -120,13 +122,13 @@ class InputConversionTests(unittest.TestCase):
             pass
 
         # can't register pre-converter after pre was run
-        with self.assertRaises(Exception):
+        with self.assertRaises(ConverterRegistrationException):
             @InputConverter.register(True)
             def too_late(_):
                 pass  # pragma: no cover
 
         # can't register pre-converter after pre was run, even with dependencies
-        with self.assertRaises(Exception):
+        with self.assertRaises(ConverterRegistrationException):
             @InputConverter.register("early", True)
             def still_too_late(_):
                 pass  # pragma: no cover
@@ -291,23 +293,23 @@ class ArgumentApplicabilityTests(unittest.TestCase):
         kwargs = {'byepass_reason': 'True'}
         unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
         self.assertEqual(len(unused), 1)
-        self.assertEqual(list(unused.keys())[0], list(kwargs.keys())[0])
+        self.assertEqual(next(iter(unused.keys())), next(iter(kwargs.keys())))
         self.assertEqual(len(close_matches), 1)
-        self.assertEqual('bypass_reason', close_matches[list(kwargs.keys())[0]])
+        self.assertEqual('bypass_reason', close_matches[next(iter(kwargs.keys()))])
 
         # Test for near match to 'short' - ratio method
         kwargs = {'sgort': 'True'}
         unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
         self.assertEqual(len(unused), 1)
-        self.assertEqual(list(unused.keys())[0], list(kwargs.keys())[0])
+        self.assertEqual(next(iter(unused.keys())), next(iter(kwargs.keys())))
         self.assertEqual(len(close_matches), 1)
-        self.assertEqual('short', close_matches[list(kwargs.keys())[0]])
+        self.assertEqual('short', close_matches[next(iter(kwargs.keys()))])
 
         # Test for no near matches
         kwargs = {'a_completely_bogus_argument': 'doesnt_matter'}
         unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
         self.assertEqual(len(unused), 1)
-        self.assertEqual(list(unused.keys())[0], list(kwargs.keys())[0])
+        self.assertEqual(next(iter(unused.keys())), next(iter(kwargs.keys())))
         self.assertEqual(len(close_matches), 0)
 
 

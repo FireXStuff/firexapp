@@ -78,7 +78,7 @@ class NoBrokerLeakOnBadTask(NoBrokerLeakBase):
 
 @app.task
 def failure():
-    raise Exception("This exception is part of the test")
+    raise RuntimeError("This exception is part of the test")
 
 
 class NoBrokerLeakOnTaskFailure(NoBrokerLeakBase):
@@ -130,11 +130,11 @@ class ExplodingReport(ReportGenerator):
     def add_entry(self, key_name, value, priority, formatters, task_name=None, **extra):
         if task_name.split(".")[-1] == the_bomb.__name__:
             self.primed = True
-            raise Exception("raised by add_entry(). Someone set us up the bomb")
+            raise RuntimeError("raised by add_entry(). Someone set us up the bomb")
 
     def post_run_report(self, **kwargs):
         if self.primed:
-            raise Exception("raised by post_run_report(). All your bases are belong to us")
+            raise RuntimeError("raised by post_run_report(). All your bases are belong to us")
 
 
 @report(key_name=None, priority=1)
@@ -162,7 +162,7 @@ def fail_service_task():
 class FailingService(TrackingService):
     def start(self, args, **chain_args) -> {}:
         if args.chain == "fail_service_task":
-            raise Exception("Failed to start service")
+            raise RuntimeError("Failed to start service")
 
 
 existing_services = get_tracking_services()
@@ -216,7 +216,7 @@ def revoke_root_task():
         for host in active.values():
             for task in host:
                 if root.__name__ in task['name']:
-                    logger.info("Revoking %s" % task['name'])
+                    logger.info("Revoking {}".format(task['name']))
                     app.control.revoke(task_id=task["id"], terminate=True)
 
     # sleep till shutdown revokes us. We should not end up sleeping for this long.
@@ -290,7 +290,7 @@ class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
         for f in os.listdir(celery_pids_dir):
             existing_procs += CeleryManager._find_procs(os.path.join(celery_pids_dir, f))
 
-        assert not existing_procs, "Expected no remaining celery processes, found: %s" % existing_procs
+        assert not existing_procs, f"Expected no remaining celery processes, found: {existing_procs}"
 
         completion_file = FileRegistry().get_file(RUN_COMPLETE_REGISTRY_KEY, logs_dir)
         assert os.path.exists(completion_file), f'RUN_COMPLETED is expected to be found in {completion_file}'

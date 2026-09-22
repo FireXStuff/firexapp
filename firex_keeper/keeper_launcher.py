@@ -41,7 +41,7 @@ class FireXKeeperLauncher(TrackingService):
         try:
             Process(pid).wait(0.1)
         except TimeoutExpired:
-            logger.debug("Started background FireXKeeper with pid %s" % pid)
+            logger.debug(f"Started background FireXKeeper with pid {pid}")
         else:
             logger.error("Failed to start FireXKeeper -- task DB will not be available.")
 

@@ -90,7 +90,7 @@ def restart_celery_in_debug():
         print("No debugging information found", file=sys.stdout)
         return
 
-    with open(json_path, "r") as infile:
+    with open(json_path) as infile:
         data = json.load(infile)
 
     setup = data['setup']

@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from firexapp.reporters.json_reporter import FireXRunData
 from firexapp.submit.install_configs import (
@@ -131,7 +131,7 @@ class ConfigInterpreter:
             # check for expected return code
             expected_return = flow_test_config.assert_expected_return_code(process.returncode)
             if expected_return is not None:
-                raise Exception("assert_expected_return_code should not return. It should assert if needed")
+                raise RuntimeError("assert_expected_return_code should not return. It should assert if needed")
 
             try:
                 flow_test_config.run_data = FireXRunData.load_from_logs_dir(
@@ -140,18 +140,25 @@ class ConfigInterpreter:
             except (OSError, AttributeError): # flow_test_config is badly implemented, so need AttributeError
                 flow_test_config.run_data = None
 
-            with open(flow_test_config.std_out, 'r') as std_out_f, open(flow_test_config.std_err, 'r') as std_err_f:
+            with open(flow_test_config.std_out) as std_out_f, open(flow_test_config.std_err) as std_err_f:
                 errors = std_err_f.read().split("\n")
                 errors = [line for line in errors if line and not line.startswith("pydev debugger:")]
                 flow_test_config.assert_expected_firex_output(std_out_f.read(), "\n".join(errors))
             verification_time = time.monotonic() - verification_start_time
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as e:
             elapsed_time = getattr(e, 'timeout', None)
-            print("\t%s! Current wall time: %s" % (type(e).__name__, datetime.now().strftime('%c')), file=sys.stderr)
+            print(
+                "\t{}! Current wall time: {}".format(
+                    type(e).__name__,
+                    datetime.now(timezone.utc).strftime('%c'),
+                ),
+                file=sys.stderr,
+            )
             verification_start_time = time.monotonic()
             self.cleanup_after_timeout(flow_test_config.std_out, flow_test_config.std_err)
             verification_time = time.monotonic() - verification_start_time
             raise
+        # Preserve and report any assertion or custom validation failure from the test configuration.
         except Exception as e:
             print(f'\tException: {type(e).__name__}: {e}', file=sys.stderr)
             raise
@@ -162,14 +169,15 @@ class ConfigInterpreter:
             finally:
                 try:
                     flow_test_config.cleanup()
-                except Exception as cleanup_e:
+                # Test cleanup is best effort and must not hide the original test result.
+                except Exception as cleanup_e:  # noqa: BLE001
                     print(f'Exception during flow test cleanup: {cleanup_e}')
 
             # report on time
             if elapsed_time is not None:
-                msg = "\tTime %.1fs" % elapsed_time
+                msg = f"\tTime {elapsed_time:.1f}s"
                 if verification_time is not None:
-                    overhead = " +(%.1fs)" % verification_time
+                    overhead = f" +({verification_time:.1f}s)"
                     if overhead != " +(0.0s)":
                         msg += overhead
                 print(msg)
@@ -182,7 +190,7 @@ class ConfigInterpreter:
         # Try to print to log directory to help with debugging
         # noinspection PyBroadException
         try:
-            with open(std_out, 'r') as std_out_f:
+            with open(std_out) as std_out_f:
                 std_out_content = std_out_f.read()
                 firex_id = get_firex_id_from_output(std_out_content)
                 if firex_id:
@@ -193,5 +201,6 @@ class ConfigInterpreter:
                                                                    get_cloud_ci_install_config_path())
                         print(f'\tLogs URL: {install_configs.get_logs_root_url()}')
                         print(f"\tFlame: {install_configs.run_url}")
-        except Exception as e:
+        # Link reporting is diagnostic only and supports arbitrary install-config implementations.
+        except Exception as e:  # noqa: BLE001
             print(e)

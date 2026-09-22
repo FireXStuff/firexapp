@@ -33,7 +33,7 @@ class RevokeOnShutdown(FlowTestConfiguration):
         failure_files = glob.glob(os.path.join(logs_dir, 'test_fail_*'))
         failures_text = ''
         for fail in failure_files:
-            with open(fail,'r') as f:
+            with open(fail) as f:
                 failures_text += fail + ' : ' + f.read() + '\n'
         assert not failures_text, failures_text
 
