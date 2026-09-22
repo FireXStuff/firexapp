@@ -473,6 +473,26 @@ class BogTests(unittest.TestCase):
         self.assertEqual(bog.args, tuple(["converter argument"]))
         self.assertEqual(bog.kwargs, {"parameter": "converter parameter"})
 
+    def test_update_flattens_var_keyword_in_to_kwargs(self):
+        # noinspection PyUnusedLocal
+        def something(**kwargs):
+            pass  # pragma: no cover
+
+        bog = BagOfGoodies(inspect.signature(something), tuple(), {'a': 1})
+        # the VAR_KEYWORD is never a key of kwargs, only its entries are, since
+        # kwargs is what gets splatted in to the service.
+        bog.update({'kwargs': {'b': 2}})
+        self.assertEqual(bog.kwargs, {'a': 1, 'b': 2})
+
+    def test_update_rejects_non_mapping_var_keyword(self):
+        # noinspection PyUnusedLocal
+        def something(**kwargs):
+            pass  # pragma: no cover
+
+        bog = BagOfGoodies(inspect.signature(something), tuple(), {})
+        with self.assertRaises(ValueError):
+            bog.update({'kwargs': True})
+
 def _in_chain_bog(sig, args, kwargs) -> BagOfGoodies:
     bog = BagOfGoodies(sig, args, kwargs | CHAIN_DEPTH_KWARGS)
     bog.get_and_remove_chain_depth()

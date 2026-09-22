@@ -1,3 +1,4 @@
+import collections.abc
 import dataclasses
 import enum
 import inspect
@@ -220,10 +221,11 @@ class BagOfGoodies:
             ):
                 self.bound_pos_args[k] = v
             elif self.fx_params.is_var_kw_arg_name(k):
-                try:
-                    self.kwargs[k].update(v)
-                except TypeError as e:
-                    raise ValueError(f'VAR_KEYWORD argument {k} should always be an mapping, not: {v}') from e
+                if not isinstance(v, collections.abc.Mapping):
+                    raise ValueError(f'VAR_KEYWORD argument {k} should always be an mapping, not: {v}')
+                # kwargs never holds the VAR_KEYWORD itself, only its flattened
+                # entries, since that's how they're supplied to the service.
+                self.kwargs.update(v)
             elif self.fx_params.accepts_kw_arg_name(k):
                 self.kwargs[k] = v
             else:
@@ -350,7 +352,14 @@ class BagOfGoodies:
         convertible: set[str] = set()
         arg_names_to_validatable_names = self._get_arg_names_to_pydantic_convertible_names()
         all_args = set(self.all_supplied_args())
-        for unbound_name in self.get_unsupplied_arg_params().keys():
+        for unbound_name, unbound_param in self.get_unsupplied_arg_params().items():
+            if unbound_param.kind in (
+                unbound_param.VAR_POSITIONAL,
+                unbound_param.VAR_KEYWORD,
+            ):
+                # *args/**kwargs name a container of args, not an arg pydantic can supply.
+                continue
+
             if validatable_args := arg_names_to_validatable_names.get(unbound_name):
                 if validatable_args < all_args:
                     convertible.add(unbound_name) # we can create this
@@ -358,10 +367,8 @@ class BagOfGoodies:
                     logger.debug(f'cannot create {unbound_name}')
 
             is_hoistable = any(
-                {
-                    unbound_name in model_field_names
-                    and model_arg in all_args
-                }
+                unbound_name in model_field_names
+                and model_arg in all_args
                 for model_arg, model_field_names in arg_names_to_validatable_names.items()
             )
             if is_hoistable:

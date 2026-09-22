@@ -60,6 +60,8 @@ ADDITIONAL_CHILDREN_KEY = 'additional_children'
 REPLACEMENT_TASK_NAME_POSTFIX = REPLACEMENT_TASK_NAME_POSTFIX
 
 REDIS_DB_KEY_FOR_RESULTS_WITH_REPORTS = 'FIREX_RESULTS_WITH_REPORTS'
+REDIS_DB_KEY_FOR_ENQUEUE_ONCE_UIDS = 'FIREX_ENQUEUE_CHILD_ONCE_UIDS'
+REDIS_DB_KEY_FOR_CACHE_ENABLED_UIDS = 'FIREX_CACHE_ENABLED_UIDS'
 REDIS_DB_KEY_PREFIX_FOR_ENQUEUE_ONCE_UID = 'ENQUEUE_CHILD_ONCE_UID_'
 REDIS_DB_KEY_PREFIX_FOR_ENQUEUE_ONCE_COUNT = 'ENQUEUE_CHILD_ONCE_COUNT_'
 REDIS_DB_KEY_PREFIX_FOR_CACHE_ENABLED_UID = 'CACHE_ENABLED'
@@ -307,30 +309,32 @@ def get_enqueue_child_once_count_dbkey(enqueue_once_key: str) -> str:
     return f'{REDIS_DB_KEY_PREFIX_FOR_ENQUEUE_ONCE_COUNT}{enqueue_once_key}'
 
 
-def get_current_enqueue_child_once_uid_dbkeys(db) -> list[str]:
-    return db.client.keys(get_enqueue_child_once_uid_dbkey('*'))
-
-
-def get_current_cache_enabled_uid_dbkeys(db) -> list[str]:
-    return db.client.keys(get_cache_enabled_uid_dbkey('*'))
+def add_enqueue_child_once_uid_to_db(db, result_id: str):
+    """Add task id to the set of tasks that were enqueued with enqueue_once"""
+    db.client.sadd(REDIS_DB_KEY_FOR_ENQUEUE_ONCE_UIDS, result_id)
 
 
 def get_current_enqueue_child_once_uids(db) -> set[str]:
     """Returns a set of all task/result ids that were executed with enqueue_once"""
 
-    # First, we need to find all the enqueue_once keys
-    keys = get_current_enqueue_child_once_uid_dbkeys(db)
-    # Then we get the task/result ids stored in those keys
-    return {v.decode() for v in db.mget(keys)}
+    # The per-key entries written alongside these (see
+    # get_enqueue_child_once_uid_dbkey) are keyed by enqueue-once key rather than by
+    # task id, so answering this from them means scanning the whole keyspace for the
+    # prefix. This set is maintained purely so the answer costs one read of one key.
+    return {v.decode() for v in db.client.smembers(REDIS_DB_KEY_FOR_ENQUEUE_ONCE_UIDS)}
+
+
+def add_cache_enabled_uid_to_db(db, result_id: str):
+    """Add task id to the set of tasks whose results were stored for caching"""
+    db.client.sadd(REDIS_DB_KEY_FOR_CACHE_ENABLED_UIDS, result_id)
 
 
 def get_current_cache_enabled_uids(db) -> set[str]:
     """Returns a set of all task/result ids whose tasks were cache-enabled"""
 
-    # First, we need to find all the cache_enabled keys
-    keys = get_current_cache_enabled_uid_dbkeys(db)
-    # Then we get the task/result ids stored in those keys
-    return {v.decode() for v in db.mget(keys)}
+    # Keyed by task id, unlike the per-key entries written alongside these; see the
+    # comment in get_current_enqueue_child_once_uids.
+    return {v.decode() for v in db.client.smembers(REDIS_DB_KEY_FOR_CACHE_ENABLED_UIDS)}
 
 
 def add_task_result_with_report_to_db(db, result_id: str):
@@ -886,6 +890,7 @@ class FireXTask(Task):
         # We need to just store a reference  to the uuid (no need to store the result again)
         logger.debug(f'[Caching] storing entry for key {cache_key!r} -> {uuid!r}')
         self.backend.set(cache_key, uuid)
+        add_cache_enabled_uid_to_db(self.backend, uuid)
 
     def _retrieve_result_from_backend(
         self,
@@ -1368,6 +1373,7 @@ class FireXTask(Task):
             )
             if enqueue_once_spec:
                 self.backend.set(enqueue_once_spec[1], child_result.id)
+                add_enqueue_child_once_uid_to_db(self.backend, child_result.id)
                 logger.debug(f'Key {enqueue_once_spec[1]} set to {child_result.id}')
             if add_to_enqueued_children:
                 self._update_child_state(child_result, self._PENDING)

@@ -125,6 +125,19 @@ class UtClient:
         values = self._store.get(self._encode(key), [])
         return values[start:] if end == -1 else values[start:end + 1]
 
+    def sadd(self, key, *members):
+        self._inc_count('sadd')
+        values = self._store.setdefault(self._encode(key), set())
+        encoded = {self._encode(m) for m in members}
+        # redis reports how many members this added, so re-adding one counts as none.
+        added = len(encoded - values)
+        values |= encoded
+        return added
+
+    def smembers(self, key):
+        self._inc_count('smembers')
+        return set(self._store.get(self._encode(key), set()))
+
     def hget(self, key, subkey):
         self._inc_count('hget')
         try:

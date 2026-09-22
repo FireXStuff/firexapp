@@ -1548,8 +1548,8 @@ def _forget_subtree_results(
 
 def forget_chain_results(
     result: FxAsyncResult,
-    do_not_forget_nodes: Iterable[str] | None,
-    skip_subtree_nodes: Iterable[str] | None,
+    do_not_forget_nodes: Iterable[str],
+    skip_subtree_nodes: Iterable[str],
 ):
     """
     Forget results of the tree rooted at the "chain-head" of result, while skipping subtrees in skip_subtree_nodes,
@@ -1563,6 +1563,6 @@ def forget_chain_results(
         for ar in result.get_chain_ancestors():
             _forget_subtree_results(
                 head_node_result=ar,
-                do_not_forget_nodes=set(do_not_forget_nodes or []),
-                skip_subtree_nodes=set(skip_subtree_nodes or []),
+                do_not_forget_nodes=set(do_not_forget_nodes),
+                skip_subtree_nodes=set(skip_subtree_nodes),
             )
