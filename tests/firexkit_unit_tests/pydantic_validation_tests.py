@@ -241,7 +241,7 @@ class TestPostPydanticConvertSuppliedArgNames:
     """
 
     def test_model_fields_are_hoisted_when_the_model_arg_is_supplied(self):
-        def func(model: Optional[AModel] = None, a=None):
+        def func(model: AModel | None = None, a=None):
             pass # pragma: no cover
 
         # 'a' is a field of AModel and the arg holding it was supplied.
@@ -249,7 +249,7 @@ class TestPostPydanticConvertSuppliedArgNames:
         assert bog.get_post_pydantic_convert_supplied_arg_names() == {'a'}
 
     def test_nothing_is_hoisted_when_the_model_arg_is_absent(self):
-        def func(model: Optional[AModel] = None, a=None, b=None):
+        def func(model: AModel | None = None, a=None, b=None):
             pass # pragma: no cover
 
         # nothing can come from 'model' when 'model' itself wasn't supplied, and
@@ -258,14 +258,14 @@ class TestPostPydanticConvertSuppliedArgNames:
         assert bog.get_post_pydantic_convert_supplied_arg_names() == set()
 
     def test_model_arg_is_convertible_when_its_fields_are_supplied(self):
-        def func(model: Optional[AModel] = None, a=None, b=None):
+        def func(model: AModel | None = None, a=None, b=None):
             pass # pragma: no cover
 
         bog = _bog(func, {'a': 1, 'b': 2})
         assert bog.get_post_pydantic_convert_supplied_arg_names() == {'model'}
 
     def test_var_keyword_is_never_convertible(self):
-        def func(model: Optional[AModel] = None, **kwargs):
+        def func(model: AModel | None = None, **kwargs):
             pass # pragma: no cover
 
         # 'kwargs' names the container of args, not an arg the bog can produce.

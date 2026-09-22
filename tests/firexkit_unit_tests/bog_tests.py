@@ -478,7 +478,7 @@ class BogTests(unittest.TestCase):
         def something(**kwargs):
             pass  # pragma: no cover
 
-        bog = BagOfGoodies(inspect.signature(something), tuple(), {'a': 1})
+        bog = BagOfGoodies(inspect.signature(something), (), {'a': 1})
         # the VAR_KEYWORD is never a key of kwargs, only its entries are, since
         # kwargs is what gets splatted in to the service.
         bog.update({'kwargs': {'b': 2}})
@@ -489,7 +489,7 @@ class BogTests(unittest.TestCase):
         def something(**kwargs):
             pass  # pragma: no cover
 
-        bog = BagOfGoodies(inspect.signature(something), tuple(), {})
+        bog = BagOfGoodies(inspect.signature(something), (), {})
         with self.assertRaises(ValueError):
             bog.update({'kwargs': True})
 
