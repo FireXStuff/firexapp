@@ -811,7 +811,7 @@ class FireXTask(Task):
                     )
             return converted_result
         # Task functions may raise arbitrary user exceptions that require FireX bookkeeping.
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.handle_exception(e)
         finally:
             try:

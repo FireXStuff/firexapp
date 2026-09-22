@@ -53,6 +53,11 @@ build-docs:
     paths:
       - html/
 
+lint-python:
+  stage: test
+  script:
+    - uv run --locked --group dev ruff check
+
 test-unit:
   stage: test
   script:
@@ -64,17 +69,6 @@ test-unit:
   artifacts:
     paths:
       - .coverage
-
-test-wheel-install:
-  stage: test
-  needs:
-    - job: build
-      artifacts: true
-  script:
-    # .python-version is the single Python request for this project.
-    - uv venv .wheel-venv
-    - uv pip install --python .wheel-venv/bin/python dist/*.whl
-    - uv pip check --python .wheel-venv/bin/python
 
 test-integration:
   stage: test

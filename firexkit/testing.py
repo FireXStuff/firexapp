@@ -78,7 +78,7 @@ class UtClient:
         self._call_counts = {}
 
     def call_count(self, name):
-        return self._call_counts[name] if name in self._call_counts else 0
+        return self._call_counts.get(name, 0)
 
     def _inc_count(self, name):
         try:
