@@ -33,7 +33,7 @@ class ConfigInterpreter:
             return True
         return cmd[0] not in ["list", "info"]
 
-    def document_viewer(self, file_path: str)->str:
+    def document_viewer(self, file_path: str) -> str:
         return file_path
 
     @staticmethod
@@ -42,10 +42,16 @@ class ConfigInterpreter:
 
     def run_integration_test(self, flow_test_config, results_folder):
         # provide sub-folder for testsuite data
-        flow_test_config.results_folder = os.path.join(results_folder, flow_test_config.name)
+        flow_test_config.results_folder = os.path.join(
+            results_folder, flow_test_config.name
+        )
         os.makedirs(flow_test_config.results_folder)
-        flow_test_config.std_out = os.path.join(flow_test_config.results_folder, flow_test_config.name + ".stdout.txt")
-        flow_test_config.std_err = os.path.join(flow_test_config.results_folder, flow_test_config.name + ".stderr.txt")
+        flow_test_config.std_out = os.path.join(
+            flow_test_config.results_folder, flow_test_config.name + ".stdout.txt"
+        )
+        flow_test_config.std_err = os.path.join(
+            flow_test_config.results_folder, flow_test_config.name + ".stderr.txt"
+        )
 
         cmd = self.create_cmd(flow_test_config)
         self.run_executable(cmd, flow_test_config)
@@ -61,26 +67,33 @@ class ConfigInterpreter:
 
         submit_test = self.is_submit_command(flow_test_config)
         if submit_test:
-            flow_test_config.logs_link = os.path.join(flow_test_config.results_folder, flow_test_config.name + ".logs")
+            flow_test_config.logs_link = os.path.join(
+                flow_test_config.results_folder, flow_test_config.name + ".logs"
+            )
             cmd += ["--logs_link", flow_test_config.logs_link]
             if getattr(flow_test_config, "sync", True):
                 cmd += ["--sync"]
-            if has_flame() and getattr(flow_test_config, "flame_terminate_on_complete", True):
+            if has_flame() and getattr(
+                flow_test_config, "flame_terminate_on_complete", True
+            ):
                 cmd += ["--flame_terminate_on_complete"]
-            if (self.is_public # only use public CI install config for is_public runs
-                    and not getattr(flow_test_config, 'no_install_config', False)
-                    # Some tests supply install configs (via CLI or ENV) for legitimate testing purposes.
-                    and '--install_configs' not in cmd
-                    and INSTALL_CONFIGS_ENV_NAME not in os.environ):
+            if (
+                self.is_public  # only use public CI install config for is_public runs
+                and not getattr(flow_test_config, "no_install_config", False)
+                # Some tests supply install configs (via CLI or ENV) for legitimate testing purposes.
+                and "--install_configs" not in cmd
+                and INSTALL_CONFIGS_ENV_NAME not in os.environ
+            ):
                 # TODO: should merge test-specific install_configs with ci-viewer configs,
                 #  since we usually want the ci URLs, even with a test's install_config specifies other stuff.
-                cmd += ['--install_configs', get_cloud_ci_install_config_path()]
+                cmd += ["--install_configs", get_cloud_ci_install_config_path()]
 
         return cmd
 
     def get_exe(self, flow_test_config) -> list[str]:
         import firexapp
-        if self.coverage and not hasattr(flow_test_config, 'no_coverage'):
+
+        if self.coverage and not hasattr(flow_test_config, "no_coverage"):
             return ["coverage", "run", "--branch", "--append", "-m", firexapp.__name__]
         if self.profile:
             base_dir = os.path.dirname(firexapp.__file__)
@@ -92,14 +105,15 @@ class ConfigInterpreter:
         # add test file and dynamically generated files to --plugins
         test_src_file = inspect.getfile(flow_test_config.__class__)
 
-        plugins = [ os.path.realpath(test_src_file) ]
+        plugins = [os.path.realpath(test_src_file)]
         if (
             self.is_submit_command(flow_test_config)
             and self.coverage
-            and not hasattr(flow_test_config, 'no_coverage')
+            and not hasattr(flow_test_config, "no_coverage")
         ):
             # add the coverage plugin to restart celery in coverage mode
             from firexapp.testing import coverage_plugin
+
             plugins.append(coverage_plugin.__file__)
 
         return plugins
@@ -108,7 +122,7 @@ class ConfigInterpreter:
 
         # print useful links
         test_src_file = inspect.getfile(flow_test_config.__class__)
-        if hasattr(flow_test_config, 'logs_link'):
+        if hasattr(flow_test_config, "logs_link"):
             print("\tLogs:", self.document_viewer(flow_test_config.logs_link))
         print("\tTest source:", self.document_viewer(test_src_file))
         print("\tStdout:", self.document_viewer(flow_test_config.std_out))
@@ -119,51 +133,79 @@ class ConfigInterpreter:
 
         # run firex
         try:
-            with open(flow_test_config.std_out, 'w') as std_out_f, open(flow_test_config.std_err, 'w') as std_err_f:
+            with (
+                open(flow_test_config.std_out, "w") as std_out_f,
+                open(flow_test_config.std_err, "w") as std_err_f,
+            ):
                 start_time = time.monotonic()
-                process = subprocess.Popen(cmd, stdout=std_out_f, stderr=std_err_f,
-                                           universal_newlines=True, shell=False, cwd=self.execution_directory,
-                                           env=os.environ | flow_test_config.get_extra_run_env())
-                process.communicate(timeout=getattr(flow_test_config, "timeout", 30 * 60))
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=std_out_f,
+                    stderr=std_err_f,
+                    universal_newlines=True,
+                    shell=False,
+                    cwd=self.execution_directory,
+                    env=os.environ | flow_test_config.get_extra_run_env(),
+                )
+                process.communicate(
+                    timeout=getattr(flow_test_config, "timeout", 30 * 60)
+                )
                 elapsed_time = time.monotonic() - start_time
 
             verification_start_time = time.monotonic()
             # check for expected return code
-            expected_return = flow_test_config.assert_expected_return_code(process.returncode)
+            expected_return = flow_test_config.assert_expected_return_code(
+                process.returncode
+            )
             if expected_return is not None:
-                raise RuntimeError("assert_expected_return_code should not return. It should assert if needed")
+                raise RuntimeError(
+                    "assert_expected_return_code should not return. It should assert if needed"
+                )
 
             try:
                 flow_test_config.run_data = FireXRunData.load_from_logs_dir(
                     flow_test_config.logs_link
                 )
-            except (OSError, AttributeError): # flow_test_config is badly implemented, so need AttributeError
+            except (
+                OSError,
+                AttributeError,
+            ):  # flow_test_config is badly implemented, so need AttributeError
                 flow_test_config.run_data = None
 
-            with open(flow_test_config.std_out) as std_out_f, open(flow_test_config.std_err) as std_err_f:
+            with (
+                open(flow_test_config.std_out) as std_out_f,
+                open(flow_test_config.std_err) as std_err_f,
+            ):
                 errors = std_err_f.read().split("\n")
-                errors = [line for line in errors if line and not line.startswith("pydev debugger:")]
-                flow_test_config.assert_expected_firex_output(std_out_f.read(), "\n".join(errors))
+                errors = [
+                    line
+                    for line in errors
+                    if line and not line.startswith("pydev debugger:")
+                ]
+                flow_test_config.assert_expected_firex_output(
+                    std_out_f.read(), "\n".join(errors)
+                )
             verification_time = time.monotonic() - verification_start_time
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as e:
-            elapsed_time = getattr(e, 'timeout', None)
+            elapsed_time = getattr(e, "timeout", None)
             print(
                 "\t{}! Current wall time: {}".format(
                     type(e).__name__,
-                    datetime.now(timezone.utc).strftime('%c'),
+                    datetime.now(timezone.utc).strftime("%c"),
                 ),
                 file=sys.stderr,
             )
             verification_start_time = time.monotonic()
-            self.cleanup_after_timeout(flow_test_config.std_out, flow_test_config.std_err)
+            self.cleanup_after_timeout(
+                flow_test_config.std_out, flow_test_config.std_err
+            )
             verification_time = time.monotonic() - verification_start_time
             raise
         # Preserve and report any assertion or custom validation failure from the test configuration.
         except Exception as e:
-            print(f'\tException: {type(e).__name__}: {e}', file=sys.stderr)
+            print(f"\tException: {type(e).__name__}: {e}", file=sys.stderr)
             raise
         finally:
-
             try:
                 self.on_test_exit(flow_test_config.std_out, flow_test_config.std_err)
             finally:
@@ -171,7 +213,7 @@ class ConfigInterpreter:
                     flow_test_config.cleanup()
                 # Test cleanup is best effort and must not hide the original test result.
                 except Exception as cleanup_e:  # noqa: BLE001
-                    print(f'Exception during flow test cleanup: {cleanup_e}')
+                    print(f"Exception during flow test cleanup: {cleanup_e}")
 
             # report on time
             if elapsed_time is not None:
@@ -196,10 +238,12 @@ class ConfigInterpreter:
                 if firex_id:
                     print("\tFireX ID: " + firex_id)
                     if self.is_public:
-                        install_configs = load_new_install_configs(firex_id,
-                                                                   get_log_dir_from_output(std_out_content),
-                                                                   get_cloud_ci_install_config_path())
-                        print(f'\tLogs URL: {install_configs.get_logs_root_url()}')
+                        install_configs = load_new_install_configs(
+                            firex_id,
+                            get_log_dir_from_output(std_out_content),
+                            get_cloud_ci_install_config_path(),
+                        )
+                        print(f"\tLogs URL: {install_configs.get_logs_root_url()}")
                         print(f"\tFlame: {install_configs.run_url}")
         # Link reporting is diagnostic only and supports arbitrary install-config implementations.
         except Exception as e:  # noqa: BLE001

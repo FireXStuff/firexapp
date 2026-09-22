@@ -21,32 +21,29 @@ from firexkit.testing import ut_celery_app
 
 
 class SubmitArgsTests(unittest.TestCase):
-
     def test_no_extra_args(self):
         result = get_chain_args([])
         self.assertEqual({}, result)
 
     def test_good_args(self):
-        result = get_chain_args(['--one', 'one', '--two', 'two', '--three', 'three'])
-        self.assertEqual({'one': 'one',
-                          'two': 'two',
-                          'three': 'three'}, result)
+        result = get_chain_args(["--one", "one", "--two", "two", "--three", "three"])
+        self.assertEqual({"one": "one", "two": "two", "three": "three"}, result)
 
     def test_missing_value(self):
         with self.assertRaises(ChainArgException):
-            get_chain_args(['--one', 'one', '--two'])
+            get_chain_args(["--one", "one", "--two"])
         with self.assertRaises(ChainArgException):
-            get_chain_args(['--one', 'one', '--two', '--three', 'three'])
+            get_chain_args(["--one", "one", "--two", "--three", "three"])
 
     def test_missing_key(self):
         with self.assertRaises(ChainArgException):
-            get_chain_args(['--one', 'one', 'two'])
+            get_chain_args(["--one", "one", "two"])
         with self.assertRaises(ChainArgException):
-            get_chain_args(['--one', 'one', 'two', '--three', 'three'])
+            get_chain_args(["--one", "one", "two", "--three", "three"])
 
     def test_bad_key(self):
         with self.assertRaises(ChainArgException):
-            get_chain_args(['--1one', 'one'])
+            get_chain_args(["--1one", "one"])
 
     def test_submit_app_args(self):
         main = FireXBaseApp()
@@ -57,21 +54,24 @@ class SubmitArgsTests(unittest.TestCase):
             pass
 
         with self.subTest("bad other args"), self.assertRaises(SystemExit):
-            main.submit_app.process_other_chain_args(args=None,
-                                                     other_args=['--one', '--two', 'two'])
+            main.submit_app.process_other_chain_args(
+                args=None, other_args=["--one", "--two", "two"]
+            )
 
         with self.subTest("bad ascii"):
+
             def exit_app(_, __):
                 raise AppExited()
+
             main.arg_parser.exit = exit_app
             main.arg_parser.print_usage = lambda _: _
             with self.assertRaises(AppExited):
-                main.run(sys_argv=['--pound', '£'])
+                main.run(sys_argv=["--pound", "£"])
 
         with self.subTest("with not found json file"):
             main.arg_parser.print_usage = lambda _: _
             with self.assertRaises(FileNotFoundError):
-                main.run(sys_argv=[JSON_ARGS_PATH_ARG_NAME, 'not a file'])
+                main.run(sys_argv=[JSON_ARGS_PATH_ARG_NAME, "not a file"])
 
         with self.subTest("with no json file value"):
             main.arg_parser.print_usage = lambda _: _
@@ -123,12 +123,14 @@ class InputConversionTests(unittest.TestCase):
 
         # can't register pre-converter after pre was run
         with self.assertRaises(ConverterRegistrationException):
+
             @InputConverter.register(True)
             def too_late(_):
                 pass  # pragma: no cover
 
         # can't register pre-converter after pre was run, even with dependencies
         with self.assertRaises(ConverterRegistrationException):
+
             @InputConverter.register("early", True)
             def still_too_late(_):
                 pass  # pragma: no cover
@@ -160,29 +162,18 @@ class InputConversionTests(unittest.TestCase):
         @InputConverter.register(False)
         def in_the_end(_):
             pass
+
         InputConverter.convert(pre_load=True)
         self.assertEqual(len(InputConverter.convert(pre_load=False)), 1)
 
     def test_default_boolean_converter(self):
-        self.assertTrue(convert_booleans.__name__ in self.old.get_visit_order(pre_task=True))
+        self.assertTrue(
+            convert_booleans.__name__ in self.old.get_visit_order(pre_task=True)
+        )
         e = []
         f = "random"
-        initial = {
-            "a": "true",
-            "b": "TRUE",
-            "c": "false",
-            "d": "none",
-            "e": e,
-            "f": f
-        }
-        expected = {
-            "a": True,
-            "b": True,
-            "c": False,
-            "d": None,
-            "e": e,
-            "f": f
-        }
+        initial = {"a": "true", "b": "TRUE", "c": "false", "d": "none", "e": e, "f": f}
+        expected = {"a": True, "b": True, "c": False, "d": None, "e": e, "f": f}
         for k, v in convert_booleans(initial).items():
             self.assertTrue(v is expected[k])
 
@@ -196,10 +187,12 @@ class InputConversionTests(unittest.TestCase):
         # another module adds another argument to it
         flip.append("first_dynamic_arg")
 
-        data = {"initial_arg": False,
-                "first_dynamic_arg": False,
-                "second_dynamic_arg": False,
-                "third_dynamic_arg": False}
+        data = {
+            "initial_arg": False,
+            "first_dynamic_arg": False,
+            "second_dynamic_arg": False,
+            "third_dynamic_arg": False,
+        }
 
         # conversion is run against input arguments
         data = InputConverter.convert(**data)
@@ -226,9 +219,11 @@ class InputConversionTests(unittest.TestCase):
     def test_single_arg_append_post_load(self):
         # same case as above but pos load.
 
-        data = {"initial_arg": False,
-                "first_dynamic_arg": False,
-                "second_dynamic_arg": False}
+        data = {
+            "initial_arg": False,
+            "first_dynamic_arg": False,
+            "second_dynamic_arg": False,
+        }
         # conversion is run against input arguments
         data = InputConverter.convert(**data)
 
@@ -236,6 +231,7 @@ class InputConversionTests(unittest.TestCase):
         @SingleArgDecorator("initial_arg")
         def flip(arg_value):
             return not arg_value
+
         flip.append("first_dynamic_arg")
 
         # post load conversion is run
@@ -273,40 +269,43 @@ class ArgumentApplicabilityTests(unittest.TestCase):
         unused, _ = find_unused_arguments({}, [], self.test_app.tasks)
         self.assertEqual(len(unused), 0)
 
-        kwargs = {'chain': 'noop',
-                  'uid': 'FireX-mdelahou-161215-150725-21939'}
+        kwargs = {"chain": "noop", "uid": "FireX-mdelahou-161215-150725-21939"}
         unused, _ = find_unused_arguments(kwargs, ["chain"], self.test_app.tasks)
         self.assertEqual(len(unused), 0)
 
     def test_white_list(self):
-        kwargs = {'chain': 'noop',
-                  'uid': 'FireX-mdelahou-161215-150725-21939',
-                  'list_arg': "a list",
-                  'str_arg': "a str"}
+        kwargs = {
+            "chain": "noop",
+            "uid": "FireX-mdelahou-161215-150725-21939",
+            "list_arg": "a list",
+            "str_arg": "a str",
+        }
         whitelist_arguments(["list_arg"])
-        whitelist_arguments('str_arg')
-        unused, _ = find_unused_arguments(kwargs, ["chain", "anything"], self.test_app.tasks)
+        whitelist_arguments("str_arg")
+        unused, _ = find_unused_arguments(
+            kwargs, ["chain", "anything"], self.test_app.tasks
+        )
         self.assertEqual(len(unused), 0)
 
     def test_close_match(self):
         # Test for near match to 'bypass_reason' - ratio method
-        kwargs = {'byepass_reason': 'True'}
+        kwargs = {"byepass_reason": "True"}
         unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
         self.assertEqual(len(unused), 1)
         self.assertEqual(next(iter(unused.keys())), next(iter(kwargs.keys())))
         self.assertEqual(len(close_matches), 1)
-        self.assertEqual('bypass_reason', close_matches[next(iter(kwargs.keys()))])
+        self.assertEqual("bypass_reason", close_matches[next(iter(kwargs.keys()))])
 
         # Test for near match to 'short' - ratio method
-        kwargs = {'sgort': 'True'}
+        kwargs = {"sgort": "True"}
         unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
         self.assertEqual(len(unused), 1)
         self.assertEqual(next(iter(unused.keys())), next(iter(kwargs.keys())))
         self.assertEqual(len(close_matches), 1)
-        self.assertEqual('short', close_matches[next(iter(kwargs.keys()))])
+        self.assertEqual("short", close_matches[next(iter(kwargs.keys()))])
 
         # Test for no near matches
-        kwargs = {'a_completely_bogus_argument': 'doesnt_matter'}
+        kwargs = {"a_completely_bogus_argument": "doesnt_matter"}
         unused, close_matches = find_unused_arguments(kwargs, [], self.test_app.tasks)
         self.assertEqual(len(unused), 1)
         self.assertEqual(next(iter(unused.keys())), next(iter(kwargs.keys())))

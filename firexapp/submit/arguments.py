@@ -20,24 +20,31 @@ def get_chain_args(other_args: []):
     it = iter(other_args)
     no_value_exception = None
     for x in it:
-        if not x.startswith('-'):
+        if not x.startswith("-"):
             if no_value_exception:
                 # the error was earlier
                 raise no_value_exception
-            raise ChainArgException(f'Error: Argument should start with a proper dash (- or --)\n{x}')
+            raise ChainArgException(
+                f"Error: Argument should start with a proper dash (- or --)\n{x}"
+            )
 
         try:
             value = next(it)
             if str(value).startswith("-"):
                 # there might be an error. we'll find out later
                 no_value_exception = ChainArgException(
-                    f'Error: Arguments must have an accompanying value\n{x}')
+                    f"Error: Arguments must have an accompanying value\n{x}"
+                )
         except StopIteration:
-            raise ChainArgException(f'Error: Arguments must have an accompanying value\n{x}')
+            raise ChainArgException(
+                f"Error: Arguments must have an accompanying value\n{x}"
+            )
 
-        key = x.lstrip('-')
-        if not re.match('^[A-Za-z].*', key):
-            raise ChainArgException(f'Error: Argument should start with a letter\n{key}')
+        key = x.lstrip("-")
+        if not re.match("^[A-Za-z].*", key):
+            raise ChainArgException(
+                f"Error: Argument should start with a letter\n{key}"
+            )
         chain_arguments[key] = value
     return chain_arguments
 
@@ -52,6 +59,7 @@ class InputConverter:
     are stored into the singleton InputConverter object by adding the @register decorator to the top of each desired
     function.
     """
+
     _global_instance = None
     pre_load_was_run = False
 
@@ -141,6 +149,7 @@ class InputConverter:
                         # restore original behaviour
                         _converter.append = _old_append
                     _old_append(*more_args)
+
                 converter.append = new_append
 
         return cls.instance().register(*args)
@@ -156,7 +165,9 @@ class InputConverter:
         # Auto set whether this is preload, unless explicitly specified
         pre_load = not cls.pre_load_was_run if pre_load is None else pre_load
         if pre_load and cls.pre_load_was_run:
-                raise ConverterRegistrationException("Pre-microservice conversion was already run")
+            raise ConverterRegistrationException(
+                "Pre-microservice conversion was already run"
+            )
 
         ret = cls.instance().convert(pre_task=pre_load, **kwargs)
 
@@ -170,14 +181,15 @@ def convert_booleans(kwargs):
     for key, value in kwargs.items():
         if not isinstance(value, str):
             continue
-        if value.upper() == 'TRUE':
+        if value.upper() == "TRUE":
             value = True
-        elif value.upper() == 'FALSE':
+        elif value.upper() == "FALSE":
             value = False
-        elif value.upper() == 'NONE':
+        elif value.upper() == "NONE":
             value = None
         kwargs[key] = value
     return kwargs
+
 
 @InputConverter.register
 def auto_load_pydev_debugging_plugin(kwargs):
@@ -193,7 +205,10 @@ def auto_load_pydev_debugging_plugin(kwargs):
     # local and include the pydev debugging plugin
     logger.debug("Auto-including debug plugin")
     import firexapp.testing
-    debugging_plugin = os.path.join(os.path.dirname(firexapp.testing.__file__), "pydev_debug_plugin.py")
+
+    debugging_plugin = os.path.join(
+        os.path.dirname(firexapp.testing.__file__), "pydev_debug_plugin.py"
+    )
     if plugins:
         debugging_plugin = "," + debugging_plugin
     return {"plugins": plugins + debugging_plugin}
@@ -268,16 +283,20 @@ def find_unused_arguments(
             # for unused args less than 10 chars long, use distance method, otherwise use ratio method.
             if len(unused_arg) < 10:
                 distance = Lev.distance(used_arg, unused_arg)
-                if distance < 3 and (not close_match or close_match['distance'] > distance):
-                    close_match['arg'] = used_arg
-                    close_match['distance'] = distance
+                if distance < 3 and (
+                    not close_match or close_match["distance"] > distance
+                ):
+                    close_match["arg"] = used_arg
+                    close_match["distance"] = distance
             else:
                 match_ratio = Lev.ratio(used_arg, unused_arg)
-                if match_ratio > 0.9 and (not close_match or close_match['ratio'] < match_ratio):
-                    close_match['arg'] = used_arg
-                    close_match['ratio'] = match_ratio
+                if match_ratio > 0.9 and (
+                    not close_match or close_match["ratio"] < match_ratio
+                ):
+                    close_match["arg"] = used_arg
+                    close_match["ratio"] = match_ratio
         # Store the closest match in the returned dict
         if close_match:
-            close_matches[unused_arg] = close_match['arg']
+            close_matches[unused_arg] = close_match["arg"]
 
     return unused_chain_args, close_matches

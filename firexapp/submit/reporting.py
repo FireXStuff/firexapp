@@ -12,7 +12,8 @@ from firexkit.task import get_current_reports_uids
 logger = get_task_logger(__name__)
 
 
-REL_COMPLETION_REPORT_PATH = 'completion_email.html'
+REL_COMPLETION_REPORT_PATH = "completion_email.html"
+
 
 class ReportGenerator(ABC):
     formatters = ()
@@ -20,7 +21,7 @@ class ReportGenerator(ABC):
 
     @staticmethod
     def pre_run_report(*args, **kwarg):
-        """ This runs in the context of __main__ """
+        """This runs in the context of __main__"""
 
     @abstractmethod
     def add_entry(self, key_name, value, priority, formatters, **extra):
@@ -36,13 +37,15 @@ class ReportGenerator(ABC):
         root_async_result: FxAsyncResult,
         **kwargs,
     ):
-        """ This could runs in the context of __main__ if --sync, other in the context of celery.
-            So the instance cannot be assumed be the same as in pre_run_report() """
+        """This could runs in the context of __main__ if --sync, other in the context of celery.
+        So the instance cannot be assumed be the same as in pre_run_report()"""
 
     def filter_formatters(self, all_formatters):
         if not self.formatters:
             return all_formatters
-        filtered_formatters = {f: all_formatters[f] for f in self.formatters if f in all_formatters}
+        filtered_formatters = {
+            f: all_formatters[f] for f in self.formatters if f in all_formatters
+        }
         if not filtered_formatters:
             return None
         return filtered_formatters
@@ -79,16 +82,15 @@ class ReportersRegistry:
         chain_args = chain_args or {}
 
         fx_app = root_async_result.app
-        report_results : list[FxAsyncResult] = [
+        report_results: list[FxAsyncResult] = [
             FxAsyncResult(r, backend=fx_app.backend)
             for r in get_current_reports_uids(fx_app.backend)
         ]
         for task_result in report_results:
             try:
                 # only report on successful tasks
-                if (
-                    task_result.state != SUCCESS
-                    or not (task_name := task_result.fx_get_name())
+                if task_result.state != SUCCESS or not (
+                    task_name := task_result.fx_get_name()
                 ):
                     continue
 
@@ -105,9 +107,11 @@ class ReportersRegistry:
                         formatters = report_entry.get("formatters", [])
                         loaders = report_entry.get("loaders", [])
                         key_name = report_entry["key_name"]
-                        logger.debug(f"Processing report entry for task {task_name} with key_name {key_name}")
+                        logger.debug(
+                            f"Processing report entry for task {task_name} with key_name {key_name}"
+                        )
                         if len(loaders) > 0:
-                            logger.debug(f'Loading report data for task {task_name}')
+                            logger.debug(f"Loading report data for task {task_name}")
                             filtered_loaders = report_gen.filter_loaders(loaders)
 
                             if filtered_loaders is None:
@@ -120,49 +124,64 @@ class ReportersRegistry:
                                     loaders=filtered_loaders,
                                     all_task_returns=task_ret,
                                     task_name=task_name,
-                                    task_uuid=task_result.id
+                                    task_uuid=task_result.id,
                                 )
-                                logger.debug(f'Completed loading report data for task {task_name}')
+                                logger.debug(
+                                    f"Completed loading report data for task {task_name}"
+                                )
                             except Exception:
-                                logger.exception(f'Error during report data loading for task {task_name}...skipping')
+                                logger.exception(
+                                    f"Error during report data loading for task {task_name}...skipping"
+                                )
                                 continue
                         if len(formatters) > 0:
-                            logger.debug(f'Adding report entry for task {task_name}')
-                            filtered_formatters = report_gen.filter_formatters(formatters)
+                            logger.debug(f"Adding report entry for task {task_name}")
+                            filtered_formatters = report_gen.filter_formatters(
+                                formatters
+                            )
                             if filtered_formatters is not None:
                                 try:
                                     report_gen.add_entry(
                                         key_name=key_name,
-                                        value=task_ret[key_name] if key_name else task_ret,
+                                        value=task_ret[key_name]
+                                        if key_name
+                                        else task_ret,
                                         priority=report_entry["priority"],
                                         formatters=filtered_formatters,
                                         all_task_returns=task_ret,
                                         task_name=task_name,
-                                        task_uuid=task_result.id)
-                                    logger.debug(f'Completed adding report entry for task {task_name}')
+                                        task_uuid=task_result.id,
+                                    )
+                                    logger.debug(
+                                        f"Completed adding report entry for task {task_name}"
+                                    )
                                 except Exception:
-                                    logger.exception(f'Error during report generation for task {task_name}...skipping')
+                                    logger.exception(
+                                        f"Error during report generation for task {task_name}...skipping"
+                                    )
 
             except Exception:
-                logger.exception(f"Failed to add report entry for task result {task_result}")
+                logger.exception(
+                    f"Failed to add report entry for task result {task_result}"
+                )
 
             logger.debug("Completed processing results data for reports")
 
         for report_gen in cls.get_generators():
             try:
-                logger.debug(f'Running post_run_report for {report_gen}')
+                logger.debug(f"Running post_run_report for {report_gen}")
                 report_gen.post_run_report(
                     root_async_result=root_async_result,
                     **chain_args,
                 )
-                logger.debug(f'Completed post_run_report for {report_gen}')
+                logger.debug(f"Completed post_run_report for {report_gen}")
             except Exception:
                 # Failure in one report generator should not impact another
-                logger.exception(f'Error in the post_run_report for {report_gen}')
+                logger.exception(f"Error in the post_run_report for {report_gen}")
 
 
 def report(key_name=None, priority=-1, **formatters):
-    """ Use this decorator to indicate what returns to include in the report and how to format it """
+    """Use this decorator to indicate what returns to include in the report and how to format it"""
 
     def decorator(func):
 
@@ -171,23 +190,27 @@ def report(key_name=None, priority=-1, **formatters):
 
             # guard: prevent bad coding by catching bad return key
             if key_name and key_name not in cls.return_keys:
-                raise ValueError(f"Task {cls.name} does not specify {key_name} using the @returns decorator. "
-                                 "It cannot be used in @report")
+                raise ValueError(
+                    f"Task {cls.name} does not specify {key_name} using the @returns decorator. "
+                    "It cannot be used in @report"
+                )
 
             report_entry = {
                 "key_name": key_name,
-                'priority': priority,
-                'formatters': formatters,
+                "priority": priority,
+                "formatters": formatters,
             }
             if not cls.has_report_meta():
                 cls.report_meta = []
             cls.report_meta.append(report_entry)
             return cls
 
-        if hasattr(func, '__qualname__'):
+        if hasattr(func, "__qualname__"):
             return tag_with_report_meta_data(func)
 
-        logger.debug(f"Skipping applying @report since {func} is not a PromiseProxy type")
+        logger.debug(
+            f"Skipping applying @report since {func} is not a PromiseProxy type"
+        )
 
         return func
 
@@ -195,7 +218,7 @@ def report(key_name=None, priority=-1, **formatters):
 
 
 def report_data(key_name=None, **loaders):
-    """ Use this decorator to indicate what returns to include in the report and how to load it """
+    """Use this decorator to indicate what returns to include in the report and how to load it"""
 
     def decorator(func):
 
@@ -204,22 +227,26 @@ def report_data(key_name=None, **loaders):
 
             # guard: prevent bad coding by catching bad return key
             if key_name and key_name not in cls.return_keys:
-                raise ValueError(f"Task {cls.name} does not specify {key_name} using the @returns decorator. "
-                                 "It cannot be used in @report")
+                raise ValueError(
+                    f"Task {cls.name} does not specify {key_name} using the @returns decorator. "
+                    "It cannot be used in @report"
+                )
 
             report_data = {
                 "key_name": key_name,
-                'loaders': loaders,
+                "loaders": loaders,
             }
             if not cls.has_report_meta():
                 cls.report_meta = []
             cls.report_meta.append(report_data)
             return cls
 
-        if hasattr(func, '__qualname__'):
+        if hasattr(func, "__qualname__"):
             return tag_with_report_meta_data(func)
 
-        logger.debug(f"Skipping applying @report_data since {func} is not a PromiseProxy type")
+        logger.debug(
+            f"Skipping applying @report_data since {func} is not a PromiseProxy type"
+        )
 
         return func
 

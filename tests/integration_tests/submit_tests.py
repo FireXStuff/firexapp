@@ -32,7 +32,6 @@ def get_submission_file(logs_dir: str):
 
 
 class SubmitConvertFailureStillHasLogs(FlowTestConfiguration):
-
     def initial_firex_options(self) -> list:
         return ["submit", "--chain", "nop", "--barf", "True"]
 
@@ -69,8 +68,10 @@ class SubmitHighRunnerCase(FlowTestConfiguration):
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         test_file_path = os.path.join(self.run_data.logs_path, "success")
-        assert os.path.isfile(os.path.join(test_file_path)), "Test file was not created in the logs directory, " \
-                                                             "therefor the microservice did not run"
+        assert os.path.isfile(os.path.join(test_file_path)), (
+            "Test file was not created in the logs directory, "
+            "therefor the microservice did not run"
+        )
 
     def assert_expected_return_code(self, ret_value):
         assert_is_good_run(ret_value)
@@ -97,9 +98,15 @@ def convert_provided_and_added_two(kwargs):
 
 class ArgConverterCheck(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "high_expectations",
-                "--provided_one", "True",
-                "--provided_two", "needs_to_change"]
+        return [
+            "submit",
+            "--chain",
+            "high_expectations",
+            "--provided_one",
+            "True",
+            "--provided_two",
+            "needs_to_change",
+        ]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         # Any failure would not reach here
@@ -130,9 +137,9 @@ class MissingChainArgumentError(FlowTestConfiguration):
         return ["submit", "--chain", "need_an_argument"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
-        assert 'Missing mandatory arguments:' in cmd_err
-        assert 'i_need_me_some_of_this' in cmd_err
-        assert 'required by submit_tests.need_an_argument' in cmd_err
+        assert "Missing mandatory arguments:" in cmd_err
+        assert "i_need_me_some_of_this" in cmd_err
+        assert "required by submit_tests.need_an_argument" in cmd_err
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
@@ -140,7 +147,13 @@ class MissingChainArgumentError(FlowTestConfiguration):
 
 class InvalidArgumentError(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "need_an_argument", "--but_it_is_not_this_one", "nope"]
+        return [
+            "submit",
+            "--chain",
+            "need_an_argument",
+            "--but_it_is_not_this_one",
+            "nope",
+        ]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert "The following arguments are not used by any microservices" in cmd_err
@@ -152,7 +165,13 @@ class InvalidArgumentError(FlowTestConfiguration):
 
 class InvalidPluginArgumentError(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "write_a_test_file", "--plugins", "does_not_exist.py"]
+        return [
+            "submit",
+            "--chain",
+            "write_a_test_file",
+            "--plugins",
+            "does_not_exist.py",
+        ]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert "File does_not_exist.py is not found" in cmd_err
@@ -163,12 +182,16 @@ class InvalidPluginArgumentError(FlowTestConfiguration):
 
 class ArgsFromJsonFile(FlowTestConfiguration):
     def initial_firex_options(self) -> list:
-        with NamedTemporaryFile(mode='w', delete=False) as json_args_file:
-            json.dump(['--i_need_me_some_of_this', 'here is the arg'], json_args_file)
+        with NamedTemporaryFile(mode="w", delete=False) as json_args_file:
+            json.dump(["--i_need_me_some_of_this", "here is the arg"], json_args_file)
             self.json_args_path = json_args_file.name
-        return ["submit",
-                '--chain', 'need_an_argument',
-                JSON_ARGS_PATH_ARG_NAME, self.json_args_path]
+        return [
+            "submit",
+            "--chain",
+            "need_an_argument",
+            JSON_ARGS_PATH_ARG_NAME,
+            self.json_args_path,
+        ]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         assert not cmd_err
@@ -177,20 +200,18 @@ class ArgsFromJsonFile(FlowTestConfiguration):
         os.unlink(self.json_args_path)
         assert_is_good_run(ret_value)
 
+
 @app.task(bind=True)
 def test_bog_sequence(
     self: FireXTask,
 ):
-    self.enqueue_child(
-        nop.s()
-        | InjectArgs(**self.abog)
-        | nop.s()
-    )
+    self.enqueue_child(nop.s() | InjectArgs(**self.abog) | nop.s())
+
 
 class BogSequenceTest(FlowTestConfiguration):
-
     def initial_firex_options(self) -> list:
         return [
             "submit",
-            '--chain', 'test_bog_sequence',
+            "--chain",
+            "test_bog_sequence",
         ]

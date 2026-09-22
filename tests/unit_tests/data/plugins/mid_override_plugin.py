@@ -3,6 +3,7 @@ The lower-precedence half of a three-link override chain: core task <- this plug
 <- top_override_plugin. At runtime this plugin's contribution is executed as the
 replacement task 'mid_override_plugin.chained_override_me_orig'.
 """
+
 from firexapp.engine.celery import app
 from firexkit.task import FireXTask
 

@@ -6,7 +6,6 @@ from firexkit.firexkit_common import get_link
 
 
 class SimpleHtmlParser(HTMLParser):
-
     def __init__(self, html_str):
         super().__init__()
         self.start_tag, self.start_tag_attrs, self.data = None, None, None
@@ -22,20 +21,20 @@ class SimpleHtmlParser(HTMLParser):
 
 class HtmlTemplateTests(unittest.TestCase):
     def test_simple_link(self):
-        url = 'http://some.com/path'
-        text = 'content<b> with markup</b>'
+        url = "http://some.com/path"
+        text = "content<b> with markup</b>"
         link = get_link(url, text=text)
 
         parser = SimpleHtmlParser(link)
         self.assertEqual(parser.data, text)
-        self.assertEqual(parser.start_tag_attrs['href'], url)
+        self.assertEqual(parser.start_tag_attrs["href"], url)
 
     def test_custom_attrs_link(self):
-        url = 'http://some.com/path'
-        text = 'content<b> with markup</b>'
-        link = get_link(url, text=text, attrs={'a': 'b'})
+        url = "http://some.com/path"
+        text = "content<b> with markup</b>"
+        link = get_link(url, text=text, attrs={"a": "b"})
 
         parser = SimpleHtmlParser(link)
         self.assertEqual(parser.data, text)
-        self.assertEqual(parser.start_tag_attrs['href'], url)
-        self.assertEqual(parser.start_tag_attrs['a'], 'b')
+        self.assertEqual(parser.start_tag_attrs["href"], url)
+        self.assertEqual(parser.start_tag_attrs["a"], "b")

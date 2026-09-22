@@ -51,12 +51,11 @@ add_hostname_to_log_records()
 
 logger = get_task_logger(__name__)
 
+
 def _plugins_to_csv(plugins: Any):
     if isinstance(plugins, list):
-        return ','.join([
-            p for p in plugins if p
-        ])
-    return plugins or ''
+        return ",".join([p for p in plugins if p])
+    return plugins or ""
 
 
 class FxEnvVars(pydantic.BaseModel):
@@ -64,11 +63,11 @@ class FxEnvVars(pydantic.BaseModel):
     CURRENT_RUN_FIREX_ID: str
     firex_logs_dir: str
     redis_bin_dir: str
-    BROKER: str # url
+    BROKER: str  # url
     firex_plugins: Annotated[
         str,
         pydantic.BeforeValidator(_plugins_to_csv),
-    ] = ''
+    ] = ""
 
     @property
     def firex_id(self) -> str:
@@ -83,9 +82,7 @@ class FxEnvVars(pydantic.BaseModel):
         return self.BROKER
 
     def get_plugin_files(self) -> list[str]:
-        return [
-            p for p in self.firex_plugins.split(',') if p
-        ]
+        return [p for p in self.firex_plugins.split(",") if p]
 
     def get_redis_hostname(self) -> str:
         return RedisManager.get_hostname_port_from_url(self.BROKER)[0]
@@ -99,18 +96,24 @@ class FxEnvVars(pydantic.BaseModel):
     def clear_os_fx_env(cls):
         for k in FxEnvVars.model_fields:
             # redis bin dir not run specific.
-            if k != 'redis_bin_dir':
+            if k != "redis_bin_dir":
                 cleared_val = os.environ.pop(k, None)
                 if cleared_val:
-                    logger.info(f'Cleared environment of {k}={cleared_val}')
+                    logger.info(f"Cleared environment of {k}={cleared_val}")
 
     @classmethod
     def load_firex_env_vars_from_env(cls) -> Self:
         fx_env = cls.model_validate(os.environ)
 
-        assert fx_env.CURRENT_RUN_FIREX_ID, "loading a FireX env must include a CURRENT_RUN_FIREX_ID"
-        assert is_firex_id(fx_env.CURRENT_RUN_FIREX_ID), f'CURRENT_RUN_FIREX_ID env is not a FireX ID: {fx_env.CURRENT_RUN_FIREX_ID}'
-        assert fx_env.firex_logs_dir, "loading a FireX env must include a firex_logs_dir"
+        assert fx_env.CURRENT_RUN_FIREX_ID, (
+            "loading a FireX env must include a CURRENT_RUN_FIREX_ID"
+        )
+        assert is_firex_id(fx_env.CURRENT_RUN_FIREX_ID), (
+            f"CURRENT_RUN_FIREX_ID env is not a FireX ID: {fx_env.CURRENT_RUN_FIREX_ID}"
+        )
+        assert fx_env.firex_logs_dir, (
+            "loading a FireX env must include a firex_logs_dir"
+        )
         assert fx_env.BROKER, "loading a FireX env must include a BROKER"
 
         return fx_env
@@ -124,14 +127,16 @@ class FxEnvVars(pydantic.BaseModel):
         broker_mgr = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
         firex_id = os.path.basename(logs_dir)
         if not is_firex_id(firex_id):
-            logger.error(f'Basename {firex_id} of log directory {logs_dir} is not a FireX ID')
+            logger.error(
+                f"Basename {firex_id} of log directory {logs_dir} is not a FireX ID"
+            )
         return cls.model_validate(
             {
-                'CURRENT_RUN_FIREX_ID': firex_id,
-                'firex_logs_dir': logs_dir,
-                'redis_bin_dir': broker_mgr.redis_bin_base,
-                'BROKER': broker_mgr.broker_url,
-                'firex_plugins': plugins,
+                "CURRENT_RUN_FIREX_ID": firex_id,
+                "firex_logs_dir": logs_dir,
+                "redis_bin_dir": broker_mgr.redis_bin_base,
+                "BROKER": broker_mgr.broker_url,
+                "firex_plugins": plugins,
             }
         )
 
@@ -139,25 +144,22 @@ class FxEnvVars(pydantic.BaseModel):
     def create_no_task_exec_fx_env(
         cls,
         plugins=None,
-        logs_dir='',
+        logs_dir="",
     ) -> Self:
         return cls.model_validate(
             {
-                'CURRENT_RUN_FIREX_ID': '',
-                'firex_logs_dir': logs_dir,
-                'redis_bin_dir': '',
-                'BROKER': '',
-                'firex_plugins': plugins,
+                "CURRENT_RUN_FIREX_ID": "",
+                "firex_logs_dir": logs_dir,
+                "redis_bin_dir": "",
+                "BROKER": "",
+                "firex_plugins": plugins,
             }
         )
 
     @classmethod
     def select_minimal_fx_env_from_os_env(cls) -> dict[str, str]:
-        env_names = ['PATH', 'PYTHONPATH', 'VIRTUAL_ENV'] + list(cls.model_fields)
-        return {
-            k: v for k, v in os.environ.items()
-            if k in env_names
-        }
+        env_names = ["PATH", "PYTHONPATH", "VIRTUAL_ENV"] + list(cls.model_fields)
+        return {k: v for k, v in os.environ.items() if k in env_names}
 
 
 # Modules that must be imported by every FireX app, independently of bundle
@@ -171,13 +173,12 @@ FIREXAPP_INFRA_IMPORTS = (
     "firexapp.tasks.core_tasks",
     "firexapp.submit.report_trigger",
     "firexapp.reporters.json_reporter",
-    "firex_bundle_ci.tasks"
+    "firex_bundle_ci.tasks",
 )
 
 
 @dataclasses.dataclass
 class FxCeleryConfig:
-
     fx_env: FxEnvVars
 
     # logging formats
@@ -186,7 +187,9 @@ class FxCeleryConfig:
     task_format: str = "[%(task_id).8s-%(task_name)s]"
     message_format: str = ":</small> %(message)s"
     worker_log_format: str = timestamp_format + process_format + message_format
-    worker_task_log_format: str = timestamp_format + process_format + task_format + message_format
+    worker_task_log_format: str = (
+        timestamp_format + process_format + task_format + message_format
+    )
 
     broker_connection_retry_on_startup: bool = True
 
@@ -194,11 +197,11 @@ class FxCeleryConfig:
     worker_autoscaler = FireXAutoscaler
     # Dotted string, NOT the class: default_celery_config is imported *by*
     # firexkit.firex_celery, so importing FireXTaskPool here would be a cycle.
-    worker_pool = 'firexkit.firex_celery:FireXTaskPool'
+    worker_pool = "firexkit.firex_celery:FireXTaskPool"
 
-    accept_content: ClassVar[list[str]] = ['pickle', 'json']
-    task_serializer = 'pickle'
-    result_serializer = 'pickle'
+    accept_content: ClassVar[list[str]] = ["pickle", "json"]
+    task_serializer = "pickle"
+    result_serializer = "pickle"
     result_expires = None
 
     task_track_started = True
@@ -207,23 +210,23 @@ class FxCeleryConfig:
     worker_prefetch_multiplier: int = 1
     worker_redirect_stdouts_level: str = PRINT_LEVEL_NAME
 
-    task_default_queue = 'mc'
-    primary_worker_name = 'mc'
+    task_default_queue = "mc"
+    primary_worker_name = "mc"
 
-    task_soft_time_limit : int = 72 * 60
+    task_soft_time_limit: int = 72 * 60
 
     # The run's *total* time budget, as opposed to task_soft_time_limit, which keeps its
     # celery meaning of a per-task default. Seeded at submit from --soft_time_limit,
     # falling back to task_soft_time_limit, and monotonically increasable at runtime via
     # FireXTask.ensure_run_time_remaining. Read it via FireXCelery.get_run_soft_time_limit,
     # which goes to the broker: this attribute is only the value seeded at worker startup.
-    run_soft_time_limit : int | None = None
+    run_soft_time_limit: int | None = None
 
-    primary_worker_minimum_concurrency : ClassVar[int] = 4
+    primary_worker_minimum_concurrency: ClassVar[int] = 4
 
-    link_for_logo : str | None = None
-    logs_url : str | None = None
-    resources_dir : str | None = None
+    link_for_logo: str | None = None
+    logs_url: str | None = None
+    resources_dir: str | None = None
 
     def __post_init__(self):
         if not self.link_for_logo:
@@ -264,7 +267,9 @@ class FxCeleryConfig:
         )
 
         # TODO: assumes everywhere celery is started can load from logs_dir. Should likely serialize to backend.
-        self.install_config = load_existing_install_configs(self.fx_env.firex_id, self.logs_dir)
+        self.install_config = load_existing_install_configs(
+            self.fx_env.firex_id, self.logs_dir
+        )
         if self.install_config.has_viewer():
             self.logs_url = self.link_for_logo = self.install_config.get_logs_root_url()
             self.link_for_logo = self.install_config.get_logs_root_url()
@@ -276,17 +281,17 @@ class FxCeleryConfig:
         bundles = firexapp.discovery.find_firex_task_bundles()
         logger.debug("Bundle discovery completed.")
         if bundles:
-            logger.debug('Bundles discovered:\n' + '\n'.join([f'\t - {b}' for b in bundles]))
+            logger.debug(
+                "Bundles discovered:\n" + "\n".join([f"\t - {b}" for b in bundles])
+            )
         return bundles
 
     @functools.cached_property
     def imports(self) -> tuple[str, ...]:
         return tuple(
             dict.fromkeys(
-                tuple(
-                    self._fx_discover_bundles()
-                ) + (
-                    "firexapp.tasks.example",
-                ) + FIREXAPP_INFRA_IMPORTS
+                tuple(self._fx_discover_bundles())
+                + ("firexapp.tasks.example",)
+                + FIREXAPP_INFRA_IMPORTS
             )
         )

@@ -4,9 +4,9 @@ from signal import Signals
 
 def shorten_long_output(output, max_output_str_len=8000):
     if len(output) > max_output_str_len:
-        mssg = f'\nOutput (last {max_output_str_len} chars):\n{output[-max_output_str_len:]}'
+        mssg = f"\nOutput (last {max_output_str_len} chars):\n{output[-max_output_str_len:]}"
     else:
-        mssg = f'\nOutput:\n{output}'
+        mssg = f"\nOutput:\n{output}"
     return mssg
 
 
@@ -19,11 +19,11 @@ class FireXCalledProcessError(subprocess.CalledProcessError):
             except ValueError:
                 signame = -self.returncode
 
-            status = f'signal {signame}'
+            status = f"signal {signame}"
         else:
-            status = f'exit code {self.returncode}'
+            status = f"exit code {self.returncode}"
 
-        mssg = f'Command {self.cmd} exited with {status}.'
+        mssg = f"Command {self.cmd} exited with {status}."
         if self.output:
             mssg += shorten_long_output(self.output)
         return mssg

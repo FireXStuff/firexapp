@@ -13,15 +13,17 @@ import firexkit
 from firexapp.submit.arguments import whitelist_arguments
 from firexkit.permissions import DEFAULT_CHMOD_MODE
 
-BASE_LOGGING_DIR_ENV_VAR_KEY = 'firex_base_logging_dir'
+BASE_LOGGING_DIR_ENV_VAR_KEY = "firex_base_logging_dir"
 
 _FIREX_ID_DATE_FMT = "%y%m%d-%H%M%S"
-ALL_FIREX_IDS_REGEX = re.compile(r'(FireX-\w+?-\d{6}-\d{6}-\d+)')
-FIREX_ID_REGEX = re.compile(r'^FireX-(?P<user>.*?)-(?P<datetime_str>\d{6}-\d{6})-(?P<random_int>\d+)$')
+ALL_FIREX_IDS_REGEX = re.compile(r"(FireX-\w+?-\d{6}-\d{6}-\d+)")
+FIREX_ID_REGEX = re.compile(
+    r"^FireX-(?P<user>.*?)-(?P<datetime_str>\d{6}-\d{6})-(?P<random_int>\d+)$"
+)
 
 
 def firex_id_str(user: str, timestamp: datetime.datetime, random_int: int) -> str:
-    return f'FireX-{user}-{timestamp.strftime(_FIREX_ID_DATE_FMT)}-{random_int}'
+    return f"FireX-{user}-{timestamp.strftime(_FIREX_ID_DATE_FMT)}-{random_int}"
 
 
 @dataclass(frozen=True)
@@ -34,10 +36,10 @@ class FireXIdParts:
         return firex_id_str(self.user, self.timestamp, self.random_int)
 
     @staticmethod
-    def from_str(firex_id: str) -> 'FireXIdParts':
+    def from_str(firex_id: str) -> "FireXIdParts":
         maybe_parts = get_firex_id_parts(firex_id)
         if not maybe_parts:
-            raise ValueError(f'Failed to find FireX ID in: {firex_id}')
+            raise ValueError(f"Failed to find FireX ID in: {firex_id}")
         return maybe_parts
 
 
@@ -46,14 +48,16 @@ def get_firex_id_parts(maybe_firex_id: str) -> FireXIdParts | None:
     if m:
         parts = m.groupdict()
         try:
-             tz_aware_datetime = datetime.datetime.strptime(
-                parts['datetime_str'],
+            tz_aware_datetime = datetime.datetime.strptime(
+                parts["datetime_str"],
                 _FIREX_ID_DATE_FMT,
             ).replace(tzinfo=pytz.utc)
         except ValueError:
-            pass # invalidate date format.
+            pass  # invalidate date format.
         else:
-            return FireXIdParts(parts['user'], tz_aware_datetime, int(parts['random_int']))
+            return FireXIdParts(
+                parts["user"], tz_aware_datetime, int(parts["random_int"])
+            )
     return None
 
 
@@ -65,26 +69,21 @@ def find_all_firex_ids_from_str(input_str: str | None) -> list[str]:
     if not input_str:
         return []
     # unique, keeping order from input.
-    return list(
-        {
-        fid: None
-        for fid in ALL_FIREX_IDS_REGEX.findall(input_str)
-        }.keys()
-    )
+    return list({fid: None for fid in ALL_FIREX_IDS_REGEX.findall(input_str)}.keys())
 
 
 def find_single_firex_id_from_str(input_str) -> str:
     firex_ids = find_all_firex_ids_from_str(input_str)
     if len(firex_ids) != 1:
         raise ValueError(
-            f'Expected exactly one firex ID in {input_str}, found {len(firex_ids)}'
+            f"Expected exactly one firex ID in {input_str}, found {len(firex_ids)}"
         )
     return firex_ids[0]
 
 
 class Uid:
-    debug_dirname = 'firex_internal'
-    _resources_dirname = os.path.join(debug_dirname, 'resources')
+    debug_dirname = "firex_internal"
+    _resources_dirname = os.path.join(debug_dirname, "resources")
 
     def __init__(self, identifier=None, firex_requester=None):
         self.timestamp = datetime.datetime.now(tz=pytz.utc)
@@ -94,18 +93,20 @@ class Uid:
             self.identifier = identifier
         else:
             random.seed()
-            self.identifier = firex_id_str(self.user, self.timestamp, random.randint(1, 65536))
+            self.identifier = firex_id_str(
+                self.user, self.timestamp, random.randint(1, 65536)
+            )
         self._base_logging_dir = None
         self._logs_dir = None
         self._debug_dir = None
         self._viewers = {}
 
-
-
     @property
     def base_logging_dir(self):
         if not self._base_logging_dir:
-            self._base_logging_dir = os.environ.get(BASE_LOGGING_DIR_ENV_VAR_KEY, tempfile.gettempdir())
+            self._base_logging_dir = os.environ.get(
+                BASE_LOGGING_DIR_ENV_VAR_KEY, tempfile.gettempdir()
+            )
         return self._base_logging_dir
 
     @property
@@ -159,7 +160,7 @@ class Uid:
     def copy_resources(self):
         # pkg_resources.resource_filename('firexkit', 'resources') would have been a cleaner way, but
         # pkg_reources is very slow to load
-        pkg_resource_dir = os.path.join(os.path.dirname(firexkit.__file__), 'resources')
+        pkg_resource_dir = os.path.join(os.path.dirname(firexkit.__file__), "resources")
         resources_dir = self.resources_dir
         shutil.copytree(pkg_resource_dir, resources_dir)
         # Open permissions
@@ -177,7 +178,7 @@ class Uid:
     @property
     def logs_url(self):
         try:
-            return self.viewers['logs_url']
+            return self.viewers["logs_url"]
         except KeyError:
             return None
 

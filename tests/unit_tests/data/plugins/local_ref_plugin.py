@@ -3,6 +3,7 @@ A plugin file that defines a task and a helper, and the task references the help
 This allows us to assert through SignatureX which version that same-plugin reference
 binds to once a separate, higher-precedence plugin file also defines the helper.
 """
+
 from firexapp.engine.celery import app
 from firexkit.task import FireXTask
 

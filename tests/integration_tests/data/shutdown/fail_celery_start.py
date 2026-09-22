@@ -5,4 +5,5 @@ from firexapp.submit.submit import SubmitBaseApp
 def just_barf_instead(*args, **kwargs):
     raise RuntimeError("Fail for test")
 
+
 SubmitBaseApp.start_celery = just_barf_instead

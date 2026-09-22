@@ -4,7 +4,6 @@ from firexapp.broker_manager.redis_manager import RedisManager, RedisPasswordRea
 
 
 class BrokerFactory:
-
     @classmethod
     def get_redis_bin_dir(cls) -> str:
         return os.environ.get("redis_bin_dir", "")
@@ -13,12 +12,12 @@ class BrokerFactory:
     def load_broker_manager(
         cls,
         logs_dir: str,
-        redis_bin_base: str | None=None,
-        broker_url: str | None=None,
+        redis_bin_base: str | None = None,
+        broker_url: str | None = None,
     ) -> RedisManager:
         if broker_url:
             hostname, port = RedisManager.get_hostname_port_from_url(broker_url)
-            password=RedisManager.get_password_from_url(broker_url)
+            password = RedisManager.get_password_from_url(broker_url)
         else:
             hostname = port = password = None
 
@@ -42,7 +41,10 @@ class BrokerFactory:
         except RedisPasswordReadError as e:
             if not passwordless_fallback:
                 raise
-            RedisManager.log('Cannot read previous broker password. Trying a new (random) password.', exc_info=e)
+            RedisManager.log(
+                "Cannot read previous broker password. Trying a new (random) password.",
+                exc_info=e,
+            )
             # Setting this to None will cause the broker manager to create a new password
             password = None
 

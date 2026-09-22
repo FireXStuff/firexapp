@@ -26,23 +26,29 @@ logger = get_task_logger(__name__)
 
 @dataclass
 class ProcStats:
-    include_children: bool = True  # Input: include child processes (recursively). Note that if the spawned
-                                   # process disowns its children, we will not be able to capture those
+    include_children: bool = (
+        True  # Input: include child processes (recursively). Note that if the spawned
+    )
+    # process disowns its children, we will not be able to capture those
 
-    collection_interval: int = 2  # Input: Seconds between stats sampling. Sampling isn't free, so
-                                  # best not to be too aggressive. Note however that if the process
-                                  # spawns children which rapidly blink in and out of existence,
-                                  # the default value will not capture much at all
+    collection_interval: int = (
+        2  # Input: Seconds between stats sampling. Sampling isn't free, so
+    )
+    # best not to be too aggressive. Note however that if the process
+    # spawns children which rapidly blink in and out of existence,
+    # the default value will not capture much at all
 
-    interval_increase: bool = True # Input: Increase collection interval by elapsed_time * collection_interval/120
-                                   # up to a maximum of collection_interval * 30 seconds
+    interval_increase: bool = True  # Input: Increase collection interval by elapsed_time * collection_interval/120
+    # up to a maximum of collection_interval * 30 seconds
 
-    cpu_percent_used: int = 0 # CPU percent used over the time period
-    mem_mb_used: int = 0  # Average of memory usage over time in MiB (pss if available, else rss)
+    cpu_percent_used: int = 0  # CPU percent used over the time period
+    mem_mb_used: int = (
+        0  # Average of memory usage over time in MiB (pss if available, else rss)
+    )
     mem_mb_high_wm: int = 0  # High watermark for memory usage
     elapsed_time: float = 0.0  # In seconds
     num_cpu: int = 0
-    total_mem : int = 0  # in Mib
+    total_mem: int = 0  # in Mib
 
     def clear_stats(self):
         """
@@ -76,16 +82,30 @@ def check_call(cmd, retries=0, retry_delay=3, **kwargs):
     runner_type = _SubprocessRunnerType.CHECK_CALL
 
     _sanitize_runner_kwargs(runner_type=runner_type, kwargs=kwargs)
-    _subprocess_runner_retries(runner_type=runner_type, capture_output=False, check=True,
-                               retries=retries, retry_delay=retry_delay, cmd=cmd, **kwargs)
+    _subprocess_runner_retries(
+        runner_type=runner_type,
+        capture_output=False,
+        check=True,
+        retries=retries,
+        retry_delay=retry_delay,
+        cmd=cmd,
+        **kwargs,
+    )
 
 
 def check_output(cmd, retries=0, retry_delay=3, **kwargs):
     runner_type = _SubprocessRunnerType.CHECK_OUTPUT
 
     _sanitize_runner_kwargs(runner_type=runner_type, kwargs=kwargs)
-    result = _subprocess_runner_retries(runner_type=runner_type, capture_output=True, check=True,
-                                        retries=retries, retry_delay=retry_delay, cmd=cmd, **kwargs)
+    result = _subprocess_runner_retries(
+        runner_type=runner_type,
+        capture_output=True,
+        check=True,
+        retries=retries,
+        retry_delay=retry_delay,
+        cmd=cmd,
+        **kwargs,
+    )
     return result.stdout
 
 
@@ -95,20 +115,27 @@ def run(cmd, retries=0, retry_delay=3, **kwargs):
     runner_type = _SubprocessRunnerType.RUN
 
     _sanitize_runner_kwargs(runner_type=runner_type, kwargs=kwargs)
-    return _subprocess_runner_retries(runner_type=runner_type,  # Pass through 'capture_output' and 'check'
-                                      retries=retries, retry_delay=retry_delay, cmd=cmd, **kwargs)
+    return _subprocess_runner_retries(
+        runner_type=runner_type,  # Pass through 'capture_output' and 'check'
+        retries=retries,
+        retry_delay=retry_delay,
+        cmd=cmd,
+        **kwargs,
+    )
 
 
 def _sanitize_runner_kwargs(runner_type: _SubprocessRunnerType, kwargs: dict):
-    disallowed_keys = ['stdout', 'universal_newlines', 'text']
+    disallowed_keys = ["stdout", "universal_newlines", "text"]
     if runner_type is _SubprocessRunnerType.RUN:
-        disallowed_keys.extend(['input'])
+        disallowed_keys.extend(["input"])
     else:
-        disallowed_keys.extend(['capture_output', 'check'])
+        disallowed_keys.extend(["capture_output", "check"])
 
     for key in disallowed_keys:
         if key in kwargs:
-            logger.error(f'[{runner_type.name.lower()}] WARNING: {key} argument not allowed, it will be overridden.')
+            logger.error(
+                f"[{runner_type.name.lower()}] WARNING: {key} argument not allowed, it will be overridden."
+            )
             del kwargs[key]
 
 
@@ -120,7 +147,9 @@ def _subprocess_runner_retries(retries, retry_delay, **kwargs):
     retry_count = 0
     while True:
         try:
-            extra_header = f'[retry {retry_count:d}/{retries:d}]' if retry_count else None
+            extra_header = (
+                f"[retry {retry_count:d}/{retries:d}]" if retry_count else None
+            )
             return _subprocess_runner(extra_header=extra_header, **kwargs)
         except (subprocess.SubprocessError, FileNotFoundError):
             if retry_count >= retries:
@@ -133,6 +162,7 @@ def _subprocess_runner_retries(retries, retry_delay, **kwargs):
 def _send_flame_subprocess(subprocess_data):
     try:
         from celery import current_task
+
         if current_task:
             current_task.send_firex_event_raw({EXTERNAL_COMMANDS_KEY: subprocess_data})
     # Flame telemetry is best effort and must never prevent command execution.
@@ -148,12 +178,18 @@ def send_flame_subprocess_start(
     filename=None,
     remote_host=None,
 ):
-    _send_flame_subprocess({flame_subprocess_id: {'cmd': cmd,
-                                                  'cwd': str(cwd) if cwd else cwd,
-                                                  'output_file': filename,
-                                                  'host': host,
-                                                  'remote_host': remote_host,
-                                                  'start_time': time.time()}})
+    _send_flame_subprocess(
+        {
+            flame_subprocess_id: {
+                "cmd": cmd,
+                "cwd": str(cwd) if cwd else cwd,
+                "output_file": filename,
+                "host": host,
+                "remote_host": remote_host,
+                "start_time": time.time(),
+            }
+        }
+    )
 
 
 def send_flame_subprocess_end(
@@ -168,30 +204,52 @@ def send_flame_subprocess_end(
     ui_max_chars = 8000
     chars = ui_max_chars if chars is None else min(chars, ui_max_chars)
     subproc_result = {
-        'completed': not hung_process and not slow_process and returncode is not None,
-        'timeout': slow_process,
-        'inactive': hung_process,
-        'output_truncated': len(output) >= chars if output is not None else False,
-        'output': output[-chars:] if output else output,
-        'stderr_output_truncated': len(stderr_output) >= chars if stderr_output is not None else False,
-        'stderr_output': stderr_output[-chars:] if stderr_output else stderr_output,
-        'returncode': returncode,
+        "completed": not hung_process and not slow_process and returncode is not None,
+        "timeout": slow_process,
+        "inactive": hung_process,
+        "output_truncated": len(output) >= chars if output is not None else False,
+        "output": output[-chars:] if output else output,
+        "stderr_output_truncated": len(stderr_output) >= chars
+        if stderr_output is not None
+        else False,
+        "stderr_output": stderr_output[-chars:] if stderr_output else stderr_output,
+        "returncode": returncode,
     }
-    _send_flame_subprocess({flame_subprocess_id: {'result': subproc_result, 'end_time': time.time()}})
+    _send_flame_subprocess(
+        {flame_subprocess_id: {"result": subproc_result, "end_time": time.time()}}
+    )
 
 
-def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _SubprocessRunnerType.CHECK_OUTPUT,
-                       extra_header=None, file=None, chars=32000, timeout=None, capture_output=True, check=False,
-                       inactivity_timeout=30 * 60, monitor_activity_files=None, log_level=logging.DEBUG,
-                       copy_file_path=None, shell=False, cwd=None, env=None, remove_firex_pythonpath=True,
-                       logger=logger, stderr=subprocess.STDOUT, proc_stats: ProcStats | None = None,
-                       stdin=subprocess.PIPE, bufsize=0, **kwargs):
+def _subprocess_runner(
+    cmd: str | list,
+    runner_type: _SubprocessRunnerType = _SubprocessRunnerType.CHECK_OUTPUT,
+    extra_header=None,
+    file=None,
+    chars=32000,
+    timeout=None,
+    capture_output=True,
+    check=False,
+    inactivity_timeout=30 * 60,
+    monitor_activity_files=None,
+    log_level=logging.DEBUG,
+    copy_file_path=None,
+    shell=False,
+    cwd=None,
+    env=None,
+    remove_firex_pythonpath=True,
+    logger=logger,
+    stderr=subprocess.STDOUT,
+    proc_stats: ProcStats | None = None,
+    stdin=subprocess.PIPE,
+    bufsize=0,
+    **kwargs,
+):
     ##########################
     # Local Helper functions #
     ##########################
     def _get_cmd_str():
         if isinstance(cmd, list):
-            return ' '.join([shlex.quote(token) for token in cmd])
+            return " ".join([shlex.quote(token) for token in cmd])
         else:
             return cmd
 
@@ -202,7 +260,7 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
 
     def _get_env_without_pythonpath(user_env):
         try:
-            current_env_pythonpath = os.environ['PYTHONPATH']
+            current_env_pythonpath = os.environ["PYTHONPATH"]
         except KeyError:
             # if we don't have a PYTHONPATH in the current env, then we can't do anything
             return user_env
@@ -210,42 +268,57 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
             if user_env is None:
                 # User didn't supply an env, so, we remove our PYTHONPATH
                 current_env_copy = os.environ.copy()
-                del current_env_copy['PYTHONPATH']
+                del current_env_copy["PYTHONPATH"]
                 return current_env_copy
             else:
                 # User provided a custom env
                 try:
-                    user_env_pythonpath = user_env['PYTHONPATH']
+                    user_env_pythonpath = user_env["PYTHONPATH"]
                 except KeyError:
                     # If user provided custom env didn't have PYTHONPATH, then use as-is
                     return user_env
                 else:
                     # Remove our PYTHONPATH from the user's env PYTHONPATH
-                    current_env_pythonpath_items = current_env_pythonpath.split(':')
-                    user_env_pythonpath_items = user_env_pythonpath.split(':')
-                    new_pythonpath = [x for x in user_env_pythonpath_items if (x not in current_env_pythonpath_items)]
+                    current_env_pythonpath_items = current_env_pythonpath.split(":")
+                    user_env_pythonpath_items = user_env_pythonpath.split(":")
+                    new_pythonpath = [
+                        x
+                        for x in user_env_pythonpath_items
+                        if (x not in current_env_pythonpath_items)
+                    ]
 
                     user_env_copy = dict(user_env)
-                    user_env_copy['PYTHONPATH'] = ':'.join(new_pythonpath)
+                    user_env_copy["PYTHONPATH"] = ":".join(new_pythonpath)
                     return user_env_copy
 
     def _log_intro_msg(subprocess_uuid):
-        msg = [f'{log_header} Executing the following command:']
-        sep = '$' if shell else '>'
+        msg = [f"{log_header} Executing the following command:"]
+        sep = "$" if shell else ">"
         live_link = _get_live_file_monitor_link()
         if live_link is None:
-            live_link = ''
-        msg += [(f'{live_link}'
+            live_link = ""
+        msg += [
+            (
+                f"{live_link}"
                 f'<span class="command_line_prefix">{host}:{cwd_str}{sep}</span> '
-                f'<span class="command_line">{html_escape(cmd_str)}</span>')]
-        span_class = 'command_extra_info' if file else 'hidden'
+                f'<span class="command_line">{html_escape(cmd_str)}</span>'
+            )
+        ]
+        span_class = "command_extra_info" if file else "hidden"
         msg += [f'<span class="{span_class}">output also written to: {filename}</span>']
-        logger.log(log_level, '\n'.join(msg), extra={'label': subprocess_uuid,
-                                                     'span_class': 'command',
-                                                     'html_escape': False})
+        logger.log(
+            log_level,
+            "\n".join(msg),
+            extra={
+                "label": subprocess_uuid,
+                "span_class": "command",
+                "html_escape": False,
+            },
+        )
 
     def _get_live_file_monitor_link():
         from firexkit.firex_celery import FireXCelery
+
         try:
             fx_app = FireXCelery.app_or_default()
             # FIXME: https://github.com/FireXStuff/firexapp/issues/10
@@ -258,19 +331,24 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
 
         # Note we can't use urllib.parse.urljoin because the path is in the fragment, which urljoin can only overwrite.
         # FIXME: ideally flame-ui URL path knowledge would be externalized.
-        if not run_url.endswith('/'):
-            run_url += '/'
-        live_link_url = run_url + f"live-file?file={urllib.parse.quote(filename, safe='')}&host={host}"
-        link = firexkit_common.get_link(live_link_url,
-                                        text='',
-                                        title_attribute=f'Live monitor of {filename}',
-                                        attrs={"target": "_blank", "style": "margin-right:5px"},
-                                        other_elements='<i class="far fa-eye"></i>',
-                                        html_class=live_file_monitor_span_class)
+        if not run_url.endswith("/"):
+            run_url += "/"
+        live_link_url = (
+            run_url
+            + f"live-file?file={urllib.parse.quote(filename, safe='')}&host={host}"
+        )
+        link = firexkit_common.get_link(
+            live_link_url,
+            text="",
+            title_attribute=f"Live monitor of {filename}",
+            attrs={"target": "_blank", "style": "margin-right:5px"},
+            other_elements='<i class="far fa-eye"></i>',
+            html_class=live_file_monitor_span_class,
+        )
         return link
 
     def _hide_live_file_monitor_element():
-        logger.raw(f'<style>.{live_file_monitor_span_class} {{display: none;}}</style>')
+        logger.raw(f"<style>.{live_file_monitor_span_class} {{display: none;}}</style>")
 
     def _get_output_from_file():
         if not file or not chars or os.fstat(f.fileno()).st_size < chars:
@@ -278,16 +356,22 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
         else:
             f.seek(-chars, 2)
 
-        return f.read().decode(encoding='utf-8', errors='replace')
+        return f.read().decode(encoding="utf-8", errors="replace")
 
     def _log_output(contents, error=False):
         if not chars or len(contents) < chars:
-            log_msg = f'{log_header} Returned String:\n{contents}'
+            log_msg = f"{log_header} Returned String:\n{contents}"
         else:
-            log_msg = f'{log_header} Last {chars:d} chars of Returned String:\n{contents[-chars:]}'
-        logger.log(log_level,
-                   log_msg,
-                   extra={'span_class': 'command_output command_output_error' if error else 'command_output'})
+            log_msg = f"{log_header} Last {chars:d} chars of Returned String:\n{contents[-chars:]}"
+        logger.log(
+            log_level,
+            log_msg,
+            extra={
+                "span_class": "command_output command_output_error"
+                if error
+                else "command_output"
+            },
+        )
 
     def _kill_proc_gently(proc):
         children = None
@@ -309,7 +393,7 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
             logger.exception("Unable to terminate process cleanly")
 
         if not children:
-            return #  <- we are done
+            return  #  <- we are done
 
         # check if the process left children around after it had a chance to clean up, and kill those
         # NOTE: if process spawned a child between children() and terminate() above, we are out of luck
@@ -340,14 +424,14 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
         if not alive:
             return  # <- we are done
 
-        logger.error(f'Failed to kill children of killed process. Children: {alive}')
+        logger.error(f"Failed to kill children of killed process. Children: {alive}")
 
     _cpu_stat_errors = set()
     _children_errors = set()
     _mem_stat_errors = set()
     _cpu_totals_by_proc = {}
 
-    def _get_proc_cpu_totals(the_proc: psutil.Process)-> float | None:
+    def _get_proc_cpu_totals(the_proc: psutil.Process) -> float | None:
         try:
             cpu_times = the_proc.cpu_times()
         except psutil.NoSuchProcess:
@@ -357,13 +441,13 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
         except psutil.AccessDenied:
             if the_proc not in _cpu_stat_errors:  # Don't flood the console with debugs
                 _cpu_stat_errors.add(the_proc)
-                logger.debug(f'Cannot get cpu stats for {the_proc}')
+                logger.debug(f"Cannot get cpu stats for {the_proc}")
 
             return None  # <-- Done
 
         return cpu_times.user + cpu_times.system
 
-    def _get_proc_mem_totals(the_proc: psutil.Process)-> float:
+    def _get_proc_mem_totals(the_proc: psutil.Process) -> float:
         try:
             mem_info = the_proc.memory_full_info()
         except psutil.NoSuchProcess:
@@ -373,11 +457,11 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
         except psutil.AccessDenied:
             if the_proc not in _mem_stat_errors:  # Don't flood the console with debugs
                 _mem_stat_errors.add(the_proc)
-                logger.debug(f'Cannot get memory stats for {the_proc}')
+                logger.debug(f"Cannot get memory stats for {the_proc}")
 
             return 0.0  # <-- Done
 
-        return getattr(mem_info, 'pss', mem_info.rss) / (1024.0 * 1024.0)
+        return getattr(mem_info, "pss", mem_info.rss) / (1024.0 * 1024.0)
 
     # should only be called if we have proc_stats
     def _collect_stats():
@@ -394,7 +478,7 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 if p not in _children_errors:  # Don't flood the console with debugs
                     _children_errors.add(p)
-                    logger.debug(f'Cannot get child processes for {p}', exc_info=True)
+                    logger.debug(f"Cannot get child processes for {p}", exc_info=True)
 
             else:  # p.children() successful
                 for child_p in reversed(children):
@@ -413,16 +497,22 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
 
         # we do a time-weighted average for memory
         current_weight = (now - last_proc_stats) / elapsed_time
-        proc_stats.mem_mb_used = round(((1 - current_weight) * proc_stats.mem_mb_used) + (current_weight * mem_totals))
+        proc_stats.mem_mb_used = round(
+            ((1 - current_weight) * proc_stats.mem_mb_used)
+            + (current_weight * mem_totals)
+        )
         # CPU totals will be calculated once after the main loop
 
     def _find_matching_files(paths_and_patterns, work_dir):
-        if paths_and_patterns is None: return []
+        if paths_and_patterns is None:
+            return []
         if isinstance(paths_and_patterns, str):
             paths_and_patterns = [paths_and_patterns]
         matching_files = []
         for item in paths_and_patterns:
-            item_path = os.path.join(work_dir, item) if not os.path.isabs(item) else item
+            item_path = (
+                os.path.join(work_dir, item) if not os.path.isabs(item) else item
+            )
             logger.info(f"Searching for: {item_path}")
             if os.path.isfile(item_path):
                 matching_files.append(item_path)
@@ -441,19 +531,21 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
             try:
                 files_size += os.stat(found_file).st_size
             except OSError as e:
-                logger.error(f"An error occurred while reading the size of file '{found_file}': {e}")
+                logger.error(
+                    f"An error occurred while reading the size of file '{found_file}': {e}"
+                )
         return files_size
 
     #################
     # Start of code #
     #################
-    log_header = f'[{runner_type.name.lower()}]'
-    log_header += extra_header if extra_header else ''
+    log_header = f"[{runner_type.name.lower()}]"
+    log_header += extra_header if extra_header else ""
     cmd_str = _get_cmd_str()
     cwd_str = cwd if cwd is not None else os.getcwd()
     host = gethostname()
     subprocess_id = str(uuid.uuid4())
-    live_file_monitor_span_class = f'live_file_{subprocess_id}'
+    live_file_monitor_span_class = f"live_file_{subprocess_id}"
 
     _sanitize_cmd()
     if remove_firex_pythonpath:
@@ -461,22 +553,26 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
 
     if file:
         # The shared `with f:` below manages either kind of output file.
-        f = open(file, 'wb+', buffering=0)  # noqa: SIM115
+        f = open(file, "wb+", buffering=0)  # noqa: SIM115
     else:
         f = tempfile.NamedTemporaryFile(delete=False, buffering=0)  # noqa: SIM115
     filename = f.name
     open_og_rw_permissions(filename)
 
-
     if log_level is not None:
-        send_flame_subprocess_start(flame_subprocess_id=subprocess_id, cmd=cmd, filename=filename, cwd=cwd_str,
-                                     host=host)
+        send_flame_subprocess_start(
+            flame_subprocess_id=subprocess_id,
+            cmd=cmd,
+            filename=filename,
+            cwd=cwd_str,
+            host=host,
+        )
         _log_intro_msg(subprocess_id)
 
     if proc_stats is not None:
         proc_stats.clear_stats()
         proc_stats.num_cpu = psutil.cpu_count() or 1
-        proc_stats.total_mem = psutil.virtual_memory().total // (1024*1024)
+        proc_stats.total_mem = psutil.virtual_memory().total // (1024 * 1024)
         stats_interval = proc_stats.collection_interval
 
     slow_process = hung_process = False
@@ -484,14 +580,25 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
         p = output = None
         try:
             # Run the command
-            p = psutil.Popen(cmd, stdin=stdin, stdout=f, stderr=stderr, shell=shell, cwd=cwd,
-                             env=env, bufsize=bufsize, **kwargs)
+            p = psutil.Popen(
+                cmd,
+                stdin=stdin,
+                stdout=f,
+                stderr=stderr,
+                shell=shell,
+                cwd=cwd,
+                env=env,
+                bufsize=bufsize,
+                **kwargs,
+            )
 
             start_time = time.monotonic()
 
             last_output_size = 0
             last_file_output_size = current_file_output_size = 0
-            last_proc_stats = last_log_time = last_output_time = last_file_size_check = start_time
+            last_proc_stats = last_log_time = last_output_time = (
+                last_file_size_check
+            ) = start_time
             last_output_clock_time = time.time()
             _sleep = 0.05
             # Wait for process to finish
@@ -515,38 +622,62 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
                     if proc_stats.interval_increase:
                         max_stats_interval = proc_stats.collection_interval * 30.0
                         if stats_interval < max_stats_interval:
-                            stats_interval = proc_stats.collection_interval + ((now - start_time) *
-                                                                               proc_stats.collection_interval / 120)
+                            stats_interval = proc_stats.collection_interval + (
+                                (now - start_time)
+                                * proc_stats.collection_interval
+                                / 120
+                            )
                             stats_interval = min(stats_interval, max_stats_interval)
 
                 # Log
                 if now - last_log_time > 10 * 60:  # Log every 10 minutes
-                    time_str = datetime.datetime.fromtimestamp(
-                        last_output_clock_time,
-                        tz=datetime.timezone.utc,
-                    ).astimezone().strftime('%Y-%m-%d %H:%M:%S')
-                    mfs = f', and monitored files are {last_file_output_size} bytes.' if monitor_activity_files else '.'
-                    logger.info(f'Waiting for command to finish...\n(Last command output was at {time_str}. '
-                                f'Output size is {last_output_size} bytes{mfs}')
+                    time_str = (
+                        datetime.datetime.fromtimestamp(
+                            last_output_clock_time,
+                            tz=datetime.timezone.utc,
+                        )
+                        .astimezone()
+                        .strftime("%Y-%m-%d %H:%M:%S")
+                    )
+                    mfs = (
+                        f", and monitored files are {last_file_output_size} bytes."
+                        if monitor_activity_files
+                        else "."
+                    )
+                    logger.info(
+                        f"Waiting for command to finish...\n(Last command output was at {time_str}. "
+                        f"Output size is {last_output_size} bytes{mfs}"
+                    )
                     last_log_time = now
 
                 # Hard timeout check
                 if timeout and now - start_time > timeout:
                     # Process too slow. Kill it.
-                    logger.debug(f'Total timeout {timeout} exceeded, killing pid {p.pid}')
+                    logger.debug(
+                        f"Total timeout {timeout} exceeded, killing pid {p.pid}"
+                    )
                     _kill_proc_gently(p)
                     slow_process = True
                     break
 
                 # Inactivity timeout check
                 current_output_size = os.fstat(f.fileno()).st_size
-                activity_timeout = inactivity_timeout and now - last_output_time > inactivity_timeout
-                if monitor_activity_files and (now - last_file_size_check > 5 * 60 or activity_timeout):
+                activity_timeout = (
+                    inactivity_timeout and now - last_output_time > inactivity_timeout
+                )
+                if monitor_activity_files and (
+                    now - last_file_size_check > 5 * 60 or activity_timeout
+                ):
                     # check size every 5 minutes, or just before we time out:
-                    current_file_output_size = _get_size_of_files(monitor_activity_files, work_dir=cwd_str)
+                    current_file_output_size = _get_size_of_files(
+                        monitor_activity_files, work_dir=cwd_str
+                    )
                     last_file_size_check = now
 
-                if last_output_size != current_output_size or last_file_output_size != current_file_output_size:
+                if (
+                    last_output_size != current_output_size
+                    or last_file_output_size != current_file_output_size
+                ):
                     # We have some activity!
                     last_output_size = current_output_size
                     last_file_output_size = current_file_output_size
@@ -554,16 +685,21 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
                     last_output_clock_time = time.time()
                 elif activity_timeout:
                     # Process hung. Kill it.
-                    logger.debug(f'Activity (writing to stdout/stderr or monitored file) timeout {inactivity_timeout}'
-                                 f' exceeded, killing pid {p.pid}')
+                    logger.debug(
+                        f"Activity (writing to stdout/stderr or monitored file) timeout {inactivity_timeout}"
+                        f" exceeded, killing pid {p.pid}"
+                    )
                     _kill_proc_gently(p)
                     hung_process = True
                     break
             # End wait-for-process loop
 
             if proc_stats is not None and proc_stats.elapsed_time:
-                proc_stats.cpu_percent_used = round(100 * sum(_cpu_totals_by_proc.values()) /
-                                                    (proc_stats.elapsed_time * proc_stats.num_cpu))
+                proc_stats.cpu_percent_used = round(
+                    100
+                    * sum(_cpu_totals_by_proc.values())
+                    / (proc_stats.elapsed_time * proc_stats.num_cpu)
+                )
 
             if capture_output:
                 output = _get_output_from_file()
@@ -572,24 +708,34 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
 
             # Should these exceptions be thrown after all the cleanups below?
             if slow_process:
-                raise subprocess.TimeoutExpired(cmd, timeout, output=output, stderr=output)
+                raise subprocess.TimeoutExpired(
+                    cmd, timeout, output=output, stderr=output
+                )
             elif hung_process:
-                raise firex_exceptions.FireXInactivityTimeoutExpired(cmd, inactivity_timeout, output=output,
-                                                                     stderr=output)
+                raise firex_exceptions.FireXInactivityTimeoutExpired(
+                    cmd, inactivity_timeout, output=output, stderr=output
+                )
         finally:
             if log_level is not None:
-                send_flame_subprocess_end(flame_subprocess_id=subprocess_id, hung_process=hung_process,
-                                           slow_process=slow_process, output=output, chars=chars,
-                                           returncode=getattr(p, 'returncode', None))
+                send_flame_subprocess_end(
+                    flame_subprocess_id=subprocess_id,
+                    hung_process=hung_process,
+                    slow_process=slow_process,
+                    output=output,
+                    chars=chars,
+                    returncode=getattr(p, "returncode", None),
+                )
                 _hide_live_file_monitor_element()
 
             if p and p.stdin:
                 p.stdin.close()
 
             # Copy output file
-            if (copy_file_path is not None and
-                    not os.path.isfile(copy_file_path) and
-                    os.path.isfile(filename)):
+            if (
+                copy_file_path is not None
+                and not os.path.isfile(copy_file_path)
+                and os.path.isfile(filename)
+            ):
                 shutil.copyfile(filename, copy_file_path)
 
     # Attempt to remove the temporary file
@@ -597,10 +743,12 @@ def _subprocess_runner(cmd: str | list, runner_type: _SubprocessRunnerType = _Su
         try:
             os.remove(filename)
         except FileNotFoundError:
-            logger.error(f'Could not delete temp file: {filename}')
+            logger.error(f"Could not delete temp file: {filename}")
 
     # Raise exception on error, if requested
     if check and p.returncode:
         raise CommandFailed(p.returncode, p.args, output=output, stderr=output)
 
-    return subprocess.CompletedProcess(p.args, p.returncode, stdout=output, stderr=output)
+    return subprocess.CompletedProcess(
+        p.args, p.returncode, stdout=output, stderr=output
+    )

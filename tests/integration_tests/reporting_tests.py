@@ -7,7 +7,7 @@ from firexkit.chain import returns
 
 
 class CustomTestReportGenerator(ReportGenerator):
-    formatters = ("good", )  # to test the filtering functionality
+    formatters = ("good",)  # to test the filtering functionality
     logs_dir = None
 
     def __init__(self):
@@ -27,13 +27,15 @@ class CustomTestReportGenerator(ReportGenerator):
         assert type(value) is dict
         assert "the_secret_to_success" in value
         assert len(formatters) == 1, "Formatters where not filtered"
-        assert formatters["good"](value["the_secret_to_success"]) == "perseverance", "Formatter did not work"
+        assert formatters["good"](value["the_secret_to_success"]) == "perseverance", (
+            "Formatter did not work"
+        )
         self.had_entries += 1
 
     def post_run_report(self, root_async_result, uid, **kwargs):
         if self.had_entries == 1:
             success_file = os.path.join(uid.logs_dir, "success")
-            with open(success_file, 'w+'):
+            with open(success_file, "w+"):
                 # plant a flag for post-run-reports
                 pass
 
@@ -46,9 +48,7 @@ def good_formatter(x):
     return x
 
 
-@report(key_name=None, priority=1,
-        bad=bad_formatter,
-        good=good_formatter)
+@report(key_name=None, priority=1, bad=bad_formatter, good=good_formatter)
 @app.task
 @returns("the_secret_to_success")
 def secret():
@@ -62,12 +62,16 @@ class CreateCustomReportType(FlowTestConfiguration):
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_dir = self.run_data.logs_path
         initial_test_file_path = os.path.join(logs_dir, "initial_success")
-        assert os.path.isfile(os.path.join(initial_test_file_path)), "Initial Test file was not created in the logs " \
-                                                                     "directory, therefor the report was not generated"
+        assert os.path.isfile(os.path.join(initial_test_file_path)), (
+            "Initial Test file was not created in the logs "
+            "directory, therefor the report was not generated"
+        )
 
         test_file_path = os.path.join(logs_dir, "success")
-        assert os.path.isfile(os.path.join(test_file_path)), "Test file was not created in the logs directory, " \
-                                                             "therefor the report was not generated"
+        assert os.path.isfile(os.path.join(test_file_path)), (
+            "Test file was not created in the logs directory, "
+            "therefor the report was not generated"
+        )
 
     def assert_expected_return_code(self, ret_value):
         assert_is_good_run(ret_value)

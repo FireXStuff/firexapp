@@ -6,7 +6,9 @@ from firexapp.discovery import discover_package_modules
 
 class DiscoveryTests(unittest.TestCase):
     def test_discover_package_modules(self):
-        fake_package_location = os.path.join(os.path.dirname(__file__), "data", "discovery")
+        fake_package_location = os.path.join(
+            os.path.dirname(__file__), "data", "discovery"
+        )
 
         modules_found = discover_package_modules(fake_package_location)
         self.assertIsNotNone(modules_found)

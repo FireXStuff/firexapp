@@ -35,6 +35,7 @@ REVOKED_RUNSTATES = {
     s.to_celery_event_type() for s in [RunStates.REVOKED, RunStates.REVOKE_COMPLETED]
 }
 
+
 class FireXTaskQueryException(Exception):
     pass
 
@@ -43,7 +44,9 @@ def _task_col_eq(task_col, val):
     return firex_tasks.c[task_col.value] == val
 
 
-def _wait_and_query(logs_dir, query, db_file_query_ready_timeout, **kwargs) -> list[FireXTask]:
+def _wait_and_query(
+    logs_dir, query, db_file_query_ready_timeout, **kwargs
+) -> list[FireXTask]:
     wait_on_keeper_query_ready(logs_dir, db_file_query_ready_timeout)
     with get_db_manager(logs_dir) as db_manager:
         return db_manager.query_tasks(query, **kwargs)
@@ -57,12 +60,14 @@ def _unlink_if_exists(path: str) -> None:
         pass
 
 
-def _copy_keeper_db_for_local_query(existing_db_file: str, new_tmp_db_file: str, tmp_cwd: str) -> None:
+def _copy_keeper_db_for_local_query(
+    existing_db_file: str, new_tmp_db_file: str, tmp_cwd: str
+) -> None:
     """Copy keeper SQLite to a temp path for local reads.
     try rsync (good over NFS / cross-geo), then sqlite3 .backup (consistent snapshot),
     then shutil.copyfile.
     """
-    rsync_bin = shutil.which('rsync')
+    rsync_bin = shutil.which("rsync")
     if rsync_bin:
         try:
             subprocess.check_output(
@@ -70,45 +75,53 @@ def _copy_keeper_db_for_local_query(existing_db_file: str, new_tmp_db_file: str,
                 cwd=tmp_cwd,
             )
             if os.path.isfile(new_tmp_db_file) and os.path.getsize(new_tmp_db_file) > 0:
-                logger.info('Copied keeper DB for local query using rsync')
+                logger.info("Copied keeper DB for local query using rsync")
                 return
             logger.warning(
-                'rsync keeper copy succeeded but dest missing or empty: %s',
+                "rsync keeper copy succeeded but dest missing or empty: %s",
                 new_tmp_db_file,
             )
         except (OSError, subprocess.SubprocessError) as e:
-            logger.warning('rsync keeper copy failed: %s', e)
+            logger.warning("rsync keeper copy failed: %s", e)
         _unlink_if_exists(new_tmp_db_file)
 
-    sqlite_bin = '/bin/sqlite3'
+    sqlite_bin = "/bin/sqlite3"
     if os.path.isfile(sqlite_bin):
         try:
             subprocess.check_output(
-                [sqlite_bin, existing_db_file, f'.backup {new_tmp_db_file}'],
+                [sqlite_bin, existing_db_file, f".backup {new_tmp_db_file}"],
                 cwd=tmp_cwd,
             )
-            logger.info('Copied keeper DB for local query using sqlite3 .backup')
+            logger.info("Copied keeper DB for local query using sqlite3 .backup")
             return
         except (OSError, subprocess.SubprocessError) as e:
-            logger.warning('sqlite3 .backup keeper copy failed: %s', e)
+            logger.warning("sqlite3 .backup keeper copy failed: %s", e)
         _unlink_if_exists(new_tmp_db_file)
 
     shutil.copyfile(existing_db_file, new_tmp_db_file)
-    logger.info('Copied keeper DB for local query using shutil.copyfile')
+    logger.info("Copied keeper DB for local query using shutil.copyfile")
 
 
-def _query_tasks(logs_dir, query, db_file_query_ready_timeout=15, copy_before_query=False, **kwargs) -> list[FireXTask]:
+def _query_tasks(
+    logs_dir, query, db_file_query_ready_timeout=15, copy_before_query=False, **kwargs
+) -> list[FireXTask]:
     if copy_before_query:
-        tmp_base_dir = '/dev/shm' if os.path.isdir('/dev/shm') else None
+        tmp_base_dir = "/dev/shm" if os.path.isdir("/dev/shm") else None
         with TemporaryDirectory(dir=tmp_base_dir) as temp_log_dir:
             existing_db_file = get_db_file(logs_dir, new=False)
             new_tmp_db_file = get_db_file(temp_log_dir, new=True)
 
-            _copy_keeper_db_for_local_query(existing_db_file, new_tmp_db_file, temp_log_dir)
+            _copy_keeper_db_for_local_query(
+                existing_db_file, new_tmp_db_file, temp_log_dir
+            )
 
-            query_results = _wait_and_query(temp_log_dir, query, db_file_query_ready_timeout, **kwargs)
+            query_results = _wait_and_query(
+                temp_log_dir, query, db_file_query_ready_timeout, **kwargs
+            )
     else:
-        query_results = _wait_and_query(logs_dir, query, db_file_query_ready_timeout, **kwargs)
+        query_results = _wait_and_query(
+            logs_dir, query, db_file_query_ready_timeout, **kwargs
+        )
     return query_results
 
 
@@ -117,7 +130,7 @@ def all_tasks(logs_dir, **kwargs) -> list[FireXTask]:
 
 
 def tasks_by_name(logs_dir, name, **kwargs) -> list[FireXTask]:
-    if '.' in name:
+    if "." in name:
         col = TaskColumn.LONG_NAME
     else:
         col = TaskColumn.NAME
@@ -127,20 +140,25 @@ def tasks_by_name(logs_dir, name, **kwargs) -> list[FireXTask]:
 def single_task_by_name(logs_dir, name, **kwargs) -> FireXTask:
     tasks = _query_tasks(logs_dir, _task_col_eq(TaskColumn.NAME, name), **kwargs)
     if len(tasks) != 1:
-        raise FireXTaskQueryException(f"Required exactly one task named '{name}', found {len(tasks)}")
+        raise FireXTaskQueryException(
+            f"Required exactly one task named '{name}', found {len(tasks)}"
+        )
     return tasks[0]
 
 
-def task_by_uuid(logs_dir, uuid, wait_for_exp_exist=None, max_wait=3, **kwargs) -> FireXTask:
+def task_by_uuid(
+    logs_dir, uuid, wait_for_exp_exist=None, max_wait=3, **kwargs
+) -> FireXTask:
     if wait_for_exp_exist is None:
-        wait_for_exp_exist=task_by_uuid_exp(uuid)
+        wait_for_exp_exist = task_by_uuid_exp(uuid)
 
     tasks = _query_tasks(
         logs_dir,
         _task_col_eq(TaskColumn.UUID, uuid),
         wait_for_exp_exist=wait_for_exp_exist,
         max_wait=max_wait,
-        **kwargs)
+        **kwargs,
+    )
 
     if not tasks:
         raise FireXTaskQueryException(f"Found no task with UUID {uuid}")
@@ -149,7 +167,11 @@ def task_by_uuid(logs_dir, uuid, wait_for_exp_exist=None, max_wait=3, **kwargs) 
 
 def task_by_name_and_arg_pred(logs_dir, name, arg, pred) -> list[FireXTask]:
     tasks_with_name = tasks_by_name(logs_dir, name)
-    return [t for t in tasks_with_name if arg in t.firex_bound_args and pred(t.firex_bound_args[arg])]
+    return [
+        t
+        for t in tasks_with_name
+        if arg in t.firex_bound_args and pred(t.firex_bound_args[arg])
+    ]
 
 
 def task_by_name_and_arg_value(logs_dir, name, arg, value) -> list[FireXTask]:
@@ -158,18 +180,23 @@ def task_by_name_and_arg_value(logs_dir, name, arg, value) -> list[FireXTask]:
 
 
 def failed_tasks(logs_dir, **kwargs) -> list[FireXTask]:
-    return _query_tasks(logs_dir, _task_col_eq(TaskColumn.STATE, RunStates.FAILED.value), **kwargs)
+    return _query_tasks(
+        logs_dir, _task_col_eq(TaskColumn.STATE, RunStates.FAILED.value), **kwargs
+    )
 
 
 def revoked_tasks(logs_dir, **kwargs) -> list[FireXTask]:
     return _query_tasks(
-        logs_dir,
-        firex_tasks.c[TaskColumn.STATE.value].in_(REVOKED_RUNSTATES),
-        **kwargs)
+        logs_dir, firex_tasks.c[TaskColumn.STATE.value].in_(REVOKED_RUNSTATES), **kwargs
+    )
 
 
 def running_tasks(logs_dir, **kwargs) -> list[FireXTask]:
-    return _query_tasks(logs_dir, firex_tasks.c[TaskColumn.STATE.value].in_(INCOMPLETE_RUNSTATES), **kwargs)
+    return _query_tasks(
+        logs_dir,
+        firex_tasks.c[TaskColumn.STATE.value].in_(INCOMPLETE_RUNSTATES),
+        **kwargs,
+    )
 
 
 def running_not_blocked_tasks(logs_dir, **kwargs) -> list[FireXTask]:
@@ -179,7 +206,9 @@ def running_not_blocked_tasks(logs_dir, **kwargs) -> list[FireXTask]:
             firex_tasks.c[TaskColumn.STATE.value].in_(INCOMPLETE_RUNSTATES),
             firex_tasks.c[TaskColumn.STATE.value] != RunStates.BLOCKED.value,
         ),
-        **kwargs)
+        **kwargs,
+    )
+
 
 def failed_by_tasks(logs_dir, failed_uuid: str, **kwargs) -> list[FireXTask]:
     # TODO: make this work with copy_before_query without copying twice,
@@ -189,7 +218,8 @@ def failed_by_tasks(logs_dir, failed_uuid: str, **kwargs) -> list[FireXTask]:
     return _query_tasks(
         logs_dir,
         firex_tasks.c[TaskColumn.EXCEPTION_CAUSE_UUID.value] == failed_uuid,
-        **kwargs)
+        **kwargs,
+    )
 
 
 def _child_ids_by_parent_id(tasks_by_uuid):
@@ -205,7 +235,9 @@ def _child_ids_by_parent_id(tasks_by_uuid):
 
 def _get_tree_tasks_by_uuid(root_uuid, tasks_by_uuid):
     if root_uuid is None:
-        root_uuid = next((t.uuid for t in tasks_by_uuid.values() if t.parent_id is None), None)
+        root_uuid = next(
+            (t.uuid for t in tasks_by_uuid.values() if t.parent_id is None), None
+        )
         # FIXME: handle multiple roots?
         if root_uuid is None:
             raise FireXTaskQueryException("Found no root task with null parent_id.")
@@ -220,7 +252,9 @@ def _get_tree_tasks_by_uuid(root_uuid, tasks_by_uuid):
             cur_task = tasks_by_uuid[cur_task_uuid]
             parent_tree_task = tree_tasks_by_uuid.get(cur_task.parent_id, None)
 
-            cur_tree_task = FireXTreeTask(**{**cur_task._asdict(), 'children': [], 'parent': parent_tree_task})
+            cur_tree_task = FireXTreeTask(
+                **{**cur_task._asdict(), "children": [], "parent": parent_tree_task}
+            )
             if parent_tree_task:
                 parent_tree_task.children.append(cur_tree_task)
             tree_tasks_by_uuid[cur_tree_task.uuid] = cur_tree_task
@@ -235,15 +269,13 @@ def _create_task_tree(logs_dir, root_uuid=None, **kwargs) -> FireXTreeTask | Non
         if root_uuid is None:
             root_uuid = db_manager.query_single_run_metadata().root_uuid
 
-        descendant_task_uuids = select(
-            literal(root_uuid).label("uuid")
-        ).cte("descendant_task_uuids", recursive=True)
+        descendant_task_uuids = select(literal(root_uuid).label("uuid")).cte(
+            "descendant_task_uuids", recursive=True
+        )
 
-        descendant_uuids = (
-            select(firex_tasks.c.uuid)
-            .join(
-                descendant_task_uuids,
-                firex_tasks.c.parent_id == descendant_task_uuids.c.uuid)
+        descendant_uuids = select(firex_tasks.c.uuid).join(
+            descendant_task_uuids,
+            firex_tasks.c.parent_id == descendant_task_uuids.c.uuid,
         )
 
         # Approx SQL, uses index on parent_id.
@@ -261,8 +293,7 @@ def _create_task_tree(logs_dir, root_uuid=None, **kwargs) -> FireXTreeTask | Non
         # )
         final_stmt = select(firex_tasks).where(
             firex_tasks.c.uuid.in_(
-                select(
-                    descendant_task_uuids.union(descendant_uuids))
+                select(descendant_task_uuids.union(descendant_uuids))
             )
         )
 
@@ -271,13 +302,13 @@ def _create_task_tree(logs_dir, root_uuid=None, **kwargs) -> FireXTreeTask | Non
     return _get_tree_tasks_by_uuid(
         root_uuid,
         {t.uuid: t for t in root_and_descendant_tasks},
-    ).get(root_uuid) # root_uuid might not be in task table.
+    ).get(root_uuid)  # root_uuid might not be in task table.
 
 
 def task_tree_to_task(task_tree: FireXTreeTask) -> FireXTask:
     task_tree_dict = task_tree._asdict()
-    task_tree_dict.pop('children')
-    task_tree_dict.pop('parent')
+    task_tree_dict.pop("children")
+    task_tree_dict.pop("parent")
     return FireXTask(**task_tree_dict)
 
 
@@ -309,7 +340,9 @@ def get_descendants(logs_dir, uuid) -> list[FireXTreeTask]:
     return [t for t in flatten_tree(subtree) if t.uuid != uuid]
 
 
-def ancestor_by_long_name(logs_dir, uuid, ancestor_long_name, **kwargs) -> FireXTreeTask:
+def ancestor_by_long_name(
+    logs_dir, uuid, ancestor_long_name, **kwargs
+) -> FireXTreeTask:
     tasks_by_uuid = {t.uuid: t for t in all_tasks(logs_dir, **kwargs)}
     # TODO: could avoid fetching all tasks by using sqlite recursive query.
     tree_tasks_by_uuid = _get_tree_tasks_by_uuid(None, tasks_by_uuid)
@@ -342,13 +375,15 @@ def find_task_causing_chain_exception(task: FireXTreeTask):
     return find_task_causing_chain_exception(causing_child)
 
 
-def wait_on_keeper_query_ready(logs_dir: str, timeout: int=10):
+def wait_on_keeper_query_ready(logs_dir: str, timeout: int = 10):
     if os.path.isfile(get_keeper_complete_file_path(logs_dir)):
         return True
-    return wait_until(os.path.isfile, timeout, 0.5,
-                      get_keeper_query_ready_file_path(logs_dir))
+    return wait_until(
+        os.path.isfile, timeout, 0.5, get_keeper_query_ready_file_path(logs_dir)
+    )
 
 
 def wait_on_keeper_complete(logs_dir, timeout=30) -> bool:
-    return wait_until(os.path.isfile, timeout, 1,
-                      get_keeper_complete_file_path(logs_dir))
+    return wait_until(
+        os.path.isfile, timeout, 1, get_keeper_complete_file_path(logs_dir)
+    )

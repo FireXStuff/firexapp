@@ -55,16 +55,22 @@ from firexkit.result import (
 add_hostname_to_log_records()
 logger = setup_console_logging(__name__)
 
-T = TypeVar('T', bound=FireXCelery)
+T = TypeVar("T", bound=FireXCelery)
 
-SUBMISSION_FILE_REGISTRY_KEY = 'firex_submission'
-FileRegistry().register_file(SUBMISSION_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'submission.txt'))
+SUBMISSION_FILE_REGISTRY_KEY = "firex_submission"
+FileRegistry().register_file(
+    SUBMISSION_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, "submission.txt")
+)
 
-ENVIRON_FILE_REGISTRY_KEY = 'env'
-FileRegistry().register_file(ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'environ.json'))
+ENVIRON_FILE_REGISTRY_KEY = "env"
+FileRegistry().register_file(
+    ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, "environ.json")
+)
 
-RUN_COMPLETE_REGISTRY_KEY = 'RUN_COMPLETE_REGISTRY_KEY'
-FileRegistry().register_file(RUN_COMPLETE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'RUN_COMPLETE'))
+RUN_COMPLETE_REGISTRY_KEY = "RUN_COMPLETE_REGISTRY_KEY"
+FileRegistry().register_file(
+    RUN_COMPLETE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, "RUN_COMPLETE")
+)
 
 
 class JsonFileAction(argparse.Action):
@@ -73,15 +79,19 @@ class JsonFileAction(argparse.Action):
         if not os.path.isabs(values):
             values = os.path.join(os.getcwd(), values)
 
-        assert not os.path.isdir(values), f'{values} is a directory, you must provide a filename or path'
+        assert not os.path.isdir(values), (
+            f"{values} is a directory, you must provide a filename or path"
+        )
 
         if os.path.islink(values) or os.path.isfile(values):
-            logger.print(f'--json_file {values} exists; removing it')
+            logger.print(f"--json_file {values} exists; removing it")
             os.remove(values)
 
         dirpath = os.path.dirname(values)
         if not os.path.exists(dirpath):
-            logger.print(f'The directory for --json_file {values} does not exist...creating {dirpath}')
+            logger.print(
+                f"The directory for --json_file {values} does not exist...creating {dirpath}"
+            )
             silent_mkdir(dirpath)
 
         setattr(namespace, self.dest, values)
@@ -90,7 +100,7 @@ class JsonFileAction(argparse.Action):
 class OptionalBoolean(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         if isinstance(values, str):
-            values = values.lower() == 'true'
+            values = values.lower() == "true"
         setattr(namespace, self.dest, values)
 
 
@@ -109,17 +119,18 @@ def _safe_create_completed_run_json(
 ):
     if uid:
         chain_args = dict(chain_args or {})
-        for k in ['uid', 'root_id', 'run_revoked', 'shutdown_reason']:
-            chain_args.pop(k, None) # gotta love **chain_args
+        for k in ["uid", "root_id", "run_revoked", "shutdown_reason"]:
+            chain_args.pop(k, None)  # gotta love **chain_args
         try:
             FireXJsonReportGenerator.create_completed_run_json(
                 uid=uid,
                 root_id=chain_result,
                 run_revoked=run_revoked,
                 shutdown_reason=shutdown_reason,
-                **chain_args)
+                **chain_args,
+            )
         except Exception:
-            logger.exception('Failed to generate completion run JSON')
+            logger.exception("Failed to generate completion run JSON")
     else:
         logger.warning("No uid; run.json will not be updated.")
 
@@ -128,22 +139,22 @@ def safe_create_initial_run_json(**kwargs) -> FireXRunData | None:
     try:
         return FireXJsonReportGenerator.create_initial_run_json(**kwargs)
     except Exception:
-        logger.exception('Failed to generate initial run JSON')
+        logger.exception("Failed to generate initial run JSON")
         return None
 
 
 class SubmitBaseApp:
-    SUBMISSION_LOGGING_FORMATTER = '[%(asctime)s %(levelname)s] %(message)s'
+    SUBMISSION_LOGGING_FORMATTER = "[%(asctime)s %(levelname)s] %(message)s"
     DEFAULT_MICROSERVICE = None
 
-    def __init__(self, submission_tmp_file: str | None=None):
+    def __init__(self, submission_tmp_file: str | None = None):
         self.submission_tmp_file = submission_tmp_file
         self.uid = None
-        self.broker : RedisManager | None = None
+        self.broker: RedisManager | None = None
         self.is_sync = None
         # TODO: migrate tracking services to inside install-config.
         self.enabled_tracking_services = None
-        self.install_configs : FireXInstallConfigs | None = None
+        self.install_configs: FireXInstallConfigs | None = None
         self.submit_args = None
         self.submit_parser = None
         self.arg_parser = None
@@ -161,18 +172,32 @@ class SubmitBaseApp:
 
     def init_file_logging(self):
         if self.submission_tmp_file:
-            submission_log_handler = logging.FileHandler(filename=self.submission_tmp_file)
-            submission_log_handler.setFormatter(logging.Formatter(fmt=self.SUBMISSION_LOGGING_FORMATTER,
-                                                                  datefmt="%Y-%m-%d %H:%M:%S"))
+            submission_log_handler = logging.FileHandler(
+                filename=self.submission_tmp_file
+            )
+            submission_log_handler.setFormatter(
+                logging.Formatter(
+                    fmt=self.SUBMISSION_LOGGING_FORMATTER, datefmt="%Y-%m-%d %H:%M:%S"
+                )
+            )
             submission_log_handler.setLevel(logging.NOTSET)
-            submission_log_handler.set_name('firex_submission_handler')
+            submission_log_handler.set_name("firex_submission_handler")
             root_logger = logging.getLogger()
             root_logger.addHandler(submission_log_handler)
         self.log_preamble()
 
     def copy_submission_log(self):
-        if self.submission_tmp_file and os.path.isfile(self.submission_tmp_file) and self.uid:
-            copyfile(self.submission_tmp_file, FileRegistry().get_file(SUBMISSION_FILE_REGISTRY_KEY, self.uid.logs_dir))
+        if (
+            self.submission_tmp_file
+            and os.path.isfile(self.submission_tmp_file)
+            and self.uid
+        ):
+            copyfile(
+                self.submission_tmp_file,
+                FileRegistry().get_file(
+                    SUBMISSION_FILE_REGISTRY_KEY, self.uid.logs_dir
+                ),
+            )
 
     def log_preamble(self):
         """Overridable method to allow a firex application to log on startup"""
@@ -183,50 +208,99 @@ class SubmitBaseApp:
         logger.debug(get_all_pkg_versions_str())
 
     def create_submit_parser(self, sub_parser):
-        submit_parser = sub_parser.add_parser("submit",
-                                              help="This tool invokes a fireX run and is the most common use of "
-                                                   "firex. Check out our documentation for common usage patterns",
-                                              allow_abbrev=False,
-                                              parents=[plugin_support_parser],
-                                              formatter_class=argparse.RawDescriptionHelpFormatter)
-        submit_parser.add_argument('--chain', '-chain', help='A comma delimited list of microservices to run',
-                                   default=self.DEFAULT_MICROSERVICE)
-        submit_parser.add_argument('--sync', '-sync',
-                                   nargs='?', const=True, default=False, action=OptionalBoolean,
-                                   help='Hold console until run completes', )
-        submit_parser.add_argument('--disable_tracking_services',
-                                   help='A comma delimited list of tracking services to disable.', default='')
-        submit_parser.add_argument('--logs_link',
-                                   help="Create a symlink back the root of the run's logs directory")
+        submit_parser = sub_parser.add_parser(
+            "submit",
+            help="This tool invokes a fireX run and is the most common use of "
+            "firex. Check out our documentation for common usage patterns",
+            allow_abbrev=False,
+            parents=[plugin_support_parser],
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
         submit_parser.add_argument(
-            '--soft_time_limit', '--run_soft_time_limit',
-            dest='soft_time_limit',
+            "--chain",
+            "-chain",
+            help="A comma delimited list of microservices to run",
+            default=self.DEFAULT_MICROSERVICE,
+        )
+        submit_parser.add_argument(
+            "--sync",
+            "-sync",
+            nargs="?",
+            const=True,
+            default=False,
+            action=OptionalBoolean,
+            help="Hold console until run completes",
+        )
+        submit_parser.add_argument(
+            "--disable_tracking_services",
+            help="A comma delimited list of tracking services to disable.",
+            default="",
+        )
+        submit_parser.add_argument(
+            "--logs_link",
+            help="Create a symlink back the root of the run's logs directory",
+        )
+        submit_parser.add_argument(
+            "--soft_time_limit",
+            "--run_soft_time_limit",
+            dest="soft_time_limit",
             help="The run's total time limit, in seconds. Also the default soft_time_limit "
-                 "of tasks that don't specify their own.",
+            "of tasks that don't specify their own.",
             type=int,
         )
-        submit_parser.add_argument('--install_configs', help="Path to JSON file specifying installation-wide configs",
-                                   type=str, default=os.environ.get(INSTALL_CONFIGS_ENV_NAME, None))
-        submit_parser.add_argument('--celery_concurrency', '--celery_work_slots',
-                                   type=int, action=AdjustCeleryConcurrency,
-                                   help='Number of worker slots in celery pool',
-                                   # default is autoscale from a minimum of cpu_count, to a maximum of 8*cpu_count
-                                   default=None)
-        submit_parser.add_argument('--json_file', '--json_results_file', help='Link name for the report json file', action=JsonFileAction)
-        submit_parser.add_argument('--tracking_services_wait_release_console',
-                                   help='Wait for tracking services (e.g. Flame) to indicate they are ready to release '
-                                        'the console before doing so.', nargs='?', const=True,
-                                   default=True, action=OptionalBoolean)
-        submit_parser.add_argument('--celery_shutdown_timeout', help='How long to wait in seconds for Celery during shutdown.',
-                                   default=DEFAULT_CELERY_SHUTDOWN_TIMEOUT, type=int)
-        submit_parser.add_argument(JSON_ARGS_PATH_ARG_NAME,
-                                   help='Specify submit arguments via a JSON file containing a list of argument names and values.')
-        submit_parser.add_argument('--save_redis_db',
-                                   nargs='?', const=True, default=False, action=OptionalBoolean,
-                                   help='Save the redis db to file', )
-        submit_parser.add_argument('--redis_server_extra_opts',
-                                   default=os.environ.get('redis_server_extra_opts'),
-                                   help='Extra options for redis-server')
+        submit_parser.add_argument(
+            "--install_configs",
+            help="Path to JSON file specifying installation-wide configs",
+            type=str,
+            default=os.environ.get(INSTALL_CONFIGS_ENV_NAME, None),
+        )
+        submit_parser.add_argument(
+            "--celery_concurrency",
+            "--celery_work_slots",
+            type=int,
+            action=AdjustCeleryConcurrency,
+            help="Number of worker slots in celery pool",
+            # default is autoscale from a minimum of cpu_count, to a maximum of 8*cpu_count
+            default=None,
+        )
+        submit_parser.add_argument(
+            "--json_file",
+            "--json_results_file",
+            help="Link name for the report json file",
+            action=JsonFileAction,
+        )
+        submit_parser.add_argument(
+            "--tracking_services_wait_release_console",
+            help="Wait for tracking services (e.g. Flame) to indicate they are ready to release "
+            "the console before doing so.",
+            nargs="?",
+            const=True,
+            default=True,
+            action=OptionalBoolean,
+        )
+        submit_parser.add_argument(
+            "--celery_shutdown_timeout",
+            help="How long to wait in seconds for Celery during shutdown.",
+            default=DEFAULT_CELERY_SHUTDOWN_TIMEOUT,
+            type=int,
+        )
+        submit_parser.add_argument(
+            JSON_ARGS_PATH_ARG_NAME,
+            help="Specify submit arguments via a JSON file containing a list of argument names and values.",
+        )
+        submit_parser.add_argument(
+            "--save_redis_db",
+            nargs="?",
+            const=True,
+            default=False,
+            action=OptionalBoolean,
+            help="Save the redis db to file",
+        )
+        submit_parser.add_argument(
+            "--redis_server_extra_opts",
+            default=os.environ.get("redis_server_extra_opts"),
+            help="Extra options for redis-server",
+        )
         submit_parser.set_defaults(func=self.run_submit)
 
         for service in get_tracking_services():
@@ -242,7 +316,8 @@ class SubmitBaseApp:
                 # should be reasoning with 'json_file', but it's embedded in chain_args. Ideally
                 # chain args would be the args received by the chain in --chain <chain>, but
                 # infra args are also in there.
-                'json_args_path']
+                "json_args_path"
+            ]
             for a in chain_excluded_infra_args:
                 converted_args.pop(a, None)
             return converted_args
@@ -256,28 +331,28 @@ class SubmitBaseApp:
         finally:
             if args.tracking_services_wait_release_console:
                 self.wait_tracking_services_release_console_ready()
-            logger.debug('Copying submit log one final time and exiting')
+            logger.debug("Copying submit log one final time and exiting")
             self.copy_submission_log()
 
     @staticmethod
-    def error_banner(err_msg, banner_title='ERROR', logf=logger.error):
+    def error_banner(err_msg, banner_title="ERROR", logf=logger.error):
         err_msg = str(err_msg)
 
-        banner_title = f' {banner_title} '
+        banner_title = f" {banner_title} "
 
         sep_len = len(banner_title) + 6
-        err_msg = err_msg.split('\n')
+        err_msg = err_msg.split("\n")
         for l in err_msg:
             sep_len = max(sep_len, len(l))
 
         top_sep_len = int((sep_len - len(banner_title) + 1) / 2)
-        top_banner = '*' * top_sep_len + banner_title + '*' * top_sep_len
+        top_banner = "*" * top_sep_len + banner_title + "*" * top_sep_len
 
-        logf('')
+        logf("")
         logf(top_banner)
         for l in err_msg:
             logf(l)
-        logf('*'*len(top_banner))
+        logf("*" * len(top_banner))
 
     def create_logs_link(self, logs_link):
         create_link(self.uid.logs_dir, logs_link, relative=True)
@@ -289,10 +364,12 @@ class SubmitBaseApp:
     ):
         try:
             root_task_result_promise.fx_wait()
-            chain_results : dict[str, Any] = root_task_result_promise.get_result_key('chain_results')
-            unsuccessful_services : dict[
-                str, list[FxAsyncResult]
-            ] = root_task_result_promise.get_result_key('unsuccessful_services')
+            chain_results: dict[str, Any] = root_task_result_promise.get_result_key(
+                "chain_results"
+            )
+            unsuccessful_services: dict[str, list[FxAsyncResult]] = (
+                root_task_result_promise.get_result_key("unsuccessful_services")
+            )
             self.check_for_failures(
                 root_task_result_promise,
                 unsuccessful_services,
@@ -305,9 +382,11 @@ class SubmitBaseApp:
                 # may still run in a finally: clause even when result is marked ready and state == REVOKED)
                 self.main_error_exit_handler(
                     chain_details=(root_task_result_promise, chain_args),
-                    reason='Sync run: ChainRevokedException from root task',
+                    reason="Sync run: ChainRevokedException from root task",
                 )
-            logger.debug('Root task revoked; cleanup will be done on root task completion')
+            logger.debug(
+                "Root task revoked; cleanup will be done on root task completion"
+            )
             self.copy_submission_log()
             sys.exit(-1)
         except Exception as e:
@@ -323,7 +402,9 @@ class SubmitBaseApp:
 
     def format_results_str(self, chain_results):
         if chain_results:
-            return dict2str(chain_results, usevrepr=False, sort=True, line_prefix=' '*2)
+            return dict2str(
+                chain_results, usevrepr=False, sort=True, line_prefix=" " * 2
+            )
 
     @staticmethod
     def log_results(results_str):
@@ -332,9 +413,9 @@ class SubmitBaseApp:
             logger.print("\n\nReturned values:\n" + results_str)
 
     # TODO: move this functionality earlier in application.run() once the install_configs is loaded earlier
-    def resolve_install_configs_args(self,
-                                     args_from_first_pass: argparse.Namespace,
-                                     other_args_from_first_pass: list) -> (argparse.Namespace, list):
+    def resolve_install_configs_args(
+        self, args_from_first_pass: argparse.Namespace, other_args_from_first_pass: list
+    ) -> (argparse.Namespace, list):
         args = args_from_first_pass
         others = other_args_from_first_pass
 
@@ -343,7 +424,9 @@ class SubmitBaseApp:
             if new_defaults:
                 # The defaults can only be set on the subparser, not the main parser
                 self.submit_parser.set_defaults(**new_defaults)
-                args, others = self.arg_parser.parse_known_args(args=self.submit_args_to_process)
+                args, others = self.arg_parser.parse_known_args(
+                    args=self.submit_args_to_process
+                )
 
         # Can't pickle the parsers
         self.del_parser_attributes()
@@ -351,32 +434,36 @@ class SubmitBaseApp:
         return args, others
 
     def create_chain_sentinel_files(self, chain: str):
-        top_level_chains = chain.split(',')
+        top_level_chains = chain.split(",")
         for c in top_level_chains:
-            pathlib.Path(self.uid.debug_dir,    f'{c.lower()}.chain').touch()
+            pathlib.Path(self.uid.debug_dir, f"{c.lower()}.chain").touch()
 
-    def submit(self, args_from_first_pass: argparse.Namespace, other_args_from_first_pass: list):
+    def submit(
+        self, args_from_first_pass: argparse.Namespace, other_args_from_first_pass: list
+    ):
         uid = Uid()
         self.uid = uid
         logger.info("FireX ID: %s", uid)
-        logger.info('Logs: %s', uid.logs_dir)
+        logger.info("Logs: %s", uid.logs_dir)
 
         self.install_configs = load_new_install_configs(
             uid.identifier,
             uid.logs_dir,
             args_from_first_pass.install_configs,
         )
-        args, others = self.resolve_install_configs_args(args_from_first_pass, other_args_from_first_pass)
+        args, others = self.resolve_install_configs_args(
+            args_from_first_pass, other_args_from_first_pass
+        )
 
         chain_args = self.process_other_chain_args(args, others)
-        chain_args['uid'] = uid
+        chain_args["uid"] = uid
 
         if args.logs_link:
             self.create_logs_link(args.logs_link)
 
         if self.install_configs.has_viewer():
             uid.add_viewers(logs_url=self.install_configs.get_logs_root_url())
-            logger.info(f'Logs URL: {uid.logs_url}')
+            logger.info(f"Logs URL: {uid.logs_url}")
 
         self.dump_environ()
 
@@ -390,7 +477,7 @@ class SubmitBaseApp:
         )
 
         # Write .chain sentinel files
-        self.create_chain_sentinel_files(chain_args['chain'])
+        self.create_chain_sentinel_files(chain_args["chain"])
 
         # Execute chain
         try:
@@ -420,17 +507,20 @@ class SubmitBaseApp:
             self.log_results(results_str)
             self.self_destruct(
                 chain_details=(root_task_result_promise, chain_args),
-                reason="Sync run: completed successfully")
+                reason="Sync run: completed successfully",
+            )
 
     def dump_environ(self):
         # Mask  any password-related env vars before dumping them in the environ.json
         copy_of_os_environ = os.environ.copy()
         for k in copy_of_os_environ:
-            if any(e in k.lower() for e in ['passwd', 'password', 'secret']):
-                copy_of_os_environ[k] = '********'
+            if any(e in k.lower() for e in ["passwd", "password", "secret"]):
+                copy_of_os_environ[k] = "********"
 
         # Create an env file for debugging
-        with open(FileRegistry().get_file(ENVIRON_FILE_REGISTRY_KEY, self.uid.logs_dir), 'w') as f:
+        with open(
+            FileRegistry().get_file(ENVIRON_FILE_REGISTRY_KEY, self.uid.logs_dir), "w"
+        ) as f:
             json.dump(copy_of_os_environ, fp=f, skipkeys=True, sort_keys=True, indent=4)
 
     def check_for_failures(
@@ -462,8 +552,8 @@ class SubmitBaseApp:
 
             all_tasks, plugin_path_mapping = fx_app.import_microservices()
             if plugin_path_mapping:
-                chain_args['plugin_path_mapping'] = plugin_path_mapping
-                chain_args['plugins'] = ','.join(plugin_path_mapping.values())
+                chain_args["plugin_path_mapping"] = plugin_path_mapping
+                chain_args["plugins"] = ",".join(plugin_path_mapping.values())
         except FileNotFoundError as e:
             logger.error(f"\nError: FireX run failed. File {e} is not found.")
             self.main_error_exit_handler(reason=str(e))
@@ -474,20 +564,22 @@ class SubmitBaseApp:
             sys.exit(-1)
 
         try:
-            app_tasks = fx_app.get_app_tasks(chain_args['chain'])
+            app_tasks = fx_app.get_app_tasks(chain_args["chain"])
         except NotRegistered as e:
             reason = f"Could not find task {e}"
             logger.error(reason)
             self.main_error_exit_handler(reason=reason)
             sys.exit(-1)
 
-        chain_args['chain'] = ','.join([t.short_name for t in app_tasks])
+        chain_args["chain"] = ",".join([t.short_name for t in app_tasks])
 
         # Post import converters
         chain_args = self.convert_chain_args(chain_args)
 
         # check argument applicability to detect useless input arguments
-        if not self.validate_argument_applicability(chain_args, set(vars(args)), all_tasks):
+        if not self.validate_argument_applicability(
+            chain_args, set(vars(args)), all_tasks
+        ):
             self.main_error_exit_handler(reason="Inapplicable arguments.")
             sys.exit(-1)
 
@@ -518,10 +610,10 @@ class SubmitBaseApp:
         plugins,
     ):
         if args.celery_concurrency:
-            autoscale=None
+            autoscale = None
         else:
             auto_scale_min = FxCeleryConfig.primary_worker_minimum_concurrency
-            auto_scale_max = multiprocessing.cpu_count()*8
+            auto_scale_max = multiprocessing.cpu_count() * 8
             autoscale = (auto_scale_min, auto_scale_max)
 
         assert self.uid
@@ -537,26 +629,28 @@ class SubmitBaseApp:
             soft_time_limit=args.soft_time_limit,
         )
 
-    def process_other_chain_args(self, args, other_args)-> dict[str, Any]:
+    def process_other_chain_args(self, args, other_args) -> dict[str, Any]:
         try:
             chain_args = get_chain_args(other_args)
         except ChainArgException as e:
             logger.error(str(e))
-            logger.error('Aborting...')
+            logger.error("Aborting...")
             sys.exit(-1)
 
         if args.soft_time_limit:
-            chain_args['soft_time_limit'] = args.soft_time_limit
+            chain_args["soft_time_limit"] = args.soft_time_limit
 
-        chain_args['chain'] = args.chain
-        chain_args['plugins'] = args.plugins
-        chain_args['sync'] = args.sync
-        chain_args['submitter'] = getuser()
-        chain_args['submission_dir'] = os.getcwd()
-        chain_args['argv'] = sys.argv
-        chain_args['json_file'] = args.json_file
+        chain_args["chain"] = args.chain
+        chain_args["plugins"] = args.plugins
+        chain_args["sync"] = args.sync
+        chain_args["submitter"] = getuser()
+        chain_args["submission_dir"] = os.getcwd()
+        chain_args["argv"] = sys.argv
+        chain_args["json_file"] = args.json_file
 
-        whitelist_arguments(['submitter', 'submission_dir', 'argv', 'plugin_path_mapping'])
+        whitelist_arguments(
+            ["submitter", "submission_dir", "argv", "plugin_path_mapping"]
+        )
 
         return chain_args
 
@@ -572,51 +666,71 @@ class SubmitBaseApp:
         return self.broker
 
     def start_tracking_services(self, args, **chain_args) -> dict[str, Any]:
-        assert self.enabled_tracking_services is None, "Cannot start tracking services twice."
+        assert self.enabled_tracking_services is None, (
+            "Cannot start tracking services twice."
+        )
         enabled_tracking_services = []
         services = get_tracking_services()
         if services:
             logger.debug("Tracking services:")
-            cli_disabled_service_names = args.disable_tracking_services.split(',')
-            requested_service_names = self.install_configs.raw_configs.requested_tracking_services
+            cli_disabled_service_names = args.disable_tracking_services.split(",")
+            requested_service_names = (
+                self.install_configs.raw_configs.requested_tracking_services
+            )
             for service in services:
                 service_name = get_service_name(service)
                 is_cli_disabled = service_name in cli_disabled_service_names
                 # requested_service_names being None means "load all installed".
-                is_requested = requested_service_names is None or service_name in requested_service_names
+                is_requested = (
+                    requested_service_names is None
+                    or service_name in requested_service_names
+                )
 
-                detail = f'v{service.get_pkg_version_info()}'
+                detail = f"v{service.get_pkg_version_info()}"
                 if not is_requested:
-                    detail += ' (not requested via install_config)'
+                    detail += " (not requested via install_config)"
                 elif is_cli_disabled:
-                    detail += ' (CLI disabled)'
+                    detail += " (CLI disabled)"
                 else:
-                    detail += ' '
+                    detail += " "
                 logger.debug(f"\t{service_name} {detail}")
                 if is_requested and not is_cli_disabled:
                     enabled_tracking_services.append(service)
 
             # disabled via CLI overrides required from install config.
-            required_service_names = set(requested_service_names or []).difference(cli_disabled_service_names)
-            enabled_service_names = {get_service_name(s) for s in enabled_tracking_services}
-            missing_require_services = required_service_names.difference(enabled_service_names)
-            assert not missing_require_services, \
-                "Missing the following tracking services required by install config. Ensure the pip packages that " \
+            required_service_names = set(requested_service_names or []).difference(
+                cli_disabled_service_names
+            )
+            enabled_service_names = {
+                get_service_name(s) for s in enabled_tracking_services
+            }
+            missing_require_services = required_service_names.difference(
+                enabled_service_names
+            )
+            assert not missing_require_services, (
+                "Missing the following tracking services required by install config. Ensure the pip packages that "
                 f"contribute these tracking services are installed: {missing_require_services}"
+            )
 
         self.enabled_tracking_services = enabled_tracking_services
         additional_chain_args = {}
         for service in self.enabled_tracking_services:
-            extra = service.start(args, install_configs=self.install_configs, **chain_args)
+            extra = service.start(
+                args, install_configs=self.install_configs, **chain_args
+            )
             if extra:
                 additional_chain_args.update(extra)
         return additional_chain_args
 
-    def wait_tracking_services_pred(self, service_predicate, description, timeout) -> None:
+    def wait_tracking_services_pred(
+        self, service_predicate, description, timeout
+    ) -> None:
         if not self.enabled_tracking_services:
             return
 
-        services_by_name = {get_service_name(s): s for s in self.enabled_tracking_services}
+        services_by_name = {
+            get_service_name(s): s for s in self.enabled_tracking_services
+        }
         not_passed_pred_services = list(services_by_name.keys())
         start_wait_time = time.time()
         timeout_max = start_wait_time + timeout
@@ -625,44 +739,50 @@ class SubmitBaseApp:
             for service_name in not_passed_pred_services:
                 if service_predicate(services_by_name[service_name]):
                     # Service has passed the predicate, remove it from the list of not passed services.
-                    not_passed_pred_services = [n for n in not_passed_pred_services if service_name != n]
+                    not_passed_pred_services = [
+                        n for n in not_passed_pred_services if service_name != n
+                    ]
                     if not not_passed_pred_services:
-                        logger.debug(f"Last tracking service {description} (long pole) is: {service_name}")
+                        logger.debug(
+                            f"Last tracking service {description} (long pole) is: {service_name}"
+                        )
             if not_passed_pred_services:
                 time.sleep(0.1)
 
         if not_passed_pred_services:
-            logger.warning(f"The following services are still not {description} after {timeout} secs:")
+            logger.warning(
+                f"The following services are still not {description} after {timeout} secs:"
+            )
             for s in not_passed_pred_services:
-                launch_file = getattr(services_by_name[s], 'stdout_file', None)
-                msg = f'{s}: see {launch_file}' if launch_file else s
-                logger.warning('\t' + msg)
+                launch_file = getattr(services_by_name[s], "stdout_file", None)
+                msg = f"{s}: see {launch_file}" if launch_file else s
+                logger.warning("\t" + msg)
         else:
             wait_duration = time.time() - start_wait_time
-            logger.debug(f"Waited {wait_duration:.1f} secs for tracking services to be {description}.")
+            logger.debug(
+                f"Waited {wait_duration:.1f} secs for tracking services to be {description}."
+            )
 
-    def wait_tracking_services_task_ready(self, fx_app, timeout=5)->None:
+    def wait_tracking_services_task_ready(self, fx_app, timeout=5) -> None:
         self.wait_tracking_services_pred(
-            lambda s: s.ready_for_tasks(celery_app=fx_app),
-            'ready for tasks',
-            timeout)
+            lambda s: s.ready_for_tasks(celery_app=fx_app), "ready for tasks", timeout
+        )
 
     # increase timeout until Flame's 'recalc' at during shutdown can be removed.
-    def wait_tracking_services_release_console_ready(self, timeout=45)->None:
+    def wait_tracking_services_release_console_ready(self, timeout=45) -> None:
         self.wait_tracking_services_pred(
-            lambda s: s.ready_release_console(),
-            'ready to release console',
-            timeout)
+            lambda s: s.ready_release_console(), "ready to release console", timeout
+        )
 
     def main_error_exit_handler(
         self,
-        chain_details: tuple[FxAsyncResult, dict[str, Any]] | None=None,
+        chain_details: tuple[FxAsyncResult, dict[str, Any]] | None = None,
         reason=None,
         run_revoked=False,
     ):
-        mssg = 'Aborting FireX submission...'
+        mssg = "Aborting FireX submission..."
         if reason:
-            mssg += '\n' + str(reason)
+            mssg += "\n" + str(reason)
         logger.error(mssg)
         self.self_destruct(
             chain_details=chain_details,
@@ -674,9 +794,9 @@ class SubmitBaseApp:
 
     def self_destruct(
         self,
-        chain_details: tuple[FxAsyncResult, dict[str, Any]] | None=None,
-        reason: str | None=None,
-        run_revoked: bool=False,
+        chain_details: tuple[FxAsyncResult, dict[str, Any]] | None = None,
+        reason: str | None = None,
+        run_revoked: bool = False,
     ):
         if not chain_details:
             root_async_result = chain_args = None
@@ -691,14 +811,15 @@ class SubmitBaseApp:
                 try:
                     logger.debug("Generating reports")
                     from firexapp.submit.reporting import ReportersRegistry
+
                     ReportersRegistry.post_run_report(
                         root_async_result=root_async_result,
                         chain_args=chain_args or {},
                     )
-                    logger.debug('Reports successfully generated')
+                    logger.debug("Reports successfully generated")
                 except Exception:
                     # Under no circumstances should report generation prevent celery and broker cleanup
-                    logger.exception('Error in generating reports')
+                    logger.exception("Error in generating reports")
                 finally:
                     FxAsyncResult.disable_all_ar_backends()
 
@@ -708,8 +829,10 @@ class SubmitBaseApp:
                 reason,
                 getattr(
                     self.submit_args,
-                    'celery_shutdown_timeout',
-                    DEFAULT_CELERY_SHUTDOWN_TIMEOUT))
+                    "celery_shutdown_timeout",
+                    DEFAULT_CELERY_SHUTDOWN_TIMEOUT,
+                ),
+            )
 
         # FIXME: not good this object can be partially initialised.
         if self.uid:
@@ -718,7 +841,7 @@ class SubmitBaseApp:
     @staticmethod
     def write_run_complete_file(log_path: str):
         completion_file = FileRegistry().get_file(RUN_COMPLETE_REGISTRY_KEY, log_path)
-        logger.debug(f'Writing {completion_file}')
+        logger.debug(f"Writing {completion_file}")
         try:
             pathlib.Path(completion_file).touch()
         except FileNotFoundError:
@@ -740,7 +863,9 @@ class SubmitBaseApp:
             # everything is used. Good job!
             return True
 
-        logger.error("Invalid arguments provided. The following arguments are not used by any microservices:")
+        logger.error(
+            "Invalid arguments provided. The following arguments are not used by any microservices:"
+        )
         for arg in unused_chain_args:
             if arg in matches:
                 logger.error("--" + arg + f" (Did you mean '{matches[arg]}'?)")
@@ -755,26 +880,28 @@ class SubmitBaseApp:
         except Exception as e:
             logger.debug(e, exc_info=True)
             self.error_banner(e, banner_title=failure_caption)
-            self.main_error_exit_handler(reason=f'{failure_caption} {e}')
+            self.main_error_exit_handler(reason=f"{failure_caption} {e}")
             sys.exit(-1)
 
 
 def get_firex_id_from_output(cmd_output: str) -> str | None:
     for line in cmd_output.splitlines():
-        match = re.match('.*FireX ID: (.*)', line)
+        match = re.match(".*FireX ID: (.*)", line)
         if match:
             return match.group(1)
     return None
 
 
-def get_log_dir_from_output(cmd_output: str)->str:
+def get_log_dir_from_output(cmd_output: str) -> str:
     if not cmd_output:
         return ""
 
     lines = cmd_output.split("\n")
     log_dir_key = "Logs: "
     try:
-        logs_lines = [line.split(log_dir_key)[1] for line in lines if log_dir_key in line]
+        logs_lines = [
+            line.split(log_dir_key)[1] for line in lines if log_dir_key in line
+        ]
         log_dir_line = logs_lines[-1]
         return log_dir_line.strip()
     except IndexError:
@@ -788,7 +915,7 @@ class FireXReturnCodeException(Exception):
         super(Exception, self).__init__(error_msg, firex_returncode)
 
     def __str__(self):
-        return self.error_msg + '\n' + f'[RC {self.firex_returncode}]'
+        return self.error_msg + "\n" + f"[RC {self.firex_returncode}]"
 
 
 def get_unsuccessful_items(
@@ -797,7 +924,7 @@ def get_unsuccessful_items(
 ) -> list[str]:
     if not filters:
         filters = []
-    failures_by_name : dict[str, int]= {}
+    failures_by_name: dict[str, int] = {}
     for r in ars:
         if name := r.fx_get_name():
             if name not in failures_by_name:
@@ -815,27 +942,27 @@ def get_unsuccessful_items(
         if ignore:
             continue
         # Record the failed task
-        item = f'\t- {task_name}'
+        item = f"\t- {task_name}"
         if count > 1:
-            item += f' ({count} instances)'
+            item += f" ({count} instances)"
         formatted_list.append(item)
     return formatted_list
 
 
 def _format_unsuccessful_services(
-    unsuccessful_services: dict[str, list[FxAsyncResult]]
+    unsuccessful_services: dict[str, list[FxAsyncResult]],
 ) -> tuple[str, int]:
     items = []
     returncode = -1
-    if failed := unsuccessful_services.get('failed'):
-        items.append('The following microservices failed:')
+    if failed := unsuccessful_services.get("failed"):
+        items.append("The following microservices failed:")
         items += get_unsuccessful_items(failed)
 
         first_failure = failed[0]
         if isinstance(first_failure.result, FireXReturnCodeException):
             returncode = first_failure.result.firex_returncode
     else:
-        if not_run := unsuccessful_services.get('not_run'):
-            items.append('The following microservices did not get a chance to run:')
+        if not_run := unsuccessful_services.get("not_run"):
+            items.append("The following microservices did not get a chance to run:")
             items += get_unsuccessful_items(not_run)
-    return '\n'.join(items), returncode
+    return "\n".join(items), returncode

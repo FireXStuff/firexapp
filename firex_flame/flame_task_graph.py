@@ -34,23 +34,23 @@ from firexapp.events.model import (
 
 logger: logging.Logger = logging.getLogger(__name__)
 
-LIST_PATH_ENTRY: re.Pattern[str] = re.compile(r'^\[(\d+)\]$')
+LIST_PATH_ENTRY: re.Pattern[str] = re.compile(r"^\[(\d+)\]$")
 
-TASK_TYPE = dict[str, Any] # fixme should probably data model
-TASKS_BY_UUID_TYPE = dict[str, TASK_TYPE] # fixme should probably data model
+TASK_TYPE = dict[str, Any]  # fixme should probably data model
+TASKS_BY_UUID_TYPE = dict[str, TASK_TYPE]  # fixme should probably data model
 
-TASK_ARGS = 'firex_bound_args'
-_LATEST_TIMESTAMP_KEY = 'latest_timestamp'
-_FIRST_STARTED_KEY = 'first_started'
-_STARTED_INFO_TIMESTAMP_KEY = 'started_info_timestamp'
+TASK_ARGS = "firex_bound_args"
+_LATEST_TIMESTAMP_KEY = "latest_timestamp"
+_FIRST_STARTED_KEY = "first_started"
+_STARTED_INFO_TIMESTAMP_KEY = "started_info_timestamp"
 
 CeleryEvent = dict[str, Any]
 
 
 def _times_from_event(event: dict[str, Any]) -> dict:
-    times: dict[str, Any] = {_LATEST_TIMESTAMP_KEY: event['local_received']}
-    if event.get('type') == 'task-started-info':
-        times[_STARTED_INFO_TIMESTAMP_KEY] = event['local_received']
+    times: dict[str, Any] = {_LATEST_TIMESTAMP_KEY: event["local_received"]}
+    if event.get("type") == "task-started-info":
+        times[_STARTED_INFO_TIMESTAMP_KEY] = event["local_received"]
     return times
 
 
@@ -75,99 +75,100 @@ def _times_from_event(event: dict[str, Any]) -> dict:
 #
 #
 FIELD_CONFIG = {
-    'uuid': {'copy_celery': True, 'slim_field': True},
-    'hostname': {'copy_celery': True, 'slim_field': True},
-    'parent_id': {'copy_celery': True, 'slim_field': True},
-    'type': {
-        'copy_celery': True,
-        'transform_celery': transform_task_state,
+    "uuid": {"copy_celery": True, "slim_field": True},
+    "hostname": {"copy_celery": True, "slim_field": True},
+    "parent_id": {"copy_celery": True, "slim_field": True},
+    "type": {
+        "copy_celery": True,
+        "transform_celery": transform_task_state,
     },
-    'retries': {'copy_celery': True, 'slim_field': True},
-    TASK_ARGS: {'copy_celery': True},
-    'actual_runtime': {'copy_celery': True, 'slim_field': True},
-    'support_location': {'copy_celery': True},
-    'utcoffset': {'copy_celery': True},
-    'code_url': {'copy_celery': True},
+    "retries": {"copy_celery": True, "slim_field": True},
+    TASK_ARGS: {"copy_celery": True},
+    "actual_runtime": {"copy_celery": True, "slim_field": True},
+    "support_location": {"copy_celery": True},
+    "utcoffset": {"copy_celery": True},
+    "code_url": {"copy_celery": True},
     # TODO: start using code_filepath instead of code_url.
-    'code_filepath': {'copy_celery': True},
-    'firex_default_bound_args': {'copy_celery': True},
-    'from_plugin': {'copy_celery': True, 'slim_field': True},
-    'chain_depth': {'copy_celery': True, 'slim_field': True},
-    'firex_result': {'copy_celery': True},
-    'traceback': {'copy_celery': True},
-    'exception': {'copy_celery': True},
-    'long_name': {
-        'copy_celery': True,
-        'transform_celery': lambda e: {'name': e['long_name'].split('.')[-1]},
+    "code_filepath": {"copy_celery": True},
+    "firex_default_bound_args": {"copy_celery": True},
+    "from_plugin": {"copy_celery": True, "slim_field": True},
+    "chain_depth": {"copy_celery": True, "slim_field": True},
+    "firex_result": {"copy_celery": True},
+    "traceback": {"copy_celery": True},
+    "exception": {"copy_celery": True},
+    "long_name": {
+        "copy_celery": True,
+        "transform_celery": lambda e: {"name": e["long_name"].split(".")[-1]},
     },
-    'flame_data': {
-        'copy_celery': True,
-        'slim_field': True,
-        'aggregate_merge': True,
+    "flame_data": {
+        "copy_celery": True,
+        "slim_field": True,
+        "aggregate_merge": True,
     },
-    'state': {'slim_field': True},
-    'task_num': {'slim_field': True},
-    'name': {
-        'slim_field': True,
+    "state": {"slim_field": True},
+    "task_num": {"slim_field": True},
+    "name": {
+        "slim_field": True,
         # TODO: firexapp should send long_name, since it will overwrite 'name' copied from celery. Then get rid of
         # the following config.
-        'transform_celery': lambda e: {
-            'name': e['name'].split('.')[-1],
-            'long_name': e['name']},
+        "transform_celery": lambda e: {
+            "name": e["name"].split(".")[-1],
+            "long_name": e["name"],
+        },
     },
-    'url': {
+    "url": {
         # TODO: only for backwards compat. Can use log_filepath.
-        'transform_celery': lambda e: {'logs_url': e['url']},
+        "transform_celery": lambda e: {"logs_url": e["url"]},
     },
-    'log_filepath': {
-        'transform_celery': lambda e: {'logs_url': e['log_filepath']},
+    "log_filepath": {
+        "transform_celery": lambda e: {"logs_url": e["log_filepath"]},
     },
-    'local_received': {
-        'transform_celery': _times_from_event,
+    "local_received": {
+        "transform_celery": _times_from_event,
     },
     _LATEST_TIMESTAMP_KEY: {
-        'slim_field': True,
+        "slim_field": True,
     },
-    'states': {
-        'aggregate_merge': True,
+    "states": {
+        "aggregate_merge": True,
     },
     EXTERNAL_COMMANDS_KEY: {
-        'copy_celery': True,
-        'aggregate_merge': True,
+        "copy_celery": True,
+        "aggregate_merge": True,
     },
     ADDITIONAL_CHILDREN_KEY: {
-        'copy_celery': True,
-        'aggregate_merge': True,
-        'slim_field': True,
+        "copy_celery": True,
+        "aggregate_merge": True,
+        "slim_field": True,
     },
-    'exception_cause_uuid': {
-        'copy_celery': True,
-        'slim_field': True,
+    "exception_cause_uuid": {
+        "copy_celery": True,
+        "slim_field": True,
     },
-    'error_context': {
-        'copy_celery': True,
-        'slim_field': True,
+    "error_context": {
+        "copy_celery": True,
+        "slim_field": True,
     },
-    'called_as_orig': {
-        'copy_celery': True,
+    "called_as_orig": {
+        "copy_celery": True,
     },
     _FIRST_STARTED_KEY: {
-        'slim_field': True,
+        "slim_field": True,
     },
-    'cached_result_from': {
-        'copy_celery': True,
+    "cached_result_from": {
+        "copy_celery": True,
     },
-    'pid': {
-        'copy_celery': True,
+    "pid": {
+        "copy_celery": True,
     },
-    'was_revoked': {
-        'copy_celery': True,
+    "was_revoked": {
+        "copy_celery": True,
     },
     # Why this task was revoked, sent with task-revoke-completed. Deliberately not a
     # slim field: it's only ever set on revoked tasks and is only needed once a task is
     # opened, so it doesn't belong in the payload sent for every node on graph load.
     TASK_REVOKE_REASON_KEY: {
-        'copy_celery': True,
+        "copy_celery": True,
     },
 }
 
@@ -176,20 +177,20 @@ def _get_keys_with_true(input_dict, key):
     return [k for k, v in input_dict.items() if v.get(key, False)]
 
 
-COPY_FIELDS: list[str] = _get_keys_with_true(FIELD_CONFIG, 'copy_celery')
+COPY_FIELDS: list[str] = _get_keys_with_true(FIELD_CONFIG, "copy_celery")
 # These are the minimum fields required to render the graph.
-SLIM_FIELDS: list[str] = _get_keys_with_true(FIELD_CONFIG, 'slim_field')
+SLIM_FIELDS: list[str] = _get_keys_with_true(FIELD_CONFIG, "slim_field")
 
-AGGREGATE_MERGE_FIELDS: list[str] = _get_keys_with_true(FIELD_CONFIG, 'aggregate_merge')
+AGGREGATE_MERGE_FIELDS: list[str] = _get_keys_with_true(FIELD_CONFIG, "aggregate_merge")
 FIELD_TO_CELERY_TRANSFORMS = {
-    k: v['transform_celery'] for k, v in FIELD_CONFIG.items()
-    if 'transform_celery' in v
+    k: v["transform_celery"] for k, v in FIELD_CONFIG.items() if "transform_celery" in v
 }
 
 
 class _TaskFieldSentile(Enum):
     UNSET = 1
     UNLOADED = 2
+
 
 @dataclasses.dataclass
 class _ModelledFlameTask:
@@ -212,7 +213,8 @@ class _ModelledFlameTask:
 
     def get_set_field_names(self) -> list[str]:
         return [
-            field_name for field_name in self.unloadable_field_names()
+            field_name
+            for field_name in self.unloadable_field_names()
             if getattr(self, field_name) != _TaskFieldSentile.UNSET
         ]
 
@@ -222,10 +224,7 @@ class _ModelledFlameTask:
     def any_unloaded(self, field_names=None) -> bool:
         if field_names is None:
             field_names = self.unloadable_field_names()
-        return any(
-            getattr(self, f) == _TaskFieldSentile.UNLOADED
-            for f in field_names
-        )
+        return any(getattr(self, f) == _TaskFieldSentile.UNLOADED for f in field_names)
 
     def unload_fields(self) -> None:
         for field_name in self.unloadable_field_names():
@@ -243,37 +242,41 @@ class _ModelledFlameTask:
 
 def is_task_dict_complete(task_dict) -> bool:
     return RunStates.is_complete_state(
-        task_dict.get('state'),
-        has_completed=task_dict.get('has_completed'),
+        task_dict.get("state"),
+        has_completed=task_dict.get("has_completed"),
     )
 
 
 @dataclasses.dataclass
 class _FlameTask:
-    _modelled : _ModelledFlameTask
+    _modelled: _ModelledFlameTask
     always_loaded_task_data: dict[str, Any]
-    model_dumper : 'FlameModelDumper'
+    model_dumper: "FlameModelDumper"
     # NOTE: must have a type annotation + default_factory so dataclass creates one lock per instance.
     # Without this, all _FlameTask instances share a single class-level BoundedSemaphore, serializing
     # full-task load/dump/unload across every task in the run.
-    _lock: BoundedSemaphore = dataclasses.field(default_factory=BoundedSemaphore, compare=False, repr=False)
+    _lock: BoundedSemaphore = dataclasses.field(
+        default_factory=BoundedSemaphore, compare=False, repr=False
+    )
 
     @staticmethod
-    def create_task(task_uuid, task_num, model_dumper : 'FlameModelDumper') -> '_FlameTask':
+    def create_task(
+        task_uuid, task_num, model_dumper: "FlameModelDumper"
+    ) -> "_FlameTask":
         return _FlameTask(
             _ModelledFlameTask(),
             always_loaded_task_data={
-                'uuid': task_uuid,
-                'state': None,
-                'task_num': task_num,
-                'was_revoked': False,
+                "uuid": task_uuid,
+                "state": None,
+                "task_num": task_num,
+                "was_revoked": False,
                 # Indicates the completed event has been received,
                 # DOES NOT GUARANTEE ALL TASK DATA HAS BEEN RECEIVED.
                 # task-success (with results) can be received after task-completed,
                 # for example.
-                'has_completed': False,
+                "has_completed": False,
             },
-            model_dumper=model_dumper
+            model_dumper=model_dumper,
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -284,7 +287,9 @@ class _FlameTask:
         try:
             return self.model_dumper.load_full_task(self.get_uuid())
         except OSError as e:
-            logger.warning(f"Failed to load full task for {self.get_uuid()} due to: {e}")
+            logger.warning(
+                f"Failed to load full task for {self.get_uuid()} due to: {e}"
+            )
             return {}
 
     def _already_locked_get_full_task_dict(self, field_names=None):
@@ -300,13 +305,12 @@ class _FlameTask:
             return self._already_locked_get_full_task_dict()
 
     def get_uuid(self):
-        return self.always_loaded_task_data['uuid']
+        return self.always_loaded_task_data["uuid"]
 
     def dump_full(self, new_event_types: set[str]) -> None:
         should_dump: bool = (
             # dump when we receive args
-            'task-started-info' in new_event_types
-
+            "task-started-info" in new_event_types
             # dump when the task is complete (or if it was already complete, regardless of event type, due to out-of-order events.)
             # FIXME: is_completed can cause double dumps for successes when completed is received after success.
             or self.is_complete()
@@ -317,18 +321,22 @@ class _FlameTask:
                 try:
                     self.model_dumper.dump_full_task(self.get_uuid(), full_task_dict)
                 except OSError as e:
-                    logger.warning(f"Failed to write {self.get_uuid()} full task JSON: {e}")
+                    logger.warning(
+                        f"Failed to write {self.get_uuid()} full task JSON: {e}"
+                    )
                 else:
                     if self.is_complete():
                         # TODO: is it too much to always unload completed?
                         self._modelled.unload_fields()
-                        task_num = full_task_dict['task_num']
+                        task_num = full_task_dict["task_num"]
                         if task_num % 100 == 0:
-                            logger.debug(f'Unloaded big fields for task num {task_num}, uuid {self.get_uuid()}')
+                            logger.debug(
+                                f"Unloaded big fields for task num {task_num}, uuid {self.get_uuid()}"
+                            )
 
     def get_task_state(self) -> RunStates | None:
         try:
-            return RunStates.create(self.always_loaded_task_data['state'])
+            return RunStates.create(self.always_loaded_task_data["state"])
         except TypeError:
             return None
 
@@ -336,7 +344,10 @@ class _FlameTask:
         return is_task_dict_complete(self.always_loaded_task_data)
 
     def is_field_set(self, field_name) -> bool:
-        return self.get_field(field_name, default=_TaskFieldSentile.UNSET) != _TaskFieldSentile.UNSET
+        return (
+            self.get_field(field_name, default=_TaskFieldSentile.UNSET)
+            != _TaskFieldSentile.UNSET
+        )
 
     def get_field(self, field_name, default=_TaskFieldSentile.UNSET):
         return self.get_fields([field_name]).get(field_name, default)
@@ -346,44 +357,45 @@ class _FlameTask:
             # no need to load unloaded data.
             task_dict: dict[str, Any] = self.always_loaded_task_data
         else:
-            with self._lock: # unloaded field requested
+            with self._lock:  # unloaded field requested
                 task_dict = self._already_locked_get_full_task_dict(field_names)
 
-        return {
-            k: task_dict[k]
-            for k in field_names
-            if k in task_dict
-        }
+        return {k: task_dict[k] for k in field_names if k in task_dict}
 
     def update(self, update_dict: dict[str, Any]) -> None:
         self._modelled.update(
             {
-                k: v for k, v in update_dict.items()
+                k: v
+                for k, v in update_dict.items()
                 if k in self._modelled.unloadable_field_names()
             }
         )
         self.always_loaded_task_data.update(
             {
-                k: v for k, v in update_dict.items()
+                k: v
+                for k, v in update_dict.items()
                 if k not in self._modelled.unloadable_field_names()
             }
         )
 
     def get_field_names(self) -> list[str]:
-        return list(self.always_loaded_task_data.keys()) + self._modelled.get_set_field_names()
+        return (
+            list(self.always_loaded_task_data.keys())
+            + self._modelled.get_set_field_names()
+        )
 
     def find_task_changes(self, new_task_data: dict[str, Any]) -> dict[str, Any]:
         """
-            Note new_task_data is data from the Celery Event as specified by FIELD_CONFIG
+        Note new_task_data is data from the Celery Event as specified by FIELD_CONFIG
 
-            This method does not apply changes to self, it just calculates changes to be made.
+        This method does not apply changes to self, it just calculates changes to be made.
         """
 
         changed_data = {}
         for new_field_name, new_field_value in new_task_data.items():
             if new_field_name == _STARTED_INFO_TIMESTAMP_KEY:
                 # this timestamp should be kept once set; it's the most accurate.
-                if not self.get_field('retries', 0):
+                if not self.get_field("retries", 0):
                     changed_data[_FIRST_STARTED_KEY] = new_field_value
             elif new_field_name == _LATEST_TIMESTAMP_KEY:
                 changed_data[_LATEST_TIMESTAMP_KEY] = new_field_value
@@ -393,9 +405,14 @@ class _FlameTask:
             elif new_field_name in AGGREGATE_MERGE_FIELDS:
                 existing_field_value = self.get_field(
                     # default to empty instance of same type
-                    new_field_name, default=type(new_field_value)())
+                    new_field_name,
+                    default=type(new_field_value)(),
+                )
                 new_merged_value = deep_merge(existing_field_value, new_field_value)
-                if not self.is_field_set(new_field_name) or existing_field_value != new_merged_value:
+                if (
+                    not self.is_field_set(new_field_name)
+                    or existing_field_value != new_merged_value
+                ):
                     changed_data[new_field_name] = new_merged_value
             else:
                 # Some fields overwrite whatever is present. Be permissive, since not all fields captured are from celery,
@@ -407,28 +424,26 @@ class _FlameTask:
 
 
 class FlameTaskGraph:
-
     def __init__(
         self,
         tasks_by_uuid: TASKS_BY_UUID_TYPE | None = None,
-        model_dumper: Optional['FlameModelDumper'] = None,
+        model_dumper: Optional["FlameModelDumper"] = None,
     ) -> None:
-        self.root_uuid : str | None = None
+        self.root_uuid: str | None = None
 
-        self._tasks_by_uuid : dict[str, _FlameTask] = {}
+        self._tasks_by_uuid: dict[str, _FlameTask] = {}
         self.model_dumper: FlameModelDumper | None = model_dumper
         self._event_aggregator = FlameEventAggregator(
-            self._tasks_by_uuid, # Must share instance.
-            self.model_dumper)
+            self._tasks_by_uuid,  # Must share instance.
+            self.model_dumper,
+        )
 
         # cache relationships for faster querying for ancestors and descedants.
         self._parent_to_children_uuids: dict[str, set[str]] = {}
         self._child_to_parents_uuids: dict[str, set[str]] = {}
 
         # add input task to graph's instance.
-        self.update_graph_from_celery_events(
-            (tasks_by_uuid or {}).values()
-        )
+        self.update_graph_from_celery_events((tasks_by_uuid or {}).values())
 
     def get_root_task(self) -> TASK_TYPE | None:
         if not self.root_uuid:
@@ -444,7 +459,9 @@ class FlameTaskGraph:
             checked_uuids.add(uuid)
             for related_uuid in uuids_by_uuid.get(uuid, []):
                 if related_uuid in self._tasks_by_uuid:
-                    result_tasks_by_uuid[related_uuid] = self._tasks_by_uuid[related_uuid]
+                    result_tasks_by_uuid[related_uuid] = self._tasks_by_uuid[
+                        related_uuid
+                    ]
                 if related_uuid not in checked_uuids:
                     to_check_uuids.append(related_uuid)
         return list(result_tasks_by_uuid.values())
@@ -473,19 +490,16 @@ class FlameTaskGraph:
     def _maybe_set_root_uuid(self, events) -> None:
         for event in events:
             if self.root_uuid is None:
-                if (
-                    event.get('parent_id', '__no_match') is None
-                    and event.get('uuid')
-                ):
-                    self.root_uuid = event['uuid']
-                elif event.get('root_id') is not None:
+                if event.get("parent_id", "__no_match") is None and event.get("uuid"):
+                    self.root_uuid = event["uuid"]
+                elif event.get("root_id") is not None:
                     # we can still know the root if we miss the first event (the root's event with parent_id)
                     # since other events reference the root UUID via root_id.
-                    self.root_uuid = event['root_id']
+                    self.root_uuid = event["root_id"]
 
     def _update_graph_from_task_data(self, task_uuid, event) -> None:
         if task_uuid:
-            parent_id = event.get('parent_id')
+            parent_id = event.get("parent_id")
             if parent_id:
                 self._add_parent_and_child(parent_id, task_uuid)
 
@@ -512,10 +526,8 @@ class FlameTaskGraph:
     def query_partial_tasks(self, query_task_uuids, task_queries):
         # When querying a partial set of tasks, count descendants as matches to be included in the result.
         return _query_flame_tasks(
-            self,
-            query_task_uuids,
-            task_queries,
-            match_descendant_criteria=True)
+            self, query_task_uuids, task_queries, match_descendant_criteria=True
+        )
 
     def query_full_tasks(self, task_queries):
         # When querying a full set of tasks, descendants will be included when their ancestors are matched.
@@ -523,7 +535,8 @@ class FlameTaskGraph:
             self,
             self.get_all_task_uuids(),
             task_queries,
-            match_descendant_criteria=False)
+            match_descendant_criteria=False,
+        )
 
     def is_root_started(self) -> bool:
         task: _FlameTask | None = self._tasks_by_uuid.get(self.root_uuid)
@@ -549,9 +562,7 @@ class FlameTaskGraph:
         if not self.is_root_complete():
             return False
 
-        return all(
-            t.is_complete() for t in self._tasks_by_uuid.values()
-        )
+        return all(t.is_complete() for t in self._tasks_by_uuid.values())
 
     def get_full_task_dict(self, uuid) -> dict[str, dict[str, Any]] | None:
         maybe_full_task: _FlameTask | None = self._tasks_by_uuid.get(uuid)
@@ -579,8 +590,7 @@ class FlameTaskGraph:
 
     def get_all_tasks_fields(self, fields):
         return {
-            uuid: task.get_fields(fields)
-            for uuid, task in self._tasks_by_uuid.items()
+            uuid: task.get_fields(fields) for uuid, task in self._tasks_by_uuid.items()
         }
 
     def get_full_tasks_by_uuid(self) -> TASKS_BY_UUID_TYPE:
@@ -590,8 +600,12 @@ class FlameTaskGraph:
         # Create new events that change the run state of incomplete events.
         incomplete_task_events = self._event_aggregator.generate_incomplete_events()
         if incomplete_task_events:
-            logger.warning(f"Forcing runstates of {len(incomplete_task_events)} incomplete tasks to be terminal.")
-            new_data_by_task_uuid, slim_update_data_by_uuid = self.update_graph_from_celery_events(incomplete_task_events)
+            logger.warning(
+                f"Forcing runstates of {len(incomplete_task_events)} incomplete tasks to be terminal."
+            )
+            new_data_by_task_uuid, slim_update_data_by_uuid = (
+                self.update_graph_from_celery_events(incomplete_task_events)
+            )
         else:
             logger.debug("All tasks already terminal following terminal root.")
             new_data_by_task_uuid = slim_update_data_by_uuid = {}
@@ -603,7 +617,7 @@ class FlameTaskGraph:
 
     def dump_full_task(self, uuid: str, new_event_types: set[str]) -> None:
         if uuid not in self._tasks_by_uuid:
-            logger.warning(f'Ignoring request to dump non-existant tast {uuid}')
+            logger.warning(f"Ignoring request to dump non-existant tast {uuid}")
         else:
             self._tasks_by_uuid[uuid].dump_full(new_event_types)
 
@@ -615,40 +629,49 @@ class FlameTaskGraph:
         task: _FlameTask | None = self._get_task(uuid)
         if task is None:
             return False
-        return task.get_field('was_revoked', False)
+        return task.get_field("was_revoked", False)
+
 
 def _slim_tasks_by_uuid(tasks_by_uuid):
-    return {uuid: {k: v for k, v in task_data.items()
-                   if k in SLIM_FIELDS}
-            for uuid, task_data in tasks_by_uuid.items()}
+    return {
+        uuid: {k: v for k, v in task_data.items() if k in SLIM_FIELDS}
+        for uuid, task_data in tasks_by_uuid.items()
+    }
+
 
 def _validate_task_queries(task_representation) -> bool:
     if not isinstance(task_representation, list):
         return False
 
-    missing_criterias = [r for r in task_representation
-                         if 'matchCriteria' not in r
-                            or not isinstance(r['matchCriteria'], dict)]
+    missing_criterias = [
+        r
+        for r in task_representation
+        if "matchCriteria" not in r or not isinstance(r["matchCriteria"], dict)
+    ]
     # TODO: validate matchCriteria themselves
     return not missing_criterias
 
 
 def _normalize_criteria_key(k):
-    return k.removeprefix('?')
+    return k.removeprefix("?")
 
 
 def _matches_equal_criteria(task: _FlameTask, eq_criteria: dict[str, Any]) -> bool:
     # TODO: if more adjusting qualifiers are added, this needs to be reworked.
-    required_keys: set[str] = {k for k in eq_criteria if not k.startswith('?')}
-    optional_keys: set[str] = {_normalize_criteria_key(k) for k in eq_criteria if k.startswith('?')}
+    required_keys: set[str] = {k for k in eq_criteria if not k.startswith("?")}
+    optional_keys: set[str] = {
+        _normalize_criteria_key(k) for k in eq_criteria if k.startswith("?")
+    }
 
     task_fields: list[str] = task.get_field_names()
     if not required_keys.issubset(task_fields):
-        return False # task is missing required keys, can't match.
+        return False  # task is missing required keys, can't match.
 
     queried_field_names: set[str] = required_keys.union(optional_keys)
-    normalized_criteria: dict[str, Any] = {_normalize_criteria_key(k): v for k, v in eq_criteria.items()}
-    for task_field in task_fields: # ordered to avoid loading unloadable fields
+    normalized_criteria: dict[str, Any] = {
+        _normalize_criteria_key(k): v for k, v in eq_criteria.items()
+    }
+    for task_field in task_fields:  # ordered to avoid loading unloadable fields
         if (
             task_field in queried_field_names
             and task.get_field(task_field) != normalized_criteria[task_field]
@@ -656,9 +679,10 @@ def _matches_equal_criteria(task: _FlameTask, eq_criteria: dict[str, Any]) -> bo
             return False
     return True
 
+
 def _matches_has_key_criteria(task: _FlameTask, key_path) -> bool:
     if isinstance(key_path, str):
-        key_path = key_path.split('.')
+        key_path = key_path.split(".")
 
     if key_path and isinstance(key_path, list):
         first_key = key_path[0]
@@ -681,19 +705,19 @@ def _matches_has_key_criteria(task: _FlameTask, key_path) -> bool:
 
 
 def task_matches_criteria(task: _FlameTask, criteria: dict) -> bool:
-    if criteria['type'] == 'all':
+    if criteria["type"] == "all":
         return True
 
-    if criteria['type'] == 'always-select-fields':
+    if criteria["type"] == "always-select-fields":
         # always-select-fields doesn't cause matches (tasks to be included), but paths here are always included
         # in results.
         return False
 
-    if criteria['type'] == 'equals':
-        return _matches_equal_criteria(task, criteria['value'])
+    if criteria["type"] == "equals":
+        return _matches_equal_criteria(task, criteria["value"])
 
-    if criteria['type'] == 'has-key':
-        return _matches_has_key_criteria(task, criteria['value'])
+    if criteria["type"] == "has-key":
+        return _matches_has_key_criteria(task, criteria["value"])
 
     return False
 
@@ -714,7 +738,10 @@ def _add_path_to_container(container, path_list, val) -> None:
         if is_cur_list:
             cur_key = int(is_cur_list.group(1))
 
-def _add_path_to_container(top_container: dict[str, Any], path_list: tuple[str | int], val) -> None:
+
+def _add_path_to_container(
+    top_container: dict[str, Any], path_list: tuple[str | int], val
+) -> None:
     latest_container: dict[str, Any] = top_container
     for i, cur_key in enumerate(path_list):
         is_last_key: bool = i == len(path_list) - 1
@@ -734,14 +761,16 @@ def _add_path_to_container(top_container: dict[str, Any], path_list: tuple[str |
         else:
             # not last key, find or create next container.
             if cur_key not in latest_cont_keys:
-                is_next_list: bool = isinstance(path_list[i+1], int)
+                is_next_list: bool = isinstance(path_list[i + 1], int)
                 if is_next_list:
                     next_container = []
                 else:
                     next_container = {}
 
                 if is_latest_list:
-                    latest_container.append(next_container) # assume integer keys pre-sorted.
+                    latest_container.append(
+                        next_container
+                    )  # assume integer keys pre-sorted.
                 else:
                     latest_container[cur_key] = next_container
             else:
@@ -760,14 +789,13 @@ def _container_from_json_paths_to_values(json_paths_to_values: list[str]):
 
     container = {}
     parsed_key_paths_to_values = {
-        tuple(_int_index_or_key(str_k_part) for str_k_part in k.split('.')): v
+        tuple(_int_index_or_key(str_k_part) for str_k_part in k.split(".")): v
         for k, v in json_paths_to_values.items()
     }
-    for path_tuple, value in sorted(parsed_key_paths_to_values.items(), key=lambda kv: kv[0]):
-        _add_path_to_container(
-            container,
-            path_tuple,
-            value)
+    for path_tuple, value in sorted(
+        parsed_key_paths_to_values.items(), key=lambda kv: kv[0]
+    ):
+        _add_path_to_container(container, path_tuple, value)
     return container
 
 
@@ -783,8 +811,12 @@ def _jsonpath_get_paths(jsonpath_exprs, task_dict):
     return _container_from_json_paths_to_values(matching_paths_to_values)
 
 
-def _get_descendants_for_criteria(select_paths, descendant_criteria, ancestor_uuid, task_graph: FlameTaskGraph):
-    ancestor_descendants: list[_FlameTask] = task_graph.get_descendants_of_uuid(ancestor_uuid)
+def _get_descendants_for_criteria(
+    select_paths, descendant_criteria, ancestor_uuid, task_graph: FlameTaskGraph
+):
+    ancestor_descendants: list[_FlameTask] = task_graph.get_descendants_of_uuid(
+        ancestor_uuid
+    )
     matched_descendants_by_uuid = {}
     for criteria in descendant_criteria:
         for descendant in ancestor_descendants:
@@ -795,7 +827,8 @@ def _get_descendants_for_criteria(select_paths, descendant_criteria, ancestor_uu
                     select_paths,
                     [],  # Never include descendants in descendant queries to avoid infinite loop.
                     descendant,
-                    task_graph)
+                    task_graph,
+                )
 
     return matched_descendants_by_uuid
 
@@ -812,20 +845,23 @@ def select_from_task(
     selected_dict.update(paths_update_dict)
 
     selected_descendants_by_uuid = _get_descendants_for_criteria(
-        select_paths,
-        select_descendants,
-        task.get_uuid(),
-        task_graph)
+        select_paths, select_descendants, task.get_uuid(), task_graph
+    )
 
     if selected_descendants_by_uuid:
-        selected_dict.update({'descendants': selected_descendants_by_uuid})
+        selected_dict.update({"descendants": selected_descendants_by_uuid})
 
     return selected_dict
 
 
 def get_always_select_fields(task_queries):
-    return flatten([q.get('selectPaths', []) for q in task_queries
-                    if q['matchCriteria']['type'] == 'always-select-fields'])
+    return flatten(
+        [
+            q.get("selectPaths", [])
+            for q in task_queries
+            if q["matchCriteria"]["type"] == "always-select-fields"
+        ]
+    )
 
 
 def _select_ancestors_of_task_descendant_match(
@@ -838,10 +874,12 @@ def _select_ancestors_of_task_descendant_match(
 
     # find query matched by desc so only possibly affected ancestors will be re-queried.
     desc_matching_queries = [
-        task_query for task_query in all_task_queries
+        task_query
+        for task_query in all_task_queries
         if any(
             task_matches_criteria(desc_task, desc_query)
-            for desc_query in task_query.get('selectDescendants', []))
+            for desc_query in task_query.get("selectDescendants", [])
+        )
     ]
     if desc_matching_queries:
         # The current task matches some descendant criteria. Find all ancestors that match top-level criteria
@@ -852,10 +890,12 @@ def _select_ancestors_of_task_descendant_match(
                 ancestor_task,
                 desc_matching_queries,
                 task_graph,
-                always_select_fields=always_select_fields
+                always_select_fields=always_select_fields,
             )
             if ancestor_query_result is not None:
-                ancestor_results_by_uuid[ancestor_task.get_uuid()] = ancestor_query_result
+                ancestor_results_by_uuid[ancestor_task.get_uuid()] = (
+                    ancestor_query_result
+                )
 
     return ancestor_results_by_uuid
 
@@ -864,16 +904,23 @@ def _query_task(
     task: _FlameTask,
     all_task_queries,
     task_graph: FlameTaskGraph,
-    always_select_fields=None
+    always_select_fields=None,
 ):
     matching_queries = [
-        query for query in all_task_queries
-        if task_matches_criteria(task, query['matchCriteria'])
+        query
+        for query in all_task_queries
+        if task_matches_criteria(task, query["matchCriteria"])
     ]
     if matching_queries:
-        always_select_fields = always_select_fields or get_always_select_fields(all_task_queries)
-        select_paths = always_select_fields + flatten([q.get('selectPaths', []) for q in matching_queries])
-        all_select_descendants = flatten([q.get('selectDescendants', []) for q in matching_queries])
+        always_select_fields = always_select_fields or get_always_select_fields(
+            all_task_queries
+        )
+        select_paths = always_select_fields + flatten(
+            [q.get("selectPaths", []) for q in matching_queries]
+        )
+        all_select_descendants = flatten(
+            [q.get("selectDescendants", []) for q in matching_queries]
+        )
         return select_from_task(
             select_paths,
             all_select_descendants,
@@ -883,7 +930,9 @@ def _query_task(
     return None
 
 
-def _select_data_for_matches(task_uuid, task_queries, task_graph: FlameTaskGraph, match_descendant_criteria):
+def _select_data_for_matches(
+    task_uuid, task_queries, task_graph: FlameTaskGraph, match_descendant_criteria
+):
     result_tasks_by_uuid = {}
     task: _FlameTask | None = task_graph._get_task(task_uuid)
     if task is not None:
@@ -904,13 +953,20 @@ def _select_data_for_matches(task_uuid, task_queries, task_graph: FlameTaskGraph
     return result_tasks_by_uuid
 
 
-def _query_flame_tasks(task_graph: FlameTaskGraph, task_uuids_to_query, task_queries, match_descendant_criteria):
+def _query_flame_tasks(
+    task_graph: FlameTaskGraph,
+    task_uuids_to_query,
+    task_queries,
+    match_descendant_criteria,
+):
     if not _validate_task_queries(task_queries):
         return {}
 
     result_tasks_by_uuid = {}
     for uuid in task_uuids_to_query:
-        selected_tasks_by_uuid = _select_data_for_matches(uuid, task_queries, task_graph, match_descendant_criteria)
+        selected_tasks_by_uuid = _select_data_for_matches(
+            uuid, task_queries, task_graph, match_descendant_criteria
+        )
         # Every query result is a full task query, no need for merging. Could de-dupe by senidng "already seen"
         # task uuids to avoid re-querying.
         result_tasks_by_uuid.update(selected_tasks_by_uuid)
@@ -921,7 +977,7 @@ def _query_flame_tasks(task_graph: FlameTaskGraph, task_uuids_to_query, task_que
 # Fields with few distinct values repeated across many tasks (e.g. every instance of a given task type
 # shares the same name/hostname). Interning keeps only one string object per distinct value in memory
 # instead of one per task.
-_INTERNABLE_FIELDS = ('name', 'long_name', 'hostname', 'state', 'from_plugin')
+_INTERNABLE_FIELDS = ("name", "long_name", "hostname", "state", "from_plugin")
 
 
 def _intern_str_fields(task_data: dict[str, Any]) -> dict[str, Any]:
@@ -976,12 +1032,14 @@ def find_data_changes(
 
 
 class FlameEventAggregator:
-    """ Aggregates many events in to the task data model. """
+    """Aggregates many events in to the task data model."""
 
-    def __init__(self, tasks_by_uuid, model_dumper: Optional['FlameModelDumper']=None) -> None:
+    def __init__(
+        self, tasks_by_uuid, model_dumper: Optional["FlameModelDumper"] = None
+    ) -> None:
         self.model_dumper: FlameModelDumper | None = model_dumper
-        self._tasks_by_uuid : dict[str, _FlameTask] = tasks_by_uuid
-        self.new_task_num : int = len(tasks_by_uuid) + 1
+        self._tasks_by_uuid: dict[str, _FlameTask] = tasks_by_uuid
+        self.new_task_num: int = len(tasks_by_uuid) + 1
 
     def aggregate_events(self, events):
         new_data_by_task_uuid = {}
@@ -1003,12 +1061,12 @@ class FlameEventAggregator:
         now = time.time()
         return [
             {
-                'uuid': task.get_uuid(),
-                'type': RunStates.get_forced_complete_celery_event_type(
-                    task.get_field('state'),
-                    task.get_field('has_completed', False),
+                "uuid": task.get_uuid(),
+                "type": RunStates.get_forced_complete_celery_event_type(
+                    task.get_field("state"),
+                    task.get_field("has_completed", False),
                 ),
-                'actual_runtime': now - task.get_field(_FIRST_STARTED_KEY, now)
+                "actual_runtime": now - task.get_field(_FIRST_STARTED_KEY, now),
             }
             for task in self._tasks_by_uuid.values()
             if not task.is_complete()
@@ -1017,9 +1075,8 @@ class FlameEventAggregator:
     def _get_or_create_task(self, task_uuid) -> tuple[_FlameTask, bool]:
         if task_uuid not in self._tasks_by_uuid:
             task: _FlameTask = _FlameTask.create_task(
-                task_uuid,
-                self.new_task_num,
-                self.model_dumper)
+                task_uuid, self.new_task_num, self.model_dumper
+            )
             self.new_task_num += 1
             self._tasks_by_uuid[task_uuid] = task
             is_new = True
@@ -1029,7 +1086,7 @@ class FlameEventAggregator:
         return task, is_new
 
     def _aggregate_event(self, event: dict[str, Any]):
-        task_uuid: str | None = event.get('uuid')
+        task_uuid: str | None = event.get("uuid")
         if (
             # The uuid can be null, it's unclear what this means but the event
             # can't be associated with a task so dropping is OK.
@@ -1038,7 +1095,7 @@ class FlameEventAggregator:
             # Therefore ignore events that are for a new UUID that have revoked type.
             or (
                 task_uuid not in self._tasks_by_uuid
-                and event.get('type') == RunStates.REVOKED.to_celery_event_type()
+                and event.get("type") == RunStates.REVOKED.to_celery_event_type()
             )
         ):
             return {}
@@ -1056,13 +1113,13 @@ class FlameEventAggregator:
 
 
 class FlameModelDumper:
-
     # Bounds the read-cache below so it can't become an unbounded memory sink itself.
     _FULL_TASK_CACHE_MAX_SIZE = 500
 
-    def __init__(self, firex_logs_dir=None, root_model_dir: str | None=None) -> None:
-        assert bool(firex_logs_dir) ^ bool(root_model_dir), \
+    def __init__(self, firex_logs_dir=None, root_model_dir: str | None = None) -> None:
+        assert bool(firex_logs_dir) ^ bool(root_model_dir), (
             "Dumper needs exclusively either logs dir or root model dir."
+        )
         if firex_logs_dir:
             self.root_model_dir: str = get_flame_model_dir(firex_logs_dir)
         else:
@@ -1082,12 +1139,15 @@ class FlameModelDumper:
 
     def dump_metadata(self, run_metadata, root_complete, flame_complete):
         metadata_model_file = get_run_metadata_file(root_model_dir=self.root_model_dir)
-        complete = {'run_complete': root_complete, 'flame_recv_complete': flame_complete}
+        complete = {
+            "run_complete": root_complete,
+            "flame_recv_complete": flame_complete,
+        }
         atomic_write_json(metadata_model_file, run_metadata | complete)
         return metadata_model_file
 
     def _get_full_task_file_path(self, uuid) -> str:
-        return os.path.join(self.full_tasks_dir, f'{uuid}.json')
+        return os.path.join(self.full_tasks_dir, f"{uuid}.json")
 
     def _cache_full_task(self, uuid, task) -> None:
         self._full_task_cache[uuid] = task
@@ -1106,15 +1166,13 @@ class FlameModelDumper:
             self._full_task_cache.move_to_end(uuid)
             return cached_task
 
-        with open(self._get_full_task_file_path(uuid), encoding='utf-8') as fp:
+        with open(self._get_full_task_file_path(uuid), encoding="utf-8") as fp:
             task = json.load(fp)
         self._cache_full_task(uuid, task)
         return task
 
     def dump_slim_tasks(self, slim_tasks_by_uuid: dict[str, dict[str, Any]]) -> None:
-        atomic_write_json(
-            self.slim_tasks_file,
-            slim_tasks_by_uuid)
+        atomic_write_json(self.slim_tasks_file, slim_tasks_by_uuid)
 
     def dump_complete_data_model(
         self,
@@ -1140,8 +1198,10 @@ class FlameModelDumper:
             # that the run_metadata model file will ever have root_complete: true.
             root_uuid: str | None = task_graph.root_uuid
             root_complete: bool = task_graph.is_root_complete()
-            run_metadata_with_root = {**run_metadata, 'root_uuid': root_uuid}
-            metadata_model_file = self.dump_metadata(run_metadata_with_root, root_complete, flame_complete=True)
+            run_metadata_with_root = {**run_metadata, "root_uuid": root_uuid}
+            metadata_model_file = self.dump_metadata(
+                run_metadata_with_root, root_complete, flame_complete=True
+            )
             paths_to_compress.append(metadata_model_file)
 
         # Write a tar.gz file containing all the files dumped above.
@@ -1165,16 +1225,19 @@ class FlameModelDumper:
                 or time.time() - os.path.getmtime(out_file) > min_age_change
             )
             if should_write:
-                logger.info(f"Starting to dump task representation of: {model_file_name}.")
+                logger.info(
+                    f"Starting to dump task representation of: {model_file_name}."
+                )
                 atomic_write_json(out_file, tasks_representation)
-                logger.info(f"Finished dumping {len(tasks_representation)} task representation of {model_file_name} to {out_file}.")
+                logger.info(
+                    f"Finished dumping {len(tasks_representation)} task representation of {model_file_name} to {out_file}."
+                )
         except Exception:
             # Don't interfere with shutdown even if extra representation dumping fails.
             logger.exception(f"Failed to dump representation of {model_file_name}.")
 
 
 class NoWritngModelDumper(FlameModelDumper):
-
     def __init__(self, firex_logs_dir) -> None:
         super().__init__(firex_logs_dir)
 
@@ -1191,26 +1254,27 @@ class NoWritngModelDumper(FlameModelDumper):
         pass
 
 
-def _dump_full_task_state_archive(
-    root_model_dir,
-    paths_to_compress
-) -> None:
+def _dump_full_task_state_archive(root_model_dir, paths_to_compress) -> None:
     logger.info("Starting to create full task state archive.")
-    full_state_gz_basename = 'full-run-state.tar.gz'
-    tar_bin: str | None = shutil.which('tar')
+    full_state_gz_basename = "full-run-state.tar.gz"
+    tar_bin: str | None = shutil.which("tar")
     if tar_bin:
-        rel_paths_to_compress = [os.path.relpath(p, root_model_dir) for p in paths_to_compress]
+        rel_paths_to_compress = [
+            os.path.relpath(p, root_model_dir) for p in paths_to_compress
+        ]
         try:
             subprocess.run(
-                [tar_bin, 'czf', full_state_gz_basename] + rel_paths_to_compress,
+                [tar_bin, "czf", full_state_gz_basename] + rel_paths_to_compress,
                 cwd=root_model_dir,
-                timeout=5*60,
+                timeout=5 * 60,
                 check=False,
             )
         except subprocess.TimeoutExpired:
             pass
     else:
-        with tarfile.open(os.path.join(root_model_dir, full_state_gz_basename), "w:gz") as tar:
+        with tarfile.open(
+            os.path.join(root_model_dir, full_state_gz_basename), "w:gz"
+        ) as tar:
             for path in paths_to_compress:
                 tar.add(path, arcname=os.path.basename(path))
     logger.info("Completed creating full task state archive.")

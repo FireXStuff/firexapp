@@ -9,7 +9,6 @@ from firexkit.firex_celery import FireXCelery
 
 
 class InfoBaseApp:
-
     _FX_CELERY_CLS = FireXCelery
 
     def __init__(self):
@@ -18,16 +17,25 @@ class InfoBaseApp:
 
     def create_list_sub_parser(self, sub_parser):
         from firexapp.plugins import plugin_support_parser
+
         list_parser = sub_parser.add_parser(
             "list",
             help="Lists FireX microservices, or used arguments  {microservices,arguments}",
             parents=[plugin_support_parser],
         )
         list_group = list_parser.add_mutually_exclusive_group(required=True)
-        list_group.add_argument("--microservices", '-microservices', help="Lists all available microservices",
-                                action='store_true')
-        list_group.add_argument("--arguments", '-arguments', help="Lists all arguments used by microservices",
-                                action='store_true')
+        list_group.add_argument(
+            "--microservices",
+            "-microservices",
+            help="Lists all available microservices",
+            action="store_true",
+        )
+        list_group.add_argument(
+            "--arguments",
+            "-arguments",
+            help="Lists all arguments used by microservices",
+            action="store_true",
+        )
 
         list_group.set_defaults(func=self.run_list)
 
@@ -36,15 +44,18 @@ class InfoBaseApp:
     def create_info_sub_parser(self, sub_parser):
         if not self._info_sub_parser:
             from firexapp.plugins import plugin_support_parser
+
             info_parser = sub_parser.add_parser(
                 "info",
                 help="Lists detailed information about a microservice",
-                parents=[plugin_support_parser])
+                parents=[plugin_support_parser],
+            )
             info_parser.add_argument(
                 "entity",
                 help="The short or long name of the microservice to be detailed, or a "
-                    "microservice argument. It can be a Python compatible regexp to "
-                    "display information about all services matching that expression.")
+                "microservice argument. It can be a Python compatible regexp to "
+                "display information about all services matching that expression.",
+            )
 
             info_parser.set_defaults(func=self.run_info)
             self._info_sub_parser = info_parser
@@ -52,10 +63,12 @@ class InfoBaseApp:
 
     def create_version_sub_parser(self, sub_parser):
         from firexapp.plugins import plugin_support_parser
+
         version_parser = sub_parser.add_parser(
             "version",
             help="Print FireX Package Version Information",
-            parents=[plugin_support_parser])
+            parents=[plugin_support_parser],
+        )
         version_parser.set_defaults(func=self.version)
         return version_parser
 
@@ -82,12 +95,16 @@ class InfoBaseApp:
         print("The following microservices are available:")
 
         services = [str(task) for task in apps]
-        services = [task for task in services if not task.startswith('celery.')]  # filter out base celery types
+        services = [
+            task for task in services if not task.startswith("celery.")
+        ]  # filter out base celery types
         services.sort()
         for service in services:
             print(service)
 
-        pointers = [(full, apps[full].name) for full in apps if apps[full].name not in full]
+        pointers = [
+            (full, apps[full].name) for full in apps if apps[full].name not in full
+        ]
         if pointers:
             print("\nPointers (override -> original):")
             for new, old in pointers:
@@ -107,8 +124,9 @@ class InfoBaseApp:
 
     def print_partial_task_matches(self, entity, all_tasks):
         from firexapp.engine.celery import app
+
         entries_found = False
-        for task_name in sorted(all_tasks, key=lambda i: i.split('.')[-1]):
+        for task_name in sorted(all_tasks, key=lambda i: i.split(".")[-1]):
             # Is this even a partial match
             if not re.search(entity, task_name):
                 continue
@@ -118,7 +136,7 @@ class InfoBaseApp:
                 continue
             else:
                 if entries_found:
-                    print('\n')
+                    print("\n")
                 self.print_task_details(task)
                 entries_found = True
         return entries_found
@@ -149,7 +167,9 @@ class InfoBaseApp:
                     print(micro.name)
                 return
 
-            self._info_sub_parser.exit(status=-1, message=f"Microservice {entity} was not found!")
+            self._info_sub_parser.exit(
+                status=-1, message=f"Microservice {entity} was not found!"
+            )
 
     @classmethod
     def parse_task_docstring(cls, task):
@@ -158,9 +178,13 @@ class InfoBaseApp:
 
         header = None
         arg_dict = None
-        docstring = inspect.getdoc(task) or ''
+        docstring = inspect.getdoc(task) or ""
 
-        match = re.search(r"^(.*)\n\s*Arguments?[^\n]*\n\s*-*(.*)", docstring, re.MULTILINE | re.DOTALL)
+        match = re.search(
+            r"^(.*)\n\s*Arguments?[^\n]*\n\s*-*(.*)",
+            docstring,
+            re.MULTILINE | re.DOTALL,
+        )
         if match:
             if len(match.group(1).strip()):
                 header = match.group(1).strip()
@@ -176,7 +200,7 @@ class InfoBaseApp:
                     # no prefix
                     arg_prefix = ""
                 # Go over arguments section and create dict of args/description
-                desc = ''
+                desc = ""
                 arg = None
                 for line in arg_desc_str.split("\n"):
                     line = line.strip()
@@ -185,16 +209,23 @@ class InfoBaseApp:
                         if arg:
                             arg_dict[arg] = desc
                         arg = None
-                        desc = ''
+                        desc = ""
                     # Look for start of new entry
-                    match = re.search(r"^" + arg_prefix + r"(\S[^:\(\r\n]+)(?:\([^)\r\n]*\))?:(?:(?:\([^)\r\n]*\))?[^\S\r\n]*([^\r\n]*))?$", line)
+                    match = re.search(
+                        r"^"
+                        + arg_prefix
+                        + r"(\S[^:\(\r\n]+)(?:\([^)\r\n]*\))?:(?:(?:\([^)\r\n]*\))?[^\S\r\n]*([^\r\n]*))?$",
+                        line,
+                    )
                     if match:
                         if arg:
                             arg_dict[arg] = desc
                         arg = match.group(1)
                         desc = match.group(2).strip()
                         # Remove ':' and any leading () that usually indicate type. These can appear in either order
-                        match = re.search(r"^(?:\([^)]*\)\s*)?:(?:\([^)]*\))?\s*(.+)$", desc)
+                        match = re.search(
+                            r"^(?:\([^)]*\)\s*)?:(?:\([^)]*\))?\s*(.+)$", desc
+                        )
                         if match:
                             desc = match.group(1)
                     else:
@@ -213,10 +244,10 @@ class InfoBaseApp:
     @classmethod
     def print_task_details(cls, task):
         dash_length = 40
-        print('-' * dash_length)
+        print("-" * dash_length)
         split_name = task.name.split(".")
         name = split_name[-1]
-        path = '.'.join(split_name[0:-1])
+        path = ".".join(split_name[0:-1])
         if path:
             path = f" ({path})"
         print("Name: " + name + path)
@@ -224,7 +255,7 @@ class InfoBaseApp:
         header, arguments = cls.parse_task_docstring(task)
 
         if header:
-            print('\n' + header)
+            print("\n" + header)
         if not arguments:
             arguments = {}
 
@@ -240,7 +271,7 @@ class InfoBaseApp:
             if description:
                 # Add filler or newline, depending on arg_str length
                 if len(arg_str) >= max_arg_len:
-                    arg_str += "\n" + (' ' * max_arg_len)
+                    arg_str += "\n" + (" " * max_arg_len)
                 else:
                     arg_str += " " * (max_arg_len - len(arg_str))
 
@@ -251,18 +282,22 @@ class InfoBaseApp:
                 if len(description) < max_desc_len:
                     arg_str += description
                 else:
-                    arg_str += f"\n{' ' * max_arg_len}".join(wrap(description, max_desc_len))
+                    arg_str += f"\n{' ' * max_arg_len}".join(
+                        wrap(description, max_desc_len)
+                    )
             print(arg_str)
 
-        tab = ' ' * 1
+        tab = " " * 1
         print("\nArguments info")
         print("--------------")
         required_args = getattr(task, "required_args", [])
         cnt = 0
         for chain_arg in sorted(required_args):
-            if "self" not in chain_arg and \
-               "uid" not in chain_arg and \
-               chain_arg != 'kwargs':
+            if (
+                "self" not in chain_arg
+                and "uid" not in chain_arg
+                and chain_arg != "kwargs"
+            ):
                 desc = arguments.get(chain_arg, None)
                 print_arg(chain_arg, None, desc)
                 cnt += 1
@@ -270,7 +305,7 @@ class InfoBaseApp:
         optional_args = getattr(task, "optional_args", {})
         if len(optional_args):
             for chain_arg in sorted(optional_args):
-                if chain_arg.startswith('_'):
+                if chain_arg.startswith("_"):
                     continue
                 desc = arguments.get(chain_arg, None)
                 default = optional_args[chain_arg]
@@ -281,7 +316,7 @@ class InfoBaseApp:
             if not cnt:
                 print(tab, "None")
 
-        print('\nReturns\n-------')
+        print("\nReturns\n-------")
         out = getattr(task, "return_keys", {})
         if out:
             for chain_arg in sorted(out):

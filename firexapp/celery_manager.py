@@ -1,4 +1,3 @@
-
 import os
 import pathlib
 import re
@@ -28,13 +27,12 @@ class CeleryWorkerStartFailed(Exception):
 
 
 class CeleryManager:
-
     def __init__(
         self,
         logs_dir: str,
         fx_env: FxEnvVars,
-        plugins: None | str | list[str]=None,
-        app='firexapp.engine.celery:app',
+        plugins: None | str | list[str] = None,
+        app="firexapp.engine.celery:app",
         env=None,
     ):
         self.plugins = plugins
@@ -43,15 +41,19 @@ class CeleryManager:
 
         fx_env = fx_env.model_copy(
             update={
-                'firex_plugins': ",".join(
+                "firex_plugins": ",".join(
                     FxPluginRegistry.resolve_plugin_paths(plugins)
                 ),
             },
         )
-        self.env = os.environ | fx_env.model_dump() | {
-            'CELERY_RDBSIG': '1',
-            'FIREX_START_CELERY_WORKER': 'True',
-        }
+        self.env = (
+            os.environ
+            | fx_env.model_dump()
+            | {
+                "CELERY_RDBSIG": "1",
+                "FIREX_START_CELERY_WORKER": "True",
+            }
+        )
         if env:
             self.update_env(env)
 
@@ -63,35 +65,35 @@ class CeleryManager:
 
     @classmethod
     def is_current_env_fx_celery_worker(cls) -> bool:
-        return os.environ.get('FIREX_START_CELERY_WORKER') == 'True'
+        return os.environ.get("FIREX_START_CELERY_WORKER") == "True"
 
     @classmethod
     def unset_start_fx_celery_worker_env(cls):
-        os.environ.pop('FIREX_START_CELERY_WORKER', None)
+        os.environ.pop("FIREX_START_CELERY_WORKER", None)
 
     @classmethod
     def log(cls, msg, header=None, level=DEBUG):
         if header is None:
             header = cls.__name__
         if header:
-            msg = f'[{header}] {msg}'
+            msg = f"[{header}] {msg}"
         logger.log(level, msg)
 
     def update_env(self, env):
-        assert isinstance(env, dict), 'env needs to be a dictionary'
+        assert isinstance(env, dict), "env needs to be a dictionary"
         self.env.update({k: str(v) for k, v in env.items()})
 
     @classmethod
     def _get_celery_logs_dir(cls, logs_dir):
-        return os.path.join(logs_dir, Uid.debug_dirname, 'celery')
+        return os.path.join(logs_dir, Uid.debug_dirname, "celery")
 
     @classmethod
     def _get_celery_pids_dir(cls, logs_dir):
-        return os.path.join(cls._get_celery_logs_dir(logs_dir), 'pids')
+        return os.path.join(cls._get_celery_logs_dir(logs_dir), "pids")
 
     @staticmethod
     def get_worker_logs_dir(logs_dir: str) -> str:
-        return os.path.join(logs_dir, 'microservice_logs')
+        return os.path.join(logs_dir, "microservice_logs")
 
     @property
     def celery_pids_dir(self):
@@ -103,7 +105,7 @@ class CeleryManager:
 
     @staticmethod
     def __get_pid_file(pids_logs_dir, worker_and_host):
-        return os.path.join(pids_logs_dir, f'{worker_and_host}.pid')
+        return os.path.join(pids_logs_dir, f"{worker_and_host}.pid")
 
     @classmethod
     def get_celery_pid(
@@ -126,67 +128,79 @@ class CeleryManager:
         workername: str,
         queues=None,
         wait=True,
-        timeout=15*60,
+        timeout=15 * 60,
         concurrency=None,
         cap_concurrency=None,
         cwd=None,
         soft_time_limit=None,
-        autoscale: tuple | None=None,
-        detach: bool=True,
+        autoscale: tuple | None = None,
+        detach: bool = True,
         celery_cmd_log_level=DEBUG,
     ):
 
-        celery_worker_name = f'{workername}@{gethostname()}'
+        celery_worker_name = f"{workername}@{gethostname()}"
 
-        pid_path = pathlib.Path(self.__get_pid_file(self.celery_pids_dir, celery_worker_name))
+        pid_path = pathlib.Path(
+            self.__get_pid_file(self.celery_pids_dir, celery_worker_name)
+        )
         pid_path.parent.mkdir(parents=True, exist_ok=True)
         self.pid_files[workername] = str(pid_path)
 
         cel_worker_logfile = pathlib.Path(
-            self.get_worker_logs_dir(self.logs_dir),
-            f'{celery_worker_name}.html')
+            self.get_worker_logs_dir(self.logs_dir), f"{celery_worker_name}.html"
+        )
         tasks_logs_dir = cel_worker_logfile.parent
         tasks_logs_dir.mkdir(parents=True, exist_ok=True)
 
-        cmd = f'{qualify_firex_bin("celery")} ' \
-              f'--app={self.app} worker ' \
-              f'--hostname={celery_worker_name} ' \
-              f'--loglevel=debug ' \
-              f'--logfile={cel_worker_logfile} ' \
-              f'--pidfile={pid_path} ' \
-              f'--events ' \
-              f'--without-gossip ' \
-              f'--without-heartbeat ' \
-              f'--without-mingle ' \
-              f'-Ofair'
+        cmd = (
+            f"{qualify_firex_bin('celery')} "
+            f"--app={self.app} worker "
+            f"--hostname={celery_worker_name} "
+            f"--loglevel=debug "
+            f"--logfile={cel_worker_logfile} "
+            f"--pidfile={pid_path} "
+            f"--events "
+            f"--without-gossip "
+            f"--without-heartbeat "
+            f"--without-mingle "
+            f"-Ofair"
+        )
         if queues:
-            cmd += f' --queues={queues}'
+            cmd += f" --queues={queues}"
 
         if concurrency and autoscale:
-            raise AssertionError('You can either provide a value of concurrency or autoscale, but not both')
+            raise AssertionError(
+                "You can either provide a value of concurrency or autoscale, but not both"
+            )
 
         if concurrency:
-            cmd += f' --concurrency={self.cap_cpu_count(concurrency, cap_concurrency)}'
+            cmd += f" --concurrency={self.cap_cpu_count(concurrency, cap_concurrency)}"
         elif autoscale:
-            assert isinstance(autoscale, Iterable), 'autoscale should be a tuple of (min, max)'
-            assert len(autoscale) == 2, 'autoscale should be a tuple of two elements (min, max)'
+            assert isinstance(autoscale, Iterable), (
+                "autoscale should be a tuple of (min, max)"
+            )
+            assert len(autoscale) == 2, (
+                "autoscale should be a tuple of two elements (min, max)"
+            )
             autoscale_v1, autoscale_v2 = autoscale
             autoscale_min = self.cap_cpu_count(
-                min(autoscale_v1, autoscale_v2),
-                cap_concurrency)
+                min(autoscale_v1, autoscale_v2), cap_concurrency
+            )
             autoscale_max = self.cap_cpu_count(
-                max(autoscale_v1, autoscale_v2),
-                cap_concurrency)
-            cmd += f' --autoscale={autoscale_max},{autoscale_min}'
+                max(autoscale_v1, autoscale_v2), cap_concurrency
+            )
+            cmd += f" --autoscale={autoscale_max},{autoscale_min}"
 
         if soft_time_limit:
-            cmd += f' --soft-time-limit={soft_time_limit}'
+            cmd += f" --soft-time-limit={soft_time_limit}"
 
         if detach:
-            cmd += ' &'
+            cmd += " &"
 
-        self.log(f'Starting {celery_worker_name}...')
-        stdout_file = os.path.join(pid_path.parent.parent, f'{celery_worker_name}.stdout.txt')
+        self.log(f"Starting {celery_worker_name}...")
+        stdout_file = os.path.join(
+            pid_path.parent.parent, f"{celery_worker_name}.stdout.txt"
+        )
         firexapp.firex_subprocess.check_output(
             cmd,
             shell=True,
@@ -208,29 +222,27 @@ class CeleryManager:
     @staticmethod
     def _find_procs(pid_file: str) -> list[psutil.Process]:
         return _find_procs(
-            'celery',
-            cmdline_contains=f'--pidfile={pid_file}',
+            "celery",
+            cmdline_contains=f"--pidfile={pid_file}",
         )
 
     def find_all_procs(self):
         procs = []
         for pid_file in os.listdir(self.celery_pids_dir):
-            procs += self._find_procs(
-                os.path.join(self.celery_pids_dir, pid_file)
-            )
+            procs += self._find_procs(os.path.join(self.celery_pids_dir, pid_file))
         return procs
 
     def kill_all_forked(self, pid_file):
         for proc in self._find_procs(pid_file):
-            self.log(f'Killing  pid {proc.pid}', level=INFO)
+            self.log(f"Killing  pid {proc.pid}", level=INFO)
             try:
                 proc.kill()
             except psutil.Error:
-                self.log(f'Failed to kill pid {proc.pid}', level=WARNING)
+                self.log(f"Failed to kill pid {proc.pid}", level=WARNING)
 
     @classmethod
     def terminate(cls, pid, timeout=60):
-        cls.log(f'Terminating pid {pid}', level=INFO)
+        cls.log(f"Terminating pid {pid}", level=INFO)
         p = psutil.Process(pid)
         p.terminate()
         p.wait(timeout=timeout)
@@ -247,7 +259,7 @@ class CeleryManager:
             }
 
         for name, pid_file in name_to_pid_file.items():
-            self.log(f'Attempting shutdown of {name}')
+            self.log(f"Attempting shutdown of {name}")
             try:
                 pid = _get_pid_from_file(pid_file)
             except (AssertionError, OSError, ValueError) as e:
@@ -272,13 +284,13 @@ def _get_pid_from_file(pid_file: str) -> int:
         with open(pid_file) as f:
             pid = f.read().strip()
     except FileNotFoundError:
-        logger.warning(f'No pid file found in {pid_file}')
+        logger.warning(f"No pid file found in {pid_file}")
         raise
     else:
         if pid:
             return int(pid)
         else:
-            raise AssertionError('no pid')
+            raise AssertionError("no pid")
 
 
 def _wait_until_active(
@@ -287,42 +299,42 @@ def _wait_until_active(
     celery_worker_name: str,
     timeout,
 ):
-    extra_err_info = ''
+    extra_err_info = ""
     try:
         poll_until_file_not_empty(pid_file, timeout=timeout)
     except AssertionError:
         err_list = _extract_errors_from_celery_logs(stdout_file)
         if err_list:
-            extra_err_info += '\nFound the following errors:\n' + '\n'.join(err_list)
+            extra_err_info += "\nFound the following errors:\n" + "\n".join(err_list)
 
         deleted_pids = subprocess.run(
-            ['/bin/pkill', '-e', '-f', pid_file],
+            ["/bin/pkill", "-e", "-f", pid_file],
             capture_output=True,
             check=False,
             text=True,
         )
-        extra_err_info += '\nAttempting to delete the invocation pids'
+        extra_err_info += "\nAttempting to delete the invocation pids"
         if deleted_pids.stdout:
-            extra_err_info += f'\nstdout: {deleted_pids.stdout}'
+            extra_err_info += f"\nstdout: {deleted_pids.stdout}"
         if deleted_pids.stderr:
-            extra_err_info += f'\nstderr: {deleted_pids.stderr}'
+            extra_err_info += f"\nstderr: {deleted_pids.stderr}"
 
         raise CeleryWorkerStartFailed(
-            f'The worker {celery_worker_name} did not come up after'
-            f' {timeout} seconds.\n'
-            f'Please look into {stdout_file!r} for details.'
-            f'{extra_err_info}'
+            f"The worker {celery_worker_name} did not come up after"
+            f" {timeout} seconds.\n"
+            f"Please look into {stdout_file!r} for details."
+            f"{extra_err_info}"
         )
     pid = _get_pid_from_file(pid_file)
-    logger.info(f'Celery pid {pid} became active')
+    logger.info(f"Celery pid {pid} became active")
 
 
 def _extract_errors_from_celery_logs(celery_log_file, max_errors=20):
     err_list = None
     try:
-        with open(celery_log_file, encoding='ascii', errors='ignore') as f:
+        with open(celery_log_file, encoding="ascii", errors="ignore") as f:
             logs = f.read()
-            err_list = re.findall(r'^\S*Error: .*$', logs, re.MULTILINE)
+            err_list = re.findall(r"^\S*Error: .*$", logs, re.MULTILINE)
             if err_list:
                 err_list = err_list[0:max_errors]
     except FileNotFoundError:
@@ -335,7 +347,7 @@ def _find_procs(name, cmdline_contains=None) -> list[psutil.Process]:
     matching_procs = []
     for proc in psutil.process_iter():
         try:
-            pinfo = proc.as_dict(attrs=['name', 'cmdline', 'pid'])
+            pinfo = proc.as_dict(attrs=["name", "cmdline", "pid"])
         except psutil.NoSuchProcess:
             pass
         else:
@@ -346,11 +358,12 @@ def _find_procs(name, cmdline_contains=None) -> list[psutil.Process]:
 
 
 def _proc_matches(proc_info, pname, cmdline_contains):
-    if proc_info['name'] == pname:
+    if proc_info["name"] == pname:
         if cmdline_contains:
             return any(
                 cmdline_contains in cmd_part
-                for cmd_part in (proc_info['cmdline'] or []))
+                for cmd_part in (proc_info["cmdline"] or [])
+            )
         else:
             return True
     else:

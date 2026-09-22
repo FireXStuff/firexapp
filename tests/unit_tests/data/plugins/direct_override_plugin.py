@@ -6,6 +6,7 @@ Its whole purpose is to be outranked if a module that a later plugin merely impo
 (indirect_override_defs, pulled in by indirect_override_plugin.py) is ever given that
 plugin's precedence.
 """
+
 from firexapp.engine.celery import app
 from firexkit.task import FireXTask
 

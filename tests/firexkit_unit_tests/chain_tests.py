@@ -14,13 +14,12 @@ from firexkit.testing import ut_celery_app
 def assertTupleAlmostEqual(t1, t2):
     len_t1 = len(t1)
     len_t2 = len(t2)
-    assert len_t1 == len_t2, f'{len_t1:d} != {len_t2:d}'
+    assert len_t1 == len_t2, f"{len_t1:d} != {len_t2:d}"
     for k in t1:
-        assert k in t2, f'{k!r} not in {t2!r}'
+        assert k in t2, f"{k!r} not in {t2!r}"
 
 
 class ReturnsTests(unittest.TestCase):
-
     def test_returns_normal_case(self):
         test_app = ut_celery_app()
 
@@ -29,22 +28,22 @@ class ReturnsTests(unittest.TestCase):
         def a_task(the_goods):
             return the_goods
 
-        @test_app.task(base=FireXTask, returns=('stuff',))
+        @test_app.task(base=FireXTask, returns=("stuff",))
         def b_task(the_goods):
             return the_goods
 
         @test_app.task(base=FireXTask)
         @returns(FireXTask.DYNAMIC_RETURN)
         def c_task(the_goods):
-            return {'stuff': the_goods}
+            return {"stuff": the_goods}
 
         @test_app.task(base=FireXTask, returns=FireXTask.DYNAMIC_RETURN)
         def d_task(the_goods):
-            return {'stuff': the_goods}
+            return {"stuff": the_goods}
 
         @test_app.task(base=FireXTask, returns=FireXTask.DYNAMIC_RETURN)
         def e_task(the_goods):
-            return ({'stuff': the_goods},)
+            return ({"stuff": the_goods},)
 
         for task in [a_task, b_task, c_task, d_task, e_task]:
             with self.subTest():
@@ -55,25 +54,27 @@ class ReturnsTests(unittest.TestCase):
                 self.assertTrue("the_goods" in ret)
                 self.assertEqual("the_goods", ret["the_goods"])
                 self.assertEqual(ret["stuff"], ret["the_goods"])
-                assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ('stuff',))
+                assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ("stuff",))
 
     def test_dynamic_returns(self):
         test_app = ut_celery_app()
 
-        @test_app.task(base=FireXTask, returns=(FireXTask.DYNAMIC_RETURN, 'stuff2'))
+        @test_app.task(base=FireXTask, returns=(FireXTask.DYNAMIC_RETURN, "stuff2"))
         def a_task(the_goods, the_other_goods):
-            return {'stuff': the_goods}, the_other_goods
+            return {"stuff": the_goods}, the_other_goods
 
-        @test_app.task(base=FireXTask, returns=('stuff2', FireXTask.DYNAMIC_RETURN))
+        @test_app.task(base=FireXTask, returns=("stuff2", FireXTask.DYNAMIC_RETURN))
         def b_task(the_other_goods, the_goods):
-            return the_other_goods, {'stuff': the_goods}
+            return the_other_goods, {"stuff": the_goods}
 
-        @test_app.task(base=FireXTask, returns=(FireXTask.DYNAMIC_RETURN, FireXTask.DYNAMIC_RETURN))
+        @test_app.task(
+            base=FireXTask, returns=(FireXTask.DYNAMIC_RETURN, FireXTask.DYNAMIC_RETURN)
+        )
         def c_task(the_goods, the_other_goods):
-            return {'stuff': the_goods}, {'stuff2': the_other_goods}
+            return {"stuff": the_goods}, {"stuff2": the_other_goods}
 
         for task in [a_task, b_task, c_task]:
-            with self.subTest(f'Testing {task.__name__}'):
+            with self.subTest(f"Testing {task.__name__}"):
                 ret = task(the_goods="the_goods", the_other_goods="the_other_goods")
                 self.assertTrue(type(ret) is dict)
                 self.assertTrue(len(ret) == 5)
@@ -85,13 +86,15 @@ class ReturnsTests(unittest.TestCase):
                 self.assertEqual("the_other_goods", ret["the_other_goods"])
                 self.assertEqual(ret["stuff"], ret["the_goods"])
                 self.assertEqual(ret["stuff2"], ret["the_other_goods"])
-                assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ('stuff', 'stuff2'))
+                assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ("stuff", "stuff2"))
 
-        @test_app.task(base=FireXTask, returns=(FireXTask.DYNAMIC_RETURN, FireXTask.DYNAMIC_RETURN))
+        @test_app.task(
+            base=FireXTask, returns=(FireXTask.DYNAMIC_RETURN, FireXTask.DYNAMIC_RETURN)
+        )
         def d_task(the_goods, the_other_goods):
-            return {'stuff': the_goods}, {'stuff': the_other_goods}
+            return {"stuff": the_goods}, {"stuff": the_other_goods}
 
-        with self.subTest('returns are stumping each other'):
+        with self.subTest("returns are stumping each other"):
             ret = d_task(the_goods="the_goods", the_other_goods="the_other_goods")
             self.assertTrue(type(ret) is dict)
             self.assertTrue(len(ret) == 4)
@@ -101,42 +104,51 @@ class ReturnsTests(unittest.TestCase):
             self.assertEqual("the_goods", ret["the_goods"])
             self.assertEqual("the_other_goods", ret["the_other_goods"])
             self.assertIn(ret["stuff"], [ret["the_other_goods"], ret["the_goods"]])
-            assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ('stuff',))
+            assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ("stuff",))
 
         @test_app.task(base=FireXTask, returns=FireXTask.DYNAMIC_RETURN)
         def e_task(the_goods):
             return the_goods
 
-        for input_value in [None, '', (set(),), set(), {}, ({},), ((),)]:
+        for input_value in [None, "", (set(),), set(), {}, ({},), ((),)]:
             with self.subTest():
                 ret = e_task(the_goods=input_value)
                 self.assertTrue(type(ret) is dict)
-                self.assertDictEqual(ret, {'the_goods': input_value})
+                self.assertDictEqual(ret, {"the_goods": input_value})
 
-        @test_app.task(base=FireXTask, returns=['stuff', FireXTask.DYNAMIC_RETURN])
+        @test_app.task(base=FireXTask, returns=["stuff", FireXTask.DYNAMIC_RETURN])
         def f_task(the_goods, the_other_goods):
             return the_goods, the_other_goods
 
-        for bad_input in [{1,2,3}, (1,2,3), [1,2,3], 'some_string']:
+        for bad_input in [{1, 2, 3}, (1, 2, 3), [1, 2, 3], "some_string"]:
             with self.subTest(), self.assertRaises(TypeError):
-                f_task(the_goods='something', the_other_goods=bad_input)
+                f_task(the_goods="something", the_other_goods=bad_input)
 
         # validate that order is preserved
-        @test_app.task(base=FireXTask, returns=['stuff', FireXTask.DYNAMIC_RETURN, "more_stuff"])
+        @test_app.task(
+            base=FireXTask, returns=["stuff", FireXTask.DYNAMIC_RETURN, "more_stuff"]
+        )
         def g_task():
             return "first", {"stuff": "final", "more_stuff": "first"}, "final2"
 
         with self.subTest("Precedence"):
-            for _ in range(5):  # run multiple times to avoid false positives if dict are used
+            for _ in range(
+                5
+            ):  # run multiple times to avoid false positives if dict are used
                 ret = g_task()
-                self.assertEqual(ret["stuff"], "final", "Dynamic did not override stuff")
-                self.assertEqual(ret["more_stuff"], "final2", "explicit did not override dynamic")
+                self.assertEqual(
+                    ret["stuff"], "final", "Dynamic did not override stuff"
+                )
+                self.assertEqual(
+                    ret["more_stuff"], "final2", "explicit did not override dynamic"
+                )
 
     def test_bad_returns_code(self):
         test_app = ut_celery_app()
 
         # duplicate keys
         with self.assertRaises(ReturnsCodingException):
+
             @test_app.task(base=FireXTask)
             @returns("a", "a")
             def a_task():
@@ -145,15 +157,18 @@ class ReturnsTests(unittest.TestCase):
 
         # duplicate keys
         with self.assertRaises(ReturnsCodingException):
+
             @test_app.task(base=FireXTask, returns=("a", "a"))
             def dup_return():
                 # Should not reach here
                 pass  # pragma: no cover
+
             # Need to instantiate the object (otherwise its just a Proxy), hence the next line
             _ = dup_return.__name__
 
         # @returns above @app.task
         with self.assertRaises(ReturnsCodingException):
+
             @returns("a")
             @test_app.task(base=FireXTask)
             def a_task():
@@ -162,6 +177,7 @@ class ReturnsTests(unittest.TestCase):
 
         # no keys in @returns
         with self.assertRaises(ReturnsCodingException):
+
             @test_app.task(base=FireXTask)
             @returns()
             def a_task():
@@ -170,40 +186,50 @@ class ReturnsTests(unittest.TestCase):
 
         # No actual return
         with self.assertRaises(ReturnsCodingException):
+
             @test_app.task(base=FireXTask)
             @returns("a", "b")
             def a_task():
                 return
+
             a_task()
 
         # No actual return
         with self.assertRaises(ReturnsCodingException):
-            @test_app.task(base=FireXTask, returns=('a', 'b'))
+
+            @test_app.task(base=FireXTask, returns=("a", "b"))
             def no_returns():
                 return
+
             no_returns()
 
         # values returned don't match keys
         with self.assertRaises(ReturnsCodingException):
+
             @test_app.task(base=FireXTask)
             @returns("a", "b")
             def another_task():
                 return None, None, None
+
             another_task()
 
         # values returned don't match keys
         with self.assertRaises(ReturnsCodingException):
-            @test_app.task(base=FireXTask, returns=('a', 'b'))
+
+            @test_app.task(base=FireXTask, returns=("a", "b"))
             def and_another_task():
                 return None, None, None
+
             and_another_task()
 
         # Can't use both @returns and returns=
         with self.assertRaises(ReturnsCodingException):
-            @test_app.task(base=FireXTask, returns=('a',))
-            @returns('a')
+
+            @test_app.task(base=FireXTask, returns=("a",))
+            @returns("a")
             def double_return():
                 return None
+
             # Need to instantiate the object (otherwise its just a Proxy), hence the next line
             _ = double_return.__name__
 
@@ -240,6 +266,7 @@ class ReturnsTests(unittest.TestCase):
             @wraps(func)
             def inner(*args, **kwargs):
                 return func(*args, **kwargs)
+
             return inner
 
         @test_app.task(base=FireXTask)
@@ -252,11 +279,11 @@ class ReturnsTests(unittest.TestCase):
         self.assertTrue(type(ret) is dict)
         self.assertTrue(len(ret) == 3)
         self.assertTrue("stuff" in ret)
-        assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ('stuff',))
+        assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ("stuff",))
 
     def test_returning_named_tuples(self):
         test_app = ut_celery_app()
-        TestingTuple = namedtuple('TestingTuple', ['thing1', 'thing2'])
+        TestingTuple = namedtuple("TestingTuple", ["thing1", "thing2"])
 
         @test_app.task(base=FireXTask)
         @returns("named_t")
@@ -275,7 +302,7 @@ class ReturnsTests(unittest.TestCase):
                 self.assertTrue(type(ret) is dict)
                 self.assertTrue(len(ret) == 2)
                 self.assertTrue("named_t" in ret)
-                assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ('named_t',))
+                assertTupleAlmostEqual(ret[RETURN_KEYS_KEY], ("named_t",))
 
                 # noinspection PyTypeChecker
                 self.assertEqual(1, ret["named_t"].thing1)
@@ -284,7 +311,6 @@ class ReturnsTests(unittest.TestCase):
 
 
 class ChainVerificationTests(unittest.TestCase):
-
     def test_interoperability_with_regular_celery_tasks(self):
         test_app = ut_celery_app()
 
@@ -297,7 +323,7 @@ class ChainVerificationTests(unittest.TestCase):
         def task2b(stuff):
             assert stuff  # pragma: no cover
 
-        @test_app.task(base=FireXTask, returns='stuff')
+        @test_app.task(base=FireXTask, returns="stuff")
         def task3():
             return "the_stuff"  # pragma: no cover
 
@@ -345,7 +371,7 @@ class ChainVerificationTests(unittest.TestCase):
         def task1_with_return():
             pass  # pragma: no cover
 
-        @test_app.task(base=FireXTask, returns={'stuff'})
+        @test_app.task(base=FireXTask, returns={"stuff"})
         def task1_with_task_return():
             pass  # pragma: no cover
 
@@ -372,10 +398,7 @@ class ChainVerificationTests(unittest.TestCase):
         #     c.verify_args()
 
         with self.assertRaises(InvalidChainArgsException):
-            (
-                task1_no_return.s(thing="@stuff")
-                | task2needs.s()
-            ).verify_args()
+            (task1_no_return.s(thing="@stuff") | task2needs.s()).verify_args()
 
         with self.assertRaises(InvalidChainArgsException):
             c = chain(task1_no_return.s(), task2needs.s(thing="@stuff"))
@@ -387,20 +410,24 @@ class ChainVerificationTests(unittest.TestCase):
         # noinspection PyUnusedLocal
         @test_app.task(base=FireXTask)
         @returns("take_this")
-        def a_task(required, *other_optional_args, optional="yup", **other_optional_kwargs):
+        def a_task(
+            required, *other_optional_args, optional="yup", **other_optional_kwargs
+        ):
             pass  # pragma: no cover
 
         # noinspection PyUnusedLocal
-        @test_app.task(base=FireXTask, returns=['take_this'])
-        def b_task(required, *other_optional_args, optional="yup", **other_optional_kwargs):
+        @test_app.task(base=FireXTask, returns=["take_this"])
+        def b_task(
+            required, *other_optional_args, optional="yup", **other_optional_kwargs
+        ):
             pass  # pragma: no cover
 
         for task in [a_task, b_task]:
             with self.subTest():
-                self.assertEqual(task.optional_args, {'optional': "yup"})
-                self.assertEqual(task.required_args, ['required'])
-                self.assertEqual(task.return_keys, ('take_this',))
-                self.assertEqual(task.optional_args, {'optional': "yup"})  # repeat
+                self.assertEqual(task.optional_args, {"optional": "yup"})
+                self.assertEqual(task.required_args, ["required"])
+                self.assertEqual(task.return_keys, ("take_this",))
+                self.assertEqual(task.optional_args, {"optional": "yup"})  # repeat
 
     def test_chain_assembly_validation(self):
         test_app = ut_celery_app()
@@ -412,7 +439,7 @@ class ChainVerificationTests(unittest.TestCase):
             return "pass"  # pragma: no cover
 
         # noinspection PyUnusedLocal
-        @test_app.task(base=FireXTask, returns='final')
+        @test_app.task(base=FireXTask, returns="final")
         def beginning2(start):
             return "pass"  # pragma: no cover
 
@@ -426,7 +453,7 @@ class ChainVerificationTests(unittest.TestCase):
         def middle_task(very_important):
             assert very_important  # pragma: no cover
 
-        @test_app.task(base=FireXTask, returns=('mildly_amusing',))
+        @test_app.task(base=FireXTask, returns=("mildly_amusing",))
         def middle_task2(very_important):
             assert very_important  # pragma: no cover
 
@@ -439,14 +466,13 @@ class ChainVerificationTests(unittest.TestCase):
         def ending(final, missing):
             assert final, missing  # pragma: no cover
 
-        @test_app.task(base=FireXTask, returns='finished')
+        @test_app.task(base=FireXTask, returns="finished")
         def ending2(final, missing):
             assert final, missing  # pragma: no cover
 
         @test_app.task(base=FireXTask, returns=FireXTask.DYNAMIC_RETURN)
         def ending3(final, missing):
             assert final, missing  # pragma: no cover
-
 
         with self.assertRaises(InvalidChainArgsException):
             (
@@ -455,34 +481,47 @@ class ChainVerificationTests(unittest.TestCase):
                 | ending.s()
             ).verify_args()
 
-        for b, m, e in [[beginning, middle_task, ending], [beginning2, middle_task2, ending2]]:
-
-
+        for b, m, e in [
+            [beginning, middle_task, ending],
+            [beginning2, middle_task2, ending2],
+        ]:
             with self.subTest():
-                c = b.s(start="something") | m.s(very_important="oh_it_is") | e.s(missing="not_missing")
+                c = (
+                    b.s(start="something")
+                    | m.s(very_important="oh_it_is")
+                    | e.s(missing="not_missing")
+                )
                 c.verify_args()
                 self.assertIsNotNone(chain)
 
             with self.subTest(), self.assertRaises(InvalidChainArgsException):
-                c2 = b.s(start="something") | m.s(very_important="@not_there") | e.s(missing="not missing")
+                c2 = (
+                    b.s(start="something")
+                    | m.s(very_important="@not_there")
+                    | e.s(missing="not missing")
+                )
                 c2.verify_args()
 
             with self.subTest():
-                c2 = b.s(start="something") | m.s(very_important="@final") | e.s(missing="not missing")
+                c2 = (
+                    b.s(start="something")
+                    | m.s(very_important="@final")
+                    | e.s(missing="not missing")
+                )
                 c2.verify_args()
                 self.assertIsNotNone(c2)
 
         with self.subTest():
-            c = beginning.s(start='something') | middle_task3.s()
+            c = beginning.s(start="something") | middle_task3.s()
             with self.assertRaises(InvalidChainArgsException):
                 c.verify_args()
 
         with self.subTest():
-            c = beginning3.s(start='something') | middle_task.s()
+            c = beginning3.s(start="something") | middle_task.s()
             c.verify_args()
 
         with self.subTest():
-            c = beginning3.s(start='something') | middle_task3.s() | ending.s()
+            c = beginning3.s(start="something") | middle_task3.s() | ending.s()
             c.verify_args()
 
         with self.subTest():
@@ -499,11 +538,16 @@ class TaskUtilTests(unittest.TestCase):
             @test_app.task(base=Task)
             def fun():
                 pass  # pragma: no cover
+
             with self.assertRaises(AttributeError):
                 get_attr_unwrapped(fun, "_decorated_return_keys")
 
-            self.assertEqual(get_attr_unwrapped(fun, "_decorated_return_keys", "yes"), "yes")
-            self.assertEqual(get_attr_unwrapped(fun, "_decorated_return_keys", None), None)  # special case
+            self.assertEqual(
+                get_attr_unwrapped(fun, "_decorated_return_keys", "yes"), "yes"
+            )
+            self.assertEqual(
+                get_attr_unwrapped(fun, "_decorated_return_keys", None), None
+            )  # special case
 
         with self.subTest("Find attribute"):
             test_app = ut_celery_app()
@@ -512,7 +556,10 @@ class TaskUtilTests(unittest.TestCase):
             @returns("stuff")
             def fun():
                 pass  # pragma: no cover
-            self.assertEqual(get_attr_unwrapped(fun, "_decorated_return_keys"), ("stuff",))
+
+            self.assertEqual(
+                get_attr_unwrapped(fun, "_decorated_return_keys"), ("stuff",)
+            )
 
 
 class InjectArgsTest(unittest.TestCase):
@@ -523,7 +570,7 @@ class InjectArgsTest(unittest.TestCase):
         def injected_task():
             pass  # pragma: no cover
 
-        injected_args = {'needed': 'stuff'}
+        injected_args = {"needed": "stuff"}
         task_chain = injected_task.s() | InjectArgs(**injected_args) | injected_task.s()
 
         self.assertIsInstance(task_chain.tasks[1], InjectArgs)
@@ -553,13 +600,13 @@ class InjectArgsTest(unittest.TestCase):
             kwargs = {"injected": "thing"}
             c = InjectArgs(**kwargs)
             c = c | injected_task1.s(injected="stuff")
-            self.assertEqual(c.kwargs['injected'], "stuff")
+            self.assertEqual(c.kwargs["injected"], "stuff")
 
         with self.subTest("Inject will be overridden by chain"):
             kwargs = {"injected": "thing"}
             c = InjectArgs(**kwargs)
             c = c | (injected_task1.s(injected="stuff") | injected_task1.s())
-            self.assertEqual(c.tasks[0].kwargs['injected'], "stuff")
+            self.assertEqual(c.tasks[0].kwargs["injected"], "stuff")
 
     def test_inject_necessary(self):
         test_app = ut_celery_app()
@@ -570,13 +617,13 @@ class InjectArgsTest(unittest.TestCase):
             pass  # pragma: no cover
 
         with self.subTest("Inject directly"):
-            c = InjectArgs(needed='stuff')
+            c = InjectArgs(needed="stuff")
             c = c | injected_task2.s()
             c.verify_args()
 
         kwargs = {"needed": "thing"}
         with self.subTest("Inject with kwargs"):
-            c = InjectArgs(not_needed='stuff', **kwargs)
+            c = InjectArgs(not_needed="stuff", **kwargs)
             c = c | injected_task2.s()
             c.verify_args()
 
@@ -619,39 +666,38 @@ class LabelTests(unittest.TestCase):
         def task2():
             pass  # pragma: no cover
 
-        with self.subTest('InjectArgs with one task and default label'):
+        with self.subTest("InjectArgs with one task and default label"):
             c = InjectArgs() | task1.s()
             self.assertEqual(c.get_label(), task1.name)
 
-        with self.subTest('One Task with default label'):
+        with self.subTest("One Task with default label"):
             c = task1.s()
             self.assertEqual(c.get_label(), task1.name)
 
-        with self.subTest('Two Tasks with default label'):
+        with self.subTest("Two Tasks with default label"):
             c = task1.s() | task2.s()
-            self.assertEqual(c.get_label(), f'{task1.name}|{task2.name}')
+            self.assertEqual(c.get_label(), f"{task1.name}|{task2.name}")
 
-        with self.subTest('InjectArgs with one task and label'):
+        with self.subTest("InjectArgs with one task and label"):
             c = InjectArgs() | task1.s()
-            label = 'something'
+            label = "something"
             c.set_label(label)
             self.assertEqual(c.get_label(), label)
 
-        with self.subTest('One task with label'):
+        with self.subTest("One task with label"):
             c = task1.s()
-            label = 'something'
+            label = "something"
             c.set_label(label)
             self.assertEqual(c.get_label(), label)
 
-        with self.subTest('Two tasks with label'):
+        with self.subTest("Two tasks with label"):
             c = task1.s() | task2.s()
-            label = 'something'
+            label = "something"
             c.set_label(label)
             self.assertEqual(c.get_label(), label)
 
 
 class SetExecutionOptionsTests(unittest.TestCase):
-
     def test(self):
         test_app = ut_celery_app()
 
@@ -663,41 +709,43 @@ class SetExecutionOptionsTests(unittest.TestCase):
         def task2():
             pass  # pragma: no cover
 
-        with self.subTest('Testing set_priority'):
+        with self.subTest("Testing set_priority"):
             priority = 3
             t = task1.s()
             t.set_priority(priority)
-            self.assertEqual(t['options']['priority'], priority)
+            self.assertEqual(t["options"]["priority"], priority)
 
             c1 = task1.s() | task2.s()
             c2 = task2.s() | task1.s()
             for c in [c1, c2]:
                 c.set_priority(priority)
                 for task in c.tasks:
-                    self.assertEqual(task['options']['priority'], priority)
+                    self.assertEqual(task["options"]["priority"], priority)
 
-        with self.subTest('Testing set_queue'):
-            queue = 'some_queue'
+        with self.subTest("Testing set_queue"):
+            queue = "some_queue"
             t = task1.s()
             t.set_queue(queue)
-            self.assertEqual(t['options']['queue'], queue)
+            self.assertEqual(t["options"]["queue"], queue)
 
             c1 = task1.s() | task2.s()
             c2 = task2.s() | task1.s()
             for c in [c1, c2]:
                 c.set_queue(queue)
                 for task in c.tasks:
-                    self.assertEqual(task['options']['queue'], queue)
+                    self.assertEqual(task["options"]["queue"], queue)
 
-        with self.subTest('Testing set_soft_time_limit'):
+        with self.subTest("Testing set_soft_time_limit"):
             soft_time_limit = 60
             t = task1.s()
             t.set_soft_time_limit(soft_time_limit)
-            self.assertEqual(t['options']['soft_time_limit'], soft_time_limit)
+            self.assertEqual(t["options"]["soft_time_limit"], soft_time_limit)
 
             c1 = task1.s() | task2.s()
             c2 = task2.s() | task1.s()
             for c in [c1, c2]:
                 c.set_soft_time_limit(soft_time_limit)
                 for task in c.tasks:
-                    self.assertEqual(task['options']['soft_time_limit'], soft_time_limit)
+                    self.assertEqual(
+                        task["options"]["soft_time_limit"], soft_time_limit
+                    )

@@ -31,13 +31,9 @@ def get_mocks(
         result_ids = ["anything"]
 
     test_app = ut_celery_app()
-    test_app.config_from_object({
-        "result_backend": 'cache',
-        "cache_backend": 'memory'
-    })
+    test_app.config_from_object({"result_backend": "cache", "cache_backend": "memory"})
     mock_results = [
-        MockFxAsyncResult(state=_state, id=r, app=test_app)
-        for r in result_ids
+        MockFxAsyncResult(state=_state, id=r, app=test_app) for r in result_ids
     ]
     return test_app, mock_results
 
@@ -55,7 +51,9 @@ class ResultsLoggingNamesTests(unittest.TestCase):
         mock_result = mock_result[0]
         mock_result._name = None
 
-        with mock.patch.object(test_app.backend.client, 'hget', create=True, return_value=b'yes'):
+        with mock.patch.object(
+            test_app.backend.client, "hget", create=True, return_value=b"yes"
+        ):
             self.assertEqual(mock_result.fx_get_name(), "yes")
 
     def test_get_logging_name(self):
@@ -64,7 +62,6 @@ class ResultsLoggingNamesTests(unittest.TestCase):
 
 
 class ResultsReadyTests(unittest.TestCase):
-
     def test_is_ready(self):
         _test_app, mock_result = get_mocks()
         mock_result = mock_result[0]
@@ -90,6 +87,7 @@ class ResultsReadyTests(unittest.TestCase):
         # exceptions go up the stack
         def bad_backend():
             raise AssertionError()
+
         mock_result._state = bad_backend
         with self.assertRaises(AssertionError):
             mock_result.fx_is_ready()
@@ -98,6 +96,7 @@ class ResultsReadyTests(unittest.TestCase):
         def bad_backend():
             mock_result._state = SUCCESS
             raise AssertionError()
+
         mock_result._state = bad_backend
         with self.assertRaises(AssertionError):
             mock_result.fx_is_ready(timeout=5)
@@ -106,13 +105,16 @@ class ResultsReadyTests(unittest.TestCase):
         def bad_backend():
             mock_result._state = SUCCESS
             raise TimeoutError()
+
         mock_result._state = bad_backend
         self.assertTrue(mock_result.fx_is_ready())
 
         # Timeouts try again only a few times
         mock_result = get_mocks()[1][0]
+
         def bad_backend():
             raise TimeoutError()
+
         mock_result._state = bad_backend
         with self.assertRaises(TimeoutError):
             mock_result.fx_is_ready(timeout=3)
@@ -136,6 +138,7 @@ class WaitOnResultsTests(unittest.TestCase):
         def wait_and_go():
             mock_result._state = SUCCESS
             return STARTED
+
         mock_result._state = wait_and_go
         try:
             self.assertIsNone(wait_on_async_results(mock_result))
@@ -146,11 +149,13 @@ class WaitOnResultsTests(unittest.TestCase):
     def prime_mocks(self, mock_results, expected_hits: int):
         hits = []
         for r in mock_results:
+
             def wait_and_go(r1=r):
                 def started_and_go(r2=r1):
                     r2._state = SUCCESS
                     hits.append(r2)
                     return STARTED
+
                 r1._state = started_and_go
                 return PENDING
 
@@ -211,15 +216,15 @@ class WaitOnResultsTests(unittest.TestCase):
         mock_results[1]._state = FAILURE
         mock_results[2]._state = PENDING
         with self.assertRaises(ChainInterruptedException) as context:
-            print('will wait on ar')
+            print("will wait on ar")
             wait_on_async_results(mock_results[2], max_wait=1)
-            print('done wait on ar')
+            print("done wait on ar")
         self.assertIsNone(context.exception.__cause__)
 
         unsuccessful = find_unsuccessful_in_chain(mock_results[-1])
-        self.assertDictEqual(unsuccessful, {
-            'not_run': [mock_results[2]],
-            'failed': [mock_results[1]]})
+        self.assertDictEqual(
+            unsuccessful, {"not_run": [mock_results[2]], "failed": [mock_results[1]]}
+        )
 
     def test_Chain_interrupted_from_exc(self):
         setup_revoke()
@@ -234,16 +239,16 @@ class WaitOnResultsTests(unittest.TestCase):
 
     def test_chain_interrupted_task_name_is_celery_name_not_logging_name(self):
         setup_revoke()
-        fail_name = 'microservices.lumens_tasks.LumensQuery'
-        fail_uuid = 'd4f7b612-f497-4f2c-9b21-9fa8075d12b4'
-        cause = Exception('Lumens returned status code: <Response [400]>')
+        fail_name = "microservices.lumens_tasks.LumensQuery"
+        fail_uuid = "d4f7b612-f497-4f2c-9b21-9fa8075d12b4"
+        cause = Exception("Lumens returned status code: <Response [400]>")
         _test_app, mock_results = get_mocks([fail_uuid])
         ar = mock_results[0]
         ar._state = FAILURE
         ar._result = cause
         ar._fx_name = fail_name
         with (
-            mock.patch.object(ar, 'fx_backend_get_name', return_value=fail_name),
+            mock.patch.object(ar, "fx_backend_get_name", return_value=fail_name),
             self.assertRaises(ChainInterruptedException) as context,
         ):
             wait_on_async_results(ar)
@@ -252,7 +257,7 @@ class WaitOnResultsTests(unittest.TestCase):
         self.assertEqual(
             e.task_name,
             fail_name,
-            f'task_name should be the celery name, not the logging name; got {e.task_name!r}',
+            f"task_name should be the celery name, not the logging name; got {e.task_name!r}",
         )
         self.assertEqual(
             repr(e),
@@ -260,8 +265,8 @@ class WaitOnResultsTests(unittest.TestCase):
         )
         self.assertEqual(
             str(e),
-            'The chain has been interrupted by a failure in microservice '
-            f'{fail_name}[{fail_uuid}]',
+            "The chain has been interrupted by a failure in microservice "
+            f"{fail_name}[{fail_uuid}]",
         )
 
     def test_timeout(self):
@@ -298,7 +303,7 @@ class WaitOnResultsTests(unittest.TestCase):
             wait_on_async_results(mock_result)
 
         unsuccessful = find_unsuccessful_in_chain(mock_result)
-        self.assertDictEqual(unsuccessful, {'not_run': [mock_result]})
+        self.assertDictEqual(unsuccessful, {"not_run": [mock_result]})
 
     def test_wait_for_all_even_on_failure(self):
         setup_revoke()
@@ -315,7 +320,7 @@ class WaitOnResultsTests(unittest.TestCase):
         setup_revoke()
         mock_results = get_mocks(["a0", "a1", "a2", "a3"])[1]
 
-        print(f'Initial state of first: {mock_results[0].state}')
+        print(f"Initial state of first: {mock_results[0].state}")
         mock_results[0]._state = SUCCESS
 
         # with self.prime_mocks(mock_results, 1):
@@ -336,27 +341,30 @@ class WaitOnResultsTests(unittest.TestCase):
 
         multi_failure_exception = multi_failure.exception
         self.assertEqual(len(multi_failure_exception.failures), 2)
-        self.assertTrue(isinstance(multi_failure_exception.failures[0], ChainInterruptedException))
-        self.assertTrue(isinstance(multi_failure_exception.failures[1], ChainInterruptedException))
+        self.assertTrue(
+            isinstance(multi_failure_exception.failures[0], ChainInterruptedException)
+        )
+        self.assertTrue(
+            isinstance(multi_failure_exception.failures[1], ChainInterruptedException)
+        )
 
 
 class WalkExceptionTests(unittest.TestCase):
-
     def test_last_chain_interrupted(self):
 
-        e1 = Exception('exception1')
+        e1 = Exception("exception1")
         try:
-            raise ChainInterruptedException('exception2') from e1
+            raise ChainInterruptedException("exception2") from e1
         except ChainInterruptedException as e:
             e2 = e
 
         try:
-            raise ChainInterruptedException('exception3') from e2
+            raise ChainInterruptedException("exception3") from e2
         except ChainInterruptedException as e:
             e3 = e
 
         try:
-            raise ChainInterruptedException('exception3') from e3
+            raise ChainInterruptedException("exception3") from e3
         except ChainInterruptedException as e:
             e4 = e
 
@@ -364,14 +372,14 @@ class WalkExceptionTests(unittest.TestCase):
         self.assertIs(e2, last_cause)
 
     def test_fail_double_monkey_patch_track(self):
-        e1 = Exception('exception1')
+        e1 = Exception("exception1")
         try:
-            raise ChainInterruptedException('exception2') from e1
+            raise ChainInterruptedException("exception2") from e1
         except ChainInterruptedException as e:
             e2 = e
 
         try:
-            raise ChainInterruptedException('exception3') from e2
+            raise ChainInterruptedException("exception3") from e2
         except ChainInterruptedException as e:
             e3 = e
 
@@ -379,16 +387,15 @@ class WalkExceptionTests(unittest.TestCase):
         self.assertIs(e1, non_chain_interrupted)
 
 
-
 class RunRelativeWaitTests(unittest.TestCase):
     """
-        The case the run time budget exists for: a task blocked on children allowed to
-        run for nearly the whole run, whose wait must move when the budget does.
+    The case the run time budget exists for: a task blocked on children allowed to
+    run for nearly the whole run, whose wait must move when the budget does.
     """
 
     def setUp(self):
         setup_revoke()
-        self.test_app, mock_results = get_mocks(['long-running'])
+        self.test_app, mock_results = get_mocks(["long-running"])
         self.result = mock_results[0]
         self.result._state = STARTED
         # Stands in for the deadline derived from the budget held in the result backend.
@@ -397,7 +404,7 @@ class RunRelativeWaitTests(unittest.TestCase):
     @contextmanager
     def patched_run_deadline(self):
         with mock.patch(
-            'firexkit.run_time.get_run_deadline',
+            "firexkit.run_time.get_run_deadline",
             side_effect=lambda app=None: self.run_deadline,
         ):
             yield

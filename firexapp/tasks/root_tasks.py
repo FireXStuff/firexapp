@@ -50,6 +50,7 @@ def get_configured_root_task():
         # default FireXApp root task
         return RootTask
 
+
 # noinspection PyUnusedLocal
 @task_postrun.connect(sender=get_configured_root_task())
 def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_care):
@@ -64,7 +65,10 @@ def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_c
     sync = kwargs.get("sync", False)
 
     result_state = result.state
-    is_revoked = result_state in [REVOKED, RETRY] # Revoked can be in retry state with celery 5.1.0
+    is_revoked = result_state in [
+        REVOKED,
+        RETRY,
+    ]  # Revoked can be in retry state with celery 5.1.0
 
     if sync and not is_revoked:
         logger.debug("Sync run has not been revoked. Cleanup skipped.")
@@ -74,9 +78,8 @@ def handle_firex_root_completion(sender, task, task_id, args, kwargs, **do_not_c
     # Let this signal cause self-destruct
     submit_app.self_destruct(
         chain_details=(result, kwargs),
-        reason=f'Root task completion ({result.state}) detected via postrun signal.',
+        reason=f"Root task completion ({result.state}) detected via postrun signal.",
         run_revoked=is_revoked,
     )
 
     logger.info("Root task post run signal completed")
-

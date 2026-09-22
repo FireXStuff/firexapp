@@ -8,51 +8,58 @@ from firexapp.submit.uid import Uid
 
 
 class FileRegistryTests(unittest.TestCase):
-
     def tearDown(self):
         FileRegistry().destroy()
         self.assertDictEqual(FileRegistry().file_registry, {})
 
     def test_registered_keys(self):
-        key = 'key1'
-        filename = 'something.txt'
-        some_path = '/nobackup/user'
+        key = "key1"
+        filename = "something.txt"
+        some_path = "/nobackup/user"
         FileRegistry().register_file(key, filename)
 
-        with self.subTest('Basic functionality'):
-            self.assertEqual(FileRegistry().get_file(key, some_path), os.path.join(some_path, filename))
+        with self.subTest("Basic functionality"):
+            self.assertEqual(
+                FileRegistry().get_file(key, some_path),
+                os.path.join(some_path, filename),
+            )
 
-        with self.subTest('Testing duplicate key registrations'):
+        with self.subTest("Testing duplicate key registrations"):
             with self.assertRaises(KeyAlreadyRegistered):
-                FileRegistry().register_file(key, 'something_else')
-            self.assertEqual(FileRegistry().get_file(key, some_path), os.path.join(some_path, filename))
+                FileRegistry().register_file(key, "something_else")
+            self.assertEqual(
+                FileRegistry().get_file(key, some_path),
+                os.path.join(some_path, filename),
+            )
 
     def test_unregistered_key(self):
-        some_path = '/nobackup/user'
+        some_path = "/nobackup/user"
         with self.assertRaises(KeyNotRegistered):
-            FileRegistry().get_file('unregistered_key', some_path)
+            FileRegistry().get_file("unregistered_key", some_path)
 
     def test_uid_object(self):
         try:
             uid = Uid()
-            key = 'key3'
-            relative_path = 'some_relative_path/something3.txt'
+            key = "key3"
+            relative_path = "some_relative_path/something3.txt"
             FileRegistry().register_file(key, relative_path)
 
-            with self.subTest('Basic functionality'):
-                self.assertEqual(FileRegistry().get_file(key, uid), os.path.join(uid.logs_dir, relative_path))
+            with self.subTest("Basic functionality"):
+                self.assertEqual(
+                    FileRegistry().get_file(key, uid),
+                    os.path.join(uid.logs_dir, relative_path),
+                )
         finally:
             shutil.rmtree(uid.logs_dir)
 
     def test_dump_and_read_from_file(self):
         FileRegistry().destroy()
-        registry = {'key1': 'value1',
-                    'key2': 'value2'}
+        registry = {"key1": "value1", "key2": "value2"}
         for k, v in registry.items():
             FileRegistry().register_file(k, v)
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            file_registry = os.path.join(temp_dir, 'file_registry.json')
+            file_registry = os.path.join(temp_dir, "file_registry.json")
             FileRegistry().dump_to_file(file_registry)
             FileRegistry().destroy()
             FileRegistry(from_file=file_registry)

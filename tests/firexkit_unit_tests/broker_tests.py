@@ -9,7 +9,7 @@ def foo():
 
 
 def bar(a, b=1):
-    return a+b
+    return a + b
 
 
 def fail():
@@ -34,7 +34,6 @@ class SucceedAfter:
 
 
 class HandleBrokerTimeoutTests(unittest.TestCase):
-
     def test_passing_callable(self):
         self.assertEqual(handle_broker_timeout(foo), 1)
 
@@ -42,10 +41,10 @@ class HandleBrokerTimeoutTests(unittest.TestCase):
         self.assertEqual(handle_broker_timeout(bar, args=(1,)), 2)
 
     def test_passing_callable_with_kwargs(self):
-        self.assertEqual(handle_broker_timeout(bar, kwargs={'a': 1}), 2)
+        self.assertEqual(handle_broker_timeout(bar, kwargs={"a": 1}), 2)
 
     def test_passing_callable_with_args_and_kwargs(self):
-        self.assertEqual(handle_broker_timeout(bar, args=(1,), kwargs={'b': 2}), 3)
+        self.assertEqual(handle_broker_timeout(bar, args=(1,), kwargs={"b": 2}), 3)
 
     def test_fail(self):
         retry_delay = 1
@@ -64,7 +63,9 @@ class HandleBrokerTimeoutTests(unittest.TestCase):
             handle_broker_timeout(fail_with_timeout, retry_delay=0.1, timeout=timeout)
         delta = time.time() - start
         self.assertGreater(delta, timeout)
-        self.assertLess(delta, timeout+(retry_delay*10))  # handle_broker_timeout now uses exponential retry delay
+        self.assertLess(
+            delta, timeout + (retry_delay * 10)
+        )  # handle_broker_timeout now uses exponential retry delay
 
     def test_succeed_after_retries(self):
         retry_delay = 0.1
@@ -73,17 +74,17 @@ class HandleBrokerTimeoutTests(unittest.TestCase):
         start = time.time()
         self.assertIsNone(handle_broker_timeout(obj.foo, retry_delay=retry_delay))
         delta = time.time() - start
-        self.assertGreater(delta, succeed_after_retries*retry_delay)
-        self.assertLess(delta, (succeed_after_retries+1)*retry_delay)
+        self.assertGreater(delta, succeed_after_retries * retry_delay)
+        self.assertLess(delta, (succeed_after_retries + 1) * retry_delay)
 
     def test_success_not_reached_due_to_timeout(self):
         retry_delay = 0.1
         succeed_after_retries = 5
-        timeout = 2*retry_delay
+        timeout = 2 * retry_delay
         obj = SucceedAfter(succeed_after_retries)
         start = time.time()
         with self.assertRaises(TimeoutError):
             handle_broker_timeout(obj.foo, retry_delay=retry_delay, timeout=timeout)
         delta = time.time() - start
         self.assertGreater(delta, timeout)
-        self.assertLess(delta, timeout+retry_delay)
+        self.assertLess(delta, timeout + retry_delay)

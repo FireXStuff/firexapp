@@ -7,9 +7,10 @@ from firexkit.task import FireXTask, PauseTasks, flame, flame_collapse
 
 logger = get_task_logger(__name__)
 
+
 # noinspection PyPep8Naming
 @app.task(bind=True, returns=FireXTask.DYNAMIC_RETURN)
-@flame('status')
+@flame("status")
 def CopyBogKeys(self: FireXTask, bog_key_map: dict, strict: bool = False):
     """
     This service copies selected keys from this FireXTask instance's bog into new keys with a different name and
@@ -24,7 +25,7 @@ def CopyBogKeys(self: FireXTask, bog_key_map: dict, strict: bool = False):
     :return: dict with keys from the values of bog_key_map, and values from the BoG.
     """
 
-    logger.debug(f'abog content: {self.abog!r}')
+    logger.debug(f"abog content: {self.abog!r}")
     flame_status = ""
 
     new = {}
@@ -33,14 +34,16 @@ def CopyBogKeys(self: FireXTask, bog_key_map: dict, strict: bool = False):
             existing_value = self.abog[existing_bog_key]
         except KeyError:
             if strict:
-                raise AssertionError(f'Strict is specified and no entry found for "{existing_bog_key}" in bog.')
+                raise AssertionError(
+                    f'Strict is specified and no entry found for "{existing_bog_key}" in bog.'
+                )
             logger.debug(f'No entry for "{existing_bog_key}" in bog. Skipping...')
         else:
             new[new_key] = existing_value
-            status_str = f'{existing_bog_key}={new_key}'
-            logger.debug('BOG mapping: ' + status_str)
+            status_str = f"{existing_bog_key}={new_key}"
+            logger.debug("BOG mapping: " + status_str)
             if flame_status:
-                flame_status += '<BR>'
+                flame_status += "<BR>"
             flame_status += status_str
             self.send_firex_html(status=flame_status)
 
@@ -49,9 +52,14 @@ def CopyBogKeys(self: FireXTask, bog_key_map: dict, strict: bool = False):
 
 # noinspection PyPep8Naming
 @app.task(bind=True, returns=FireXTask.DYNAMIC_RETURN)
-@flame_collapse('self')
-def ScheduleSubChain(self: FireXTask, chain, enqueue_args: dict | None = None, catch_errors: bool = False,
-                     inject_abog: bool = True):
+@flame_collapse("self")
+def ScheduleSubChain(
+    self: FireXTask,
+    chain,
+    enqueue_args: dict | None = None,
+    catch_errors: bool = False,
+    inject_abog: bool = True,
+):
     """
     This service will schedule the chain provided and return all values returned by this chain.
 
@@ -79,15 +87,17 @@ def ScheduleSubChain(self: FireXTask, chain, enqueue_args: dict | None = None, c
         results = self.enqueue_child_and_get_results(sub_chain, **enqueue_args)
     except Exception as e:
         if catch_errors:
-            logger.error(f'Sub-chain raised an exception:\n{e}', exc_info=e)
+            logger.error(f"Sub-chain raised an exception:\n{e}", exc_info=e)
         else:
             raise
 
     return results
 
+
 from firexapp.submit.uid import Uid
 
 whitelist_arguments(PauseTasks.get_pause_arg_names())
+
 
 @app.task(bind=True)
 def Pause(
@@ -98,4 +108,5 @@ def Pause(
     send_pause_email_notification=True,
 ):
     import time
+
     time.sleep(pause_hours * 60 * 60)

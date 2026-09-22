@@ -29,22 +29,26 @@ class RevokedRequests:
 
     def __init__(
         self,
-        revoked_uuids : set[str] | None=None,
-        timer_expiry_secs: int=60,
+        revoked_uuids: set[str] | None = None,
+        timer_expiry_secs: int = 60,
     ):
         self.timer_expiry = datetime.timedelta(seconds=timer_expiry_secs)
-        self._revoked_uuids : set[str] = revoked_uuids or set()
-        self.last_updated : datetime.datetime | None = _now_utc()
+        self._revoked_uuids: set[str] = revoked_uuids or set()
+        self.last_updated: datetime.datetime | None = _now_utc()
         from firexkit.firex_celery import FireXCelery
+
         self.app = FireXCelery.app_or_default()
 
     def _update(self) -> None:
-        dests_to_revoked_uuids : dict[str, list[str]] = get_revoked(
-            celery_app=self.app,
-            retry_if_None_returned=False,
-            timeout=60,
-            destination=(f'mc@{self.app.conf.mc}', )
-        ) or {}
+        dests_to_revoked_uuids: dict[str, list[str]] = (
+            get_revoked(
+                celery_app=self.app,
+                retry_if_None_returned=False,
+                timeout=60,
+                destination=(f"mc@{self.app.conf.mc}",),
+            )
+            or {}
+        )
         for dest_revoked_uuids in dests_to_revoked_uuids.values():
             self._revoked_uuids.update(dest_revoked_uuids)
         self.last_updated = _now_utc()
@@ -73,7 +77,6 @@ class RevokedRequests:
             self._update()
         return frozenset(self._revoked_uuids)
 
+
 def _now_utc() -> datetime.datetime:
     return datetime.datetime.now(datetime.timezone.utc)
-
-

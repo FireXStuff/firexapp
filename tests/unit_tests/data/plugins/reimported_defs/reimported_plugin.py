@@ -10,6 +10,7 @@ overridden by the plugin listed last.
 This is the shape of firex_cisco's ci_plugins/bazel_pr_ops.py, which
 prio1/bazel_pr_ops_mgr_tests.py both imports and overrides.
 """
+
 from firexapp.engine.celery import app
 from firexkit.task import FireXTask
 

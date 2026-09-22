@@ -23,42 +23,63 @@ from firexkit.memory_utils import get_process_memory_info, human_readable_bytes
 
 logger = setup_console_logging(__name__)
 
-REDIS_DIR_REGISTRY_KEY = 'REDIS_DIR_REGISTRY_KEY'
-FileRegistry().register_file(REDIS_DIR_REGISTRY_KEY, os.path.join(Uid.debug_dirname, 'redis'))
+REDIS_DIR_REGISTRY_KEY = "REDIS_DIR_REGISTRY_KEY"
+FileRegistry().register_file(
+    REDIS_DIR_REGISTRY_KEY, os.path.join(Uid.debug_dirname, "redis")
+)
 
-REDIS_LOG_REGISTRY_KEY = 'REDIS_LOG_REGISTRY_KEY'
-FileRegistry().register_file(REDIS_LOG_REGISTRY_KEY,
-                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), 'redis.stdout.txt'))
+REDIS_LOG_REGISTRY_KEY = "REDIS_LOG_REGISTRY_KEY"
+FileRegistry().register_file(
+    REDIS_LOG_REGISTRY_KEY,
+    os.path.join(
+        FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), "redis.stdout.txt"
+    ),
+)
 
-REDIS_PID_REGISTRY_KEY = 'REDIS_PID_REGISTRY_KEY'
-FileRegistry().register_file(REDIS_PID_REGISTRY_KEY,
-                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), 'redis.pid'))
+REDIS_PID_REGISTRY_KEY = "REDIS_PID_REGISTRY_KEY"
+FileRegistry().register_file(
+    REDIS_PID_REGISTRY_KEY,
+    os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), "redis.pid"),
+)
 
-REDIS_METADATA_REGISTRY_KEY = 'REDIS_METADATA_REGISTRY_KEY'
-FileRegistry().register_file(REDIS_METADATA_REGISTRY_KEY,
-                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY),
-                                          'run-metadata.json'))
+REDIS_METADATA_REGISTRY_KEY = "REDIS_METADATA_REGISTRY_KEY"
+FileRegistry().register_file(
+    REDIS_METADATA_REGISTRY_KEY,
+    os.path.join(
+        FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), "run-metadata.json"
+    ),
+)
 
-REDIS_CREDS_REGISTRY_KEY = 'REDIS_CREDS_REGISTRY_KEY'
-FileRegistry().register_file(REDIS_CREDS_REGISTRY_KEY,
-                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY),
-                                          'run-credentials.json'))
+REDIS_CREDS_REGISTRY_KEY = "REDIS_CREDS_REGISTRY_KEY"
+FileRegistry().register_file(
+    REDIS_CREDS_REGISTRY_KEY,
+    os.path.join(
+        FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), "run-credentials.json"
+    ),
+)
 
-REDIS_START_MEMORY_INFO_REGISTRY_KEY = 'REDIS_START_MEMORY_INFO_REGISTRY_KEY'
-FileRegistry().register_file(REDIS_START_MEMORY_INFO_REGISTRY_KEY,
-                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY),
-                                          'memory_start.txt'))
+REDIS_START_MEMORY_INFO_REGISTRY_KEY = "REDIS_START_MEMORY_INFO_REGISTRY_KEY"
+FileRegistry().register_file(
+    REDIS_START_MEMORY_INFO_REGISTRY_KEY,
+    os.path.join(
+        FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), "memory_start.txt"
+    ),
+)
 
 
-REDIS_SHUTDOWN_MEMORY_INFO_REGISTRY_KEY = 'REDIS_SHUTDOWN_MEMORY_INFO_REGISTRY_KEY'
-FileRegistry().register_file(REDIS_SHUTDOWN_MEMORY_INFO_REGISTRY_KEY,
-                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY),
-                                          'memory_shutdown.txt'))
+REDIS_SHUTDOWN_MEMORY_INFO_REGISTRY_KEY = "REDIS_SHUTDOWN_MEMORY_INFO_REGISTRY_KEY"
+FileRegistry().register_file(
+    REDIS_SHUTDOWN_MEMORY_INFO_REGISTRY_KEY,
+    os.path.join(
+        FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), "memory_shutdown.txt"
+    ),
+)
 
-REDIS_RDB_FILE_REGISTRY_KEY = 'REDIS_RDB_FILE_REGISTRY_KEY'
-FileRegistry().register_file(REDIS_RDB_FILE_REGISTRY_KEY,
-                             os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY),
-                                          'dump.rdb'))
+REDIS_RDB_FILE_REGISTRY_KEY = "REDIS_RDB_FILE_REGISTRY_KEY"
+FileRegistry().register_file(
+    REDIS_RDB_FILE_REGISTRY_KEY,
+    os.path.join(FileRegistry().get_relative_path(REDIS_DIR_REGISTRY_KEY), "dump.rdb"),
+)
 
 
 class RedisDidNotBecomeActive(Exception):
@@ -82,12 +103,13 @@ class RedisPidNotFoundInPidFile(Exception):
 
 
 class RedisManager:
-
-    _METADATA_BROKER_URL_KEY = 'broker_url'  # For reading old-style configurations, before the usage of passwords
-    _METADATA_BROKER_HOST_KEY = 'broker_host'
-    _METADATA_BROKER_PORT_KEY = 'broker_port'
-    _BROKER_PASSWORD_KEY = 'broker_password'
-    _BROKER_FAILED_AUTH_STR = 'NOAUTH Authentication required'  # Actual output from Redis
+    _METADATA_BROKER_URL_KEY = "broker_url"  # For reading old-style configurations, before the usage of passwords
+    _METADATA_BROKER_HOST_KEY = "broker_host"
+    _METADATA_BROKER_PORT_KEY = "broker_port"
+    _BROKER_PASSWORD_KEY = "broker_password"
+    _BROKER_FAILED_AUTH_STR = (
+        "NOAUTH Authentication required"  # Actual output from Redis
+    )
 
     def __init__(
         self,
@@ -101,26 +123,33 @@ class RedisManager:
         self.platform = platform.system()
         if hostname is None:
             myhostname = gethostname()
-            self.host = f"{myhostname}.local" if self.platform == "Darwin" and not myhostname.endswith("local") \
+            self.host = (
+                f"{myhostname}.local"
+                if self.platform == "Darwin" and not myhostname.endswith("local")
                 else myhostname
+            )
         else:
             self.host = hostname
         self.port = port
         self.logs_dir = logs_dir
         self.redis_dir = self.get_redis_dir(logs_dir) if logs_dir else None
 
-        self._password = str(password) if password else secrets.token_urlsafe(32).lstrip('-')
+        self._password = (
+            str(password) if password else secrets.token_urlsafe(32).lstrip("-")
+        )
         self._log_file = None
         self._pid_file = None
         self._pid = None
         self._metadata_file = None
         self._password_file = None
-        self._redis_server_bin = os.path.join(redis_bin_base, 'redis-server')
+        self._redis_server_bin = os.path.join(redis_bin_base, "redis-server")
 
         if logs_dir:
             # Run Redis server from logs directory, so that the command line has the logs path
-            redis_bin_dir = os.path.join(logs_dir, 'bin')
-            redis_server_bin = os.path.join(redis_bin_dir, os.path.basename(self._redis_server_bin))
+            redis_bin_dir = os.path.join(logs_dir, "bin")
+            redis_server_bin = os.path.join(
+                redis_bin_dir, os.path.basename(self._redis_server_bin)
+            )
             try:
                 silent_mkdir(redis_bin_dir)
                 os.symlink(self._redis_server_bin, redis_server_bin)
@@ -130,19 +159,27 @@ class RedisManager:
             self._redis_server_bin = redis_server_bin
 
     def get_redis_cli_cmd(self, port, include_host=False):
-        cmd = os.path.join(self.redis_bin_base, 'redis-cli') + f' -p {port:d} -a {self._password}'
+        cmd = (
+            os.path.join(self.redis_bin_base, "redis-cli")
+            + f" -p {port:d} -a {self._password}"
+        )
         if include_host or self.host != gethostname():
-            cmd += f' -h {self.host}'
+            cmd += f" -h {self.host}"
         return cmd
 
     def get_redis_dump_cmd(self, include_host=False):
-        cmd = os.path.join(self.redis_bin_base, 'redis-dump') + f'--port={self.port} --password={self._password}'
+        cmd = (
+            os.path.join(self.redis_bin_base, "redis-dump")
+            + f"--port={self.port} --password={self._password}"
+        )
         if include_host or self.host != gethostname():
-            cmd += ' --host={self.host}'
+            cmd += " --host={self.host}"
         return cmd
 
     def get_redis_server_cmd(self, port):
-        return self._redis_server_bin + f' --port {port:d} --requirepass {self._password}'
+        return (
+            self._redis_server_bin + f" --port {port:d} --requirepass {self._password}"
+        )
 
     @property
     def broker_url(self):
@@ -188,7 +225,9 @@ class RedisManager:
 
     @staticmethod
     def get_shutdown_memory_file(logs_dir):
-        return FileRegistry().get_file(REDIS_SHUTDOWN_MEMORY_INFO_REGISTRY_KEY, logs_dir)
+        return FileRegistry().get_file(
+            REDIS_SHUTDOWN_MEMORY_INFO_REGISTRY_KEY, logs_dir
+        )
 
     @staticmethod
     def get_rdb_file(logs_dir):
@@ -206,7 +245,7 @@ class RedisManager:
             with open(cls.get_password_file(logs_dir)) as fp:
                 password_data = json.load(fp)
         except (PermissionError, FileNotFoundError) as e:
-            raise RedisPasswordReadError('Cannot get broker password') from e
+            raise RedisPasswordReadError("Cannot get broker password") from e
 
         return password_data
 
@@ -214,18 +253,25 @@ class RedisManager:
     def get_hostname_port_from_logs_dir(cls, logs_dir):
         metadata = cls.read_metadata(logs_dir)
         try:
-            return metadata[cls._METADATA_BROKER_HOST_KEY], str(metadata[cls._METADATA_BROKER_PORT_KEY])
+            return metadata[cls._METADATA_BROKER_HOST_KEY], str(
+                metadata[cls._METADATA_BROKER_PORT_KEY]
+            )
         except KeyError as e:
             # Possibly old-style metadata, before broker password usage
-            cls.log('Could not get hostname and port directly. Trying old method.', exc_info=e)
-            return cls.get_hostname_port_from_url(broker_url=metadata[cls._METADATA_BROKER_URL_KEY])
+            cls.log(
+                "Could not get hostname and port directly. Trying old method.",
+                exc_info=e,
+            )
+            return cls.get_hostname_port_from_url(
+                broker_url=metadata[cls._METADATA_BROKER_URL_KEY]
+            )
 
     @classmethod
     def log(cls, msg, header=None, level=logging.DEBUG, exc_info=None):
         if header is None:
             header = cls.__name__
         if header:
-            msg = f'[{header}] {msg}'
+            msg = f"[{header}] {msg}"
         logger.log(level, msg, exc_info=exc_info)
 
     @classmethod
@@ -263,12 +309,12 @@ class RedisManager:
     @staticmethod
     def get_pid_from_pid_file(pid_file: str) -> int:
         if not pid_file or not os.path.exists(pid_file):
-            raise RedisPidFileNotFound(f'Redis pid file {pid_file!r} not found')
+            raise RedisPidFileNotFound(f"Redis pid file {pid_file!r} not found")
         pid_value = Path(pid_file).read_text()
         if pid_value:
             return int(pid_value)
         else:
-            raise RedisPidNotFoundInPidFile(f'No pid found in {pid_file!r}')
+            raise RedisPidNotFoundInPidFile(f"No pid found in {pid_file!r}")
 
     @property
     def pid(self) -> int:
@@ -294,48 +340,57 @@ class RedisManager:
 
     def create_metadata_file(self):
         if self.metadata_file:
-            self.log(f'Creating {self.metadata_file}')
-            data = {self._METADATA_BROKER_HOST_KEY: self.host, self._METADATA_BROKER_PORT_KEY: self.port}
-            with open(self.metadata_file, 'w') as f:
+            self.log(f"Creating {self.metadata_file}")
+            data = {
+                self._METADATA_BROKER_HOST_KEY: self.host,
+                self._METADATA_BROKER_PORT_KEY: self.port,
+            }
+            with open(self.metadata_file, "w") as f:
                 json.dump(data, f, sort_keys=True, indent=2)
 
     def create_password_file(self):
         if self.password_file:
-            self.log(f'Creating {self.password_file}')
+            self.log(f"Creating {self.password_file}")
             data = {self._BROKER_PASSWORD_KEY: str(self._password)}
             # noinspection PyTypeChecker
-            with open(self.password_file, 'w',  opener=partial(os.open, mode=0o600)) as f:
+            with open(
+                self.password_file, "w", opener=partial(os.open, mode=0o600)
+            ) as f:
                 json.dump(data, f, sort_keys=True, indent=2)
 
     def _start(
         self,
         timeout=60,
         save_db: bool = False,
-        redis_server_extra_opts: str | None=None,
+        redis_server_extra_opts: str | None = None,
     ):
         try:
             port = self.port
         except RedisPortNotAssigned:
             port = get_available_port()
-        self.log(f'Starting new process (port {port:d})...')
-        cmd = self.get_redis_server_cmd(port) + ' ' + '--loglevel debug ' \
-                                                      '--protected-mode no ' \
-                                                      '--daemonize yes ' \
-                                                      '--timeout 0 ' \
-                                                      '--client-output-buffer-limit slave 0 0 0 ' \
-                                                      '--client-output-buffer-limit pubsub 0 0 0 ' \
-                                                      f'--dir {self.redis_dir} ' \
-                                                      '--maxclients 20000 ' \
-                                                      '--bind "*"'
+        self.log(f"Starting new process (port {port:d})...")
+        cmd = (
+            self.get_redis_server_cmd(port) + " " + "--loglevel debug "
+            "--protected-mode no "
+            "--daemonize yes "
+            "--timeout 0 "
+            "--client-output-buffer-limit slave 0 0 0 "
+            "--client-output-buffer-limit pubsub 0 0 0 "
+            f"--dir {self.redis_dir} "
+            "--maxclients 20000 "
+            '--bind "*"'
+        )
         if save_db is False:
             cmd += ' --save ""'
         if self.pid_file:
-            cmd += f' --pidfile {self.pid_file}'
+            cmd += f" --pidfile {self.pid_file}"
         if self.log_file:
-            cmd += f' --logfile {self.log_file}'
+            cmd += f" --logfile {self.log_file}"
         if redis_server_extra_opts:
-            self.log(f'Redis-server will be started with these extra opts: {redis_server_extra_opts}')
-            cmd += f' {redis_server_extra_opts}'
+            self.log(
+                f"Redis-server will be started with these extra opts: {redis_server_extra_opts}"
+            )
+            cmd += f" {redis_server_extra_opts}"
 
         with TemporaryDirectory() as tmpdir:
             subprocess.check_call(
@@ -345,19 +400,20 @@ class RedisManager:
 
         if not wait_until(os.path.exists, timeout, 0.1, self.pid_file):
             raise RedisDidNotBecomeActive(
-                f'The Redis pid file {self.pid_file} did not exist within {timeout}s')
+                f"The Redis pid file {self.pid_file} did not exist within {timeout}s"
+            )
         self.wait_until_active(port=port, timeout=timeout)
         self.port = port
         self.create_password_file()
         self.create_metadata_file()
-        self.log('redis started.')
+        self.log("redis started.")
 
     def start(
         self,
         max_retries=3,
         log_memory_info: bool = True,
         save_db: bool = False,
-        redis_server_extra_opts: str | None=None,
+        redis_server_extra_opts: str | None = None,
     ):
         max_trials = max_retries + 1
         trials = 0
@@ -372,24 +428,26 @@ class RedisManager:
             except (subprocess.CalledProcessError, RedisDidNotBecomeActive):
                 if trials >= max_trials:
                     self.log(
-                        f'Redis did not come up after {trials:d} trial(s) '
-                        f'(max_trials={max_trials:d})..Giving up!',
+                        f"Redis did not come up after {trials:d} trial(s) "
+                        f"(max_trials={max_trials:d})..Giving up!",
                         level=logging.ERROR,
                     )
                     raise
                 self.log(
-                    f'Redis did not come up after {trials:d} trial(s) (max_trials={max_trials:d})',
+                    f"Redis did not come up after {trials:d} trial(s) (max_trials={max_trials:d})",
                     level=logging.INFO,
                 )
                 self.port = None  # Clear port in case the reason is didn't come up is because port was in use
             else:
                 if log_memory_info:
-                    self.save_memory_info_to_file(filepath=self.get_start_memory_file(self.logs_dir))
+                    self.save_memory_info_to_file(
+                        filepath=self.get_start_memory_file(self.logs_dir)
+                    )
                 break
 
-    def get_memory_info(self,
-                        timeout: int | None = None,
-                        include_proc_memory: bool = True) -> str:
+    def get_memory_info(
+        self, timeout: int | None = None, include_proc_memory: bool = True
+    ) -> str:
         output = []
         if include_proc_memory and gethostname() == self.host:
             try:
@@ -397,24 +455,31 @@ class RedisManager:
             except (RedisPidFileNotFound, RedisPidNotFoundInPidFile):
                 pass
             else:
-                output += [f'Redis pid {self.pid} is using:']
-                output += [f'{proc_memory_info}']
+                output += [f"Redis pid {self.pid} is using:"]
+                output += [f"{proc_memory_info}"]
 
                 for memtype in proc_memory_info._fields:
-                    output += [f'{memtype}: {human_readable_bytes(getattr(proc_memory_info, memtype))}']
-                output += ['\n']
+                    output += [
+                        f"{memtype}: {human_readable_bytes(getattr(proc_memory_info, memtype))}"
+                    ]
+                output += ["\n"]
 
-        for cmd in ['INFO MEMORY', 'MEMORY STATS', 'MEMORY DOCTOR', 'MEMORY MALLOC-STATS']:
+        for cmd in [
+            "INFO MEMORY",
+            "MEMORY STATS",
+            "MEMORY DOCTOR",
+            "MEMORY MALLOC-STATS",
+        ]:
             try:
                 cmd_output = self.cli(cmd, timeout=timeout)
-                output += [f'[{cmd}]\n' + cmd_output + '\n']
+                output += [f"[{cmd}]\n" + cmd_output + "\n"]
             except subprocess.CalledProcessError:
                 pass
 
-        return '\n'.join(output)
+        return "\n".join(output)
 
     def save_memory_info_to_file(self, filepath: str, **get_memory_info_kwargs):
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             f.write(self.get_memory_info(**get_memory_info_kwargs))
 
     def log_memory_info(self, **get_memory_info_kwargs):
@@ -429,19 +494,20 @@ class RedisManager:
         if log_memory_info:
             self.save_memory_info_to_file(
                 filepath=self.get_shutdown_memory_file(self.logs_dir),
-                timeout=save_memory_info_timeout)
+                timeout=save_memory_info_timeout,
+            )
         try:
-            self.cli('shutdown', timeout=timeout)
+            self.cli("shutdown", timeout=timeout)
         except subprocess.CalledProcessError:
-            self.log('could not shutdown.')
+            self.log("could not shutdown.")
 
     def force_kill(self):
         # noinspection PyBroadException
         try:
-            self.log('force killing...')
+            self.log("force killing...")
             Process(self.pid).kill()
         except PsutilError:
-            self.log('could not force kill.')
+            self.log("could not force kill.")
 
     def get_url(self) -> str:
         return self.broker_url
@@ -450,12 +516,13 @@ class RedisManager:
         port = self.port if port is None else port
         try:
             # including the host makes sure the current host can connect to itself via its hostname, like celery will.
-            output = self.cli('PING', port=port, include_host=True, timeout=timeout)
+            output = self.cli("PING", port=port, include_host=True, timeout=timeout)
         except subprocess.CalledProcessError:
             return False
         else:
-            return (output == 'PONG'
-                    or (allow_auth_errors and self.get_broker_failed_auth_str() in output))
+            return output == "PONG" or (
+                allow_auth_errors and self.get_broker_failed_auth_str() in output
+            )
 
     def wait_until_active(self, timeout=60, port=None):
         port = self.port if port is None else port
@@ -464,47 +531,53 @@ class RedisManager:
             if self.is_alive(port=port, allow_auth_errors=False):
                 return
             time.sleep(0.1)
-        raise RedisDidNotBecomeActive(f'Redis Server {self.host}:{port} did not respond after {timeout} seconds')
+        raise RedisDidNotBecomeActive(
+            f"Redis Server {self.host}:{port} did not respond after {timeout} seconds"
+        )
 
     @staticmethod
     def get_broker_url(port=6379, hostname=None, password=None) -> str:
         if hostname is None:
             hostname = gethostname()
-        preamble = f':{password}@' if password else ''
-        return f'redis://{preamble}{hostname}:{int(port):d}/0'
+        preamble = f":{password}@" if password else ""
+        return f"redis://{preamble}{hostname}:{int(port):d}/0"
 
     @staticmethod
     def get_hostname_port_from_url(broker_url) -> tuple[str, str]:
         url = urlsplit(broker_url)
-        return url.hostname, str(url.port or '')
+        return url.hostname, str(url.port or "")
 
     @staticmethod
     def get_password_from_url(broker_url):
         return urlsplit(broker_url).password
 
     def get(self, key, timeout=None):
-        return self.cli(f'GET {key}', timeout=timeout)
+        return self.cli(f"GET {key}", timeout=timeout)
 
     def set(self, key, value, timeout=None):
-        rc = self.cli(f'SET {key} {value}', timeout=timeout)
-        assert rc == 'OK', f'The return value was {rc}'
+        rc = self.cli(f"SET {key} {value}", timeout=timeout)
+        assert rc == "OK", f"The return value was {rc}"
 
     def purge(self, timeout=None):
-        return self.cli('MEMORY PURGE', timeout=timeout)
+        return self.cli("MEMORY PURGE", timeout=timeout)
 
     def monitor(self, monitor_file):
-        cmd = os.path.join(self.redis_bin_base, 'redis-cli') + f' -p {self.port:d} -a {self._password} MONITOR &'
-        with open(monitor_file, 'w') as out:
+        cmd = (
+            os.path.join(self.redis_bin_base, "redis-cli")
+            + f" -p {self.port:d} -a {self._password} MONITOR &"
+        )
+        with open(monitor_file, "w") as out:
             subprocess.check_call(cmd, shell=True, stdout=out, stderr=subprocess.STDOUT)
 
     def cli(self, cmd, port=None, include_host=False, timeout=None):
         port = self.port if port is None else port
-        cmd = self.get_redis_cli_cmd(port=port, include_host=include_host) + f' {cmd}'
-        with open(os.devnull, 'w') as null:
-            return subprocess.check_output(
-                shlex.split(cmd),
-                stderr=null,
-                timeout=timeout).decode().strip()
+        cmd = self.get_redis_cli_cmd(port=port, include_host=include_host) + f" {cmd}"
+        with open(os.devnull, "w") as null:
+            return (
+                subprocess.check_output(shlex.split(cmd), stderr=null, timeout=timeout)
+                .decode()
+                .strip()
+            )
 
     def __eq__(self, other):
         return other.broker_url == self.broker_url

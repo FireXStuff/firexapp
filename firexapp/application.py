@@ -10,7 +10,8 @@ from firexkit.permissions import DEFAULT_UMASK
 
 logger = setup_console_logging(__name__)
 
-JSON_ARGS_PATH_ARG_NAME = '--json_args_path'
+JSON_ARGS_PATH_ARG_NAME = "--json_args_path"
+
 
 def main():
     os.umask(DEFAULT_UMASK)
@@ -18,6 +19,7 @@ def main():
     setup_console_logging("__main__")
     with tempfile.NamedTemporaryFile(delete=True) as submission_tmp_file:
         from firexapp.submit.submit import SubmitBaseApp
+
         submit_app = SubmitBaseApp(submission_tmp_file=submission_tmp_file.name)
         app = FireXBaseApp(submit_app=submit_app)
         ExitSignalHandler(app)
@@ -33,10 +35,12 @@ def get_args_from_json(json_file: str) -> list[str]:
         try:
             input_list = json.load(fp)
         except json.decoder.JSONDecodeError:
-            logger.error(f'The json file {json_file} could not be correctly decoded.')
+            logger.error(f"The json file {json_file} could not be correctly decoded.")
             raise
     if not isinstance(input_list, list):
-        raise JsonContentNotList('The provided json %s must contain a list of arguments')
+        raise JsonContentNotList(
+            "The provided json %s must contain a list of arguments"
+        )
     return input_list
 
 
@@ -51,7 +55,9 @@ def get_args_from_json_from_all_args(all_args: list[str]) -> list[str]:
         try:
             json_args_path = all_args[json_args_name_index + 1]
         except IndexError:
-            raise ValueError(f'The {JSON_ARGS_PATH_ARG_NAME} argument is not followed by a value.')
+            raise ValueError(
+                f"The {JSON_ARGS_PATH_ARG_NAME} argument is not followed by a value."
+            )
         else:
             return get_args_from_json(json_args_path)
 
@@ -60,11 +66,13 @@ class FireXBaseApp:
     def __init__(self, submit_app=None, info_app=None):
         if not info_app:
             from firexapp.info import InfoBaseApp
+
             info_app = InfoBaseApp()
         self.info_app = info_app
 
         if not submit_app:
             from firexapp.submit.submit import SubmitBaseApp
+
             submit_app = SubmitBaseApp()
         self.submit_app = submit_app
         self.arg_parser = None
@@ -77,10 +85,11 @@ class FireXBaseApp:
 
         try:
             if sys_argv is not None:
-                "".join(sys_argv).encode('ascii')
+                "".join(sys_argv).encode("ascii")
         except UnicodeEncodeError as ue:
             self.arg_parser.error(
-                'You entered a non-ascii character at the command line.\n' + str(ue))
+                "You entered a non-ascii character at the command line.\n" + str(ue)
+            )
 
         args_to_process = sys_argv
         if sys_argv is not None:
@@ -94,7 +103,7 @@ class FireXBaseApp:
         if self.submit_app.run_submit.__name__ not in arguments.func.__name__:
             if len(others):
                 # only submit supports 'other' arguments
-                msg = 'Unrecognized arguments: {}'.format(' '.join(others))
+                msg = "Unrecognized arguments: {}".format(" ".join(others))
                 self.arg_parser.error(message=msg)
             arguments.func(arguments)
         else:
@@ -103,20 +112,23 @@ class FireXBaseApp:
             arguments.func(arguments, others)
 
     def main_error_exit_handler(self, reason=None, run_revoked=False):
-        if (
-            self.running_app
-            and hasattr(self.running_app, self.main_error_exit_handler.__name__)
+        if self.running_app and hasattr(
+            self.running_app, self.main_error_exit_handler.__name__
         ):
-            self.running_app.main_error_exit_handler(reason=reason, run_revoked=run_revoked)
+            self.running_app.main_error_exit_handler(
+                reason=reason, run_revoked=run_revoked
+            )
         sys.exit(-1)
 
-    def create_arg_parser(self, description=None)->ArgumentParser:
+    def create_arg_parser(self, description=None) -> ArgumentParser:
         if not description:
             description = """
 FireX is a workflow automation and execution engine built using a micro-service oriented design and architecture.
 FireX provides a framework to facilitate the automation of the various workflows that are part of every development
 and testing processes."""
-        main_parser = ArgumentParser(description=description, formatter_class=RawTextHelpFormatter)
+        main_parser = ArgumentParser(
+            description=description, formatter_class=RawTextHelpFormatter
+        )
         sub_parser = main_parser.add_subparsers()
 
         self.info_app.create_list_sub_parser(sub_parser)

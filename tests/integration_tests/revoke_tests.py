@@ -19,6 +19,7 @@ def revoke_root_via_child(self):
     root_uuid = self.request.parent_id
     self.enqueue_child(revoke.s(root_uuid=root_uuid), block=True)
 
+
 class RevokeOnShutdown(FlowTestConfiguration):
     no_coverage = True
 
@@ -30,18 +31,20 @@ class RevokeOnShutdown(FlowTestConfiguration):
 
         # We use files to indicate some failures because we can't log
         # anything in our logs during shutdown
-        failure_files = glob.glob(os.path.join(logs_dir, 'test_fail_*'))
-        failures_text = ''
+        failure_files = glob.glob(os.path.join(logs_dir, "test_fail_*"))
+        failures_text = ""
         for fail in failure_files:
             with open(fail) as f:
-                failures_text += fail + ' : ' + f.read() + '\n'
+                failures_text += fail + " : " + f.read() + "\n"
         assert not failures_text, failures_text
 
         keeper_complete = task_query.wait_on_keeper_complete(logs_dir, timeout=60)
         assert keeper_complete, "Keeper database is not complete."
 
         revoked_task_count = len(task_query.revoked_tasks(logs_dir))
-        assert revoked_task_count == 3, f"Not all 3 tasks were revoked, was: {revoked_task_count}"
+        assert revoked_task_count == 3, (
+            f"Not all 3 tasks were revoked, was: {revoked_task_count}"
+        )
 
         assert self.run_data.revoked, "run.json should indicate revoked."
 

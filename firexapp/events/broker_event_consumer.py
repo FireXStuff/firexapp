@@ -23,21 +23,24 @@ class BrokerEventConsumerThread(threading.Thread):
     def __init__(
         self,
         celery_app: Celery,
-        max_retry_attempts: int | None=None,
-        receiver_ready_file: str | None=None,
+        max_retry_attempts: int | None = None,
+        receiver_ready_file: str | None = None,
     ):
         threading.Thread.__init__(self)
         self.celery_app = celery_app
-        self.max_try_interval = 2**max_retry_attempts if max_retry_attempts is not None else 32
+        self.max_try_interval = (
+            2**max_retry_attempts if max_retry_attempts is not None else 32
+        )
         self.ready = False
-        self.celery_event_receiver : EventReceiver | None = None
+        self.celery_event_receiver: EventReceiver | None = None
 
-        self.receiver_ready_file : Path | None
+        self.receiver_ready_file: Path | None
 
         if receiver_ready_file:
             self.receiver_ready_file = Path(receiver_ready_file)
-            assert not self.receiver_ready_file.exists(), \
+            assert not self.receiver_ready_file.exists(), (
                 f"Receiver ready file must not already exist: {self.receiver_ready_file}."
+            )
         else:
             self.receiver_ready_file = None
 
@@ -64,23 +67,22 @@ class BrokerEventConsumerThread(threading.Thread):
             # if the root is not complete, it may be worth retrying to connect
             # to the the broker.
             not self._is_root_complete()
-
             # Subclasses can stop Celery event receiving by setting this bool,
             # so we don't want to reconnect to the broker.
-            and not getattr(self.celery_event_receiver, 'should_stop', False)
+            and not getattr(self.celery_event_receiver, "should_stop", False)
         ):
             try:
                 try_interval *= 2
                 with self.celery_app.connection() as conn:
                     conn.ensure_connection(max_retries=1, interval_start=0)
                     self.celery_event_receiver = EventReceiver(
-                        conn,
-                        handlers={"*": self._on_event},
-                        app=self.celery_app)
+                        conn, handlers={"*": self._on_event}, app=self.celery_app
+                    )
                     try_interval = 1
                     self._ready()
                     self.celery_event_receiver.capture(
-                        limit=None, timeout=None, wakeup=True)
+                        limit=None, timeout=None, wakeup=True
+                    )
             except (KeyboardInterrupt, SystemExit):
                 logger.exception("Received external shutdown.")
                 self._on_external_shutdown()
@@ -92,10 +94,14 @@ class BrokerEventConsumerThread(threading.Thread):
                     return
                 logger.error(traceback.format_exc())
                 if try_interval > self.max_try_interval:
-                    logger.warning("Maximum broker retry attempts exceeded, stopping receiver thread)."
-                                   " Will no longer retry despite incomplete root task.")
+                    logger.warning(
+                        "Maximum broker retry attempts exceeded, stopping receiver thread)."
+                        " Will no longer retry despite incomplete root task."
+                    )
                     return
-                logger.debug(f"Try interval {try_interval:d} secs, still worth retrying.")
+                logger.debug(
+                    f"Try interval {try_interval:d} secs, still worth retrying."
+                )
                 time.sleep(try_interval)
             else:
                 logger.debug("Celery receiver stopped")
@@ -107,13 +113,17 @@ class BrokerEventConsumerThread(threading.Thread):
         try:
             self._on_celery_event(event)
 
-            if (self._is_root_complete()
+            if (
+                self._is_root_complete()
                 # In case checking all tests is expensive, check root first. Remaining
                 # tasks only need to be checked once root is complete since everything
                 # can't be complete if the root is not complete.
                 and self._all_tasks_complete()
-                and self.celery_event_receiver):
-                logger.info("Stopping Celery event receiver because all tasks are complete.")
+                and self.celery_event_receiver
+            ):
+                logger.info(
+                    "Stopping Celery event receiver because all tasks are complete."
+                )
                 self.celery_event_receiver.should_stop = True
         except Exception:
             logger.exception("Failed to process Celery event")

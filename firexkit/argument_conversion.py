@@ -12,17 +12,20 @@ from firexkit.bag_of_goodies import BagOfGoodies
 
 logger = get_task_logger(__name__)
 
+
 def _get_func_file(func):
     try:
         return os.path.realpath(inspect.getfile(func))
     except TypeError:
         return None
 
+
 class ConverterRegister:
     """Converters are a practical mechanism for altering the input values into microservices. They can
     also be used in upfront validation of the inputs."""
-    _ConvertNode = namedtuple('ConvertNode', ['func', 'dependencies', 'file'])
-    _task_instances: ClassVar[dict[str, 'ConverterRegister']] = {}
+
+    _ConvertNode = namedtuple("ConvertNode", ["func", "dependencies", "file"])
+    _task_instances: ClassVar[dict[str, "ConverterRegister"]] = {}
 
     def __init__(self):
         """A register for argument converter functions that take in kwargs and transforms them."""
@@ -39,7 +42,7 @@ class ConverterRegister:
         :param pre_task: Converters can be registered to run before or after a task runs
         :param kwargs: the argument dict to be converted
         """
-        task_short_name = task_name.split('.')[-1]
+        task_short_name = task_name.split(".")[-1]
         if task_short_name not in cls._task_instances:
             return kwargs
         task = cls._task_instances[task_short_name]
@@ -47,9 +50,9 @@ class ConverterRegister:
         return task.convert(pre_task=pre_task, **kwargs)
 
     def convert(self, pre_task=True, verbose=True, **kwargs) -> dict:
-        """ Run all registered converters
-         :param pre_task: Converters can be registered to run before or after a task runs.
-         """
+        """Run all registered converters
+        :param pre_task: Converters can be registered to run before or after a task runs.
+        """
         # Recreate the kwargs and remove any argument string
         # values which start with '@'.
         new_kwargs = {}
@@ -71,7 +74,9 @@ class ConverterRegister:
                 converted_dict = converters[node].func(new_kwargs)
             except Exception as e:
                 logger.warning(f"Error in input converter {node}")
-                raise ArgumentConversionException(f'Converter {node} failed: {e}') from e
+                raise ArgumentConversionException(
+                    f"Converter {node} failed: {e}"
+                ) from e
             delta = time.monotonic() - start
             if verbose or delta >= 0.001:
                 logger.debug(f"Took {delta:.3f} seconds to convert {node}")
@@ -86,28 +91,43 @@ class ConverterRegister:
         converters = self._pre_converters if pre_task else self._post_converters
         self.visit_order = []
         for converter_node in converters.values():
-            self._visit_converter(converter_node=converter_node, all_converters=converters)
+            self._visit_converter(
+                converter_node=converter_node, all_converters=converters
+            )
         return self.visit_order
 
     def _visit_converter(self, all_converters, converter_node, depth=0):
         if depth > len(all_converters):
-            raise CircularDependencyException("A circular dependency was detected between converters")
+            raise CircularDependencyException(
+                "A circular dependency was detected between converters"
+            )
 
         if converter_node.func.__name__ in self.visit_order:
             return
 
         for precursor in converter_node.dependencies:
-            if precursor not in all_converters and precursor not in self._pre_converters:
-                msg = precursor + " was not found. It is a dependency of " + converter_node.func.__name__
+            if (
+                precursor not in all_converters
+                and precursor not in self._pre_converters
+            ):
+                msg = (
+                    precursor
+                    + " was not found. It is a dependency of "
+                    + converter_node.func.__name__
+                )
                 raise MissingConverterDependencyError(msg)
 
             if converter_node.func.__name__ == precursor:
-                raise CircularDependencyException(f"A converter can not be dependant on itself: {converter_node.file}#{converter_node.func.__name__} ")
+                raise CircularDependencyException(
+                    f"A converter can not be dependant on itself: {converter_node.file}#{converter_node.func.__name__} "
+                )
 
             if precursor not in self.visit_order and precursor in all_converters:
-                self._visit_converter(all_converters=all_converters,
-                                      converter_node=all_converters[precursor],
-                                      depth=depth+1)
+                self._visit_converter(
+                    all_converters=all_converters,
+                    converter_node=all_converters[precursor],
+                    depth=depth + 1,
+                )
         self.visit_order.append(converter_node.func.__name__)
 
     @classmethod
@@ -123,7 +143,7 @@ class ConverterRegister:
         *  **str**: Dependencies. Any dependency of the current converter on the one in the string.
 
         """
-        task_short_name = task.name.split('.')[-1]
+        task_short_name = task.name.split(".")[-1]
         if task_short_name not in cls._task_instances:
             cls._task_instances[task_short_name] = ConverterRegister()
         task_registry = cls._task_instances[task_short_name]
@@ -142,7 +162,9 @@ class ConverterRegister:
         """
 
         if len(args) == 0:
-            raise ConverterRegistrationException("Registration requires at least one argument")
+            raise ConverterRegistrationException(
+                "Registration requires at least one argument"
+            )
 
         func = None
         dependencies = []
@@ -157,9 +179,12 @@ class ConverterRegister:
                 run_pre_task = arg
             else:
                 raise ConverterRegistrationException(
-                    f"Converter incorrectly registered. Type {type(arg)!s} not recognised")
+                    f"Converter incorrectly registered. Type {type(arg)!s} not recognised"
+                )
 
-        return self._sub_register(func=func, dependencies=dependencies, run_pre_task=run_pre_task)
+        return self._sub_register(
+            func=func, dependencies=dependencies, run_pre_task=run_pre_task
+        )
 
     def _sub_register(self, func, dependencies: list[str], run_pre_task):
 
@@ -191,6 +216,7 @@ class ConverterRegister:
                 file=_get_func_file(fn),
             )
             return fn
+
         return _wrapped_register
 
     @staticmethod
@@ -210,7 +236,7 @@ class ConverterRegister:
 
     @classmethod
     def get_register(cls, task_name):
-        task_short_name = task_name.split('.')[-1]
+        task_short_name = task_name.split(".")[-1]
         return cls._task_instances.get(task_short_name)
 
     @classmethod
@@ -240,10 +266,14 @@ class SingleArgDecorator:
         :param args: A lists of argument names for which this converter applies
         """
         if not args:
-            raise ConverterRegistrationException("SingleArgDecorator requires at least one argument name")
+            raise ConverterRegistrationException(
+                "SingleArgDecorator requires at least one argument name"
+            )
         for arg in args:
             if type(arg) is not str:
-                raise ConverterRegistrationException("SingleArgDecorator takes strings as inputs")
+                raise ConverterRegistrationException(
+                    "SingleArgDecorator takes strings as inputs"
+                )
 
         self.args = list(args)
 
@@ -255,22 +285,32 @@ class SingleArgDecorator:
                 if k in args:
                     orig_value = args[k]
                     # we don't validate ref values (i.e. @something)
-                    if hasattr(orig_value, 'startswith') and orig_value.startswith(BagOfGoodies.INDIRECT_ARG_CHAR):
+                    if hasattr(orig_value, "startswith") and orig_value.startswith(
+                        BagOfGoodies.INDIRECT_ARG_CHAR
+                    ):
                         ret[k] = orig_value
                     else:
                         try:
                             v = fn(args[k])
                         except Exception as e:
-                            logger.debug('The original exception thrown by the converter is:', exc_info=True)
-                            raise ArgumentConversionException(k + ": " + str(e)) from None
+                            logger.debug(
+                                "The original exception thrown by the converter is:",
+                                exc_info=True,
+                            )
+                            raise ArgumentConversionException(
+                                k + ": " + str(e)
+                            ) from None
                         if v != orig_value:
-                            logger.debug(f"Argument {k} was converted from {orig_value!s} to {v!s}")
+                            logger.debug(
+                                f"Argument {k} was converted from {orig_value!s} to {v!s}"
+                            )
                         ret[k] = v
             return ret
 
         # An append method is a nice addition to allow other modules to add extra args for conversion
         def append(*args):
             self.args.extend(args)
+
         validator_decorator.append = append
         validator_decorator.single_arg_decorator = self
 

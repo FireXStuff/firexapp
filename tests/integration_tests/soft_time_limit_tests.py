@@ -16,23 +16,25 @@ EXTENDED_SOFT_TIME_LIMIT = 120
 HARD_TIME_LIMIT = 30
 
 
-def _write_marker(logs_dir, name, content='1'):
-    with open(os.path.join(logs_dir, f'stl_{name}'), 'w') as f:
+def _write_marker(logs_dir, name, content="1"):
+    with open(os.path.join(logs_dir, f"stl_{name}"), "w") as f:
         f.write(str(content))
 
 
 def _assert_marker(logs_dir, name, exists=True):
-    marker = os.path.join(logs_dir, f'stl_{name}')
+    marker = os.path.join(logs_dir, f"stl_{name}")
     if exists:
         assert os.path.isfile(marker), f"Expected marker file '{marker}' to exist."
     else:
-        assert not os.path.isfile(marker), f"Expected marker file '{marker}' to be absent."
+        assert not os.path.isfile(marker), (
+            f"Expected marker file '{marker}' to be absent."
+        )
 
 
 def _wait_for_marker(logs_dir, name, max_wait=90):
     give_up_at = monotonic() + max_wait
     while monotonic() < give_up_at:
-        if os.path.isfile(os.path.join(logs_dir, f'stl_{name}')):
+        if os.path.isfile(os.path.join(logs_dir, f"stl_{name}")):
             return
         sleep(1)
     raise AssertionError(f"Marker '{name}' was never written.")
@@ -44,7 +46,7 @@ def _wait_for_child_prerun(task, child_id, max_wait=90):
         if task.app.task_id_has_prerun(child_id):
             return
         sleep(1)
-    raise AssertionError(f'Child task {child_id} never started running.')
+    raise AssertionError(f"Child task {child_id} never started running.")
 
 
 @app.task(bind=True, soft_time_limit=ORIGINAL_SOFT_TIME_LIMIT)
@@ -52,9 +54,9 @@ def sleep_past_original_soft_time_limit(self, uid, sleep_for):
     try:
         sleep(sleep_for)
     except SoftTimeLimitExceeded:
-        _write_marker(uid.logs_dir, 'soft_time_limit_exceeded')
+        _write_marker(uid.logs_dir, "soft_time_limit_exceeded")
         raise
-    _write_marker(uid.logs_dir, 'completed')
+    _write_marker(uid.logs_dir, "completed")
 
 
 @app.task(bind=True)
@@ -71,8 +73,8 @@ def extend_running_child_soft_time_limit(self, uid):
 
     applied = self.app.set_task_soft_time_limit(child.id, EXTENDED_SOFT_TIME_LIMIT)
     assert applied == EXTENDED_SOFT_TIME_LIMIT, (
-        f'Expected the worker to apply a soft_time_limit of'
-        f' {EXTENDED_SOFT_TIME_LIMIT}, got: {applied}'
+        f"Expected the worker to apply a soft_time_limit of"
+        f" {EXTENDED_SOFT_TIME_LIMIT}, got: {applied}"
     )
 
     self.wait_for_children()
@@ -82,15 +84,15 @@ class SoftTimeLimitExtendedForRunningTask(FlowTestConfiguration):
     no_coverage = True
 
     def initial_firex_options(self) -> list:
-        return ['submit', '--chain', 'extend_running_child_soft_time_limit']
+        return ["submit", "--chain", "extend_running_child_soft_time_limit"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_dir = self.run_data.logs_path
-        _assert_marker(logs_dir, 'soft_time_limit_exceeded', exists=False)
-        _assert_marker(logs_dir, 'completed')
+        _assert_marker(logs_dir, "soft_time_limit_exceeded", exists=False)
+        _assert_marker(logs_dir, "completed")
 
     def assert_expected_return_code(self, ret_value):
-        assert ret_value == 0, f'Expected a successful run, got: {ret_value}'
+        assert ret_value == 0, f"Expected a successful run, got: {ret_value}"
 
 
 @app.task(
@@ -102,9 +104,9 @@ def sleep_past_hard_time_limit(self, uid, sleep_for):
     try:
         sleep(sleep_for)
     except SoftTimeLimitExceeded:
-        _write_marker(uid.logs_dir, 'soft_time_limit_exceeded')
+        _write_marker(uid.logs_dir, "soft_time_limit_exceeded")
         raise
-    _write_marker(uid.logs_dir, 'completed')
+    _write_marker(uid.logs_dir, "completed")
 
 
 @app.task(bind=True)
@@ -116,7 +118,7 @@ def clamp_running_child_soft_time_limit(self, uid):
 
     # The hard time_limit is never moved, so the request is clamped down to it.
     applied = self.app.set_task_soft_time_limit(child.id, EXTENDED_SOFT_TIME_LIMIT)
-    _write_marker(uid.logs_dir, 'applied', content=applied)
+    _write_marker(uid.logs_dir, "applied", content=applied)
 
     self.wait_for_children()
 
@@ -125,18 +127,18 @@ class SoftTimeLimitClampedToHardTimeLimit(FlowTestConfiguration):
     no_coverage = True
 
     def initial_firex_options(self) -> list:
-        return ['submit', '--chain', 'clamp_running_child_soft_time_limit']
+        return ["submit", "--chain", "clamp_running_child_soft_time_limit"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_dir = self.run_data.logs_path
-        _assert_marker(logs_dir, 'applied')
-        with open(os.path.join(logs_dir, 'stl_applied')) as f:
+        _assert_marker(logs_dir, "applied")
+        with open(os.path.join(logs_dir, "stl_applied")) as f:
             applied = f.read()
         assert float(applied) == HARD_TIME_LIMIT, (
-            f'Expected the requested soft_time_limit to be clamped to the hard'
-            f' time_limit of {HARD_TIME_LIMIT}, got: {applied}'
+            f"Expected the requested soft_time_limit to be clamped to the hard"
+            f" time_limit of {HARD_TIME_LIMIT}, got: {applied}"
         )
-        _assert_marker(logs_dir, 'completed', exists=False)
+        _assert_marker(logs_dir, "completed", exists=False)
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
@@ -160,16 +162,16 @@ def sleep_past_the_original_run_budget(self, uid):
     # Not raising until the sibling waiter is blocked is what makes this a test of the
     # running-task path: otherwise the sibling could be dispatched after the raise and
     # pick up the new worker default, which proves nothing.
-    _wait_for_marker(uid.logs_dir, 'sibling_waiter_blocked')
+    _wait_for_marker(uid.logs_dir, "sibling_waiter_blocked")
     # Its limit was resolved at publish from a budget too small for what it now knows it
     # needs, so it raises the run's budget before doing the work.
     self.ensure_run_time_remaining(LEAF_SLEEP * 2, reserve=LEAF_RESERVE)
     try:
         sleep(LEAF_SLEEP)
     except SoftTimeLimitExceeded:
-        _write_marker(uid.logs_dir, 'leaf_soft_time_limit_exceeded')
+        _write_marker(uid.logs_dir, "leaf_soft_time_limit_exceeded")
         raise
-    _write_marker(uid.logs_dir, 'leaf_completed')
+    _write_marker(uid.logs_dir, "leaf_completed")
 
 
 @app.task(bind=True)
@@ -181,7 +183,7 @@ def wait_on_the_long_leaf(self, uid):
         block=True,
         max_wait=RunTimeReserve(5),
     )
-    _write_marker(uid.logs_dir, 'blocked_ancestor_wait_returned')
+    _write_marker(uid.logs_dir, "blocked_ancestor_wait_returned")
 
 
 @app.task(bind=True)
@@ -189,9 +191,9 @@ def sleep_past_the_original_budget_undeclared(self, uid):
     try:
         sleep(POST_RAISE_SLEEP)
     except SoftTimeLimitExceeded:
-        _write_marker(uid.logs_dir, 'post_raise_soft_time_limit_exceeded')
+        _write_marker(uid.logs_dir, "post_raise_soft_time_limit_exceeded")
         raise
-    _write_marker(uid.logs_dir, 'post_raise_completed')
+    _write_marker(uid.logs_dir, "post_raise_completed")
 
 
 @app.task(bind=True)
@@ -200,9 +202,9 @@ def wait_on_a_sibling_branch(self, uid, waiton):
     # leaf that raises the budget -- no walk up the enqueue hierarchy reaches it. It is
     # still blocked on work that now runs longer, and it declared no limit of its own,
     # so the raise has to reach it through the worker default it was already following.
-    _write_marker(uid.logs_dir, 'sibling_waiter_blocked')
+    _write_marker(uid.logs_dir, "sibling_waiter_blocked")
     waiton.fx_wait(max_wait=RunTimeReserve(5), parent_id=self.request.id)
-    _write_marker(uid.logs_dir, 'sibling_waiter_returned')
+    _write_marker(uid.logs_dir, "sibling_waiter_returned")
 
 
 @app.task(bind=True)
@@ -222,19 +224,21 @@ class RunSoftTimeLimitRaisedByDescendant(FlowTestConfiguration):
 
     def initial_firex_options(self) -> list:
         return [
-            'submit',
-            '--chain', 'raise_run_budget_from_a_descendant',
-            '--soft_time_limit', str(RUN_SOFT_TIME_LIMIT),
+            "submit",
+            "--chain",
+            "raise_run_budget_from_a_descendant",
+            "--soft_time_limit",
+            str(RUN_SOFT_TIME_LIMIT),
         ]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_dir = self.run_data.logs_path
-        _assert_marker(logs_dir, 'leaf_soft_time_limit_exceeded', exists=False)
-        _assert_marker(logs_dir, 'leaf_completed')
-        _assert_marker(logs_dir, 'blocked_ancestor_wait_returned')
-        _assert_marker(logs_dir, 'sibling_waiter_returned')
-        _assert_marker(logs_dir, 'post_raise_soft_time_limit_exceeded', exists=False)
-        _assert_marker(logs_dir, 'post_raise_completed')
+        _assert_marker(logs_dir, "leaf_soft_time_limit_exceeded", exists=False)
+        _assert_marker(logs_dir, "leaf_completed")
+        _assert_marker(logs_dir, "blocked_ancestor_wait_returned")
+        _assert_marker(logs_dir, "sibling_waiter_returned")
+        _assert_marker(logs_dir, "post_raise_soft_time_limit_exceeded", exists=False)
+        _assert_marker(logs_dir, "post_raise_completed")
 
     def assert_expected_return_code(self, ret_value):
-        assert ret_value == 0, f'Expected a successful run, got: {ret_value}'
+        assert ret_value == 0, f"Expected a successful run, got: {ret_value}"

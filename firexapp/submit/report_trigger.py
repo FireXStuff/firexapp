@@ -11,7 +11,9 @@ __all__ = ["RunInitialReport"]
 def run_initial_reporting(kwargs):
     # only run task if necessary; generators implement pre-load overloads
     generators = ReportersRegistry.get_generators()
-    generators_with_pre_run = [g for g in generators if g.__class__.__dict__.get("pre_run_report")]
+    generators_with_pre_run = [
+        g for g in generators if g.__class__.__dict__.get("pre_run_report")
+    ]
     if not generators_with_pre_run:
         return
 
@@ -20,6 +22,6 @@ def run_initial_reporting(kwargs):
 
 # noinspection PyPep8Naming
 @app.task
-@flame_collapse('self')
+@flame_collapse("self")
 def RunInitialReport(**kwargs):
     ReportersRegistry.pre_run_report(kwargs)

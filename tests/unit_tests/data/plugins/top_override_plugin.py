@@ -4,6 +4,7 @@ mid_override_plugin's override is itself overridden. This is the production shap
 sparse_build.JamBuild overrides ctc_plugin.JamBuild, which overrides the core
 microservices.tasks.JamBuild.
 """
+
 from firexapp.engine.celery import app
 from firexkit.task import FireXTask
 

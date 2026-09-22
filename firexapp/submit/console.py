@@ -10,7 +10,7 @@ from firexkit.result import ChainInterruptedException
 
 # BeautifulSoup thinks we're giving it an URL because there is an URL in msg.
 # Not good. Keep stderr clean by ignoring this warning.
-warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
+warnings.filterwarnings("ignore", category=UserWarning, module="bs4")
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 console_stdout = None
@@ -19,33 +19,35 @@ console_stderr = None
 
 class RequeueingUndeliverableFilter(logging.Filter):
     def filter(self, record):
-        return 'Requeuing undeliverable message for queue' not in record.getMessage()
+        return "Requeuing undeliverable message for queue" not in record.getMessage()
 
 
 class DistlibWarningsFilter(logging.Filter):
     def filter(self, record):
         pathname = record.pathname
-        return not pathname.endswith('distlib/metadata.py') and not pathname.endswith('distlib/database.py')
+        return not pathname.endswith("distlib/metadata.py") and not pathname.endswith(
+            "distlib/database.py"
+        )
 
 
 class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
     def format(self, record):
         format_orig = self._style._fmt
         override_exc_text = None
-        if record.exc_text and not record.exc_info and hasattr(record, 'task_id'):
+        if record.exc_text and not record.exc_info and hasattr(record, "task_id"):
             # This is a serialized exception, and we are not interested in showing the traceback on the console,
             # just the string.
             override_exc_text = record.exc_text
             record.exc_text = None
         try:
-            record.msg = BeautifulSoup(record.msg, 'html.parser').get_text()
+            record.msg = BeautifulSoup(record.msg, "html.parser").get_text()
         # Logging must still succeed for message objects BeautifulSoup cannot parse.
         except Exception:  # noqa: BLE001, S110
             pass
-        prefixes = getattr(record, 'prefixes', True)
+        prefixes = getattr(record, "prefixes", True)
         if not prefixes:
             # Use a minimal format without the hostname and time
-            self._style._fmt = '%(log_color)s%(message)s'
+            self._style._fmt = "%(log_color)s%(message)s"
         msg = super().format(record)
         # Restore original formats
         self._style._fmt = format_orig
@@ -57,7 +59,7 @@ class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
 
 class RetryFilter(logging.Filter):
     def filter(self, record):
-        return 'Retry in' not in record.getMessage()
+        return "Retry in" not in record.getMessage()
 
 
 class ChainInterruptedExceptionFilter(logging.Filter):
@@ -65,26 +67,36 @@ class ChainInterruptedExceptionFilter(logging.Filter):
         return ChainInterruptedException.__name__ not in record.getMessage()
 
 
-def setup_console_logging(module=None,
-                          stdout_logging_level=logging.INFO,
-                          console_logging_formatter=None,
-                          console_datefmt="%H:%M:%S",
-                          stderr_logging_level=logging.ERROR,
-                          module_logger_logging_level=None):
+def setup_console_logging(
+    module=None,
+    stdout_logging_level=logging.INFO,
+    console_logging_formatter=None,
+    console_datefmt="%H:%M:%S",
+    stderr_logging_level=logging.ERROR,
+    module_logger_logging_level=None,
+):
 
     if console_logging_formatter is None:
-        if os.environ.get('NO_COLOR'):
-            console_logging_formatter = '[%(asctime)s]%(reset)s[%(hostname)s] %(message)s'
+        if os.environ.get("NO_COLOR"):
+            console_logging_formatter = (
+                "[%(asctime)s]%(reset)s[%(hostname)s] %(message)s"
+            )
         else:
-            console_logging_formatter = '%(green)s[%(asctime)s]%(reset)s[%(hostname)s] %(log_color)s%(message)s'
+            console_logging_formatter = (
+                "%(green)s[%(asctime)s]%(reset)s[%(hostname)s] %(log_color)s%(message)s"
+            )
 
-    formatter = FireXColoredConsoleFormatter(fmt=console_logging_formatter,
-                                             datefmt=console_datefmt,
-                                             log_colors={'DEBUG': 'cyan',
-                                                         'INFO': 'bold',
-                                                         'WARNING': 'yellow',
-                                                         'ERROR': 'bold_red',
-                                                         'CRITICAL': 'red,bg_white'})
+    formatter = FireXColoredConsoleFormatter(
+        fmt=console_logging_formatter,
+        datefmt=console_datefmt,
+        log_colors={
+            "DEBUG": "cyan",
+            "INFO": "bold",
+            "WARNING": "yellow",
+            "ERROR": "bold_red",
+            "CRITICAL": "red,bg_white",
+        },
+    )
 
     class LogLevelFilter(logging.Filter):
         """Filters (lets through) all messages with level < LEVEL"""
@@ -112,6 +124,7 @@ def setup_console_logging(module=None,
             # This setup hasn't been done before
 
             from firexapp.engine.logging import add_hostname_to_log_records
+
             add_hostname_to_log_records()
 
             console_stdout = logging.StreamHandler(sys.stdout)

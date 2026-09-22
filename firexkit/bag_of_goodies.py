@@ -17,7 +17,8 @@ logger = get_task_logger(__name__)
 
 @dataclasses.dataclass
 class _FireXArgParameters:
-    """ this class is just a bunch fo queries on python inspect.Parameter mapping """
+    """this class is just a bunch fo queries on python inspect.Parameter mapping"""
+
     parameters: types.MappingProxyType[str, inspect.Parameter]
 
     _has_var_keyword: bool | None = None
@@ -26,7 +27,8 @@ class _FireXArgParameters:
 
     def _get_non_var_params(self) -> list[inspect.Parameter]:
         return [
-            p for p in self.parameters.values()
+            p
+            for p in self.parameters.values()
             if p.kind not in [p.VAR_POSITIONAL, p.VAR_KEYWORD]
         ]
 
@@ -52,7 +54,8 @@ class _FireXArgParameters:
         param = self.parameters.get(arg_name)
         return bool(
             param
-            and param.kind in [
+            and param.kind
+            in [
                 param.POSITIONAL_ONLY,
                 param.VAR_POSITIONAL,
             ]
@@ -61,7 +64,8 @@ class _FireXArgParameters:
     def is_var_pos_arg(self, arg_name: str) -> bool:
         return bool(
             arg_name in self.parameters
-            and self.parameters[arg_name].kind == self.parameters[arg_name].VAR_POSITIONAL
+            and self.parameters[arg_name].kind
+            == self.parameters[arg_name].VAR_POSITIONAL
         )
 
     def accepts_kw_arg_name(self, arg_name: str) -> bool:
@@ -74,27 +78,24 @@ class _FireXArgParameters:
         ):
             return False
         if self._accepts_var_keyword():
-            return True # accepts all
+            return True  # accepts all
         return arg_name in self.parameters
 
     def is_var_kw_arg_name(self, arg_name: str) -> bool:
         arg_param = self.parameters.get(arg_name)
-        return bool(
-            arg_param and arg_param.kind == arg_param.VAR_KEYWORD
-        )
+        return bool(arg_param and arg_param.kind == arg_param.VAR_KEYWORD)
 
     def _accepts_var_keyword(self) -> bool:
         if self._has_var_keyword is None:
             self._has_var_keyword = any(
-                p.kind == p.VAR_KEYWORD for p in self.parameters.values())
+                p.kind == p.VAR_KEYWORD for p in self.parameters.values()
+            )
         return self._has_var_keyword
 
-    def get_unbound_params(self, supplied_arg_names: set[str]) -> dict[str, inspect.Parameter]:
-        return {
-            k: v
-            for k, v in self.parameters.items()
-            if k not in supplied_arg_names
-        }
+    def get_unbound_params(
+        self, supplied_arg_names: set[str]
+    ) -> dict[str, inspect.Parameter]:
+        return {k: v for k, v in self.parameters.items() if k not in supplied_arg_names}
 
 
 class ValidateArgs(enum.Enum):
@@ -105,41 +106,42 @@ class ValidateArgs(enum.Enum):
 
 class BagOfGoodies:
     """
-        This class attempts to avoid runtime errors by avoiding sending
-        arguments to tasks that can't accept them. This is partially necessary
-        due to how arguments flow through a chain, but it makes it difficult
-        to write correct programs since sending unaccepted arguments
-        to a serivce are silently ignored.
+    This class attempts to avoid runtime errors by avoiding sending
+    arguments to tasks that can't accept them. This is partially necessary
+    due to how arguments flow through a chain, but it makes it difficult
+    to write correct programs since sending unaccepted arguments
+    to a serivce are silently ignored.
 
-        Arguments are "supplied" to tasks either
-        directly to a task or from a previous task results if the task is in a
-        chain. The arguments that can be "accepted" by a task are defined by python's
-        inspect.Signature.parameters. This class partitions "supplied" arguments in to
-        three variables:
+    Arguments are "supplied" to tasks either
+    directly to a task or from a previous task results if the task is in a
+    chain. The arguments that can be "accepted" by a task are defined by python's
+    inspect.Signature.parameters. This class partitions "supplied" arguments in to
+    three variables:
 
-            bound_pos_args:
-                supplied, accepted positional args strutured by "bind"
-                (i.e. VAR_POSITIONAL is in a key)
+        bound_pos_args:
+            supplied, accepted positional args strutured by "bind"
+            (i.e. VAR_POSITIONAL is in a key)
 
-            kwargs:
-                supplied, accepted keyword args. These are not bound
-                (i.e. VAR_KEYWORD entries are flattened in to kwarg )
+        kwargs:
+            supplied, accepted keyword args. These are not bound
+            (i.e. VAR_KEYWORD entries are flattened in to kwarg )
 
-            unaccepted_args:
-                supplied arguments that are not accepted by the inspect.Signature
-                supplied to the constructor, plus special infra keys like
-                AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY that must never be sent
-                to a task.
+        unaccepted_args:
+            supplied arguments that are not accepted by the inspect.Signature
+            supplied to the constructor, plus special infra keys like
+            AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY that must never be sent
+            to a task.
 
-        It's expected that bound_pos_args/kwargs/unaccepted_args are mutually
-        exclusive.
+    It's expected that bound_pos_args/kwargs/unaccepted_args are mutually
+    exclusive.
 
-        This class also resolved indirect key references, e.g. SomeTask.s(arg_name='@other_arg')
-        will resolve arg_name to the value in other_arg.
+    This class also resolved indirect key references, e.g. SomeTask.s(arg_name='@other_arg')
+    will resolve arg_name to the value in other_arg.
 
     """
+
     # Special Char to denote indirect parameter references
-    INDIRECT_ARG_CHAR = '@'
+    INDIRECT_ARG_CHAR = "@"
 
     def __init__(
         self,
@@ -147,7 +149,7 @@ class BagOfGoodies:
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
         # FIXME: default just for UT, should always be explicit.
-        pydantic_validate: ValidateArgs=ValidateArgs.DISABLED,
+        pydantic_validate: ValidateArgs = ValidateArgs.DISABLED,
     ):
 
         self.fx_params = _FireXArgParameters(sig.parameters)
@@ -155,25 +157,24 @@ class BagOfGoodies:
 
         # If the first positional argument is a dict and we're in a chain, extract
         # data from previous task results
-        unaccepted_args : dict[str, Any]
-        if args and isinstance(args[0], dict) and kwargs.get('chain_depth', 0) > 0:
-            prev_task_result : dict[str, Any] = dict(args[0])
+        unaccepted_args: dict[str, Any]
+        if args and isinstance(args[0], dict) and kwargs.get("chain_depth", 0) > 0:
+            prev_task_result: dict[str, Any] = dict(args[0])
             # Remove the RETURN_KEYS_KEY entry since results are in prev_task_result
             prev_task_result.pop(RETURN_KEYS_KEY, None)
 
             # Remove chain prev task results from positional args
             self.bound_pos_args = sig.bind_partial(*args[1:]).arguments
             for k, v in self.bound_pos_args.items():
-                if (
-                    BagOfGoodies.is_self_indirect_ref(v, k)
-                    and k in prev_task_result
-                ):
+                if BagOfGoodies.is_self_indirect_ref(v, k) and k in prev_task_result:
                     self.bound_pos_args[k] = prev_task_result[k]
-            resolved_kwargs, unaccepted_args = _resolve_indirect_prev_results_and_split_accepted_args(
-                types.MappingProxyType(kwargs),
-                types.MappingProxyType(prev_task_result),
-                self.fx_params,
-                bound_pos_arg_names=set(self.bound_pos_args),
+            resolved_kwargs, unaccepted_args = (
+                _resolve_indirect_prev_results_and_split_accepted_args(
+                    types.MappingProxyType(kwargs),
+                    types.MappingProxyType(prev_task_result),
+                    self.fx_params,
+                    bound_pos_arg_names=set(self.bound_pos_args),
+                )
             )
         else:
             self.bound_pos_args = sig.bind_partial(*args).arguments
@@ -194,7 +195,9 @@ class BagOfGoodies:
         self.unaccepted_args = unaccepted_args
 
         # auto-inject reg is an unaccepted_args by definition.
-        if ( auto_in_reg := AutoInjectRegistry.get_auto_inject_registry(self.unaccepted_args) ):
+        if auto_in_reg := AutoInjectRegistry.get_auto_inject_registry(
+            self.unaccepted_args
+        ):
             # make future auto-injected args use explicit values if present.
             auto_in_reg.update_auto_inject_args(self.all_supplied_args())
             # add any unbound auto-inject args.
@@ -206,7 +209,7 @@ class BagOfGoodies:
                 )
             )
 
-        self.update({}) # resolve indirect refs for bound_pos_args and kwargs
+        self.update({})  # resolve indirect refs for bound_pos_args and kwargs
 
     def all_supplied_args(self) -> dict[str, Any]:
         # excludes defaults.
@@ -215,14 +218,13 @@ class BagOfGoodies:
 
     def update(self, updates: dict[str, Any]):
         for k, v in updates.items():
-            if (
-                k in self.bound_pos_args
-                or self.fx_params.is_pos_arg_name(k)
-            ):
+            if k in self.bound_pos_args or self.fx_params.is_pos_arg_name(k):
                 self.bound_pos_args[k] = v
             elif self.fx_params.is_var_kw_arg_name(k):
                 if not isinstance(v, collections.abc.Mapping):
-                    raise ValueError(f'VAR_KEYWORD argument {k} should always be an mapping, not: {v}')
+                    raise ValueError(
+                        f"VAR_KEYWORD argument {k} should always be an mapping, not: {v}"
+                    )
                 # kwargs never holds the VAR_KEYWORD itself, only its flattened
                 # entries, since that's how they're supplied to the service.
                 self.kwargs.update(v)
@@ -233,13 +235,13 @@ class BagOfGoodies:
 
         # update indirect bound_pos_args
         self.bound_pos_args = self.bound_pos_args | self._get_indirect_updates(
-            self.bound_pos_args,
-            self.all_supplied_args())
+            self.bound_pos_args, self.all_supplied_args()
+        )
 
         # update indirect kwargs
         self.kwargs = self.kwargs | self._get_indirect_updates(
-            self.kwargs | self.get_unsupplied_default_args(),
-            self.all_supplied_args())
+            self.kwargs | self.get_unsupplied_default_args(), self.all_supplied_args()
+        )
 
         # we never resolve indirect in unaccepted_args
         for arg_name in self.unaccepted_args:
@@ -248,7 +250,7 @@ class BagOfGoodies:
 
     @property
     def args(self) -> tuple[Any, ...]:
-        args : list[Any] = []
+        args: list[Any] = []
         for k, v in self.bound_pos_args.items():
             if self.fx_params.is_var_pos_arg(k):
                 # flatten VAR_POSITIONAL
@@ -277,7 +279,7 @@ class BagOfGoodies:
         }
 
     def get_accepted_supplied_and_default_args(self) -> dict[str, Any]:
-        return  self._get_accepted_supplied_args() | self.get_unsupplied_default_args()
+        return self._get_accepted_supplied_args() | self.get_unsupplied_default_args()
 
     @classmethod
     def is_self_indirect_ref(cls, value: str, arg_name: str):
@@ -306,15 +308,15 @@ class BagOfGoodies:
 
         args_to_indirect_keys = {}
         for arg_name, arg_val in args_to_resolve.items():
-            if ( i_key := cls._get_indirect_key(arg_val) ):
+            if i_key := cls._get_indirect_key(arg_val):
                 args_to_indirect_keys[arg_name] = i_key
-        indirect_keys_to_arg_names : dict[str, set[str]] = {}
+        indirect_keys_to_arg_names: dict[str, set[str]] = {}
         for arg_name, i_key in args_to_indirect_keys.items():
             if i_key not in indirect_keys_to_arg_names:
                 indirect_keys_to_arg_names[i_key] = set()
             indirect_keys_to_arg_names[i_key].add(arg_name)
 
-        cur_done_args_names : set[str] = set()
+        cur_done_args_names: set[str] = set()
         indirect_key_updates = {}
         args_names_to_resolve = dict(args_to_indirect_keys)
         # keep resolving until a loop resolves no arg names.
@@ -325,7 +327,7 @@ class BagOfGoodies:
                 if i_key in resolve_data:
                     indirect_key_updates[arg_name] = resolve_data[i_key]
                     # check if now that arg_name is set, can anything else be resolved
-                    for arg_name_ref in (indirect_keys_to_arg_names.get(arg_name) or []):
+                    for arg_name_ref in indirect_keys_to_arg_names.get(arg_name) or []:
                         if arg_name_ref not in cur_done_args_names:
                             next_resolve_args_to_indirect_keys[arg_name_ref] = arg_name
                 cur_done_args_names.add(arg_name)
@@ -336,8 +338,8 @@ class BagOfGoodies:
     def get_and_remove_chain_depth(self) -> int:
         vals = []
         for l in [self.unaccepted_args, self.kwargs]:
-            if 'chain_depth' in l:
-                vals.append(l.pop('chain_depth'))
+            if "chain_depth" in l:
+                vals.append(l.pop("chain_depth"))
         if vals:
             return vals[-1]
         return 0
@@ -350,7 +352,9 @@ class BagOfGoodies:
 
     def get_post_pydantic_convert_supplied_arg_names(self) -> set[str]:
         convertible: set[str] = set()
-        arg_names_to_validatable_names = self._get_arg_names_to_pydantic_convertible_names()
+        arg_names_to_validatable_names = (
+            self._get_arg_names_to_pydantic_convertible_names()
+        )
         all_args = set(self.all_supplied_args())
         for unbound_name, unbound_param in self.get_unsupplied_arg_params().items():
             if unbound_param.kind in (
@@ -362,13 +366,12 @@ class BagOfGoodies:
 
             if validatable_args := arg_names_to_validatable_names.get(unbound_name):
                 if validatable_args < all_args:
-                    convertible.add(unbound_name) # we can create this
+                    convertible.add(unbound_name)  # we can create this
                 else:
-                    logger.debug(f'cannot create {unbound_name}')
+                    logger.debug(f"cannot create {unbound_name}")
 
             is_hoistable = any(
-                unbound_name in model_field_names
-                and model_arg in all_args
+                unbound_name in model_field_names and model_arg in all_args
                 for model_arg, model_field_names in arg_names_to_validatable_names.items()
             )
             if is_hoistable:
@@ -379,7 +382,9 @@ class BagOfGoodies:
         return convertible
 
     def get_unbound_required_arg_names(self) -> set[str]:
-        return self.get_required_arg_names() - set(self.get_accepted_supplied_and_default_args())
+        return self.get_required_arg_names() - set(
+            self.get_accepted_supplied_and_default_args()
+        )
 
     def _get_arg_names_to_pydantic_convertible_names(self) -> dict[str, set[str]]:
         arg_names_to_validatable_names: dict[str, set[str]] = {}
@@ -391,7 +396,7 @@ class BagOfGoodies:
         return arg_names_to_validatable_names
 
     def get_pydantic_convertible_arg_names(self) -> set[str]:
-        convertible : set[str] = set()
+        convertible: set[str] = set()
         if self.pydantic_validate != ValidateArgs.DISABLED:
             for names in self._get_arg_names_to_pydantic_convertible_names().values():
                 convertible.update(names)
@@ -400,30 +405,36 @@ class BagOfGoodies:
     def get_args_to_indirect_value_keys(self) -> dict[str, str]:
         args_to_indirect_value_keys = {}
         for arg_name, value in self._get_accepted_supplied_args().items():
-            if ( indirect_name := self._get_indirect_key(value) ):
+            if indirect_name := self._get_indirect_key(value):
                 args_to_indirect_value_keys[arg_name] = indirect_name
         return args_to_indirect_value_keys
 
     def get_public_supplied_args(self) -> types.MappingProxyType[str, Any]:
         # all signature accepted and unaccepted args, no defaults.
-        return types.MappingProxyType({
-            k: v for k, v in self.all_supplied_args().items()
-            if k != AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY
-        })
+        return types.MappingProxyType(
+            {
+                k: v
+                for k, v in self.all_supplied_args().items()
+                if k != AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY
+            }
+        )
 
     @property
     def return_args(self):
         return self.all_supplied_args()
 
-    def init_auto_inject_registry(self, auto_inject_args: list['AutoInjectSpec']):
+    def init_auto_inject_registry(self, auto_inject_args: list["AutoInjectSpec"]):
         # expected to only be called by the root task.
-        assert AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY not in self.unaccepted_args, 'AutoInjectRegistry already initialized'
+        assert AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY not in self.unaccepted_args, (
+            "AutoInjectRegistry already initialized"
+        )
 
         # special key is never accepted by definition.
-        self.unaccepted_args[AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY] = AutoInjectRegistry.create_auto_in_reg(
-            auto_inject_args)
+        self.unaccepted_args[AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY] = (
+            AutoInjectRegistry.create_auto_in_reg(auto_inject_args)
+        )
 
-    def get_auto_inject_registry(self) -> 'AutoInjectRegistry':
+    def get_auto_inject_registry(self) -> "AutoInjectRegistry":
         return (
             self.unaccepted_args.get(AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY)
             or AutoInjectRegistry.empty_auto_inject_reg()
@@ -454,7 +465,7 @@ class BagOfGoodies:
     def get_auto_inject_type(annotation) -> type | None:
         if (
             typing.get_origin(annotation) is typing.Annotated
-            and annotation.__metadata__[0] == 'FireXAutoInject'
+            and annotation.__metadata__[0] == "FireXAutoInject"
         ):
             return annotation.__origin__
         return None
@@ -462,20 +473,17 @@ class BagOfGoodies:
 
 def _pydantic_hoist_modelled_fields(
     unsupplied_args: dict[str, inspect.Parameter],
-    input_service_args: typing.Mapping[str, Any]
+    input_service_args: typing.Mapping[str, Any],
 ) -> dict[str, Any]:
     #
     # see if an accepted but unsupplied arg can be supplied via a datamodelled field
     # that matches types.
-    hoisted_from_modelled_updates : dict[str, Any] = {}
+    hoisted_from_modelled_updates: dict[str, Any] = {}
     for unsupplied_arg_name, unsupplied_arg_param in unsupplied_args.items():
         for supplied_arg_name, supplied_arg_val in input_service_args.items():
-            if (
-                isinstance(supplied_arg_val, FireXBaseBaseModel)
-                and (
-                    unsupplied_arg_name in supplied_arg_val.__dict__
-                    or unsupplied_arg_name in supplied_arg_val.__pydantic_computed_fields__
-                )
+            if isinstance(supplied_arg_val, FireXBaseBaseModel) and (
+                unsupplied_arg_name in supplied_arg_val.__dict__
+                or unsupplied_arg_name in supplied_arg_val.__pydantic_computed_fields__
             ):
                 # we have the arg by name, check type match
                 if (
@@ -483,21 +491,32 @@ def _pydantic_hoist_modelled_fields(
                     or unsupplied_arg_param.annotation == unsupplied_arg_param.empty
                 ):
                     type_match = True
-                elif f_info := supplied_arg_val.__class__.model_fields.get(unsupplied_arg_name):
+                elif f_info := supplied_arg_val.__class__.model_fields.get(
+                    unsupplied_arg_name
+                ):
                     type_match = unsupplied_arg_param.annotation == f_info.annotation
-                elif cf_info := supplied_arg_val.__class__.model_computed_fields.get(unsupplied_arg_name):
+                elif cf_info := supplied_arg_val.__class__.model_computed_fields.get(
+                    unsupplied_arg_name
+                ):
                     type_match = unsupplied_arg_param.annotation == cf_info.return_type
                 else:
                     type_match = False
 
                 if type_match:
-                    logger.debug(f'hoisting in to arg {unsupplied_arg_name} from {supplied_arg_name}.{unsupplied_arg_name}')
+                    logger.debug(
+                        f"hoisting in to arg {unsupplied_arg_name} from {supplied_arg_name}.{unsupplied_arg_name}"
+                    )
                     if unsupplied_arg_name in supplied_arg_val.__dict__:
                         hoisted_val = supplied_arg_val.__dict__[unsupplied_arg_name]
-                    elif unsupplied_arg_name in supplied_arg_val.__pydantic_computed_fields__:
+                    elif (
+                        unsupplied_arg_name
+                        in supplied_arg_val.__pydantic_computed_fields__
+                    ):
                         hoisted_val = getattr(supplied_arg_val, unsupplied_arg_name)
                     else:
-                        assert False, f'{unsupplied_arg_name} must be in model: {supplied_arg_val}'
+                        assert False, (
+                            f"{unsupplied_arg_name} must be in model: {supplied_arg_val}"
+                        )
                     hoisted_from_modelled_updates[unsupplied_arg_name] = hoisted_val
 
     return hoisted_from_modelled_updates
@@ -505,10 +524,7 @@ def _pydantic_hoist_modelled_fields(
 
 def _get_base_type(annotation):
     origin = typing.get_origin(annotation)
-    if (
-        origin is typing.Union
-        or origin is types.UnionType
-    ):
+    if origin is typing.Union or origin is types.UnionType:
         args = typing.get_args(annotation)
         inner_types = [arg for arg in args if arg is not type(None)]
         return inner_types[0] if inner_types else None
@@ -519,7 +535,6 @@ def _get_base_type(annotation):
 # Sorry for silly "BaseBase", temporary while internal Cisco implementation
 # is iterated on. Final version will be upstreamed.
 class FireXBaseBaseModel(pydantic.BaseModel):
-
     @classmethod
     def firex_load(cls, data) -> Self:
         try:
@@ -535,10 +550,7 @@ def _get_fx_model_subclass(
 ) -> type[FireXBaseBaseModel] | None:
     if param.annotation and param.annotation != param.empty:
         maybe_class = _get_base_type(param.annotation)
-        if (
-            inspect.isclass(maybe_class)
-            and issubclass(maybe_class, FireXBaseBaseModel)
-        ):
+        if inspect.isclass(maybe_class) and issubclass(maybe_class, FireXBaseBaseModel):
             return maybe_class
     return None
 
@@ -548,31 +560,28 @@ def _pydantic_validate_args(
     fx_params: _FireXArgParameters,
     input_service_args: types.MappingProxyType[str, Any],
 ) -> dict[str, Any]:
-    adapter_updates : dict[str, Any] = {}
+    adapter_updates: dict[str, Any] = {}
     for arg_name, param in fx_params.parameters.items():
-        if (
-            param.annotation
-            and param.annotation != param.empty
-        ):
+        if param.annotation and param.annotation != param.empty:
             attempting_expand_default = False
             try:
                 fx_model_cls = _get_fx_model_subclass(param)
-                if (
-                    arg_name in input_service_args
-                    and not (
-                        # if it's a firex model that has a default value of None,
-                        # and the current value is None, try to populate from abog
-                        # instead of native pydantic conversion being done here.
-                        fx_model_cls
-                        and (
-                            attempting_expand_default := (
-                                input_service_args[arg_name] is None
-                                and fx_model_cls.__pydantic_fields__[arg_name].default is None
-                            )
+                if arg_name in input_service_args and not (
+                    # if it's a firex model that has a default value of None,
+                    # and the current value is None, try to populate from abog
+                    # instead of native pydantic conversion being done here.
+                    fx_model_cls
+                    and (
+                        attempting_expand_default := (
+                            input_service_args[arg_name] is None
+                            and fx_model_cls.__pydantic_fields__[arg_name].default
+                            is None
                         )
                     )
                 ):
-                    adapter = _get_annotation_validator(param.annotation).get_adapter(pydantic_validate)
+                    adapter = _get_annotation_validator(param.annotation).get_adapter(
+                        pydantic_validate
+                    )
                     if adapter is None:
                         # pydantic can't do anything useful with this annotation.
                         # Already logged once when the annotation was classified.
@@ -582,11 +591,13 @@ def _pydantic_validate_args(
                 elif fx_model_cls:
                     # if the parameter is a FireXBaseModel and wasn't explicitly
                     # suppplied by name, see if it can be constructed from the abog.
-                    logger.info(f'Attempting to populate firex modelled arg {arg_name} ({fx_model_cls.__name__}) from bog: ')
+                    logger.info(
+                        f"Attempting to populate firex modelled arg {arg_name} ({fx_model_cls.__name__}) from bog: "
+                    )
                     init_value = dict(input_service_args)
                     adapted_value = fx_model_cls.firex_load(init_value)
                 else:
-                    adapted_value = init_value = input_service_args # noop
+                    adapted_value = init_value = input_service_args  # noop
             except (ValueError, pydantic.PydanticUserError) as e:
                 # pydantic.ValidationError is a ValueError, but schema problems
                 # (e.g. a model with unresolved refs) are PydanticUserErrors, which
@@ -594,13 +605,15 @@ def _pydantic_validate_args(
                 #
                 # if a default of None can't be filled in, that's OK the default is fine.
                 if not attempting_expand_default:
-                    msg = f'Failed to convert arg {arg_name} to {param.annotation}'
+                    msg = f"Failed to convert arg {arg_name} to {param.annotation}"
                     if pydantic_validate == ValidateArgs.REQUIRE:
                         raise ValueError(msg) from e
-                    logger.warning(msg) # FIXME: bump to error
+                    logger.warning(msg)  # FIXME: bump to error
             else:
                 if init_value != adapted_value:
-                    logger.debug(f'Pydantic converted {arg_name} to {param.annotation} value: {adapted_value}')
+                    logger.debug(
+                        f"Pydantic converted {arg_name} to {param.annotation} value: {adapted_value}"
+                    )
                     adapter_updates[arg_name] = adapted_value
     return adapter_updates
 
@@ -608,11 +621,11 @@ def _pydantic_validate_args(
 @dataclasses.dataclass(frozen=True)
 class _AnnotationValidator:
     """
-        What pydantic is able to do with a single annotation.
+    What pydantic is able to do with a single annotation.
 
-        This is a property of the annotation alone, so it's determined once and
-        cached. It is deliberately separate from the per-call question of whether
-        some value satisfies that annotation.
+    This is a property of the annotation alone, so it's determined once and
+    cached. It is deliberately separate from the per-call question of whether
+    some value satisfies that annotation.
     """
 
     # None when pydantic can't build a schema for the annotation at all, either
@@ -624,11 +637,10 @@ class _AnnotationValidator:
     # never coerce a value, it can only reject one.
     is_instance_only: bool
 
-    def get_adapter(self, pydantic_validate: ValidateArgs) -> pydantic.TypeAdapter | None:
-        if (
-            self.is_instance_only
-            and pydantic_validate != ValidateArgs.REQUIRE
-        ):
+    def get_adapter(
+        self, pydantic_validate: ValidateArgs
+    ) -> pydantic.TypeAdapter | None:
+        if self.is_instance_only and pydantic_validate != ValidateArgs.REQUIRE:
             # An isinstance() assertion can never repair a value, it can only turn a
             # working run in to a failing one (e.g. a JSON round-tripped child result
             # arriving as a dict), so only apply it when validation is REQUIREd.
@@ -639,16 +651,18 @@ class _AnnotationValidator:
 _UNVALIDATABLE_ANNOTATION = _AnnotationValidator(adapter=None, is_instance_only=False)
 
 # Building a TypeAdapter is expensive, and the result only depends on the annotation.
-_ANNOTATION_VALIDATORS : dict[Any, _AnnotationValidator] = {}
+_ANNOTATION_VALIDATORS: dict[Any, _AnnotationValidator] = {}
 
 
 def _get_annotation_validator(annotation) -> _AnnotationValidator:
     try:
         cached = _ANNOTATION_VALIDATORS.get(annotation)
     except TypeError:
-        return _build_annotation_validator(annotation) # unhashable annotation
+        return _build_annotation_validator(annotation)  # unhashable annotation
     if cached is None:
-        cached = _ANNOTATION_VALIDATORS[annotation] = _build_annotation_validator(annotation)
+        cached = _ANNOTATION_VALIDATORS[annotation] = _build_annotation_validator(
+            annotation
+        )
     return cached
 
 
@@ -658,7 +672,7 @@ def _build_annotation_validator(annotation) -> _AnnotationValidator:
         # pydantic treats a str as a ForwardRef and resolves it against the namespace of
         # whoever constructed the TypeAdapter -- i.e. this module -- not the task's module,
         # so it must never be handed one. See _get_signature_with_resolved_annotations.
-        logger.debug(f'Cannot validate unresolved annotation {annotation!r}.')
+        logger.debug(f"Cannot validate unresolved annotation {annotation!r}.")
         return _UNVALIDATABLE_ANNOTATION
 
     try:
@@ -666,7 +680,8 @@ def _build_annotation_validator(annotation) -> _AnnotationValidator:
             annotation,
             # pydantic rejects a config outright for types that carry their own.
             config=(
-                None if _annotation_has_own_pydantic_config(annotation)
+                None
+                if _annotation_has_own_pydantic_config(annotation)
                 else pydantic.ConfigDict(arbitrary_types_allowed=True)
             ),
         )
@@ -680,14 +695,14 @@ def _build_annotation_validator(annotation) -> _AnnotationValidator:
     except Exception as e:  # noqa: BLE001
         # Schema generation failures are PydanticUserErrors (RuntimeError), not
         # ValueErrors, and a third-party __get_pydantic_core_schema__ can raise anything.
-        logger.debug(f'Pydantic cannot model annotation {annotation}: {e!r}')
+        logger.debug(f"Pydantic cannot model annotation {annotation}: {e!r}")
         return _UNVALIDATABLE_ANNOTATION
 
     is_instance_only = _schema_is_instance_only(adapter.core_schema)
     if is_instance_only:
         logger.debug(
-            f'Pydantic can only isinstance() check annotation {annotation};'
-            ' it will not be converted.'
+            f"Pydantic can only isinstance() check annotation {annotation};"
+            " it will not be converted."
         )
     return _AnnotationValidator(adapter=adapter, is_instance_only=is_instance_only)
 
@@ -703,53 +718,52 @@ def _annotation_has_own_pydantic_config(annotation) -> bool:
             or is_typeddict(annotation)
         )
     except TypeError:
-        return False # annotation is not a class
+        return False  # annotation is not a class
 
 
 def _schema_is_instance_only(schema) -> bool:
-    """ True when every leaf pydantic generated for a core schema is a bare isinstance() check. """
+    """True when every leaf pydantic generated for a core schema is a bare isinstance() check."""
     if not isinstance(schema, dict):
         return False
-    schema_type = schema.get('type')
-    if schema_type == 'is-instance':
+    schema_type = schema.get("type")
+    if schema_type == "is-instance":
         return True
-    if schema_type == 'union':
+    if schema_type == "union":
         inner_schemas = [
             # choices entries are either a schema or a (schema, tag) tuple.
             choice[0] if isinstance(choice, tuple) else choice
-            for choice in schema.get('choices', [])
+            for choice in schema.get("choices", [])
         ]
     else:
         inner_schemas = [
             schema[key]
-            for key in ('schema', 'items_schema', 'values_schema')
+            for key in ("schema", "items_schema", "values_schema")
             if key in schema
         ]
-    return bool(inner_schemas) and all(_schema_is_instance_only(s) for s in inner_schemas)
+    return bool(inner_schemas) and all(
+        _schema_is_instance_only(s) for s in inner_schemas
+    )
 
 
 def log_unvalidatable_annotations(task_name: str, sig: inspect.Signature) -> None:
     """
-        Classify (and therefore cache) every annotation of a task's signature so that
-        annotations pydantic can't do anything with are reported once, at registration,
-        instead of from inside a running service.
+    Classify (and therefore cache) every annotation of a task's signature so that
+    annotations pydantic can't do anything with are reported once, at registration,
+    instead of from inside a running service.
     """
     for arg_name, param in sig.parameters.items():
-        if (
-            not param.annotation
-            or param.annotation is param.empty
-        ):
+        if not param.annotation or param.annotation is param.empty:
             continue
         validator = _get_annotation_validator(param.annotation)
         if validator.adapter is None:
             logger.debug(
-                f'{task_name}: arg {arg_name} annotation {param.annotation!r} cannot be'
-                ' modelled by pydantic; it will never be validated.'
+                f"{task_name}: arg {arg_name} annotation {param.annotation!r} cannot be"
+                " modelled by pydantic; it will never be validated."
             )
         elif validator.is_instance_only:
             logger.debug(
-                f'{task_name}: arg {arg_name} annotation {param.annotation} is only an'
-                ' isinstance() check to pydantic; it will not be converted.'
+                f"{task_name}: arg {arg_name} annotation {param.annotation} is only an"
+                " isinstance() check to pydantic; it will not be converted."
             )
 
 
@@ -758,17 +772,19 @@ def _validate_var_pos_arg(var_pos_name: str, var_pos_value) -> tuple[Any, ...]:
         return tuple(x for x in var_pos_value)
     except TypeError as e:
         #  Did we update() a VAR_POSITIONAL arg with a non-iterable arg? Don't do that!
-        raise ValueError(f'VAR_POSITIONAL argument {var_pos_name} should always be an iterable') from e
+        raise ValueError(
+            f"VAR_POSITIONAL argument {var_pos_name} should always be an iterable"
+        ) from e
 
 
 def _resolve_indirect_prev_results_and_split_accepted_args(
     kwargs: types.MappingProxyType[str, Any],
     prev_task_result: types.MappingProxyType[str, Any],
-    fx_params: _FireXArgParameters, # sig.parameters
+    fx_params: _FireXArgParameters,  # sig.parameters
     bound_pos_arg_names: set[str],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     resolved_kwargs = dict(kwargs)
-    unaccepted_args : dict[str, Any] = {}
+    unaccepted_args: dict[str, Any] = {}
     for pt_result_name, pr_result_val in prev_task_result.items():
         # Add previous task results to cur args only if any of
         #   - they're not already bound
@@ -791,10 +807,12 @@ def _resolve_indirect_prev_results_and_split_accepted_args(
                 unaccepted_args[pt_result_name] = pr_result_val
     return resolved_kwargs, unaccepted_args
 
-A = typing.TypeVar('A')
-AutoInject = typing.Annotated[A, 'FireXAutoInject']
 
-T = typing.TypeVar('T')
+A = typing.TypeVar("A")
+AutoInject = typing.Annotated[A, "FireXAutoInject"]
+
+T = typing.TypeVar("T")
+
 
 @dataclasses.dataclass
 class AutoInjectSpec(typing.Generic[T]):
@@ -806,40 +824,40 @@ class AutoInjectSpec(typing.Generic[T]):
 
 @dataclasses.dataclass(frozen=True)
 class AutoInjectRegistry:
-
     # dynamic auto inject keys/values
     _specs_by_name_and_type: dict[str, dict[type, AutoInjectSpec]]
 
-    AUTO_IN_REG_ABOG_KEY : typing.ClassVar[str] = '__auto_inject_registry'
-    EMPTY : typing.ClassVar[typing.Optional['AutoInjectRegistry']] = None
+    AUTO_IN_REG_ABOG_KEY: typing.ClassVar[str] = "__auto_inject_registry"
+    EMPTY: typing.ClassVar[typing.Optional["AutoInjectRegistry"]] = None
 
     @classmethod
     def get_auto_inject_registry(
         cls,
         primary_args: dict[str, Any],
-    ) -> typing.Optional['AutoInjectRegistry']:
+    ) -> typing.Optional["AutoInjectRegistry"]:
         return primary_args.get(cls.AUTO_IN_REG_ABOG_KEY)
 
     @classmethod
-    def empty_auto_inject_reg(cls) -> 'AutoInjectRegistry':
+    def empty_auto_inject_reg(cls) -> "AutoInjectRegistry":
         if cls.EMPTY is None:
             cls.EMPTY = AutoInjectRegistry({})
         return cls.EMPTY
 
     @staticmethod
-    def create_auto_in_reg(specs: list[AutoInjectSpec]) -> 'AutoInjectRegistry':
+    def create_auto_in_reg(specs: list[AutoInjectSpec]) -> "AutoInjectRegistry":
         specs_by_name_and_type: dict[str, dict[type, AutoInjectSpec]] = {}
 
         for s in specs:
             if s.value is not None:
                 raise ValueError(
-                    f'AutoInjectRegistry should only be initialised with default values, but {s.arg_name} has a real value.')
+                    f"AutoInjectRegistry should only be initialised with default values, but {s.arg_name} has a real value."
+                )
             if s.arg_name not in specs_by_name_and_type:
                 specs_by_name_and_type[s.arg_name] = {}
             if s.arg_type not in specs_by_name_and_type[s.arg_name]:
                 specs_by_name_and_type[s.arg_name][s.arg_type] = s
             else:
-                raise ValueError(f'Duplicate specs for {s.arg_name}[{s.arg_type}]')
+                raise ValueError(f"Duplicate specs for {s.arg_name}[{s.arg_type}]")
 
         return AutoInjectRegistry(specs_by_name_and_type)
 
@@ -849,7 +867,9 @@ class AutoInjectRegistry:
     def get(self, name: str, default=None) -> Any:
         if name in self._specs_by_name_and_type:
             specs = list(self._specs_by_name_and_type[name].values())
-            assert len(specs) == 1, f'Expected exactly one auto-inject value for {name}, found {len(specs)}'
+            assert len(specs) == 1, (
+                f"Expected exactly one auto-inject value for {name}, found {len(specs)}"
+            )
             return specs[0].value or specs[0].default_value
 
         if default is not None:
@@ -858,30 +878,44 @@ class AutoInjectRegistry:
 
     def update_auto_inject_args(self, pos_and_kw_args: dict[str, Any]):
         """
-            Update the value in the auto-inject registry so that the nearest ancestor's
-            value of an auto-injected arg is used instead of the default or a farther ancestor's
-            value.
+        Update the value in the auto-inject registry so that the nearest ancestor's
+        value of an auto-injected arg is used instead of the default or a farther ancestor's
+        value.
         """
         for arg_name, arg_val in pos_and_kw_args.items():
             if (
                 arg_name in self._specs_by_name_and_type
-                and (auto_in_arg := self._get_spec_by_name_and_instance(arg_name, arg_val) )
+                and (
+                    auto_in_arg := self._get_spec_by_name_and_instance(
+                        arg_name, arg_val
+                    )
+                )
                 and auto_in_arg.value != arg_val
             ):
-                logger.info(f'Overwriting auto-inject arg {arg_name} with abog value: {arg_val}')
+                logger.info(
+                    f"Overwriting auto-inject arg {arg_name} with abog value: {arg_val}"
+                )
                 auto_in_arg.value = arg_val
 
-    def _get_spec_by_name_and_instance(self, arg_name: str, val: typing.Any) -> AutoInjectSpec | None:
+    def _get_spec_by_name_and_instance(
+        self, arg_name: str, val: typing.Any
+    ) -> AutoInjectSpec | None:
         for t, spec in self._specs_by_name_and_type[arg_name].items():
             if isinstance(val, t):
                 return spec
         return None
 
-    def _get_spec_by_name_and_type(self, arg_name: str, _type: type) -> AutoInjectSpec | None:
+    def _get_spec_by_name_and_type(
+        self, arg_name: str, _type: type
+    ) -> AutoInjectSpec | None:
         if arg_name not in self._specs_by_name_and_type:
-            logger.error(f'AutoInjectRegistry not statically initialized for {arg_name}')
+            logger.error(
+                f"AutoInjectRegistry not statically initialized for {arg_name}"
+            )
         elif _type not in self._specs_by_name_and_type[arg_name]:
-            logger.error(f'AutoInjectRegistry not statically initialized for {arg_name}/[{_type}]')
+            logger.error(
+                f"AutoInjectRegistry not statically initialized for {arg_name}/[{_type}]"
+            )
         else:
             return self._specs_by_name_and_type[arg_name][_type]
         return None
@@ -906,22 +940,29 @@ class AutoInjectRegistry:
                 # service definitions can be written assuming AutoInject is populated with a valide type,
                 # to adding a default at the service level confuses that and encourages "always have a default"
                 # needless defensive coding.
-                raise TypeError(f'AutoInject arg {auto_inject_name} has a default value.')
+                raise TypeError(
+                    f"AutoInject arg {auto_inject_name} has a default value."
+                )
 
             auto_inject_type = BagOfGoodies.get_auto_inject_type(param.annotation)
             if auto_inject_type:
-                spec = self._get_spec_by_name_and_type(auto_inject_name, auto_inject_type)
+                spec = self._get_spec_by_name_and_type(
+                    auto_inject_name, auto_inject_type
+                )
                 if spec:
                     if spec.value is not None:
-                        logger.debug(f'Setting non-default AutoInject {auto_inject_name}')
+                        logger.debug(
+                            f"Setting non-default AutoInject {auto_inject_name}"
+                        )
                         auto_in_v = spec.value
                     else:
-                        logger.debug(f'Setting default AutoInject {auto_inject_name}')
+                        logger.debug(f"Setting default AutoInject {auto_inject_name}")
                         auto_in_v = spec.default_value
                     auto_inject_kwargs[auto_inject_name] = auto_in_v
             else:
                 raise TypeError(
-                    f'AutoInject arg {auto_inject_name} has no inner type. The "Foo" in AutoInject[Foo] is required.')
+                    f'AutoInject arg {auto_inject_name} has no inner type. The "Foo" in AutoInject[Foo] is required.'
+                )
         if auto_inject_kwargs:
-            logger.debug(f'Auto-Injecting args: {", ".join(auto_inject_kwargs)}')
+            logger.debug(f"Auto-Injecting args: {', '.join(auto_inject_kwargs)}")
         return auto_inject_kwargs

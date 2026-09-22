@@ -1,6 +1,7 @@
 """
 Aggregates events in to the task data model.
 """
+
 import dataclasses
 import logging
 import time
@@ -11,14 +12,13 @@ from firexapp.events.model import RunStates, TaskColumn
 
 logger = logging.getLogger(__name__)
 
+
 @dataclasses.dataclass
 class EventAggregatorConfig:
     copy_fields: list[str]
     merge_fields: list[str]
     keep_initial_fields: list[str]
-    field_to_celery_transforms: dict[
-        str,
-        Callable[[dict[str, Any]], dict[str, Any]]]
+    field_to_celery_transforms: dict[str, Callable[[dict[str, Any]], dict[str, Any]]]
 
     # Event data extraction/transformation without current state context.
     def get_new_event_data(self, event: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -33,7 +33,7 @@ class EventAggregatorConfig:
                 transformed_dict = transform(event)
                 new_task_data.update(transformed_dict)
 
-        return {event['uuid']: new_task_data}
+        return {event["uuid"]: new_task_data}
 
     def find_data_changes(
         self,
@@ -42,10 +42,10 @@ class EventAggregatorConfig:
     ) -> dict[str, Any]:
         # Some fields overwrite whatever is present. Be permissive, since not all fields captured are from celery,
         # so not all have entries in the field config.
-        no_overwrite_fields = self.keep_initial_fields + self.merge_fields + ['state']
+        no_overwrite_fields = self.keep_initial_fields + self.merge_fields + ["state"]
         override_dict = {
-            k: v for k, v in new_task_data.items()
-            if k not in no_overwrite_fields}
+            k: v for k, v in new_task_data.items() if k not in no_overwrite_fields
+        }
 
         changed_data = {}
         for new_data_key, new_data_val in override_dict.items():
@@ -57,14 +57,13 @@ class EventAggregatorConfig:
 
         # Some field updates are dropped if there is already a value for that field name (keep initial).
         for keep_init_key in self.keep_initial_fields:
-            if (
-                keep_init_key in new_task_data
-                and keep_init_key not in existing_task
-            ):
+            if keep_init_key in new_task_data and keep_init_key not in existing_task:
                 changed_data[keep_init_key] = new_task_data[keep_init_key]
 
         # Some fields need to be accumulated across events, not overwritten from latest event.
-        merged_values = _deep_merge_keys(existing_task, new_task_data, self.merge_fields)
+        merged_values = _deep_merge_keys(
+            existing_task, new_task_data, self.merge_fields
+        )
         for merged_data_key, merged_data_val in merged_values.items():
             if (
                 merged_data_key not in existing_task
@@ -72,10 +71,10 @@ class EventAggregatorConfig:
             ):
                 changed_data[merged_data_key] = merged_data_val
 
-        if new_task_data.get('state'):
-            changed_data['state'] = RunStates.get_higher_priority_state(
-                existing_task.get('state'),
-                new_task_data.get('state'),
+        if new_task_data.get("state"):
+            changed_data["state"] = RunStates.get_higher_priority_state(
+                existing_task.get("state"),
+                new_task_data.get("state"),
             )
 
         return changed_data
@@ -85,24 +84,26 @@ def transform_task_state(
     celery_event: dict[str, Any],
 ) -> dict[str, Any]:
     transformed_data = {}
-    event_type: str | None = celery_event.get('type')
-    if event_type == 'task-completed':
-        transformed_data['has_completed'] = True
+    event_type: str | None = celery_event.get("type")
+    if event_type == "task-completed":
+        transformed_data["has_completed"] = True
     else:
         try:
             state = RunStates.create(event_type)
         except ValueError:
             pass
         else:
-            transformed_data['state'] = state.to_ui_state()
-            transformed_data['states'] = [{
-                TaskColumn.STATE.value: state.to_ui_state(),
-                'timestamp': celery_event.get('local_received')
-            }]
+            transformed_data["state"] = state.to_ui_state()
+            transformed_data["states"] = [
+                {
+                    TaskColumn.STATE.value: state.to_ui_state(),
+                    "timestamp": celery_event.get("local_received"),
+                }
+            ]
             if state.is_revoke():
                 # tasks can become not-revoked after being revoked, so we need to keep track of revoked state
                 # explicitly.
-                transformed_data['was_revoked'] = True
+                transformed_data["was_revoked"] = True
     return transformed_data
 
 
@@ -126,47 +127,50 @@ def transform_task_state(
 #
 #
 FIELD_CONFIG = {
-    TaskColumn.UUID.value: {'copy_celery': True},
-    TaskColumn.HOSTNAME.value: {'copy_celery': True},
-    TaskColumn.PARENT_ID.value: {'copy_celery': True},
-    'type': {
-        'copy_celery': True,
-        'transform_celery': transform_task_state,
+    TaskColumn.UUID.value: {"copy_celery": True},
+    TaskColumn.HOSTNAME.value: {"copy_celery": True},
+    TaskColumn.PARENT_ID.value: {"copy_celery": True},
+    "type": {
+        "copy_celery": True,
+        "transform_celery": transform_task_state,
     },
-    TaskColumn.RETRIES.value: {'copy_celery': True},
-    TaskColumn.BOUND_ARGS.value: {'copy_celery': True},
-    TaskColumn.ACTUAL_RUNTIME.value: {'copy_celery': True},
-    TaskColumn.UTCOFFSET.value: {'copy_celery': True},
-    TaskColumn.DEFAULT_BOUND_ARGS.value: {'copy_celery': True},
-    TaskColumn.FROM_PLUGIN.value: {'copy_celery': True},
-    TaskColumn.RESULTS.value: {'copy_celery': True},
-    TaskColumn.TRACEBACK.value: {'copy_celery': True},
-    TaskColumn.EXCEPTION.value: {'copy_celery': True},
+    TaskColumn.RETRIES.value: {"copy_celery": True},
+    TaskColumn.BOUND_ARGS.value: {"copy_celery": True},
+    TaskColumn.ACTUAL_RUNTIME.value: {"copy_celery": True},
+    TaskColumn.UTCOFFSET.value: {"copy_celery": True},
+    TaskColumn.DEFAULT_BOUND_ARGS.value: {"copy_celery": True},
+    TaskColumn.FROM_PLUGIN.value: {"copy_celery": True},
+    TaskColumn.RESULTS.value: {"copy_celery": True},
+    TaskColumn.TRACEBACK.value: {"copy_celery": True},
+    TaskColumn.EXCEPTION.value: {"copy_celery": True},
     TaskColumn.LONG_NAME.value: {
-        'copy_celery': True,
-        'transform_celery': lambda e: {'name': e['long_name'].split('.')[-1]},
+        "copy_celery": True,
+        "transform_celery": lambda e: {"name": e["long_name"].split(".")[-1]},
     },
     TaskColumn.NAME.value: {
         # TODO: firexapp should send long_name, since it will overwrite 'name' copied from celery. Then get rid of
         # the following config.
-        'transform_celery': lambda e: {
-            TaskColumn.NAME.value: e[TaskColumn.NAME.value].split('.')[-1],
-            TaskColumn.LONG_NAME.value: e[TaskColumn.NAME.value]},
+        "transform_celery": lambda e: {
+            TaskColumn.NAME.value: e[TaskColumn.NAME.value].split(".")[-1],
+            TaskColumn.LONG_NAME.value: e[TaskColumn.NAME.value],
+        },
     },
-    TaskColumn.CHAIN_DEPTH.value: {'copy_celery': True},
-    TaskColumn.FIRST_STARTED.value: {'aggregate_keep_initial': True},
-    TaskColumn.EXCEPTION_CAUSE_UUID.value: {'copy_celery': True},
-    'states': {'aggregate_merge': True},
-    'url': {
+    TaskColumn.CHAIN_DEPTH.value: {"copy_celery": True},
+    TaskColumn.FIRST_STARTED.value: {"aggregate_keep_initial": True},
+    TaskColumn.EXCEPTION_CAUSE_UUID.value: {"copy_celery": True},
+    "states": {"aggregate_merge": True},
+    "url": {
         # TODO: only for backwards compat. Can use log_filepath.
-        'transform_celery': lambda e: {TaskColumn.LOGS_URL.value: e['url']},
+        "transform_celery": lambda e: {TaskColumn.LOGS_URL.value: e["url"]},
     },
-    'log_filepath': {
-        'transform_celery': lambda e: {TaskColumn.LOGS_URL.value: e['log_filepath']},
+    "log_filepath": {
+        "transform_celery": lambda e: {TaskColumn.LOGS_URL.value: e["log_filepath"]},
     },
-    'local_received': {
+    "local_received": {
         # Note first_started is never overwritten by aggregation.
-        'transform_celery': lambda e: {TaskColumn.FIRST_STARTED.value: e['local_received']},
+        "transform_celery": lambda e: {
+            TaskColumn.FIRST_STARTED.value: e["local_received"]
+        },
     },
 }
 
@@ -177,14 +181,16 @@ def _get_keys_with_true(input_dict, key):
 
 def event_aggregator_from_field_spec(field_spec: dict[str, dict[str, Any]]):
     return EventAggregatorConfig(
-        copy_fields=_get_keys_with_true(field_spec, 'copy_celery'),
-        merge_fields=_get_keys_with_true(field_spec, 'aggregate_merge'),
-        keep_initial_fields=_get_keys_with_true(field_spec, 'aggregate_keep_initial'),
+        copy_fields=_get_keys_with_true(field_spec, "copy_celery"),
+        merge_fields=_get_keys_with_true(field_spec, "aggregate_merge"),
+        keep_initial_fields=_get_keys_with_true(field_spec, "aggregate_keep_initial"),
         field_to_celery_transforms={
-            k: v['transform_celery']
+            k: v["transform_celery"]
             for k, v in field_spec.items()
-            if 'transform_celery' in v},
+            if "transform_celery" in v
+        },
     )
+
 
 DEFAULT_AGGREGATOR_CONFIG = event_aggregator_from_field_spec(FIELD_CONFIG)
 
@@ -226,7 +232,7 @@ def _deep_merge(dict1, dict2):
 
 
 class AbstractFireXEventAggregator:
-    """ Aggregates many events in to the task data model. """
+    """Aggregates many events in to the task data model."""
 
     def __init__(self, aggregator_config: EventAggregatorConfig):
         self.new_task_num = 1
@@ -254,25 +260,22 @@ class AbstractFireXEventAggregator:
         now = time.time()
         for incomplete_task in self._get_incomplete_tasks():
             new_event = {
-                'uuid': incomplete_task['uuid'],
-                'type': RunStates.get_forced_complete_celery_event_type(
-                    incomplete_task.get('state')),
+                "uuid": incomplete_task["uuid"],
+                "type": RunStates.get_forced_complete_celery_event_type(
+                    incomplete_task.get("state")
+                ),
             }
 
             if not incomplete_task.get(TaskColumn.ACTUAL_RUNTIME.value):
-                task_runtime = now - (incomplete_task.get('first_started') or now)
+                task_runtime = now - (incomplete_task.get("first_started") or now)
                 new_event[TaskColumn.ACTUAL_RUNTIME.value] = task_runtime
             new_events.append(new_event)
         return new_events
 
     def is_root_complete(self) -> bool:
-        if (
-            not self.root_uuid
-            or not self._task_exists(self.root_uuid)
-        ):
+        if not self.root_uuid or not self._task_exists(self.root_uuid):
             return False  # Might not have root event yet.
-        return RunStates.is_complete_state(
-            self._get_task(self.root_uuid).get('state'))
+        return RunStates.is_complete_state(self._get_task(self.root_uuid).get("state"))
 
     def are_all_tasks_complete(self) -> bool:
         if not self.is_root_complete():
@@ -284,11 +287,11 @@ class AbstractFireXEventAggregator:
         if not self._task_exists(task_uuid):
             task = self._insert_new_task(
                 {
-                    'uuid': task_uuid,
-                    'task_num': self.new_task_num,
+                    "uuid": task_uuid,
+                    "task_num": self.new_task_num,
                 }
             )
-            self.new_task_num += 1 # only update after insert succeeds.
+            self.new_task_num += 1  # only update after insert succeeds.
             is_new = True
         else:
             task = self._get_task(task_uuid)
@@ -299,34 +302,44 @@ class AbstractFireXEventAggregator:
     def _aggregate_event(self, event: dict[str, Any]) -> dict[str, dict[str, Any]]:
         if (
             # The uuid can be null, it's unclear what this means but it can't be associated with a task.
-            not event.get('uuid')
+            not event.get("uuid")
             # Revoked events can be sent before any other, and we'll never get any data (name, etc) for that task.
             # Therefore ignore events that are for a new UUID that have revoked type.
             or (
-                not self._task_exists(event['uuid'])
-                and event.get('type') == RunStates.REVOKED.to_celery_event_type())
+                not self._task_exists(event["uuid"])
+                and event.get("type") == RunStates.REVOKED.to_celery_event_type()
+            )
         ):
             return {}
 
-        if event.get(TaskColumn.PARENT_ID.value, '__no_match') is None and self.root_uuid is None:
-            self.root_uuid = event['uuid']
+        if (
+            event.get(TaskColumn.PARENT_ID.value, "__no_match") is None
+            and self.root_uuid is None
+        ):
+            self.root_uuid = event["uuid"]
 
         new_data_by_task_uuid = self.aggregator_config.get_new_event_data(event)
         changes_by_task_uuid = {}
         for task_uuid, new_task_data in new_data_by_task_uuid.items():
             existing_task, is_new_task = self._get_or_create_task(task_uuid)
 
-            changed_data = self.aggregator_config.find_data_changes(existing_task, new_task_data)
+            changed_data = self.aggregator_config.find_data_changes(
+                existing_task, new_task_data
+            )
             if changed_data:
                 self._update_task(task_uuid, existing_task, changed_data)
 
             # If we just created the task, we need to send the auto-initialized fields, as well as data from the event.
             # If this isn't a new event, we only need to send what has changed.
-            changes_by_task_uuid[task_uuid] = dict(existing_task) if is_new_task else dict(changed_data)
+            changes_by_task_uuid[task_uuid] = (
+                dict(existing_task) if is_new_task else dict(changed_data)
+            )
 
         return changes_by_task_uuid
 
-    def _update_task(self, task_uuid: str, full_task: dict[str, Any], changed_data: dict[str, Any]) -> None:
+    def _update_task(
+        self, task_uuid: str, full_task: dict[str, Any], changed_data: dict[str, Any]
+    ) -> None:
         full_task.update(changed_data)
 
     def _task_exists(self, task_uuid):
@@ -343,11 +356,13 @@ class AbstractFireXEventAggregator:
 
 
 class FireXEventAggregator(AbstractFireXEventAggregator):
-    """ Aggregates many Celery events in to the FireX tasks data model. """
+    """Aggregates many Celery events in to the FireX tasks data model."""
 
-    def __init__(self, aggregator_config: EventAggregatorConfig = DEFAULT_AGGREGATOR_CONFIG):
+    def __init__(
+        self, aggregator_config: EventAggregatorConfig = DEFAULT_AGGREGATOR_CONFIG
+    ):
         super().__init__(aggregator_config)
-        self.tasks_by_uuid : dict[str, Any] = {}
+        self.tasks_by_uuid: dict[str, Any] = {}
 
     def _task_exists(self, task_uuid: str) -> bool:
         if not task_uuid:
@@ -359,15 +374,18 @@ class FireXEventAggregator(AbstractFireXEventAggregator):
 
     def _get_incomplete_tasks(self) -> list[dict[str, Any]]:
         return [
-            task for task in self.tasks_by_uuid.values()
+            task
+            for task in self.tasks_by_uuid.values()
             if (
                 task.get(TaskColumn.ACTUAL_RUNTIME.value) is None
-                or RunStates.is_incomplete_state(task.get('state'))
+                or RunStates.is_incomplete_state(task.get("state"))
             )
         ]
 
     def _insert_new_task(self, task: dict[str, Any]) -> dict[str, Any]:
-        assert 'uuid' in task, f'Cannot insert task without uuid: {task}'
-        assert not self._task_exists(task['uuid']), f'Task already exists, cannot insert: {task}'
-        self.tasks_by_uuid[task['uuid']] = task
+        assert "uuid" in task, f"Cannot insert task without uuid: {task}"
+        assert not self._task_exists(task["uuid"]), (
+            f"Task already exists, cannot insert: {task}"
+        )
+        self.tasks_by_uuid[task["uuid"]] = task
         return task

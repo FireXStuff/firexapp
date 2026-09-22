@@ -20,26 +20,26 @@ def get_process_memory_info(pid=None, gc_collect=True):
 def human_readable_bytes(num, suffix="B"):
     for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
         if abs(num) < 1024.0:
-            return f"{num}{unit}{suffix}" if unit == '' else f"{num:3.1f}{unit}{suffix}"
+            return f"{num}{unit}{suffix}" if unit == "" else f"{num:3.1f}{unit}{suffix}"
         num /= 1024.0
     return f"{num:.1f}Yi{suffix}"
 
 
 def tracemalloc_compare(snapshot_initial, snapshot_final, top_differences=3):
     output = []
-    top_stats = snapshot_final.compare_to(snapshot_initial, 'lineno')
-    output += [f'[ Top {top_differences} differences ]']
+    top_stats = snapshot_final.compare_to(snapshot_initial, "lineno")
+    output += [f"[ Top {top_differences} differences ]"]
     for stat in top_stats[:top_differences]:
-        output += [f'{stat}']
+        output += [f"{stat}"]
     return output
 
 
 @contextmanager
-def process_memory_delta(prefix='', trace_mem=True):
+def process_memory_delta(prefix="", trace_mem=True):
     snapshot_initial = None
     output = []
     if prefix:
-        prefix = f'[{prefix}]'
+        prefix = f"[{prefix}]"
     frame1 = inspect.stack()[2]
     mem_initial = get_process_memory_info()
     if trace_mem:
@@ -52,9 +52,13 @@ def process_memory_delta(prefix='', trace_mem=True):
         vms_delta = mem_final.vms - mem_initial.vms
         rss_delta = mem_final.rss - mem_initial.rss
         frame2 = inspect.stack()[2]
-        output += [f'{prefix}[{frame1.function}:{frame1.lineno}->{frame2.function}:{frame2.lineno}]']
-        output += [f'rss delta={human_readable_bytes(rss_delta)}, vms delta={human_readable_bytes(vms_delta)}']
+        output += [
+            f"{prefix}[{frame1.function}:{frame1.lineno}->{frame2.function}:{frame2.lineno}]"
+        ]
+        output += [
+            f"rss delta={human_readable_bytes(rss_delta)}, vms delta={human_readable_bytes(vms_delta)}"
+        ]
         if trace_mem:
             snapshot_final = tracemalloc.take_snapshot()
             output += tracemalloc_compare(snapshot_initial, snapshot_final)
-        logger.debug('\n'.join(output))
+        logger.debug("\n".join(output))

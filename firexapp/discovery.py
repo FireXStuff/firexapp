@@ -12,9 +12,13 @@ logger = logging.getLogger(__name__)
 _loaded_firex_bundles = {}
 
 
-class PkgVersionInfo(namedtuple('PkgVersionInfo', ('pkg', 'version', 'commit'), defaults=(None, None, None))):
+class PkgVersionInfo(
+    namedtuple(
+        "PkgVersionInfo", ("pkg", "version", "commit"), defaults=(None, None, None)
+    )
+):
     def __str__(self):
-        return f'{self.pkg}: {self.version or self.commit}'
+        return f"{self.pkg}: {self.version or self.commit}"
 
 
 #
@@ -28,7 +32,11 @@ def prune_duplicate_module_entry_points(entry_points) -> list[EntryPoint]:
 
     for e in entry_points:
         key = (e.name, e.module_name, e.object_name)
-        if key not in id_to_entry_points or id_to_entry_points[key].distro is None and e.distro is not None:
+        if (
+            key not in id_to_entry_points
+            or id_to_entry_points[key].distro is None
+            and e.distro is not None
+        ):
             id_to_entry_points[key] = e
 
     return list(id_to_entry_points.values())
@@ -36,6 +44,7 @@ def prune_duplicate_module_entry_points(entry_points) -> list[EntryPoint]:
 
 def _get_entrypoints(name, prune_duplicates=True, path=None) -> list[EntryPoint]:
     import entrypoints
+
     if path is not None and not isinstance(path, list):
         path = [path]
     eps = [ep for ep in entrypoints.get_group_all(name, path=path)]
@@ -45,17 +54,18 @@ def _get_entrypoints(name, prune_duplicates=True, path=None) -> list[EntryPoint]
 
 
 def loaded_firex_core_entry_points(path=None) -> dict[EntryPoint, object]:
-    return _load_firex_entry_points('firex.core', path=path)
+    return _load_firex_entry_points("firex.core", path=path)
 
 
 def _loaded_firex_bundles_entry_points(path) -> dict[EntryPoint, object]:
-    return _load_firex_entry_points('firex.bundles', path=path)
+    return _load_firex_entry_points("firex.bundles", path=path)
 
 
 def loaded_firex_entry_points(path=None):
     cores = loaded_firex_core_entry_points(path=path)
     bundles = _loaded_firex_bundles_entry_points(path=path)
     return cores | bundles
+
 
 def _load_firex_entry_points(entrypoint_name, path=None) -> dict[EntryPoint, object]:
     key = str(path)
@@ -72,7 +82,7 @@ def _load_firex_entry_points(entrypoint_name, path=None) -> dict[EntryPoint, obj
 
 
 def get_firex_tracking_services_entry_points() -> list[EntryPoint]:
-    return _get_entrypoints('firex_tracking_service')
+    return _get_entrypoints("firex_tracking_service")
 
 
 def get_firex_dependant_package_versions() -> list[PkgVersionInfo]:
@@ -88,12 +98,13 @@ def get_firex_dependant_package_versions() -> list[PkgVersionInfo]:
 
 def get_all_pkg_versions() -> list[PkgVersionInfo]:
     from firexapp.submit.tracking_service import get_tracking_services_versions
+
     return get_tracking_services_versions() + get_firex_dependant_package_versions()
 
 
 def get_all_pkg_versions_str() -> str:
-    pkg_version_info_str = [f'\t - {p_info}' for p_info in get_all_pkg_versions()]
-    return 'FireX Package Versions:\n' + '\n'.join(pkg_version_info_str) + '\n'
+    pkg_version_info_str = [f"\t - {p_info}" for p_info in get_all_pkg_versions()]
+    return "FireX Package Versions:\n" + "\n".join(pkg_version_info_str) + "\n"
 
 
 def _find_bundle_pkg_root(path, namespace):
@@ -112,7 +123,7 @@ def _get_firex_bundle_package_locations(path=None) -> list[tuple[str, str]]:
     locations = []
     loaded_entry_points = _loaded_firex_bundles_entry_points(path=path)
     for p in loaded_entry_points.values():
-        namespace = p.__package__.split('.')[0]
+        namespace = p.__package__.split(".")[0]
         pkg_paths = p.__path__
         for pkg_path in pkg_paths:
             root = _find_bundle_pkg_root(pkg_path, namespace)
@@ -127,7 +138,7 @@ def discover_package_modules(current_path, root_path=None) -> list[str]:
     services = []
     if os.path.isfile(current_path):
         basename, ext = os.path.splitext(current_path)
-        if ext.lower() == ".py" and not os.path.basename(current_path).startswith('_'):
+        if ext.lower() == ".py" and not os.path.basename(current_path).startswith("_"):
             basename = basename.replace(root_path, "")
             return [basename.replace(os.path.sep, ".").strip(".")]
         else:
@@ -156,7 +167,9 @@ def find_firex_task_bundles() -> list[str]:
         if os.path.isdir(include_location):
             if include_location not in sys.path:
                 sys.path.append(include_location)
-            include_tasks = discover_package_modules(include_location, root_path=include_location)
+            include_tasks = discover_package_modules(
+                include_location, root_path=include_location
+            )
             bundles += include_tasks
 
     return bundles

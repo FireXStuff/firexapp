@@ -23,7 +23,7 @@ def _create_app(run_soft_time_limit=10 * 60 * 60, run_start=_RUN_START):
     """A stand-in for FireXCelery holding just what run_time reads."""
     return SimpleNamespace(
         conf=SimpleNamespace(
-            fx_env=SimpleNamespace(firex_id=firex_id_str('someuser', run_start, 1234)),
+            fx_env=SimpleNamespace(firex_id=firex_id_str("someuser", run_start, 1234)),
             task_soft_time_limit=72 * 60,
             run_soft_time_limit=run_soft_time_limit,
         ),
@@ -32,7 +32,6 @@ def _create_app(run_soft_time_limit=10 * 60 * 60, run_start=_RUN_START):
 
 
 class RunStartTests(unittest.TestCase):
-
     def test_run_start_comes_from_the_firex_id(self):
         self.assertEqual(_RUN_START_EPOCH, get_run_start_time(_create_app()))
 
@@ -44,7 +43,7 @@ class RunStartTests(unittest.TestCase):
 
     def test_falls_back_to_task_soft_time_limit_without_a_firex_celery(self):
         app = _create_app()
-        del app.get_run_soft_time_limit # e.g. a bare Celery in a unit test.
+        del app.get_run_soft_time_limit  # e.g. a bare Celery in a unit test.
 
         self.assertEqual(
             _RUN_START_EPOCH + app.conf.task_soft_time_limit,
@@ -53,10 +52,9 @@ class RunStartTests(unittest.TestCase):
 
 
 class RunTimeReserveTests(unittest.TestCase):
-
     def resolve(self, reserve, elapsed, budget=10 * 60 * 60, **kwargs):
         app = _create_app(run_soft_time_limit=budget)
-        with patch('time.time', return_value=_RUN_START_EPOCH + elapsed):
+        with patch("time.time", return_value=_RUN_START_EPOCH + elapsed):
             return RunTimeReserve(reserve, **kwargs).resolve(app)
 
     def test_resolves_to_the_remaining_run_less_the_reserve(self):
@@ -89,7 +87,7 @@ class RunTimeReserveTests(unittest.TestCase):
 
     def test_remaining_goes_negative_past_the_deadline(self):
         app = _create_app()
-        with patch('time.time', return_value=_RUN_START_EPOCH + 20 * 60 * 60):
+        with patch("time.time", return_value=_RUN_START_EPOCH + 20 * 60 * 60):
             self.assertEqual(-11 * 60 * 60, RunTimeReserve(60 * 60).remaining(app))
 
     def test_honours_an_explicit_minimum(self):
@@ -100,10 +98,10 @@ class RunTimeReserveTests(unittest.TestCase):
 
 
 class ResolveRemainingWaitTests(unittest.TestCase):
-
     def test_plain_max_wait_counts_down_from_the_start(self):
         self.assertEqual(
-            40, resolve_remaining_wait(100, start_time=1000, now=1060),
+            40,
+            resolve_remaining_wait(100, start_time=1000, now=1060),
         )
 
     def test_no_max_wait_is_unbounded(self):
@@ -115,7 +113,7 @@ class ResolveRemainingWaitTests(unittest.TestCase):
 
     def test_zero_reserve_is_a_real_limit(self):
         # Unlike 0, RunTimeReserve(0) means "the whole rest of the run".
-        with patch('time.time', return_value=_RUN_START_EPOCH + 3600):
+        with patch("time.time", return_value=_RUN_START_EPOCH + 3600):
             self.assertEqual(
                 9 * 60 * 60,
                 resolve_remaining_wait(
@@ -128,11 +126,11 @@ class ResolveRemainingWaitTests(unittest.TestCase):
 
     def test_run_relative_wait_ignores_the_callers_clock(self):
         # start_time/now are irrelevant: the deadline is the run's, not the wait's.
-        with patch('time.time', return_value=_RUN_START_EPOCH + 3600):
+        with patch("time.time", return_value=_RUN_START_EPOCH + 3600):
             remaining = resolve_remaining_wait(
                 RunTimeReserve(60 * 60),
                 start_time=0,
-                now=10 ** 9,
+                now=10**9,
                 app=_create_app(),
             )
         self.assertEqual(8 * 60 * 60, remaining)
@@ -140,14 +138,18 @@ class ResolveRemainingWaitTests(unittest.TestCase):
     def test_a_wait_past_the_run_deadline_is_out_of_time(self):
         # resolve()'s minimum floor must not apply here, or the wait would be handed
         # another minute on every poll and never expire.
-        with patch('time.time', return_value=_RUN_START_EPOCH + 20 * 60 * 60):
+        with patch("time.time", return_value=_RUN_START_EPOCH + 20 * 60 * 60):
             remaining = resolve_remaining_wait(
-                RunTimeReserve(60 * 60), start_time=0, now=0, app=_create_app(),
+                RunTimeReserve(60 * 60),
+                start_time=0,
+                now=0,
+                app=_create_app(),
             )
         self.assertLess(remaining, 0)
 
     def test_describes_both_kinds_of_wait_for_timeout_messages(self):
-        self.assertEqual('30 seconds', describe_wait(30))
+        self.assertEqual("30 seconds", describe_wait(30))
         self.assertEqual(
-            'the run time remaining less 3600s', describe_wait(RunTimeReserve(3600)),
+            "the run time remaining less 3600s",
+            describe_wait(RunTimeReserve(3600)),
         )

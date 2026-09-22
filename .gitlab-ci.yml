@@ -57,6 +57,7 @@ lint-python:
   stage: test
   script:
     - uv run --locked --group dev ruff check
+    - uv run --locked --group dev ruff format --check
 
 test-unit:
   stage: test

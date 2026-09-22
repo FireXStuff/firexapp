@@ -16,7 +16,7 @@ from firexapp.submit.uid import Uid
 logger = logging.getLogger(__name__)
 
 DEFAULT_FLAME_TIMEOUT = 60 * 60 * 24 * 2
-REVOKE_REASON_KEY = 'revoke_reason'
+REVOKE_REASON_KEY = "revoke_reason"
 
 
 @dataclass(frozen=True)
@@ -29,15 +29,15 @@ class FlameServerConfig:
 
 
 def get_flame_redirect_file_path(root_logs_dir):
-    return os.path.join(root_logs_dir, 'flame.html')
+    return os.path.join(root_logs_dir, "flame.html")
 
 
 def get_flame_debug_dir(root_logs_dir):
-    return os.path.join(root_logs_dir, Uid.debug_dirname, 'flame')
+    return os.path.join(root_logs_dir, Uid.debug_dirname, "flame")
 
 
 def get_flame_pid_file_path(root_logs_dir):
-    return os.path.join(get_flame_debug_dir(root_logs_dir), 'flame.pid')
+    return os.path.join(get_flame_debug_dir(root_logs_dir), "flame.pid")
 
 
 def get_flame_pid(root_logs_dir):
@@ -60,6 +60,7 @@ def wait_until_pid_not_exist(pid, timeout=7, sleep_for=1):
 
 def web_request_ok(url):
     import requests
+
     try:
         return requests.get(url).ok
     except requests.exceptions.ConnectionError:
@@ -86,22 +87,27 @@ def json_file_fn(json_file_path, fn):
 
 
 def get_rec_file(log_dir):
-    return os.path.join(get_flame_debug_dir(log_dir), 'flame.rec')
+    return os.path.join(get_flame_debug_dir(log_dir), "flame.rec")
 
 
 def find_rec_file(log_dir):
     # Formerly was used for backwards compatability, now an alias for get_rec_file
     return get_rec_file(log_dir)
 
+
 def get_hostname():
     myplatform = platform.system()
     myhostname = socket.gethostname()
-    myhostname = f"{myhostname}.local" if myplatform== "Darwin" and not myhostname.endswith("local") else myhostname
+    myhostname = (
+        f"{myhostname}.local"
+        if myplatform == "Darwin" and not myhostname.endswith("local")
+        else myhostname
+    )
     return myhostname
 
 
 def get_flame_url_from_port(port: int) -> str:
-    return f'http://{get_hostname()}:{int(port)}'
+    return f"http://{get_hostname()}:{int(port)}"
 
 
 class PathNotFoundException(Exception):
@@ -125,7 +131,9 @@ def filter_paths(input_dict, paths_to_values):
     for in_key, in_vals in input_dict.items():
         results[in_key] = []
         for in_val in in_vals:
-            matches_all = all(to_equal == find(p, in_val) for p, to_equal in paths_to_values.items())
+            matches_all = all(
+                to_equal == find(p, in_val) for p, to_equal in paths_to_values.items()
+            )
             if matches_all:
                 results[in_key].append(in_val)
     return results
@@ -150,7 +158,6 @@ def create_rel_symlink(existing_path, symlink, target_is_directory=False):
 
 
 class BrokerConsumerConfig:
-
     def __init__(self, max_retry_attempts, receiver_ready_file, terminate_on_complete):
         self.max_retry_attempts = max_retry_attempts
         self.receiver_ready_file = receiver_ready_file
@@ -206,8 +213,12 @@ def deep_merge(container1: dict | list | set, container2: dict | list | set) -> 
             result[d2_key] = dict2[d2_key]
     return result
 
+
 def flatten(l):
     return [item for sublist in l for item in sublist]
 
+
 def get_dict_json_md5(query_config):
-    return hashlib.md5(json.dumps(query_config, sort_keys=True).encode('utf-8')).hexdigest()
+    return hashlib.md5(
+        json.dumps(query_config, sort_keys=True).encode("utf-8")
+    ).hexdigest()

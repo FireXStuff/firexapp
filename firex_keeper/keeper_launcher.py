@@ -13,23 +13,29 @@ logger = setup_console_logging(__name__)
 
 
 class FireXKeeperLauncher(TrackingService):
-
     def __init__(self):
         self.broker_recv_ready_file = None
 
-    def start(self, args, uid=None, **kwargs)->{}:
+    def start(self, args, uid=None, **kwargs) -> {}:
         keeper_debug_dir = get_keeper_dir(uid.logs_dir)
         os.makedirs(keeper_debug_dir, exist_ok=True)
-        self.broker_recv_ready_file = os.path.join(keeper_debug_dir, 'keeper_celery_recvr_ready')
-        stdout_file = os.path.join(keeper_debug_dir, 'keeper.stdout.txt')
+        self.broker_recv_ready_file = os.path.join(
+            keeper_debug_dir, "keeper_celery_recvr_ready"
+        )
+        stdout_file = os.path.join(keeper_debug_dir, "keeper.stdout.txt")
 
-        cmd = [qualify_firex_bin("firex_keeper"),
-               "--uid", str(uid),
-               "--logs_dir", uid.logs_dir,
-               "--chain", args.chain,
-               "--broker_recv_ready_file", self.broker_recv_ready_file,
-               ]
-        with open(stdout_file, 'w+') as f:
+        cmd = [
+            qualify_firex_bin("firex_keeper"),
+            "--uid",
+            str(uid),
+            "--logs_dir",
+            uid.logs_dir,
+            "--chain",
+            args.chain,
+            "--broker_recv_ready_file",
+            self.broker_recv_ready_file,
+        ]
+        with open(stdout_file, "w+") as f:
             pid = subprocess.Popen(
                 cmd,
                 stdout=f,
@@ -43,7 +49,9 @@ class FireXKeeperLauncher(TrackingService):
         except TimeoutExpired:
             logger.debug(f"Started background FireXKeeper with pid {pid}")
         else:
-            logger.error("Failed to start FireXKeeper -- task DB will not be available.")
+            logger.error(
+                "Failed to start FireXKeeper -- task DB will not be available."
+            )
 
         return {}
 
@@ -53,5 +61,5 @@ class FireXKeeperLauncher(TrackingService):
     @staticmethod
     def get_pkg_version_info() -> PkgVersionInfo:
         import firex_keeper
-        return PkgVersionInfo(pkg='firex-keeper',
-                              version=firex_keeper.__version__)
+
+        return PkgVersionInfo(pkg="firex-keeper", version=firex_keeper.__version__)

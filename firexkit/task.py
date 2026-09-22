@@ -56,18 +56,18 @@ from firexkit.result import (
 )
 from firexkit.run_time import RunTimeReserve, get_run_start_time
 
-ADDITIONAL_CHILDREN_KEY = 'additional_children'
+ADDITIONAL_CHILDREN_KEY = "additional_children"
 
-REDIS_DB_KEY_FOR_RESULTS_WITH_REPORTS = 'FIREX_RESULTS_WITH_REPORTS'
-REDIS_DB_KEY_FOR_ENQUEUE_ONCE_UIDS = 'FIREX_ENQUEUE_CHILD_ONCE_UIDS'
-REDIS_DB_KEY_FOR_CACHE_ENABLED_UIDS = 'FIREX_CACHE_ENABLED_UIDS'
-REDIS_DB_KEY_PREFIX_FOR_ENQUEUE_ONCE_UID = 'ENQUEUE_CHILD_ONCE_UID_'
-REDIS_DB_KEY_PREFIX_FOR_ENQUEUE_ONCE_COUNT = 'ENQUEUE_CHILD_ONCE_COUNT_'
-REDIS_DB_KEY_PREFIX_FOR_CACHE_ENABLED_UID = 'CACHE_ENABLED'
+REDIS_DB_KEY_FOR_RESULTS_WITH_REPORTS = "FIREX_RESULTS_WITH_REPORTS"
+REDIS_DB_KEY_FOR_ENQUEUE_ONCE_UIDS = "FIREX_ENQUEUE_CHILD_ONCE_UIDS"
+REDIS_DB_KEY_FOR_CACHE_ENABLED_UIDS = "FIREX_CACHE_ENABLED_UIDS"
+REDIS_DB_KEY_PREFIX_FOR_ENQUEUE_ONCE_UID = "ENQUEUE_CHILD_ONCE_UID_"
+REDIS_DB_KEY_PREFIX_FOR_ENQUEUE_ONCE_COUNT = "ENQUEUE_CHILD_ONCE_COUNT_"
+REDIS_DB_KEY_PREFIX_FOR_CACHE_ENABLED_UID = "CACHE_ENABLED"
 
 logger = get_task_logger(__name__)
 
-K = typing.TypeVar('K')
+K = typing.TypeVar("K")
 
 
 class SchedulingDeadlockException(Exception):
@@ -89,11 +89,11 @@ class TaskAttempt:
 
     def __str__(self):
         if self.task_uuid:
-            attempt_str = f'_{self.retries}' if self.retries else ''
-            uuid_and_retries = f'[[{self.task_uuid}{attempt_str}]]'
+            attempt_str = f"_{self.retries}" if self.retries else ""
+            uuid_and_retries = f"[[{self.task_uuid}{attempt_str}]]"
         else:
-            uuid_and_retries = ''
-        return f'{self.name}{uuid_and_retries}'
+            uuid_and_retries = ""
+        return f"{self.name}{uuid_and_retries}"
 
     def short_display(self) -> str:
         if self.name:
@@ -101,16 +101,16 @@ class TaskAttempt:
         return self.task_uuid or str(self)
 
     @classmethod
-    def task_attempt_from_str(cls, attempt_str: str) -> 'TaskAttempt':
-        parts = attempt_str.split('[')
+    def task_attempt_from_str(cls, attempt_str: str) -> "TaskAttempt":
+        parts = attempt_str.split("[")
 
         name = parts[0]
         uuid_part: str | None = None
-        attempt_num : int | None = None
+        attempt_num: int | None = None
         if len(parts) > 1:
-            uuid_part = parts[-1].removesuffix(']')
-            attempt_num : int | None = None
-            if len( maybe_attempt_parts := uuid_part.split('_') ) == 2:
+            uuid_part = parts[-1].removesuffix("]")
+            attempt_num: int | None = None
+            if len(maybe_attempt_parts := uuid_part.split("_")) == 2:
                 uuid_part = maybe_attempt_parts[0]
                 try:
                     attempt_num = int(maybe_attempt_parts[-1])
@@ -121,6 +121,7 @@ class TaskAttempt:
             task_uuid=uuid_part,
             retries=attempt_num,
         )
+
 
 class NotInCache(Exception):
     pass
@@ -140,11 +141,11 @@ def _empty_bog() -> BagOfGoodies:
 
 def _get_signature_with_resolved_annotations(run_func) -> inspect.Signature:
     """
-        Get a task's signature with its annotations evaluated to real types.
+    Get a task's signature with its annotations evaluated to real types.
 
-        Modules using 'from __future__ import annotations' (PEP 563) keep their
-        annotations as strings. Strings are useless for arg validation, since
-        resolving them needs the namespace of the module that defined the task.
+    Modules using 'from __future__ import annotations' (PEP 563) keep their
+    annotations as strings. Strings are useless for arg validation, since
+    resolving them needs the namespace of the module that defined the task.
     """
     try:
         return inspect.signature(run_func, eval_str=True)
@@ -152,7 +153,7 @@ def _get_signature_with_resolved_annotations(run_func) -> inspect.Signature:
         # Annotations that only exist under typing.TYPE_CHECKING can't be resolved.
         # Un-evaluated annotations are never validated, but everything else about
         # the signature still works.
-        logger.debug(f'Could not resolve annotations of {run_func}: {e!r}')
+        logger.debug(f"Could not resolve annotations of {run_func}: {e!r}")
         return inspect.signature(run_func)
 
 
@@ -160,19 +161,21 @@ def _get_signature_with_resolved_annotations(run_func) -> inspect.Signature:
 class TaskContext:
     bog: BagOfGoodies = dataclasses.field(default_factory=_empty_bog)
     flame_configs: dict = dataclasses.field(default_factory=dict)
-    enqueued_children: dict[FxAsyncResult, str] = dataclasses.field(default_factory=dict)
+    enqueued_children: dict[FxAsyncResult, str] = dataclasses.field(
+        default_factory=dict
+    )
 
     _auto_in_reg: AutoInjectRegistry | None = None
-    _pause_tasks: Optional['PauseTasks'] = None
+    _pause_tasks: Optional["PauseTasks"] = None
 
     def auto_inject_reg(self) -> AutoInjectRegistry:
         if self._auto_in_reg is None:
             self._auto_in_reg = self.bog.get_auto_inject_registry()
         return self._auto_in_reg
 
-    def pause_tasks(self) -> 'PauseTasks':
+    def pause_tasks(self) -> "PauseTasks":
         if self._pause_tasks is None:
-            self._pause_tasks : PauseTasks = self.auto_inject_reg().get(
+            self._pause_tasks: PauseTasks = self.auto_inject_reg().get(
                 PauseTasks.PAUSE_TASKS_ABOG_KEY,
                 PauseTasks({}, False),
             )
@@ -204,47 +207,50 @@ def create_collapse_ops(flex_collapse_ops_spec):
         for k, v in flex_collapse_ops_spec.items():
             op = {}
             if isinstance(k, str):
-                op['relative_to_nodes'] = {'type': 'task_name', 'value': k}
+                op["relative_to_nodes"] = {"type": "task_name", "value": k}
             elif issubclass(type(k), Pattern):  # can't use isinstance till 3.6
-                op['relative_to_nodes'] = {'type': 'task_name_regex', 'value': k.pattern}
+                op["relative_to_nodes"] = {
+                    "type": "task_name_regex",
+                    "value": k.pattern,
+                }
 
             if isinstance(v, str):
-                op['targets'] = [v]
+                op["targets"] = [v]
             elif isinstance(v, list):
-                op['targets'] = v
+                op["targets"] = v
             elif isinstance(v, dict):
                 # take targets, operation from value.
                 op.update(v)
 
-            if 'targets' in op:
+            if "targets" in op:
                 result_ops.append(op)
             else:
                 # TODO: fail or ignore malformed specs?
                 pass
     elif isinstance(flex_collapse_ops_spec, str):
-        result_ops.append({'targets': [flex_collapse_ops_spec]})
+        result_ops.append({"targets": [flex_collapse_ops_spec]})
 
     return result_ops
 
 
 def expand_self_op():
-    return {'operation': 'expand', 'targets': ['self']}
+    return {"operation": "expand", "targets": ["self"]}
 
 
-FLAME_COLLAPSE_KEY = '_default_display'
+FLAME_COLLAPSE_KEY = "_default_display"
 
 
 def flame_collapse_formatter(ops, task):
     filled_ops = []
     for op in ops:
-        if 'targets' not in op or not isinstance(op['targets'], list):
+        if "targets" not in op or not isinstance(op["targets"], list):
             # Ignore malformed operations.
             continue
         filled_op = {
             # defaults.
-            'relative_to_nodes': {'type': 'task_uuid', 'value': task.request.id},
-            'source_node': {'type': 'task_uuid', 'value': task.request.id},
-            'operation': 'collapse',
+            "relative_to_nodes": {"type": "task_uuid", "value": task.request.id},
+            "source_node": {"type": "task_uuid", "value": task.request.id},
+            "operation": "collapse",
         }
         filled_op.update(op)
         filled_ops.append(filled_op)
@@ -253,8 +259,15 @@ def flame_collapse_formatter(ops, task):
 
 def flame_collapse(flex_collapse_ops):
     static_ops = create_collapse_ops(flex_collapse_ops)
-    return flame(FLAME_COLLAPSE_KEY, flame_collapse_formatter, data_type='object', bind=True, on_next=True,
-                 on_next_args=[static_ops], decorator_name=flame_collapse.__name__)
+    return flame(
+        FLAME_COLLAPSE_KEY,
+        flame_collapse_formatter,
+        data_type="object",
+        bind=True,
+        on_next=True,
+        on_next_args=[static_ops],
+        decorator_name=flame_collapse.__name__,
+    )
 
 
 def _default_flame_formatter(data):
@@ -268,44 +281,65 @@ def _default_flame_formatter(data):
     return data
 
 
-def create_flame_config(existing_configs, formatter=_default_flame_formatter, data_type='html', bind=False,
-                        on_next=False, on_next_args=()):
-    return {'formatter': formatter,
-            'data_type': data_type,
-            'bind': bind,
-            'on_next': on_next,
-            'on_next_args': on_next_args,
-            'order': max([c['order'] for c in existing_configs],
-                         default=-1) + 1,
-            }
+def create_flame_config(
+    existing_configs,
+    formatter=_default_flame_formatter,
+    data_type="html",
+    bind=False,
+    on_next=False,
+    on_next_args=(),
+):
+    return {
+        "formatter": formatter,
+        "data_type": data_type,
+        "bind": bind,
+        "on_next": on_next,
+        "on_next_args": on_next_args,
+        "order": max([c["order"] for c in existing_configs], default=-1) + 1,
+    }
 
-def flame(flame_key=None, formatter=_default_flame_formatter, data_type='html', bind=False, on_next=False,
-          on_next_args=(), decorator_name='flame'):
+
+def flame(
+    flame_key=None,
+    formatter=_default_flame_formatter,
+    data_type="html",
+    bind=False,
+    on_next=False,
+    on_next_args=(),
+    decorator_name="flame",
+):
     def decorator(func):
         if type(func) is PromiseProxy:
-            raise TypeError(f"@{decorator_name} must be applied to a function (after @app.task) on {func.__name__}")
+            raise TypeError(
+                f"@{decorator_name} must be applied to a function (after @app.task) on {func.__name__}"
+            )
 
         undecorated = undecorate_func(func)
-        if not hasattr(undecorated, 'flame_data_configs'):
+        if not hasattr(undecorated, "flame_data_configs"):
             undecorated.flame_data_configs = OrderedDict()
-        undecorated.flame_data_configs[flame_key] = create_flame_config(undecorated.flame_data_configs.values(),
-                                                                        formatter, data_type, bind, on_next,
-                                                                        on_next_args)
+        undecorated.flame_data_configs[flame_key] = create_flame_config(
+            undecorated.flame_data_configs.values(),
+            formatter,
+            data_type,
+            bind,
+            on_next,
+            on_next_args,
+        )
         return func
 
     return decorator
 
 
 def get_cache_enabled_uid_dbkey(cache_key_info: str) -> str:
-    return f'{REDIS_DB_KEY_PREFIX_FOR_CACHE_ENABLED_UID}{cache_key_info}'
+    return f"{REDIS_DB_KEY_PREFIX_FOR_CACHE_ENABLED_UID}{cache_key_info}"
 
 
 def get_enqueue_child_once_uid_dbkey(enqueue_once_key: str) -> str:
-    return f'{REDIS_DB_KEY_PREFIX_FOR_ENQUEUE_ONCE_UID}{enqueue_once_key}'
+    return f"{REDIS_DB_KEY_PREFIX_FOR_ENQUEUE_ONCE_UID}{enqueue_once_key}"
 
 
 def get_enqueue_child_once_count_dbkey(enqueue_once_key: str) -> str:
-    return f'{REDIS_DB_KEY_PREFIX_FOR_ENQUEUE_ONCE_COUNT}{enqueue_once_key}'
+    return f"{REDIS_DB_KEY_PREFIX_FOR_ENQUEUE_ONCE_COUNT}{enqueue_once_key}"
 
 
 def add_enqueue_child_once_uid_to_db(db, result_id: str):
@@ -343,30 +377,34 @@ def add_task_result_with_report_to_db(db, result_id: str):
 
 def get_current_reports_uids(db) -> set[str]:
     """Return the list of task/results ids for all tasks with reports (e.g. @email) executed so far"""
-    return {v.decode() for v in db.client.lrange(REDIS_DB_KEY_FOR_RESULTS_WITH_REPORTS, 0, -1)}
+    return {
+        v.decode()
+        for v in db.client.lrange(REDIS_DB_KEY_FOR_RESULTS_WITH_REPORTS, 0, -1)
+    }
 
 
 class FireXTask(Task):
     """
     Task object that facilitates passing of arguments and return values from one task to another, to be used in chains
     """
+
     DYNAMIC_RETURN = DYNAMIC_RETURN
 
     # prevent clients from needing to know about bag_of_goodes module.
     AutoInject = AutoInject
-    Validate : typing.ClassVar[type[ValidateArgs]] = ValidateArgs
+    Validate: typing.ClassVar[type[ValidateArgs]] = ValidateArgs
 
     # This class is nuts. Class operations are conflated with instance operations,
     # so have a fake "orig" value at the class level in case anything operates before
     # tasks are loaded via Celery. This is crazy.
-    orig : typing.ClassVar[typing.Optional['FireXTask']] = None
+    orig: typing.ClassVar[typing.Optional["FireXTask"]] = None
 
     # Seconds this task wants left of the run after it finishes. Set it via
     # @app.task(run_time_limit_reserve=60*60) to say "run for the whole rest of the run,
     # less an hour", instead of soft_time_limit's fixed duration. Unlike soft_time_limit
     # it is resolved when the task is published, so it tracks a run budget that grew
     # after this module was imported, and a later increase re-arms it mid-run.
-    run_time_limit_reserve : typing.ClassVar[float | None] = None
+    run_time_limit_reserve: typing.ClassVar[float | None] = None
 
     # Whether this task's results are dropped from the backend once the task that
     # enqueued it is done with them. Set it via @app.task(forget=True) for tasks whose
@@ -374,30 +412,46 @@ class FireXTask(Task):
     # the default, and only where the enqueuing task waits for the results: the enqueuer
     # has the final say, so passing forget=False to enqueue_child keeps the results of
     # even a task declared this way, and forget=True drops those of one that isn't.
-    forget : typing.ClassVar[bool] = False
+    forget: typing.ClassVar[bool] = False
 
     def __init__(self):
 
-        check_name_for_override_posfix = getattr(self, 'check_name_for_override_posfix', True)
-        if check_name_for_override_posfix and self.name and self.name.endswith(REPLACEMENT_TASK_NAME_POSTFIX):
-            raise IllegalTaskNameException(f'Task names should never end with {REPLACEMENT_TASK_NAME_POSTFIX!r}')
+        check_name_for_override_posfix = getattr(
+            self, "check_name_for_override_posfix", True
+        )
+        if (
+            check_name_for_override_posfix
+            and self.name
+            and self.name.endswith(REPLACEMENT_TASK_NAME_POSTFIX)
+        ):
+            raise IllegalTaskNameException(
+                f"Task names should never end with {REPLACEMENT_TASK_NAME_POSTFIX!r}"
+            )
 
         self.undecorated = undecorate(self)
-        self.sig : inspect.Signature = _get_signature_with_resolved_annotations(self.run)
+        self.sig: inspect.Signature = _get_signature_with_resolved_annotations(self.run)
         log_unvalidatable_annotations(self.name, self.sig)
 
         _task_return_keys = self._get_task_return_keys()
-        _decorated_return_keys = getattr(self.undecorated, "_decorated_return_keys", None)
+        _decorated_return_keys = getattr(
+            self.undecorated, "_decorated_return_keys", None
+        )
         if _decorated_return_keys and _task_return_keys:
-            raise ReturnsCodingException(f"You can't specify both a @returns decorator and a returns in the app task for {self.name}")
-        self._return_keys : tuple[str, ...] | None = _decorated_return_keys or _task_return_keys
+            raise ReturnsCodingException(
+                f"You can't specify both a @returns decorator and a returns in the app task for {self.name}"
+            )
+        self._return_keys: tuple[str, ...] | None = (
+            _decorated_return_keys or _task_return_keys
+        )
 
-        self._lagging_children_strategy = get_attr_unwrapped(self, 'pending_child_strategy', PendingChildStrategy.BLOCK)
+        self._lagging_children_strategy = get_attr_unwrapped(
+            self, "pending_child_strategy", PendingChildStrategy.BLOCK
+        )
 
         super().__init__()
 
-        self._in_required : set[str] | None = None
-        self._in_optional : dict[str, Any] | None = None
+        self._in_required: set[str] | None = None
+        self._in_optional: dict[str, Any] | None = None
 
         self._logs_dir_for_worker = None
         self._file_logging_dir_path = None
@@ -406,11 +460,12 @@ class FireXTask(Task):
         self.code_filepath = self.get_module_file_location()
 
         self.from_plugin = False
-        self.context : TaskContext = self.initialize_context()
-        self.name : str
+        self.context: TaskContext = self.initialize_context()
+        self.name: str
 
         from firexkit.firex_celery import FireXCelery
-        self.app : FireXCelery
+
+        self.app: FireXCelery
 
         # when this task is overriden, this is the most immediately preceding overridden task,
         # or None when the current task is not an override.
@@ -421,18 +476,18 @@ class FireXTask(Task):
     def return_keys(self) -> tuple[str, ...]:
         return self._return_keys or ()
 
-    def get_overridden_task(self) -> 'FireXTask':
+    def get_overridden_task(self) -> "FireXTask":
         if not self.is_overriding_task():
-            raise TypeError(f'{self.name} does not override a task')
+            raise TypeError(f"{self.name} does not override a task")
         assert self.orig
         return self.orig
 
     @property
-    def root_orig(self) -> 'FireXTask':
+    def root_orig(self) -> "FireXTask":
         """Return the very original `Task` that this `Task` had overridden.
         If this task has been overridden multiple times, this will return the very first/original task.
         Return `self` if the task was not overridden"""
-        if ( orig_task := getattr(self, "orig", None) ):
+        if orig_task := getattr(self, "orig", None):
             return orig_task.root_orig
         return self
 
@@ -441,9 +496,8 @@ class FireXTask(Task):
 
     def apply_async(self, *args, **kwargs):
         original_name = self.name
-        if (
-            self.from_plugin
-            and not original_name.endswith(REPLACEMENT_TASK_NAME_POSTFIX)
+        if self.from_plugin and not original_name.endswith(
+            REPLACEMENT_TASK_NAME_POSTFIX
         ):
             # If the task is overridden, and is not an intermediate override, then
             # let's use the original name for serialization, in case that
@@ -454,7 +508,7 @@ class FireXTask(Task):
             self.name = self.root_orig.name_without_orig
 
         try:
-            res : FxAsyncResult = super().apply_async(*args, **kwargs)
+            res: FxAsyncResult = super().apply_async(*args, **kwargs)
         finally:
             # Restore the original name
             self.name = original_name
@@ -462,7 +516,7 @@ class FireXTask(Task):
 
     def signature(self, *args, **kwargs):
         # We need to lookup the task, in case it was over-ridden by a plugin
-        new_self : FireXTask
+        new_self: FireXTask
         try:
             new_self = self.app.tasks[self.name]
         # Celery can surface unrelated pending-task finalization errors on this lookup;
@@ -473,7 +527,7 @@ class FireXTask(Task):
             # These tests should really run in forked processes (or use Celery PyTest fixtures)
             # Otherwise, seems that everything is global
             new_self = self.app.tasks[self.name]
-        kwargs.setdefault('app', new_self.app)
+        kwargs.setdefault("app", new_self.app)
         return SignatureX(new_self, *args, **kwargs)
 
     @contextmanager
@@ -508,51 +562,51 @@ class FireXTask(Task):
             microservices.testsuites_tasks.CreateWorkerConfigFromTestsuites (if there was no request id yet)
         """
         label = str(self.request.id or self.name)
-        label += f'_{self.request.retries:d}' if self.request.retries >= 1 else ''
+        label += f"_{self.request.retries:d}" if self.request.retries >= 1 else ""
         return label
 
     @property
     def request_soft_time_limit(self):
         return self.request.timelimit[1]
 
-    def get_run_time_remaining(self, reserve: float=0) -> float:
+    def get_run_time_remaining(self, reserve: float = 0) -> float:
         """
-            Seconds of run time left, less `reserve`.
+        Seconds of run time left, less `reserve`.
 
-            Never returns zero or less: see
-            :const:`firexkit.run_time.DEFAULT_MINIMUM_RUN_TIME_REMAINING`.
+        Never returns zero or less: see
+        :const:`firexkit.run_time.DEFAULT_MINIMUM_RUN_TIME_REMAINING`.
         """
         return RunTimeReserve(reserve).resolve(self.app)
 
-    def ensure_run_time_remaining(self, need: float, reserve: float=0) -> float:
+    def ensure_run_time_remaining(self, need: float, reserve: float = 0) -> float:
         """
-            Guarantees at least `need` seconds of run time remain from now, with
-            `reserve` seconds left over afterwards for cleanup and post-processing.
+        Guarantees at least `need` seconds of run time remain from now, with
+        `reserve` seconds left over afterwards for cleanup and post-processing.
 
-            Call this when a task discovers the real runtime is larger than the run was
-            submitted for -- a scheduler estimate, say. It raises the run's total time
-            budget if it isn't already large enough, extends this task and every other
-            running task that was following the run budget -- including the ancestors
-            blocked waiting on this one -- and raises the default limit of tasks
-            enqueued from here on. The increase is a monotonic max, so calling this
-            unconditionally, or again on a retry, is safe: a budget that is already
-            sufficient makes it a no-op.
+        Call this when a task discovers the real runtime is larger than the run was
+        submitted for -- a scheduler estimate, say. It raises the run's total time
+        budget if it isn't already large enough, extends this task and every other
+        running task that was following the run budget -- including the ancestors
+        blocked waiting on this one -- and raises the default limit of tasks
+        enqueued from here on. The increase is a monotonic max, so calling this
+        unconditionally, or again on a retry, is safe: a budget that is already
+        sufficient makes it a no-op.
 
-            `need` is a floor, not a margin: asking for exactly as long as the work
-            takes leaves this task's own limit landing exactly on its last second. Pad
-            the estimate.
+        `need` is a floor, not a margin: asking for exactly as long as the work
+        takes leaves this task's own limit landing exactly on its last second. Pad
+        the estimate.
 
-            When the work being waited for is a blocking wait with a RunTimeReserve,
-            pass that same reserve here. The wait subtracts it from what remains, so
-            asking for `need` alone buys time the wait then refuses to use, and the wait
-            can expire on its first poll even though the increase was granted.
+        When the work being waited for is a blocking wait with a RunTimeReserve,
+        pass that same reserve here. The wait subtracts it from what remains, so
+        asking for `need` alone buys time the wait then refuses to use, and the wait
+        can expire on its first poll even though the increase was granted.
 
-            Returns the run time remaining, less `reserve`, once the call has taken
-            effect. Blocks only as long as this task's own worker takes to acknowledge
-            the new limit, so the time it costs does not come out of `need`.
+        Returns the run time remaining, less `reserve`, once the call has taken
+        effect. Blocks only as long as this task's own worker takes to acknowledge
+        the new limit, so the time it costs does not come out of `need`.
 
-                estimate = query_scheduler_estimate(...)
-                self.ensure_run_time_remaining(estimate, reserve=60*60)
+            estimate = query_scheduler_estimate(...)
+            self.ensure_run_time_remaining(estimate, reserve=60*60)
         """
         # remaining(), not get_run_time_remaining(): resolve()'s floor exists to keep a
         # resolved soft time limit usable, and applying it to this decision would credit
@@ -567,9 +621,9 @@ class FireXTask(Task):
 
         required_total = (time.time() - get_run_start_time(self.app)) + need + reserve
         logger.warning(
-            f'Increasing the run time limit to {required_total:.0f}s:'
-            f' this task needs {need:.0f}s more (leaving {reserve:.0f}s),'
-            f' but only {remaining:.0f}s of the run remain.'
+            f"Increasing the run time limit to {required_total:.0f}s:"
+            f" this task needs {need:.0f}s more (leaving {reserve:.0f}s),"
+            f" but only {remaining:.0f}s of the run remain."
         )
         self.app.increase_run_soft_time_limit(required_total)
         # The broadcast above is fire-and-forget, so returning now would hand control
@@ -581,12 +635,12 @@ class FireXTask(Task):
 
     def _ensure_own_soft_time_limit(self, need: float):
         """
-            Extends this task's own soft time limit to cover `need` more seconds.
+        Extends this task's own soft time limit to cover `need` more seconds.
 
-            A budget raise does not cover a task published with an explicit limit, on
-            the grounds that the number was chosen for the task rather than derived from
-            the run. That deference is wrong for the one task that just said out loud
-            how much longer it needs, which is why it asks separately here.
+        A budget raise does not cover a task published with an explicit limit, on
+        the grounds that the number was chosen for the task rather than derived from
+        the run. That deference is wrong for the one task that just said out loud
+        how much longer it needs, which is why it asks separately here.
         """
         elapsed = self.duration() or 0
         own_limit = self.request_soft_time_limit
@@ -613,15 +667,17 @@ class FireXTask(Task):
 
     def initialize_context(
         self,
-        flame_configs: dict | None=None,
-        bog: BagOfGoodies | None=None,
+        flame_configs: dict | None = None,
+        bog: BagOfGoodies | None = None,
     ) -> TaskContext:
         return TaskContext(
             flame_configs=flame_configs or {},
             bog=bog or self._create_bog(),
         )
 
-    def _create_bog(self, args: tuple[Any,...]=(), kwargs: dict | None=None) -> BagOfGoodies:
+    def _create_bog(
+        self, args: tuple[Any, ...] = (), kwargs: dict | None = None
+    ) -> BagOfGoodies:
         if kwargs is None:
             kwargs = {}
         return BagOfGoodies(
@@ -633,10 +689,10 @@ class FireXTask(Task):
 
     def get_pydantic_validate(self) -> ValidateArgs:
         # get_attr_unwrapped is super busted
-        configed_validate = get_attr_unwrapped(self, 'pydantic_validate', 'UNSET')
-        if configed_validate == 'UNSET' and self.orig:
+        configed_validate = get_attr_unwrapped(self, "pydantic_validate", "UNSET")
+        if configed_validate == "UNSET" and self.orig:
             configed_validate = self.orig.get_pydantic_validate()
-        if configed_validate == 'UNSET':
+        if configed_validate == "UNSET":
             return ValidateArgs.DISABLED
         return configed_validate
 
@@ -645,17 +701,21 @@ class FireXTask(Task):
 
     @classmethod
     def is_dynamic_return(cls, value: str) -> bool:
-        return hasattr(value, 'startswith') and value.startswith(cls.DYNAMIC_RETURN)
+        return hasattr(value, "startswith") and value.startswith(cls.DYNAMIC_RETURN)
 
     def _get_task_return_keys(self) -> tuple[str, ...] | None:
-        task_return_keys = get_attr_unwrapped(self, 'returns', None)
+        task_return_keys = get_attr_unwrapped(self, "returns", None)
         if task_return_keys is not None:
             if isinstance(task_return_keys, str):
-                task_return_keys = (task_return_keys, )
+                task_return_keys = (task_return_keys,)
 
-            explicit_keys = [k for k in task_return_keys if not self.is_dynamic_return(k)]
+            explicit_keys = [
+                k for k in task_return_keys if not self.is_dynamic_return(k)
+            ]
             if len(explicit_keys) != len(set(explicit_keys)):
-                raise ReturnsCodingException(f"{self.name} has duplicate explicit return keys")
+                raise ReturnsCodingException(
+                    f"{self.name} has duplicate explicit return keys"
+                )
 
             if not isinstance(task_return_keys, tuple):
                 task_return_keys = tuple(task_return_keys)
@@ -664,7 +724,7 @@ class FireXTask(Task):
 
     def run(self, *args, **kwargs):
         """The body of the task executed by workers."""
-        raise NotImplementedError('Tasks must define the run method.')
+        raise NotImplementedError("Tasks must define the run method.")
 
     @staticmethod
     def strip_orig_from_name(task_name):
@@ -673,7 +733,7 @@ class FireXTask(Task):
     @staticmethod
     def get_short_name(task_name: str) -> str:
         # Task name of first task in chain. (I.E. 'task1' in module1.task1|module2.task2)
-        return task_name.split('|')[0].split('.')[-1]
+        return task_name.split("|")[0].split(".")[-1]
 
     @classmethod
     def get_short_name_without_orig(cls, task_name):
@@ -697,11 +757,11 @@ class FireXTask(Task):
 
     def has_report_meta(self) -> bool:
         """Does this task generate a report (e.g. decorated with @email)?"""
-        return hasattr(self, 'report_meta')
+        return hasattr(self, "report_meta")
 
     def add_task_result_with_report_to_db(self):
         """Maintain a list in the backend of all executed tasks that will generate reports"""
-        return add_task_result_with_report_to_db(self.app.backend,  self.request.id)
+        return add_task_result_with_report_to_db(self.app.backend, self.request.id)
 
     def pre_task_run(self, extra_events: dict | None = None):
         """
@@ -718,7 +778,7 @@ class FireXTask(Task):
                 self.add_task_result_with_report_to_db()
 
             self.send_event(
-                'task-started-info',
+                "task-started-info",
                 called_as_orig=self.called_as_orig,
                 long_name=self.name_without_orig,
                 log_filepath=self.task_log_url,
@@ -730,9 +790,11 @@ class FireXTask(Task):
             )
 
             self.send_event(
-                'task-args',
+                "task-args",
                 firex_bound_args=convert_to_serializable(self.bound_args),
-                firex_default_bound_args=convert_to_serializable(self.default_bound_args),
+                firex_default_bound_args=convert_to_serializable(
+                    self.default_bound_args
+                ),
             )
             self.send_flame(self.abog)
 
@@ -743,47 +805,53 @@ class FireXTask(Task):
     def _log_soft_time_limit_override_if_applicable(self):
         if not self.request.called_directly:
             if self.soft_time_limit != self.request_soft_time_limit:
-                logger.debug(f'This task default soft_time_limit of '
-                             f'{self.soft_time_limit}{"s" if self.soft_time_limit is not None else ""} '
-                             f'was over-ridden to {self.request_soft_time_limit}s')
+                logger.debug(
+                    f"This task default soft_time_limit of "
+                    f"{self.soft_time_limit}{'s' if self.soft_time_limit is not None else ''} "
+                    f"was over-ridden to {self.request_soft_time_limit}s"
+                )
             elif self.soft_time_limit is not None:
-                logger.debug(f'This task soft_time_limit is {self.soft_time_limit}s')
+                logger.debug(f"This task soft_time_limit is {self.soft_time_limit}s")
 
     def _print_precall_header(self):
         n = 1
-        content = ''
+        content = ""
         args_list = []
-        for postfix, args in zip(['', ' (default)'], [self.bound_args, self.default_bound_args]):
+        for postfix, args in zip(
+            ["", " (default)"], [self.bound_args, self.default_bound_args]
+        ):
             for k, v in (args or {}).items():
-                args_list.append(f'  {n:d}. {k}: {v!r}{postfix}')
+                args_list.append(f"  {n:d}. {k}: {v!r}{postfix}")
                 n += 1
         if args_list:
-            content = 'ARGUMENTS\n' + '\n'.join(args_list)
+            content = "ARGUMENTS\n" + "\n".join(args_list)
 
         task_name = self.name
         if self.from_plugin:
-            task_name += ' (PLUGIN)'
+            task_name += " (PLUGIN)"
 
         logger.debug(
-            banner(f'STARTED: {task_name}', content=content, length=100),
-            extra={'label': self.task_label, 'span_class': 'task_started'},
+            banner(f"STARTED: {task_name}", content=content, length=100),
+            extra={"label": self.task_label, "span_class": "task_started"},
         )
 
     def _print_postcall_header(self, result):
-        content = ''
+        content = ""
         results_list = []
         if result:
             if isinstance(result, dict):
                 n = 1
                 for k, v in result.items():
-                    results_list.append(f'  {n:d}. {k}: {v!r}')
+                    results_list.append(f"  {n:d}. {k}: {v!r}")
                     n += 1
             else:
-                results_list.append(f'  {result!r}')
+                results_list.append(f"  {result!r}")
         if results_list:
-            content = 'RETURNS\n' + '\n'.join(results_list)
-        logger.debug(banner(f'COMPLETED: {self.name}', ch='*', content=content, length=100),
-                     extra={'span_class': 'task_completed'})
+            content = "RETURNS\n" + "\n".join(results_list)
+        logger.debug(
+            banner(f"COMPLETED: {self.name}", ch="*", content=content, length=100),
+            extra={"span_class": "task_completed"},
+        )
 
     def __call__(self, *args, **kwargs) -> dict[str, Any]:
         """
@@ -820,8 +888,8 @@ class FireXTask(Task):
             finally:
                 self.remove_task_logfile_handler()
 
-    def handle_exception(self, e, logging_extra: dict | None=None):
-        extra = {'span_class': 'exception'} | (logging_extra or {})
+    def handle_exception(self, e, logging_extra: dict | None = None):
+        extra = {"span_class": "exception"} | (logging_extra or {})
 
         if isinstance(e, (ChainInterruptedException, ChainRevokedException)):
             try:
@@ -831,18 +899,21 @@ class FireXTask(Task):
                 pass
             else:
                 if exception_cause_uuid:
-                    self.send_event('task-exception-cause', exception_cause_uuid=exception_cause_uuid)
-        mssg = f'{type(e).__name__}'
+                    self.send_event(
+                        "task-exception-cause",
+                        exception_cause_uuid=exception_cause_uuid,
+                    )
+        mssg = f"{type(e).__name__}"
         exception_string = str(e)
         if exception_string:
-            mssg += f': {exception_string}'
+            mssg += f": {exception_string}"
         logger.error(mssg, exc_info=e, extra=extra)
         raise e
 
     def _process_result(
         self,
         result: dict[str, Any],
-        extra_events: dict | None=None,
+        extra_events: dict | None = None,
     ) -> dict[str, Any]:
 
         post_run_return_args = self.context.bog.all_supplied_args() | result
@@ -851,15 +922,18 @@ class FireXTask(Task):
         converted_return_args = ConverterRegister.task_convert(
             self.name,
             pre_task=False,
-            **BagOfGoodies.resolve_indirect(post_run_return_args)
+            **BagOfGoodies.resolve_indirect(post_run_return_args),
         )
-        indirect_resolved_converted_return_args = BagOfGoodies.resolve_indirect(converted_return_args)
+        indirect_resolved_converted_return_args = BagOfGoodies.resolve_indirect(
+            converted_return_args
+        )
 
         converted_task_results = {
-            k: v for k, v in indirect_resolved_converted_return_args.items()
+            k: v
+            for k, v in indirect_resolved_converted_return_args.items()
             if (
-                k in result # only results for service, not all supplied arg +
-                and k not in BagOfGoodies.infra_return_keys() # hide infra keys
+                k in result  # only results for service, not all supplied arg +
+                and k not in BagOfGoodies.infra_return_keys()  # hide infra keys
             )
         }
 
@@ -869,7 +943,7 @@ class FireXTask(Task):
         # Send a custom task-succeeded event with the results
         if not self.request.called_directly:
             self.send_event(
-                'task-results',
+                "task-results",
                 firex_result=convert_to_serializable(converted_task_results),
                 **(extra_events or {}),
             )
@@ -879,68 +953,75 @@ class FireXTask(Task):
 
     def _get_cache_key(self):
         # Need a sting hash of name + all_args
-        return get_cache_enabled_uid_dbkey(str((self.name,) + tuple(sorted(self.all_args.items()))))
+        return get_cache_enabled_uid_dbkey(
+            str((self.name,) + tuple(sorted(self.all_args.items())))
+        )
 
     def _cache_get(self, cache_key):
         cached_uuid = self.backend.get(cache_key)
         if cached_uuid is None:
             raise NotInCache()
         cached_uuid = cached_uuid.decode()
-        logger.info(f'[Caching] found entry for key {cache_key!r} at {cached_uuid!r}')
+        logger.info(f"[Caching] found entry for key {cache_key!r} at {cached_uuid!r}")
         return cached_uuid
 
     def _cache_set(self, cache_key, uuid):
         # We need to just store a reference  to the uuid (no need to store the result again)
-        logger.debug(f'[Caching] storing entry for key {cache_key!r} -> {uuid!r}')
+        logger.debug(f"[Caching] storing entry for key {cache_key!r} -> {uuid!r}")
         self.backend.set(cache_key, uuid)
         add_cache_enabled_uid_to_db(self.backend, uuid)
 
     def _retrieve_result_from_backend(
         self,
         cached_uuid,
-        secs_to_wait_for_cached_result: int=3,
+        secs_to_wait_for_cached_result: int = 3,
     ) -> dict[str, Any]:
         # Retrieve the result of the original cached uuid from the backend
-        logger.info(f'Retrieving result for {cached_uuid}; might take up to {secs_to_wait_for_cached_result} seconds.')
+        logger.info(
+            f"Retrieving result for {cached_uuid}; might take up to {secs_to_wait_for_cached_result} seconds."
+        )
         loop_start_time = current_time = time.time()
         while (current_time - loop_start_time) < secs_to_wait_for_cached_result:
-            result : dict[str, Any] = self.app.backend.get_result(cached_uuid)
-            if set(result.keys()) != {'hostname', 'pid'}:
+            result: dict[str, Any] = self.app.backend.get_result(cached_uuid)
+            if set(result.keys()) != {"hostname", "pid"}:
                 # When the result is not populated, we get a dict back with these two keys
-                break # --< We're done
+                break  # --< We're done
             else:
-                logger.debug('Result not populated yet!')
+                logger.debug("Result not populated yet!")
                 time.sleep(0.1)
                 current_time = time.time()
         else:
-            raise CacheResultNotPopulatedYetInRedis(f'result for {cached_uuid} not populated '
-                                                    f'in redis after {secs_to_wait_for_cached_result}s')
+            raise CacheResultNotPopulatedYetInRedis(
+                f"result for {cached_uuid} not populated "
+                f"in redis after {secs_to_wait_for_cached_result}s"
+            )
         return result
 
     def _run_from_cache(self, cached_uuid) -> dict[str, Any]:
         result = self._retrieve_result_from_backend(cached_uuid)
-        cached_result_return_keys = result.get('__task_return_keys', ()) + ('__task_return_keys',)
-        return {
-            k: v for k, v in result.items()
-            if k in cached_result_return_keys
-        }
+        cached_result_return_keys = result.get("__task_return_keys", ()) + (
+            "__task_return_keys",
+        )
+        return {k: v for k, v in result.items() if k in cached_result_return_keys}
 
     @property
     def default_use_cache(self):
-        return getattr(self, 'use_cache', None)
+        return getattr(self, "use_cache", None)
 
     def is_cache_enabled(self):
         use_cache_value = self.default_use_cache
         if not self.request.called_directly:
             try:
-                request_use_cache = self.request.properties['use_cache']
+                request_use_cache = self.request.properties["use_cache"]
             except KeyError:
                 pass
             else:
                 if request_use_cache is not None:
                     if request_use_cache != self.default_use_cache:
-                        logger.debug(f'use_cache default value of {self.default_use_cache!r} for task {self.name!r} '
-                                     f'was overridden by enqueue to {request_use_cache!r}')
+                        logger.debug(
+                            f"use_cache default value of {self.default_use_cache!r} for task {self.name!r} "
+                            f"was overridden by enqueue to {request_use_cache!r}"
+                        )
                     use_cache_value = request_use_cache
         return bool(use_cache_value)
 
@@ -954,19 +1035,21 @@ class FireXTask(Task):
         try:
             cached_uuid = self._cache_get(cache_key)
         except NotInCache:
-            logger.debug(f'[Caching] No entry found for key {cache_key!r}')
+            logger.debug(f"[Caching] No entry found for key {cache_key!r}")
             return self._real_call_and_cache_set(cache_key)
         else:
             try:
                 result = self._run_from_cache(cached_uuid)
             except CacheResultNotPopulatedYetInRedis:
-                logger.debug('[Caching] Cache result not populated yet in Redis. '
-                             'Reverting to a real call')
+                logger.debug(
+                    "[Caching] Cache result not populated yet in Redis. "
+                    "Reverting to a real call"
+                )
                 return self._real_call_and_cache_set(cache_key)
             else:
                 return self._process_result(
-                    result,
-                    extra_events={'cached_result_from': cached_uuid})
+                    result, extra_events={"cached_result_from": cached_uuid}
+                )
 
     def _find_applicable_overriding_return_keys(
         self,
@@ -983,7 +1066,7 @@ class FireXTask(Task):
             return (DYNAMIC_RETURN,)
 
         if (
-            not self.is_overriding_task() # base case in recursion
+            not self.is_overriding_task()  # base case in recursion
             # lots of IT have plugins that violate overriden task returns contract
             # by returning nothing, which is bad but needs needs to be accomodated.
             # TODO: "strict" should disallow this.
@@ -992,20 +1075,28 @@ class FireXTask(Task):
             return self.return_keys
 
         # return overridden result.
-        return self.get_overridden_task()._find_applicable_overriding_return_keys(results_tuple)
+        return self.get_overridden_task()._find_applicable_overriding_return_keys(
+            results_tuple
+        )
 
     def real_call(self) -> dict[str, Any]:
         # this is the raw result from the service's .run method,
         # prior to all FireX processing.
-        _call_run_result : Any = super().__call__(
-            *self.context.bog.args,
-            **self.context.bog.kwargs)
+        _call_run_result: Any = super().__call__(
+            *self.context.bog.args, **self.context.bog.kwargs
+        )
 
-        results_tuple = FireXResults.task_returns_to_tuple(self.return_keys, _call_run_result)
-        applicable_return_keys = self._find_applicable_overriding_return_keys(results_tuple)
+        results_tuple = FireXResults.task_returns_to_tuple(
+            self.return_keys, _call_run_result
+        )
+        applicable_return_keys = self._find_applicable_overriding_return_keys(
+            results_tuple
+        )
 
         return self._process_result(
-            FireXResults.convert_result_tuple_to_dict(applicable_return_keys, results_tuple)
+            FireXResults.convert_result_tuple_to_dict(
+                applicable_return_keys, results_tuple
+            )
         )
 
     def final_call(self) -> dict[str, Any]:
@@ -1022,7 +1113,8 @@ class FireXTask(Task):
             ConverterRegister.task_convert(
                 task_name=self.name,
                 pre_task=True,
-                **self.context.bog.get_public_supplied_args())
+                **self.context.bog.get_public_supplied_args(),
+            )
         )
 
         if not self.request.called_directly:
@@ -1038,19 +1130,22 @@ class FireXTask(Task):
         finally:
             self._pause_if_point_requested(_PausePoints.PAUSE_AFTER)
 
-    def _pause_if_point_requested(self, p: '_PausePoints'):
+    def _pause_if_point_requested(self, p: "_PausePoints"):
         pause_req = self.context.pause_tasks().pause_point_requested(self.short_name, p)
         if pause_req:
-            pause_task_name = self.app.conf.get("pause_task") or 'firexapp.tasks.core_tasks.Pause'
+            pause_task_name = (
+                self.app.conf.get("pause_task") or "firexapp.tasks.core_tasks.Pause"
+            )
             pause_task = self.app.tasks[pause_task_name]
             self.enqueue_child(
                 pause_task.s(
                     **(
                         {
-                            'pause_hours': pause_req.pause_hours,
-                            'pause_point': pause_req.pause_point,
-                            'send_pause_email_notification': self.context.pause_tasks().send_pause_email_notification,
-                        } | self.abog
+                            "pause_hours": pause_req.pause_hours,
+                            "pause_point": pause_req.pause_point,
+                            "send_pause_email_notification": self.context.pause_tasks().send_pause_email_notification,
+                        }
+                        | self.abog
                     )
                 ),
                 block=True,
@@ -1062,7 +1157,7 @@ class FireXTask(Task):
         if task_uuid:
             self.app.backend_hset_task_attr(
                 task_uuid,
-                '_fx_start_time',
+                "_fx_start_time",
                 attr_val=time.time(),
                 hsetnx=not force,
             )
@@ -1072,9 +1167,13 @@ class FireXTask(Task):
 
         if not self.request.called_directly:
             if self.request.retries == self.max_retries:
-                logger.error(f'{self.short_name} failed all {self.max_retries} retry attempts')
+                logger.error(
+                    f"{self.short_name} failed all {self.max_retries} retry attempts"
+                )
             else:
-                logger.warning(f'{self.short_name} failed and retrying {self.request.retries+1}/{self.max_retries}')
+                logger.warning(
+                    f"{self.short_name} failed and retrying {self.request.retries + 1}/{self.max_retries}"
+                )
         super().retry(*args, **kwargs)
 
     @property
@@ -1116,7 +1215,8 @@ class FireXTask(Task):
 
     def map_args(self, *args, **kwargs) -> dict:
         return self._create_bog(
-            args, kwargs,
+            args,
+            kwargs,
         ).get_accepted_supplied_and_default_args()
 
     @property
@@ -1139,13 +1239,13 @@ class FireXTask(Task):
         # services should always declare "uid: AutoInject[Uid]" as an arg to automatically receive
         # a Uid, but since we have this legacy mechanism, use auto_inject_reg
         # to always supply the Uid
-        return self._get_auto_injected_arg('uid')
+        return self._get_auto_injected_arg("uid")
 
     #######################
     # Enqueuing child tasks
 
-    _PENDING = 'pending'
-    _UNBLOCKED = 'unblocked'
+    _PENDING = "pending"
+    _UNBLOCKED = "unblocked"
 
     @property
     def pending_enqueued_children(self) -> list[FxAsyncResult]:
@@ -1157,15 +1257,15 @@ class FireXTask(Task):
 
     def _remove_enqueued_child(self, child_result: FxAsyncResult):
         if child_result in self.context.enqueued_children:
-            del(self.context.enqueued_children[child_result])
+            del self.context.enqueued_children[child_result]
 
     def _update_child_state(self, child_result: FxAsyncResult, state: str):
         self.context.enqueued_children[child_result] = state
 
     def wait_for_any_children(
         self,
-        max_wait: float | RunTimeReserve | None=None,
-        poll_max_wait: float | None=None,
+        max_wait: float | RunTimeReserve | None = None,
+        poll_max_wait: float | None = None,
         callbacks: Iterable[WaitLoopCallBack] = (),
     ):
         """Wait for any of the enqueued child tasks to run and complete"""
@@ -1182,9 +1282,9 @@ class FireXTask(Task):
     def wait_for_children(
         self,
         pending_only=True,
-        forget: bool=False,
-        raise_exception_on_failure: bool=True,
-        max_wait: float | RunTimeReserve | None=None,
+        forget: bool = False,
+        raise_exception_on_failure: bool = True,
+        max_wait: float | RunTimeReserve | None = None,
         callbacks: Iterable[WaitLoopCallBack] = (),
         **kwargs,
     ):
@@ -1203,27 +1303,26 @@ class FireXTask(Task):
         )
 
     def _forget_child_result(self, child_result: FxAsyncResult):
-
         """Forget results of the tree rooted at the "chain-head" of child_result, while skipping subtrees in
         skip_subtree_nodes, as well as nodes in do_not_forget_nodes.
 
         """
-        logger.debug('Forgetting results')
+        logger.debug("Forgetting results")
 
         skip_subtree_nodes: set[str] = set()
 
         enqueue_once_subtree_nodes = get_current_enqueue_child_once_uids(self.backend)
         if enqueue_once_subtree_nodes:
             skip_subtree_nodes.update(enqueue_once_subtree_nodes)
-            logger.debug(f'Enqueue once subtree nodes: {enqueue_once_subtree_nodes}')
+            logger.debug(f"Enqueue once subtree nodes: {enqueue_once_subtree_nodes}")
 
         cache_enabled_subtree_nodes = get_current_cache_enabled_uids(self.backend)
         if cache_enabled_subtree_nodes:
             skip_subtree_nodes.update(cache_enabled_subtree_nodes)
-            logger.debug(f'Cache-enabled  subtree nodes: {cache_enabled_subtree_nodes}')
+            logger.debug(f"Cache-enabled  subtree nodes: {cache_enabled_subtree_nodes}")
 
         if report_nodes := get_current_reports_uids(self.backend):
-            logger.debug(f'Report nodes: {report_nodes}')
+            logger.debug(f"Report nodes: {report_nodes}")
 
         forget_chain_results(
             child_result,
@@ -1241,9 +1340,9 @@ class FireXTask(Task):
     def wait_for_specific_children(
         self,
         child_results: FxAsyncResult | list[FxAsyncResult],
-        forget: bool=False,
-        raise_exception_on_failure: bool=True,
-        max_wait: float | RunTimeReserve | None=None,
+        forget: bool = False,
+        raise_exception_on_failure: bool = True,
+        max_wait: float | RunTimeReserve | None = None,
         callbacks: Iterable[WaitLoopCallBack] = (),
     ):
         """Wait for the explicitly provided child_results to run and complete"""
@@ -1251,14 +1350,17 @@ class FireXTask(Task):
         if isinstance(child_results, FxAsyncResult):
             child_results = [child_results]
 
-        async_results = ManyFxAsyncResults.create_fx_ars([
-            # a child enqueued to forget itself drops its results at its own postrun,
-            # so there is nothing left to wait for and it would only ever time out.
-            ar for ar in child_results or []
-            if not ar.fx_is_forgotten()
-        ])
+        async_results = ManyFxAsyncResults.create_fx_ars(
+            [
+                # a child enqueued to forget itself drops its results at its own postrun,
+                # so there is nothing left to wait for and it would only ever time out.
+                ar
+                for ar in child_results or []
+                if not ar.fx_is_forgotten()
+            ]
+        )
         if async_results:
-            logger.debug(f'Waiting for enqueued children: {async_results}')
+            logger.debug(f"Waiting for enqueued children: {async_results}")
             try:
                 async_results.wait_for_all(
                     raise_on_failure=raise_exception_on_failure,
@@ -1269,13 +1371,11 @@ class FireXTask(Task):
                 for r in async_results:
                     self._update_child_state(r, self._UNBLOCKED)
                 if forget:
-                    self.forget_specific_children_results(
-                        [r for r in async_results]
-                    )
+                    self.forget_specific_children_results([r for r in async_results])
 
     @staticmethod
     def is_mc_queue(queue: str) -> bool:
-        return queue.startswith('mc')
+        return queue.startswith("mc")
 
     def get_worker_queue(self) -> str | None:
         hostname = self.request.hostname
@@ -1288,7 +1388,7 @@ class FireXTask(Task):
     def get_request_queue(self) -> str | None:
         # noinspection PyBroadException
         try:
-            return self.request.delivery_info['routing_key']
+            return self.request.delivery_info["routing_key"]
         except (AttributeError, KeyError, TypeError):
             return None
 
@@ -1301,11 +1401,7 @@ class FireXTask(Task):
                 queue = self.get_worker_queue()
 
         # This is not fool proof, since a "master" can have multiple queue names, still causing a deadlock
-        if (
-            queue
-            and queue.startswith('master')
-            and queue == self.get_request_queue()
-        ):
+        if queue and queue.startswith("master") and queue == self.get_request_queue():
             raise SchedulingDeadlockException(
                 "Microservices running on 'master' cannot schedule on master. This results in a deadlock"
             )
@@ -1315,23 +1411,25 @@ class FireXTask(Task):
     def enqueue_child(
         self,
         chain: SignatureX,
-        queue: str | None=None,
-        priority: int | None=None,
-        soft_time_limit: int | RunTimeReserve | None=None,
-        add_to_enqueued_children: bool=True,
-        block: bool=False,
-        raise_exception_on_failure: bool | None=None,
-        forget: bool | None=None,
-        max_wait: float | RunTimeReserve | None=None,
+        queue: str | None = None,
+        priority: int | None = None,
+        soft_time_limit: int | RunTimeReserve | None = None,
+        add_to_enqueued_children: bool = True,
+        block: bool = False,
+        raise_exception_on_failure: bool | None = None,
+        forget: bool | None = None,
+        max_wait: float | RunTimeReserve | None = None,
         callbacks: Iterable[WaitLoopCallBack] = (),
-        enqueue_once_key: str | None=None,
+        enqueue_once_key: str | None = None,
         **kwargs,
     ) -> FxAsyncResult:
         """Schedule a child task to run"""
 
         if raise_exception_on_failure is not None:
             if not block:
-                raise ValueError("Cannot control exceptions on child failure if we don't block")
+                raise ValueError(
+                    "Cannot control exceptions on child failure if we don't block"
+                )
             # Only set it if not None, otherwise we want to leave the downstream default
             raise_on_failure = raise_exception_on_failure
         else:
@@ -1366,10 +1464,7 @@ class FireXTask(Task):
             chain.set_soft_time_limit(soft_time_limit)
 
         enqueue_once_spec = _setup_enqueue_once(self, enqueue_once_key)
-        apply = (
-            enqueue_once_spec is None
-            or enqueue_once_spec[0] == 1
-        )
+        apply = enqueue_once_spec is None or enqueue_once_spec[0] == 1
         if apply:
             child_result = chain.apply_async_x(
                 self.context.bog.get_auto_inject_registry()
@@ -1377,7 +1472,7 @@ class FireXTask(Task):
             if enqueue_once_spec:
                 self.backend.set(enqueue_once_spec[1], child_result.id)
                 add_enqueue_child_once_uid_to_db(self.backend, child_result.id)
-                logger.debug(f'Key {enqueue_once_spec[1]} set to {child_result.id}')
+                logger.debug(f"Key {enqueue_once_spec[1]} set to {child_result.id}")
             if add_to_enqueued_children:
                 self._update_child_state(child_result, self._PENDING)
         else:
@@ -1408,7 +1503,9 @@ class FireXTask(Task):
                         # only worth an error when forgetting was actually asked for;
                         # a task declaring it gets enqueued this way all the time.
                         log = logger.debug if forget_declared_by_task else logger.error
-                        log(f'Since {chain.get_label()} is being enqueued once, it cannot be forgotten.')
+                        log(
+                            f"Since {chain.get_label()} is being enqueued once, it cannot be forgotten."
+                        )
         elif forget:
             child_result.set_fx_forget()
 
@@ -1417,19 +1514,19 @@ class FireXTask(Task):
     def enqueue_child_and_get_results(
         self,
         chain: SignatureX,
-        queue: str | None="auto",
-        priority: int | None=None,
-        soft_time_limit: int | RunTimeReserve | None=None,
+        queue: str | None = "auto",
+        priority: int | None = None,
+        soft_time_limit: int | RunTimeReserve | None = None,
         return_keys: str | tuple[str, ...] = (),
         return_keys_only: bool = True,
         merge_children_results: bool = False,
         extract_from_parents: bool = True,
         forget: bool | None = None,
-        raise_exception_on_failure: bool=True,
-        max_wait: float | RunTimeReserve | None=None,
+        raise_exception_on_failure: bool = True,
+        max_wait: float | RunTimeReserve | None = None,
         callbacks: Iterable[WaitLoopCallBack] = (),
-        block: bool=True,
-        enqueue_once_key: str | None=None,
+        block: bool = True,
+        enqueue_once_key: str | None = None,
     ) -> dict[str, Any]:
         """Apply a ``chain``, and extract results from it.
 
@@ -1482,17 +1579,17 @@ class FireXTask(Task):
     def enqueue_child_and_extract(
         self,
         chain: SignatureX,
-        queue: str | None="auto",
-        priority: int | None=None,
-        soft_time_limit: int | RunTimeReserve | None=None,
+        queue: str | None = "auto",
+        priority: int | None = None,
+        soft_time_limit: int | RunTimeReserve | None = None,
         return_keys: str | tuple[str, ...] = (),
         extract_from_children: bool = True,
         extract_task_returns_only: bool = False,
-        enqueue_once_key: str | None=None,
+        enqueue_once_key: str | None = None,
         extract_from_parents: bool | None = None,
         forget: bool | None = None,
-        raise_exception_on_failure: bool=True,
-        max_wait: float | RunTimeReserve | None=None,
+        raise_exception_on_failure: bool = True,
+        max_wait: float | RunTimeReserve | None = None,
         callbacks: Iterable[WaitLoopCallBack] = (),
         block=True,
     ) -> tuple | dict:
@@ -1524,15 +1621,18 @@ class FireXTask(Task):
             if extract_from_parents is None:
                 extract_from_parents = False
             if extract_from_parents and chain.is_multi_chain():
-                raise ValueError('Unable to extract returns from parents when using enqueue_once_key.')
+                raise ValueError(
+                    "Unable to extract returns from parents when using enqueue_once_key."
+                )
 
         if extract_from_parents is None:
             extract_from_parents = True
 
         if not block:
             logger.warning(
-                f'enqueue_child_and_extract ignored block={block}, '
-                'since it needs to block in order to extract results')
+                f"enqueue_child_and_extract ignored block={block}, "
+                "since it needs to block in order to extract results"
+            )
             block = True
 
         result_promise = self.enqueue_child(
@@ -1548,7 +1648,7 @@ class FireXTask(Task):
             enqueue_once_key=enqueue_once_key,
         )
 
-        if result_promise: # FIXME: inject arg bugs.
+        if result_promise:  # FIXME: inject arg bugs.
             results = result_promise.legacy_extract_results(
                 return_keys=return_keys,
                 merge_children_results=extract_from_children,
@@ -1570,8 +1670,8 @@ class FireXTask(Task):
         max_parallel_chains=15,
         block=False,
         raise_on_failure=False,
-        forget: bool | None=None,
-        max_wait: float | RunTimeReserve | None=None,
+        forget: bool | None = None,
+        max_wait: float | RunTimeReserve | None = None,
         callbacks: Iterable[WaitLoopCallBack] = (),
     ) -> ManyFxAsyncResults[int]: ...
 
@@ -1582,8 +1682,8 @@ class FireXTask(Task):
         max_parallel_chains=15,
         block=False,
         raise_on_failure=False,
-        forget: bool | None=None,
-        max_wait: float | RunTimeReserve | None=None,
+        forget: bool | None = None,
+        max_wait: float | RunTimeReserve | None = None,
         callbacks: Iterable[WaitLoopCallBack] = (),
     ) -> ManyFxAsyncResults[K]: ...
 
@@ -1593,29 +1693,33 @@ class FireXTask(Task):
         max_parallel_chains=15,
         block=False,
         raise_on_failure=False,
-        forget: bool | None=None,
-        max_wait: float | RunTimeReserve | None=None,
+        forget: bool | None = None,
+        max_wait: float | RunTimeReserve | None = None,
         callbacks: Iterable[WaitLoopCallBack] = (),
     ) -> ManyFxAsyncResults[Any]:
         """
-            Execute the provided Signatures/Chains in parallel and return their results.
-            Sequence inputs use positional integer keys; mapping inputs preserve their keys.
+        Execute the provided Signatures/Chains in parallel and return their results.
+        Sequence inputs use positional integer keys; mapping inputs preserve their keys.
         """
         start = time.monotonic()
-        keyed_chains = chains if isinstance(chains, Mapping) else dict(enumerate(chains))
+        keyed_chains = (
+            chains if isinstance(chains, Mapping) else dict(enumerate(chains))
+        )
         will_wait = block or raise_on_failure
-        promises_by_key : dict[Any, FxAsyncResult] = {}
-        scheduled : list[FxAsyncResult] = []
+        promises_by_key: dict[Any, FxAsyncResult] = {}
+        scheduled: list[FxAsyncResult] = []
         for key, c in keyed_chains.items():
             if len(scheduled) >= max_parallel_chains:
                 # Reach the max allowed parallel chains, wait for one to complete before scheduling the next one.
-                completed_ar = ManyFxAsyncResults.fx_ars_from_list(scheduled).wait_for_any(
-                    raise_on_failure=False, # handled below
+                completed_ar = ManyFxAsyncResults.fx_ars_from_list(
+                    scheduled
+                ).wait_for_any(
+                    raise_on_failure=False,  # handled below
                 )
                 scheduled.remove(completed_ar)
 
             # Schedule the next child
-            logger.debug(f'Enqueueing: {c.get_label()}')
+            logger.debug(f"Enqueueing: {c.get_label()}")
             promise = self.enqueue_child(
                 c,
                 # Chains are always enqueued non-blocking so that they run in parallel,
@@ -1658,11 +1762,11 @@ class FireXTask(Task):
         forget: bool | None,
     ) -> ManyFxAsyncResults[Any]:
         """
-            Drop the results of the chains that asked to be forgotten, now that they
-            have been waited on, and report every chain's results either way.
+        Drop the results of the chains that asked to be forgotten, now that they
+        have been waited on, and report every chain's results either way.
 
-            Each forgotten promise is replaced by a snapshot of what it resolved to, so
-            that the caller still receives the results it waited for.
+        Each forgotten promise is replaced by a snapshot of what it resolved to, so
+        that the caller still receives the results it waited for.
         """
         for key, chain in keyed_chains.items():
             # each chain declares forget independently, so it resolves per chain.
@@ -1681,18 +1785,18 @@ class FireXTask(Task):
         max_parallel_chains=15,
         wait_for_completion=True,
         raise_exception_on_failure=False,
-        forget: bool | None=None,
-        max_wait: float | RunTimeReserve | None=None,
+        forget: bool | None = None,
+        max_wait: float | RunTimeReserve | None = None,
         callbacks: Iterable[WaitLoopCallBack] = (),
         **_kwargs,
     ) -> list[FxAsyncResult]:
         """
-            This method executes the provided list of Signatures/Chains in parallel
-            and returns the associated list of "async_result" objects.
-            The results are returned in the same order as the input Signatures/Chains.
+        This method executes the provided list of Signatures/Chains in parallel
+        and returns the associated list of "async_result" objects.
+        The results are returned in the same order as the input Signatures/Chains.
         """
         if _kwargs:
-            logger.error(f'Ignoring unexpected arguments: {_kwargs}')
+            logger.error(f"Ignoring unexpected arguments: {_kwargs}")
 
         many_ars = self.enqueue_many(
             chains=chains,
@@ -1708,7 +1812,7 @@ class FireXTask(Task):
     def enqueue_child_from_spec(
         self,
         task_spec: TaskEnqueueSpec,
-        inject_args: dict | None=None,
+        inject_args: dict | None = None,
     ):
         args_to_inject = self.abog.copy() if task_spec.inject_abog else {}
         args_to_inject.update(inject_args or {})
@@ -1716,27 +1820,21 @@ class FireXTask(Task):
             chain = InjectArgs(**args_to_inject) | task_spec.signature
         else:
             chain = task_spec.signature
-        logger.debug(f'Enqueuing {task_spec}')
-        self.enqueue_child(
-            chain,
-            **(task_spec.enqueue_opts or {})
-        )
+        logger.debug(f"Enqueuing {task_spec}")
+        self.enqueue_child(chain, **(task_spec.enqueue_opts or {}))
 
     def revoke_nonready_children(self) -> None:
         if nonready_children := [
-            c for c in self.context.enqueued_children
-            if not c.fx_is_ready()
+            c for c in self.context.enqueued_children if not c.fx_is_ready()
         ]:
-            logger.info('Nonready children of current task exist.')
-            revoked : list[FxAsyncResult]= []
+            logger.info("Nonready children of current task exist.")
+            revoked: list[FxAsyncResult] = []
             for child_ar in nonready_children:
                 revoked += self.revoke_child(child_ar)
-            ManyFxAsyncResults.fx_ars_from_list(
-                revoked
-            ).wait_for_running()
+            ManyFxAsyncResults.fx_ars_from_list(revoked).wait_for_running()
 
     def revoke_child(self, result: FxAsyncResult) -> list[FxAsyncResult]:
-        logger.debug(f'Revoking child {result.fx_get_name()}')
+        logger.debug(f"Revoking child {result.fx_get_name()}")
         revoked_results = result.get_chain_ancestors_as_many().revoke_non_ready()
         self._update_child_state(result, self._UNBLOCKED)
         return list(revoked_results)
@@ -1774,7 +1872,9 @@ class FireXTask(Task):
         if self._task_logging_dirpath:
             return self._task_logging_dirpath
         else:
-            _task_logging_dirpath = os.path.join(self.file_logging_dirpath, request.hostname)
+            _task_logging_dirpath = os.path.join(
+                self.file_logging_dirpath, request.hostname
+            )
             if not os.path.exists(_task_logging_dirpath):
                 os.makedirs(_task_logging_dirpath, exist_ok=True)
             self._task_logging_dirpath = _task_logging_dirpath
@@ -1788,8 +1888,12 @@ class FireXTask(Task):
     def task_log_url(self):
         if self.app.conf.install_config.has_viewer():
             # FIXME: there must be a more direct way of getting this relative path.
-            log_entry_rel_run_root = os.path.relpath(self.task_logfile, self.app.conf.logs_dir)
-            return self.app.conf.install_config.get_log_entry_url(log_entry_rel_run_root)
+            log_entry_rel_run_root = os.path.relpath(
+                self.task_logfile, self.app.conf.logs_dir
+            )
+            return self.app.conf.install_config.get_log_entry_url(
+                log_entry_rel_run_root
+            )
         else:
             return self.task_logfile
 
@@ -1807,27 +1911,33 @@ class FireXTask(Task):
 
     @classmethod
     def get_task_logfile(cls, task_logging_dirpath, task_name, uuid):
-        return os.path.join(task_logging_dirpath, cls.get_task_logfilename(task_name, uuid))
+        return os.path.join(
+            task_logging_dirpath, cls.get_task_logfilename(task_name, uuid)
+        )
 
     @staticmethod
     def get_task_logfilename(task_name, uuid) -> str:
-        return f'{task_name}_{uuid}.html'
+        return f"{task_name}_{uuid}.html"
 
     @property
     def worker_log_url(self):
         worker_log_url = self.worker_log_file
         task_label = self.task_label
         if task_label:
-            worker_log_url = urljoin(worker_log_url, f'#{task_label}')
+            worker_log_url = urljoin(worker_log_url, f"#{task_label}")
         return worker_log_url
 
     def write_task_log_html_header(self):
         base_dir = self.task_logging_dirpath
         worker_name = self.request.hostname
-        worker_hostname = worker_name.split('@', 1)[-1]
-        html_header = JINJA_ENV.get_template('log_template.html').render(
-            firex_stylesheet=get_firex_css_filepath(self.app.conf.resources_dir, relative_from=base_dir),
-            logo=get_firex_logo_filepath(self.app.conf.resources_dir, relative_from=base_dir),
+        worker_hostname = worker_name.split("@", 1)[-1]
+        html_header = JINJA_ENV.get_template("log_template.html").render(
+            firex_stylesheet=get_firex_css_filepath(
+                self.app.conf.resources_dir, relative_from=base_dir
+            ),
+            logo=get_firex_logo_filepath(
+                self.app.conf.resources_dir, relative_from=base_dir
+            ),
             firex_id=self.app.conf.uid,
             link_for_logo=self.app.conf.link_for_logo,
             header_main_title=self.name_without_orig,
@@ -1836,7 +1946,7 @@ class FireXTask(Task):
             worker_hostname=worker_hostname,
         )
 
-        with open(self.task_logfile, 'w') as f:
+        with open(self.task_logfile, "w") as f:
             f.write(html_header)
 
     def add_task_logfile_handler(self):
@@ -1846,15 +1956,18 @@ class FireXTask(Task):
             self.write_task_log_html_header()
 
         self._temp_loghandlers = {}
-        fh_root = WatchedFileHandler(task_logfile, mode='a+')
+        fh_root = WatchedFileHandler(task_logfile, mode="a+")
         fh_root.setFormatter(self.root_logger_file_handler.formatter)
         logger.root.addHandler(fh_root)
         self._temp_loghandlers[logger.root] = fh_root
 
-        task_logger = get_logger('celery.task')
-        fh_task = logging.FileHandler(task_logfile, mode='a+')
-        original_file_handler = next(handler for handler in task_logger.handlers if
-                                 isinstance(handler, WatchedFileHandler))
+        task_logger = get_logger("celery.task")
+        fh_task = logging.FileHandler(task_logfile, mode="a+")
+        original_file_handler = next(
+            handler
+            for handler in task_logger.handlers
+            if isinstance(handler, WatchedFileHandler)
+        )
         fh_task.setFormatter(original_file_handler.formatter)
         task_logger.addHandler(fh_task)
         self._temp_loghandlers[task_logger] = fh_task
@@ -1877,31 +1990,41 @@ class FireXTask(Task):
         if self.request.id:
             try:
                 return float(
-                    self.app.backend_hget_task_attr(self.request.id, '_fx_start_time')
+                    self.app.backend_hget_task_attr(self.request.id, "_fx_start_time")
                 )
             # Timing is optional diagnostic data and backend implementations vary.
             except Exception:
-                logger.debug('Failed to read task start time', exc_info=True)
+                logger.debug("Failed to read task start time", exc_info=True)
         return None
 
     def _get_task_flame_configs(self) -> dict:
-        decorator_flame_configs = deepcopy(getattr(self.undecorated, "flame_data_configs", {}))
+        decorator_flame_configs = deepcopy(
+            getattr(self.undecorated, "flame_data_configs", {})
+        )
 
-        flame_value = get_attr_unwrapped(self, 'flame', None)
+        flame_value = get_attr_unwrapped(self, "flame", None)
         task_flame_config = OrderedDict()
         if flame_value:
             if isinstance(flame_value, str):
                 # Config is only a key name, fill in default config.
-                task_flame_config = OrderedDict([(flame_value, create_flame_config([]))])
+                task_flame_config = OrderedDict(
+                    [(flame_value, create_flame_config([]))]
+                )
             elif isinstance(flame_value, list):
                 # Config is a list of key names, each of which should get a default config.
                 # Create list of default configs so that their order is set properly.
                 default_flame_configs = []
                 for _ in flame_value:
-                    default_flame_configs.append(create_flame_config(default_flame_configs))
+                    default_flame_configs.append(
+                        create_flame_config(default_flame_configs)
+                    )
                 # associated ordered default configs with key names from flame decorator.
-                task_flame_config = OrderedDict([(key_name, default_flame_configs[i])
-                                                 for i, key_name in enumerate(flame_value)])
+                task_flame_config = OrderedDict(
+                    [
+                        (key_name, default_flame_configs[i])
+                        for i, key_name in enumerate(flame_value)
+                    ]
+                )
             elif isinstance(flame_value, dict):
                 task_flame_config = OrderedDict(flame_value)
 
@@ -1911,7 +2034,8 @@ class FireXTask(Task):
         if self.request.called_directly:
             return
 
-        if getattr(self.context, 'flame_configs', False):
+        if getattr(self.context, "flame_configs", False):
+
             def safe_format(formatter, fromatter_args, formatter_kwargs):
                 try:
                     return formatter(*fromatter_args, **formatter_kwargs)
@@ -1923,71 +2047,89 @@ class FireXTask(Task):
             for flame_key, flame_config in self.context.flame_configs.items():
                 # Data can be sent either because it is supplied in the input or if data was registered to be sent
                 # 'on_next' during flame_data_config registration.
-                if flame_key in data \
-                        or flame_config['on_next'] \
-                        or (flame_key is None or flame_key == '*'):
-                    formatter_kwargs = {'task': self} if flame_config['bind'] else {}
+                if (
+                    flame_key in data
+                    or flame_config["on_next"]
+                    or (flame_key is None or flame_key == "*")
+                ):
+                    formatter_kwargs = {"task": self} if flame_config["bind"] else {}
                     if flame_key in data:
                         formatter_args = [data[flame_key]]
-                    elif flame_config['on_next']:
-                        formatter_args = flame_config['on_next_args']
-                    elif flame_key is None or flame_key == '*':
+                    elif flame_config["on_next"]:
+                        formatter_args = flame_config["on_next_args"]
+                    elif flame_key is None or flame_key == "*":
                         # None means execute formatter with all data.
                         formatter_args = [data]
                     else:
                         formatter_args = []
 
-                    format_result = safe_format(flame_config['formatter'], formatter_args, formatter_kwargs)
+                    format_result = safe_format(
+                        flame_config["formatter"], formatter_args, formatter_kwargs
+                    )
                     if format_result is not None:
                         formatted_data[flame_key] = {
-                            'value': format_result,
-                            'type': flame_config['data_type'],
-                            'order': flame_config['order'],
+                            "value": format_result,
+                            "type": flame_config["data_type"],
+                            "order": flame_config["order"],
                         }
 
             if formatted_data:
-                self.send_firex_event_raw({'flame_data': formatted_data})
-                sent_on_next_keys = [k for k, v in self.context.flame_configs.items()
-                                     if v['on_next'] and k in formatted_data]
+                self.send_firex_event_raw({"flame_data": formatted_data})
+                sent_on_next_keys = [
+                    k
+                    for k, v in self.context.flame_configs.items()
+                    if v["on_next"] and k in formatted_data
+                ]
                 for k in sent_on_next_keys:
-                    self.context.flame_configs[k]['on_next'] = False
+                    self.context.flame_configs[k]["on_next"] = False
 
     def send_firex_event_raw(self, data: dict[str, Any]):
-        self.send_event('task-send-flame', **data)
+        self.send_event("task-send-flame", **data)
 
     def send_firex_html(self, **kwargs):
-        formatted_data = {flame_key: {'value': html_data,
-                                      'type': 'html',
-                                      'order': time.time()}
-                          for flame_key, html_data in kwargs.items()}
-        self.send_firex_event_raw({'flame_data': formatted_data})
+        formatted_data = {
+            flame_key: {"value": html_data, "type": "html", "order": time.time()}
+            for flame_key, html_data in kwargs.items()
+        }
+        self.send_firex_event_raw({"flame_data": formatted_data})
 
-    def send_display_collapse(self, task_uuid: str | None=None):
+    def send_display_collapse(self, task_uuid: str | None = None):
         """
-            Collapse the current task (default), or collapse the task with the supplied UUID.
+        Collapse the current task (default), or collapse the task with the supplied UUID.
         """
         if task_uuid is None:
             task_uuid = self.request.id
         formatted_data = {
             FLAME_COLLAPSE_KEY: {
-                'value': flame_collapse_formatter([{
-                    'targets': ['self'],
-                    'relative_to_nodes': {'type': 'task_uuid', 'value': task_uuid},
-                }], self),
-                'type': 'object',
-                'order': time.time()}
+                "value": flame_collapse_formatter(
+                    [
+                        {
+                            "targets": ["self"],
+                            "relative_to_nodes": {
+                                "type": "task_uuid",
+                                "value": task_uuid,
+                            },
+                        }
+                    ],
+                    self,
+                ),
+                "type": "object",
+                "order": time.time(),
+            }
         }
-        self.send_firex_event_raw({'flame_data': formatted_data})
+        self.send_firex_event_raw({"flame_data": formatted_data})
 
     def init_auto_inject_registry(self, auto_inject_args: list[AutoInjectSpec]):
         """
-            Expected to only be called once per run, by the root task. The registry
-            created there then propagates to all tasks via the BoG.
+        Expected to only be called once per run, by the root task. The registry
+        created there then propagates to all tasks via the BoG.
         """
         # auto inject pause args, if any.
         pauses = PauseTasks.create_from_abog(self.abog)
         if pauses.pause_tasks_by_name:
-            auto_inject_args = auto_inject_args + [ AutoInjectSpec(PauseTasks, PauseTasks.PAUSE_TASKS_ABOG_KEY, pauses) ]
+            auto_inject_args = auto_inject_args + [
+                AutoInjectSpec(PauseTasks, PauseTasks.PAUSE_TASKS_ABOG_KEY, pauses)
+            ]
 
         self.context.bog.init_auto_inject_registry(auto_inject_args)
 
@@ -1998,10 +2140,9 @@ class FireXTask(Task):
     def get_pydantic_convertible_arg_names(self) -> set[str]:
         arg_names = self.context.bog.get_pydantic_convertible_arg_names()
         if self.orig:
-            arg_names.update(
-                self.orig.get_pydantic_convertible_arg_names()
-            )
+            arg_names.update(self.orig.get_pydantic_convertible_arg_names())
         return arg_names
+
 
 def _setup_enqueue_once(
     task: FireXTask,
@@ -2013,11 +2154,17 @@ def _setup_enqueue_once(
             # There is danger here: If we are retrying before originally enqueueing this service, it's possible that
             # a regular enqueue of this service from elsewhere is still running and the new enqueue with the new
             # key will clash with that one
-            enqueue_once_key = f'{enqueue_once_key}_{task.request.retries}'
-            logger.info(f'Enqueue once: set new enqueue key, since this is a retry ({enqueue_once_key})')
+            enqueue_once_key = f"{enqueue_once_key}_{task.request.retries}"
+            logger.info(
+                f"Enqueue once: set new enqueue key, since this is a retry ({enqueue_once_key})"
+            )
 
-        enqueue_child_once_uid_dbkey = get_enqueue_child_once_uid_dbkey(enqueue_once_key)
-        enqueue_child_once_count_dbkey = get_enqueue_child_once_count_dbkey(enqueue_once_key)
+        enqueue_child_once_uid_dbkey = get_enqueue_child_once_uid_dbkey(
+            enqueue_once_key
+        )
+        enqueue_child_once_count_dbkey = get_enqueue_child_once_count_dbkey(
+            enqueue_once_key
+        )
         num_runs_attempted = task.backend.client.incr(enqueue_child_once_count_dbkey)
         return int(num_runs_attempted), enqueue_child_once_uid_dbkey
     else:
@@ -2025,14 +2172,13 @@ def _setup_enqueue_once(
 
 
 def _get_already_enqueued_once_result(
-    task: FireXTask,
-    enqueue_once_key: str,
-    enqueued_once_db_key: str
+    task: FireXTask, enqueue_once_key: str, enqueued_once_db_key: str
 ) -> FxAsyncResult:
     # Someone else is running this; wait for uuid to be set in the backend
     logger.info(
-        f'Skipping enqueue of task with enqueue-once key {enqueue_once_key}; '
-        f"It's being enqueued by a different owner.")
+        f"Skipping enqueue of task with enqueue-once key {enqueue_once_key}; "
+        f"It's being enqueued by a different owner."
+    )
 
     # Wait for task-id to show up in the backend
     if not (
@@ -2043,10 +2189,11 @@ def _get_already_enqueued_once_result(
     ):
         # This is unexpected, since we expect uuid to be set by whoever is enqueueing this
         raise WaitOnChainTimeoutError(
-            f'Timed out waiting for task-id to be set.'
-            f' (enqueue-once key: {enqueue_once_key})')
+            f"Timed out waiting for task-id to be set."
+            f" (enqueue-once key: {enqueue_once_key})"
+        )
 
-    logger.info(f'{enqueue_once_key} is enqueued with task-id: {task_uuid}')
+    logger.info(f"{enqueue_once_key} is enqueued with task-id: {task_uuid}")
     task._send_flame_additional_child(task_uuid)
     return FxAsyncResult(task_uuid, app=task.app)
 
@@ -2056,7 +2203,7 @@ def _wait_for_backend_key(
     backend_key: str,
 ) -> str | None:
     sec_to_wait = 60
-    logger.info(f'Checking for task-id; might take up to {sec_to_wait} seconds.')
+    logger.info(f"Checking for task-id; might take up to {sec_to_wait} seconds.")
     loop_start_time = current_time = time.time()
     while (current_time - loop_start_time) < sec_to_wait:
         uid_of_enqueued_task = backend.get(backend_key)
@@ -2094,7 +2241,7 @@ def get_attr_unwrapped(fun: Callable | None, attr_name: str, *default_value):
         try:
             return getattr(fun, attr_name)
         except AttributeError:
-            fun = getattr(fun, '__wrapped__', None)
+            fun = getattr(fun, "__wrapped__", None)
     if default_value:
         return default_value[0]
     raise AttributeError(attr_name)
@@ -2117,7 +2264,7 @@ def convert_to_serializable(obj, max_recursive_depth=10, _depth=0):
     if obj is None or isinstance(obj, (int, float, str, bool)):
         return obj
 
-    if hasattr(obj, 'firex_serializable') and not isinstance(obj, type):
+    if hasattr(obj, "firex_serializable") and not isinstance(obj, type):
         return obj.firex_serializable()
 
     if isinstance(obj, datetime):
@@ -2127,12 +2274,12 @@ def convert_to_serializable(obj, max_recursive_depth=10, _depth=0):
         return obj.__name__
 
     if isinstance(obj, pydantic.BaseModel):
-        return obj.model_dump(mode='json')
+        return obj.model_dump(mode="json")
     elif dataclasses.is_dataclass(obj):
         try:
             obj = dataclasses.asdict(obj)
         except TypeError:
-            pass # e.g. enums
+            pass  # e.g. enums
 
     if is_jsonable(obj):
         return obj
@@ -2143,32 +2290,56 @@ def convert_to_serializable(obj, max_recursive_depth=10, _depth=0):
         if isinstance(obj, dict):
             jsonable_dict = {}
             for k, v in obj.items():
-                serializable_key = convert_to_serializable(k, max_recursive_depth, _depth+1)
+                serializable_key = convert_to_serializable(
+                    k, max_recursive_depth, _depth + 1
+                )
                 if isinstance(serializable_key, list):
                     serializable_key = json.dumps(serializable_key)
-                jsonable_dict[serializable_key] = convert_to_serializable(v, max_recursive_depth, _depth+1)
+                jsonable_dict[serializable_key] = convert_to_serializable(
+                    v, max_recursive_depth, _depth + 1
+                )
             return jsonable_dict
 
         # Note that it's important this DOES NOT catch strings, and it won't since strings are jsonable.
         if isinstance(obj, Iterable):
-            return [convert_to_serializable(e, max_recursive_depth, _depth+1) for e in obj]
+            return [
+                convert_to_serializable(e, max_recursive_depth, _depth + 1) for e in obj
+            ]
 
     return repr(obj)
 
 
-def banner(text, ch='=', length=78, content=''):
+def banner(text, ch="=", length=78, content=""):
     if content:
-        content = '\n'.join(['\n'.join(textwrap.wrap(line, width=length)) for line in content.split('\n')])
-        content += '\n'
-    spaced_text = '\n'.join(
-        ['\n'.join(textwrap.wrap(line, width=length, drop_whitespace=False)) for line in text.split('\n')])
-    return '\n' + ch * length + '\n' + spaced_text.center(length, ch) + '\n' + content + ch * length + '\n'
+        content = "\n".join(
+            [
+                "\n".join(textwrap.wrap(line, width=length))
+                for line in content.split("\n")
+            ]
+        )
+        content += "\n"
+    spaced_text = "\n".join(
+        [
+            "\n".join(textwrap.wrap(line, width=length, drop_whitespace=False))
+            for line in text.split("\n")
+        ]
+    )
+    return (
+        "\n"
+        + ch * length
+        + "\n"
+        + spaced_text.center(length, ch)
+        + "\n"
+        + content
+        + ch * length
+        + "\n"
+    )
 
 
 class _PausePoints(str, enum.Enum):
-    PAUSE_BEFORE = 'PAUSE_BEFORE'
-    PAUSE_AFTER = 'PAUSE_AFTER'
-    PAUSE_ON_FAILURE = 'PAUSE_ON_FAILURE'
+    PAUSE_BEFORE = "PAUSE_BEFORE"
+    PAUSE_AFTER = "PAUSE_AFTER"
+    PAUSE_ON_FAILURE = "PAUSE_ON_FAILURE"
 
 
 @dataclasses.dataclass
@@ -2180,45 +2351,46 @@ class _TaskPauseRequest:
 
 def _listy(val: Any) -> list[str]:
     if isinstance(val, str):
-        l = [e.strip() for e in val.split(',') if e.strip()]
+        l = [e.strip() for e in val.split(",") if e.strip()]
     elif isinstance(val, list):
         l = [str(e) for e in val]
     else:
         l = [str(val)]
     return l
 
+
 DEFAULT_PAUSE = 4
+
 
 @dataclasses.dataclass
 class PauseTasks:
-
     pause_tasks_by_name: dict[str, list[_TaskPauseRequest]]
     send_pause_email_notification: bool
 
-    PAUSE_TASKS_ABOG_KEY: typing.ClassVar[str] = 'pause_tasks_reqs'
+    PAUSE_TASKS_ABOG_KEY: typing.ClassVar[str] = "pause_tasks_reqs"
 
     @staticmethod
     def get_cli_opts() -> list[dict]:
         return [
             {
-                'task_abog_key': 'pause_on',
-                'pause_point': _PausePoints.PAUSE_BEFORE,
-                'hours_abog_key': 'pause_on_hours',
+                "task_abog_key": "pause_on",
+                "pause_point": _PausePoints.PAUSE_BEFORE,
+                "hours_abog_key": "pause_on_hours",
             },
             {
-                'task_abog_key': 'pause_before',
-                'pause_point': _PausePoints.PAUSE_BEFORE,
-                'hours_abog_key': 'pause_before_hours',
+                "task_abog_key": "pause_before",
+                "pause_point": _PausePoints.PAUSE_BEFORE,
+                "hours_abog_key": "pause_before_hours",
             },
             {
-                'task_abog_key': 'pause_after',
-                'pause_point': _PausePoints.PAUSE_AFTER,
-                'hours_abog_key': 'pause_after_hours',
+                "task_abog_key": "pause_after",
+                "pause_point": _PausePoints.PAUSE_AFTER,
+                "hours_abog_key": "pause_after_hours",
             },
             {
-                'task_abog_key': 'pause_on_failure',
-                'pause_point': _PausePoints.PAUSE_ON_FAILURE,
-                'hours_abog_key': 'pause_on_failure_hours',
+                "task_abog_key": "pause_on_failure",
+                "pause_point": _PausePoints.PAUSE_ON_FAILURE,
+                "hours_abog_key": "pause_on_failure_hours",
             },
         ]
 
@@ -2226,19 +2398,19 @@ class PauseTasks:
     def get_pause_arg_names() -> list[str]:
         args = []
         for o in PauseTasks.get_cli_opts():
-            args.append(o['task_abog_key'])
-            args.append(o['hours_abog_key'])
+            args.append(o["task_abog_key"])
+            args.append(o["hours_abog_key"])
         return args
 
     @staticmethod
-    def create_from_abog(abog: typing.Mapping[str, typing.Any]) -> 'PauseTasks':
+    def create_from_abog(abog: typing.Mapping[str, typing.Any]) -> "PauseTasks":
         pause_tasks_by_name: dict[str, list[_TaskPauseRequest]] = {}
         for pause_point_opt in PauseTasks.get_cli_opts():
-            if (pause_task_val := abog.get(pause_point_opt['task_abog_key'])):
-                task_names : list[str] = _listy(pause_task_val)
+            if pause_task_val := abog.get(pause_point_opt["task_abog_key"]):
+                task_names: list[str] = _listy(pause_task_val)
                 pause_duration = float(
-                    abog.get(pause_point_opt['hours_abog_key'])
-                    or abog.get('pause_duration')
+                    abog.get(pause_point_opt["hours_abog_key"])
+                    or abog.get("pause_duration")
                     or DEFAULT_PAUSE
                 )
                 for task_name in task_names:
@@ -2247,22 +2419,24 @@ class PauseTasks:
                     pause_tasks_by_name[task_name].append(
                         _TaskPauseRequest(
                             task_name,
-                            pause_point_opt['pause_point'],
+                            pause_point_opt["pause_point"],
                             pause_duration,
                         )
                     )
 
         if pause_tasks_by_name:
-            logger.debug(f'Found pause requests: {pause_tasks_by_name}')
+            logger.debug(f"Found pause requests: {pause_tasks_by_name}")
 
         return PauseTasks(
             pause_tasks_by_name=pause_tasks_by_name,
-            send_pause_email_notification=bool(abog.get('send_pause_email_notification', True))
+            send_pause_email_notification=bool(
+                abog.get("send_pause_email_notification", True)
+            ),
         )
 
-    def pause_point_requested(self, task_name: str, point: _PausePoints) -> _TaskPauseRequest | None:
-        if ( pause_specs := self.pause_tasks_by_name.get(task_name) ):
-            return next(
-                (ps for ps in pause_specs if ps.pause_point == point),
-                None)
+    def pause_point_requested(
+        self, task_name: str, point: _PausePoints
+    ) -> _TaskPauseRequest | None:
+        if pause_specs := self.pause_tasks_by_name.get(task_name):
+            return next((ps for ps in pause_specs if ps.pause_point == point), None)
         return None

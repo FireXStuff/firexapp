@@ -7,7 +7,6 @@ from firexkit.testing import ut_celery_app
 
 
 class GetTasksTests(unittest.TestCase):
-
     def test_get_app_task(self):
         test_app = ut_celery_app()
 

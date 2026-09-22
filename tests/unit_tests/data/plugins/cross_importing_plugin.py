@@ -9,6 +9,7 @@ plugin, so only this file gets plugin precedence. cross_plugin_defs' version is
 therefore overridden by this one, including for cross_plugin_defs' own reference to
 it.
 """
+
 from nested_defs.cross_plugin_defs import SOME_CONSTANT  # noqa: F401
 
 from firexapp.engine.celery import app

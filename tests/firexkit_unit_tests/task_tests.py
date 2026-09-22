@@ -18,7 +18,6 @@ from firexkit.testing import ut_celery_app
 
 
 class TaskTests(unittest.TestCase):
-
     def test_signature_type(self):
         test_app = ut_celery_app()
         self.assertIsInstance(test_app, FireXCelery)
@@ -38,8 +37,13 @@ class TaskTests(unittest.TestCase):
         with self.subTest("Name can't end with _orig"):
             # noinspection PyAbstractClass
             class TestTask(FireXTask):
-                name = self.__module__ + "." + self.__class__.__name__ + "." \
-                       + f"TestClass{REPLACEMENT_TASK_NAME_POSTFIX}"
+                name = (
+                    self.__module__
+                    + "."
+                    + self.__class__.__name__
+                    + "."
+                    + f"TestClass{REPLACEMENT_TASK_NAME_POSTFIX}"
+                )
 
             with self.assertRaises(IllegalTaskNameException):
                 test_obj = TestTask()
@@ -48,7 +52,10 @@ class TaskTests(unittest.TestCase):
             # Make sure you can instantiate without the need for the pre and post overrides
             # noinspection PyAbstractClass
             class TestTask(FireXTask):
-                name = self.__module__ + "." + self.__class__.__name__ + "." + "TestClass"
+                name = (
+                    self.__module__ + "." + self.__class__.__name__ + "." + "TestClass"
+                )
+
                 def run(self):
                     pass
 
@@ -65,7 +72,9 @@ class TaskTests(unittest.TestCase):
                 ran = False
                 pre_ran = False
                 post_ran = False
-                name = self.__module__ + "." + self.__class__.__name__ + "." + "TestClass"
+                name = (
+                    self.__module__ + "." + self.__class__.__name__ + "." + "TestClass"
+                )
 
                 def pre_task_run(self):
                     TestTask.pre_ran = True
@@ -91,7 +100,9 @@ class TaskTests(unittest.TestCase):
         with self.subTest("Must have Run"):
             # noinspection PyAbstractClass
             class TestTask(FireXTask):
-                name = self.__module__ + "." + self.__class__.__name__ + "." + "TestClass"
+                name = (
+                    self.__module__ + "." + self.__class__.__name__ + "." + "TestClass"
+                )
 
             test_obj = TestTask()
             test_obj.request_stack = LocalStack()  # simulate binding
@@ -138,12 +149,12 @@ class TaskTests(unittest.TestCase):
 
         # noinspection PyUnusedLocal
         @test_app.task(base=FireXTask, bind=True)
-        @returns('something')
+        @returns("something")
         def c(myself, something):
             return something
 
         @test_app.task(base=FireXTask)
-        @returns('something')
+        @returns("something")
         def d(something):
             return something
 
@@ -177,55 +188,59 @@ class TaskTests(unittest.TestCase):
         def d(myself, arg1, arg2=None, **some_optional_kwargs):
             pass
 
-        with self.subTest('One required argument'):
+        with self.subTest("One required argument"):
             value = 1
 
             def post_task_run(self, results, extra_events=None):
-                the_test.assertEqual(self.args, (value,) )
+                the_test.assertEqual(self.args, (value,))
                 the_test.assertDictEqual(self.kwargs, {})
-                the_test.assertListEqual(self.required_args, ['arg1'])
-                the_test.assertDictEqual(self.bound_args, {'arg1': value})
+                the_test.assertListEqual(self.required_args, ["arg1"])
+                the_test.assertDictEqual(self.bound_args, {"arg1": value})
                 the_test.assertDictEqual(self.default_bound_args, {})
-                the_test.assertDictEqual(self.all_args.copy(), {'arg1': value})
-                the_test.assertDictEqual(self.context.bog.return_args, {'arg1': value})
-                the_test.assertDictEqual(self.abog.copy(), {'arg1': value})
+                the_test.assertDictEqual(self.all_args.copy(), {"arg1": value})
+                the_test.assertDictEqual(self.context.bog.return_args, {"arg1": value})
+                the_test.assertDictEqual(self.abog.copy(), {"arg1": value})
 
-            a._process_result =types.MethodType(post_task_run, a)
+            a._process_result = types.MethodType(post_task_run, a)
             a(value)
 
-        with self.subTest('One required argument with keyword'):
+        with self.subTest("One required argument with keyword"):
             value = 1
 
             def post_task_run(self, results, extra_events=None):
                 the_test.assertEqual(self.args, ())
-                the_test.assertDictEqual(self.kwargs, {'arg1': value})
-                the_test.assertListEqual(self.required_args, ['arg1'])
-                the_test.assertDictEqual(self.bound_args, {'arg1': value})
+                the_test.assertDictEqual(self.kwargs, {"arg1": value})
+                the_test.assertListEqual(self.required_args, ["arg1"])
+                the_test.assertDictEqual(self.bound_args, {"arg1": value})
                 the_test.assertDictEqual(self.default_bound_args, {})
-                the_test.assertDictEqual(self.all_args.copy(), {'arg1': value})
-                the_test.assertDictEqual(self.context.bog.return_args.copy(), {'arg1': value})
-                the_test.assertDictEqual(self.abog.copy(), {'arg1': value})
+                the_test.assertDictEqual(self.all_args.copy(), {"arg1": value})
+                the_test.assertDictEqual(
+                    self.context.bog.return_args.copy(), {"arg1": value}
+                )
+                the_test.assertDictEqual(self.abog.copy(), {"arg1": value})
 
-            a._process_result =types.MethodType(post_task_run, a)
+            a._process_result = types.MethodType(post_task_run, a)
             a(arg1=value)
 
-        with self.subTest('One optional argument'):
+        with self.subTest("One optional argument"):
             value = 1
 
             def post_task_run(self, results, extra_events=None):
                 the_test.assertEqual(self.args, (value,))
                 the_test.assertDictEqual(self.kwargs, {})
                 the_test.assertListEqual(self.required_args, [])
-                the_test.assertDictEqual(self.bound_args, {'arg1': value})
+                the_test.assertDictEqual(self.bound_args, {"arg1": value})
                 the_test.assertDictEqual(self.default_bound_args, {})
-                the_test.assertDictEqual(self.all_args.copy(), {'arg1': value})
-                the_test.assertDictEqual(self.context.bog.return_args.copy(), {'arg1': value})
-                the_test.assertDictEqual(self.abog.copy(), {'arg1': value})
+                the_test.assertDictEqual(self.all_args.copy(), {"arg1": value})
+                the_test.assertDictEqual(
+                    self.context.bog.return_args.copy(), {"arg1": value}
+                )
+                the_test.assertDictEqual(self.abog.copy(), {"arg1": value})
 
-            b._process_result =types.MethodType(post_task_run, b)
+            b._process_result = types.MethodType(post_task_run, b)
             b(value)
 
-        with self.subTest('One optional argument with no value'):
+        with self.subTest("One optional argument with no value"):
             value = None
 
             def post_task_run(self, results, extra_events=None):
@@ -233,121 +248,140 @@ class TaskTests(unittest.TestCase):
                 the_test.assertDictEqual(self.kwargs, {})
                 the_test.assertListEqual(self.required_args, [])
                 the_test.assertDictEqual(self.bound_args, {})
-                the_test.assertDictEqual(self.default_bound_args, {'arg1': value})
-                the_test.assertDictEqual(self.all_args.copy(), {'arg1': value})
+                the_test.assertDictEqual(self.default_bound_args, {"arg1": value})
+                the_test.assertDictEqual(self.all_args.copy(), {"arg1": value})
                 the_test.assertDictEqual(self.context.bog.return_args.copy(), {})
-                the_test.assertDictEqual(self.abog.copy(), {'arg1': value})
-                self.abog['d'] = 1
+                the_test.assertDictEqual(self.abog.copy(), {"arg1": value})
+                self.abog["d"] = 1
 
-            b._process_result =types.MethodType(post_task_run, b)
+            b._process_result = types.MethodType(post_task_run, b)
             b()
 
-        with self.subTest('One optional argument with keyword'):
+        with self.subTest("One optional argument with keyword"):
             value = 1
 
             def post_task_run(self, results, extra_events=None):
                 the_test.assertEqual(self.args, ())
-                the_test.assertDictEqual(self.kwargs, {'arg1': value})
+                the_test.assertDictEqual(self.kwargs, {"arg1": value})
                 the_test.assertListEqual(self.required_args, [])
-                the_test.assertDictEqual(self.bound_args, {'arg1': value})
+                the_test.assertDictEqual(self.bound_args, {"arg1": value})
                 the_test.assertDictEqual(self.default_bound_args, {})
-                the_test.assertDictEqual(self.all_args.copy(), {'arg1': value})
-                the_test.assertDictEqual(self.context.bog.return_args.copy(), {'arg1': value})
-                the_test.assertDictEqual(self.abog.copy(), {'arg1': value})
+                the_test.assertDictEqual(self.all_args.copy(), {"arg1": value})
+                the_test.assertDictEqual(
+                    self.context.bog.return_args.copy(), {"arg1": value}
+                )
+                the_test.assertDictEqual(self.abog.copy(), {"arg1": value})
 
-            b._process_result =types.MethodType(post_task_run, b)
+            b._process_result = types.MethodType(post_task_run, b)
             b(arg1=value)
 
-        with self.subTest('One required and one optional argument '):
+        with self.subTest("One required and one optional argument "):
             value1 = 1
             value2 = 2
 
             def post_task_run(self, results, extra_events=None):
                 the_test.assertEqual(self.args, (value1, value2))
                 the_test.assertDictEqual(self.kwargs, {})
-                the_test.assertListEqual(self.required_args, ['arg1'])
-                the_test.assertDictEqual(self.bound_args, {'arg1': value1,
-                                                           'arg2': value2})
+                the_test.assertListEqual(self.required_args, ["arg1"])
+                the_test.assertDictEqual(
+                    self.bound_args, {"arg1": value1, "arg2": value2}
+                )
                 the_test.assertDictEqual(self.default_bound_args, {})
-                the_test.assertDictEqual(self.all_args.copy(), {'arg1': value1,
-                                                                'arg2': value2})
-                the_test.assertDictEqual(self.context.bog.return_args.copy(), {'arg1': value1,
-                                                           'arg2': value2})
-                the_test.assertDictEqual(self.abog.copy(), {'arg1': value1,
-                                                            'arg2': value2})
+                the_test.assertDictEqual(
+                    self.all_args.copy(), {"arg1": value1, "arg2": value2}
+                )
+                the_test.assertDictEqual(
+                    self.context.bog.return_args.copy(),
+                    {"arg1": value1, "arg2": value2},
+                )
+                the_test.assertDictEqual(
+                    self.abog.copy(), {"arg1": value1, "arg2": value2}
+                )
 
-            c._process_result =types.MethodType(post_task_run, c)
+            c._process_result = types.MethodType(post_task_run, c)
             c(value1, value2)
 
-        with self.subTest('One required and one optional argument with keyword'):
+        with self.subTest("One required and one optional argument with keyword"):
             value1 = 1
             value2 = 2
 
             def post_task_run(self, results, extra_events=None):
                 the_test.assertEqual(self.args, ())
-                the_test.assertDictEqual(self.kwargs, {'arg1': value1,
-                                                       'arg2': value2})
-                the_test.assertListEqual(self.required_args, ['arg1'])
-                the_test.assertDictEqual(self.bound_args, {'arg1': value1,
-                                                           'arg2': value2})
+                the_test.assertDictEqual(self.kwargs, {"arg1": value1, "arg2": value2})
+                the_test.assertListEqual(self.required_args, ["arg1"])
+                the_test.assertDictEqual(
+                    self.bound_args, {"arg1": value1, "arg2": value2}
+                )
                 the_test.assertDictEqual(self.default_bound_args, {})
-                the_test.assertDictEqual(self.all_args.copy(), {'arg1': value1,
-                                                                'arg2': value2})
-                the_test.assertDictEqual(self.context.bog.return_args.copy(), {'arg1': value1,
-                                                           'arg2': value2})
-                the_test.assertDictEqual(self.abog.copy(), {'arg1': value1,
-                                                            'arg2': value2})
+                the_test.assertDictEqual(
+                    self.all_args.copy(), {"arg1": value1, "arg2": value2}
+                )
+                the_test.assertDictEqual(
+                    self.context.bog.return_args.copy(),
+                    {"arg1": value1, "arg2": value2},
+                )
+                the_test.assertDictEqual(
+                    self.abog.copy(), {"arg1": value1, "arg2": value2}
+                )
 
-            c._process_result =types.MethodType(post_task_run, c)
+            c._process_result = types.MethodType(post_task_run, c)
             c(arg2=value2, arg1=value1)
 
-        with self.subTest('One required, one optional provided'):
+        with self.subTest("One required, one optional provided"):
             value1 = 1
             value2 = None
 
             def post_task_run(self, results, extra_events=None):
-                the_test.assertEqual(self.args, (value1,) )
+                the_test.assertEqual(self.args, (value1,))
                 the_test.assertDictEqual(self.kwargs, {})
-                the_test.assertListEqual(self.required_args, ['arg1'])
-                the_test.assertDictEqual(self.bound_args, {'arg1': value1})
-                the_test.assertDictEqual(self.default_bound_args, {'arg2': value2})
-                the_test.assertDictEqual(self.all_args.copy(), {'arg1': value1,
-                                                                'arg2': value2})
-                the_test.assertDictEqual(self.context.bog.return_args.copy(), {'arg1': value1})
-                the_test.assertDictEqual(self.abog.copy(), {'arg1': value1,
-                                                            'arg2': value2})
+                the_test.assertListEqual(self.required_args, ["arg1"])
+                the_test.assertDictEqual(self.bound_args, {"arg1": value1})
+                the_test.assertDictEqual(self.default_bound_args, {"arg2": value2})
+                the_test.assertDictEqual(
+                    self.all_args.copy(), {"arg1": value1, "arg2": value2}
+                )
+                the_test.assertDictEqual(
+                    self.context.bog.return_args.copy(), {"arg1": value1}
+                )
+                the_test.assertDictEqual(
+                    self.abog.copy(), {"arg1": value1, "arg2": value2}
+                )
 
-            c._process_result =types.MethodType(post_task_run, c)
+            c._process_result = types.MethodType(post_task_run, c)
             c(value1)
 
-        with self.subTest('One required and one optional argument with other optional'):
+        with self.subTest("One required and one optional argument with other optional"):
             value1 = 1
             value2 = 2
 
             def post_task_run(self, results, extra_events=None):
-                the_test.assertEqual(self.args, (value1,) )
-                the_test.assertDictEqual(self.kwargs, {'arg2': value2,
-                                                       'arg3': 3})
-                the_test.assertListEqual(self.required_args, ['arg1'])
-                the_test.assertDictEqual(self.optional_args, {'arg2': None})
-                the_test.assertDictEqual(self.bound_args, {'arg1': value1,
-                                                           'arg2': value2,
-                                                           'some_optional_kwargs': {'arg3': 3}})
+                the_test.assertEqual(self.args, (value1,))
+                the_test.assertDictEqual(self.kwargs, {"arg2": value2, "arg3": 3})
+                the_test.assertListEqual(self.required_args, ["arg1"])
+                the_test.assertDictEqual(self.optional_args, {"arg2": None})
+                the_test.assertDictEqual(
+                    self.bound_args,
+                    {
+                        "arg1": value1,
+                        "arg2": value2,
+                        "some_optional_kwargs": {"arg3": 3},
+                    },
+                )
                 the_test.assertDictEqual(self.default_bound_args, {})
                 the_test.assertEqual(self.all_args, self.bound_args)
-                the_test.assertEqual(self.context.bog.return_args, {'arg1': value1,
-                                                        'arg2': value2,
-                                                        'arg3': 3})
-                the_test.assertDictEqual(self.abog, {'arg1': value1,
-                                                            'arg2': value2,
-                                                            'arg3': 3})
+                the_test.assertEqual(
+                    self.context.bog.return_args,
+                    {"arg1": value1, "arg2": value2, "arg3": 3},
+                )
+                the_test.assertDictEqual(
+                    self.abog, {"arg1": value1, "arg2": value2, "arg3": 3}
+                )
 
-            d._process_result =types.MethodType(post_task_run, d)
+            d._process_result = types.MethodType(post_task_run, d)
             d(value1, arg2=value2, arg3=3)
 
 
 class EnqueueManyTests(unittest.TestCase):
-
     @staticmethod
     def _enqueue(chains):
         task = mock.Mock(spec=FireXTask)
@@ -364,8 +398,8 @@ class EnqueueManyTests(unittest.TestCase):
 
     def test_mapping_results_preserve_input_keys(self):
         chains = {
-            'first': mock.Mock(spec=SignatureX),
-            'second': mock.Mock(spec=SignatureX),
+            "first": mock.Mock(spec=SignatureX),
+            "second": mock.Mock(spec=SignatureX),
         }
 
         many_results, results = self._enqueue(chains)
@@ -374,25 +408,27 @@ class EnqueueManyTests(unittest.TestCase):
 
 
 class TaskCachingTests(unittest.TestCase):
-
     def test_use_cache(self):
         test_app = ut_celery_app()
 
-        with self.subTest('use_cache is not defined'):
+        with self.subTest("use_cache is not defined"):
+
             @test_app.task(base=FireXTask)
             def a():
                 pass
 
             self.assertFalse(a.is_cache_enabled())
 
-        with self.subTest('use_cache is set to True'):
+        with self.subTest("use_cache is set to True"):
+
             @test_app.task(base=FireXTask, use_cache=True)
             def b():
                 pass
 
             self.assertTrue(b.is_cache_enabled())
 
-        with self.subTest('use_cache is set to False'):
+        with self.subTest("use_cache is set to False"):
+
             @test_app.task(base=FireXTask, use_cache=False)
             def c():
                 pass
@@ -401,7 +437,7 @@ class TaskCachingTests(unittest.TestCase):
 
 
 class ConvertToSerializableTests(unittest.TestCase):
-    d: ClassVar[dict] = {"a": 1, "b": ['2', '3'], "c": '4', "d": {"d1": 5, "d2": '6'}}
+    d: ClassVar[dict] = {"a": 1, "b": ["2", "3"], "c": "4", "d": {"d1": 5, "d2": "6"}}
 
     def test_dicts_returned_as_is(self):
         self.assertDictEqual(convert_to_serializable(self.d), self.d)
@@ -431,12 +467,14 @@ class ConvertToSerializableTests(unittest.TestCase):
 
         unjsonfiable = UnJsonfiableClass()
 
-        with self.subTest('Outer data structure is a dict:'):
+        with self.subTest("Outer data structure is a dict:"):
             d2 = dict(**self.d, some_unjsonfiable_object=unjsonfiable)
-            expected_result = dict(**self.d, some_unjsonfiable_object=repr(unjsonfiable))
+            expected_result = dict(
+                **self.d, some_unjsonfiable_object=repr(unjsonfiable)
+            )
             self.assertDictEqual(convert_to_serializable(d2), expected_result)
 
-        with self.subTest('Outer data structure is an iterable:'):
+        with self.subTest("Outer data structure is an iterable:"):
             d2 = [self.d, unjsonfiable]
             expected_result = [self.d, repr(unjsonfiable)]
             self.assertListEqual(convert_to_serializable(d2), expected_result)
@@ -452,21 +490,25 @@ class ConvertToSerializableTests(unittest.TestCase):
         level1 = {"level1": level2}
         d2 = [self.d, level1]
 
-        with self.subTest('max_recrusive_depth not reached'):
+        with self.subTest("max_recrusive_depth not reached"):
             expected_result = [self.d, {"level1": {"level2": {"level3": self.d}}}]
-            self.assertListEqual(convert_to_serializable(d2, max_recursive_depth=10), expected_result)
+            self.assertListEqual(
+                convert_to_serializable(d2, max_recursive_depth=10), expected_result
+            )
 
-        with self.subTest('max_recrusive_depth reached'):
+        with self.subTest("max_recrusive_depth reached"):
             expected_result = [self.d, {"level1": {"level2": repr(level3)}}]
-            self.assertListEqual(convert_to_serializable(d2, max_recursive_depth=3), expected_result)
+            self.assertListEqual(
+                convert_to_serializable(d2, max_recursive_depth=3), expected_result
+            )
 
 
 class RunTimeLimitTests(unittest.TestCase):
     """
-        A task deciding the run needs to be longer than it was submitted for.
+    A task deciding the run needs to be longer than it was submitted for.
     """
 
-    def create_task(self, task_id='me', own_soft_time_limit=100, elapsed_in_task=0):
+    def create_task(self, task_id="me", own_soft_time_limit=100, elapsed_in_task=0):
         test_app = ut_celery_app()
 
         @test_app.task(base=FireXTask, bind=True)
@@ -480,7 +522,7 @@ class RunTimeLimitTests(unittest.TestCase):
         )
         task.app.set_task_soft_time_limit = mock.Mock()
         task.request.id = task_id
-        task.request.hostname = 'my_worker'
+        task.request.hostname = "my_worker"
         task.request.timelimit = [None, own_soft_time_limit]
         task.duration = lambda: elapsed_in_task
         return task
@@ -488,12 +530,15 @@ class RunTimeLimitTests(unittest.TestCase):
     @contextmanager
     def run_time_remaining(self, remaining, elapsed=3600):
         """Pretends the run has `remaining` seconds left, `elapsed` seconds in."""
-        with mock.patch(
-            'firexkit.run_time.get_run_deadline',
-            side_effect=lambda app=None: time.time() + remaining,
-        ), mock.patch(
-            'firexkit.task.get_run_start_time',
-            side_effect=lambda app=None: time.time() - elapsed,
+        with (
+            mock.patch(
+                "firexkit.run_time.get_run_deadline",
+                side_effect=lambda app=None: time.time() + remaining,
+            ),
+            mock.patch(
+                "firexkit.task.get_run_start_time",
+                side_effect=lambda app=None: time.time() - elapsed,
+            ),
         ):
             yield
 
@@ -501,7 +546,9 @@ class RunTimeLimitTests(unittest.TestCase):
         task = self.create_task()
         with self.run_time_remaining(10 * 60 * 60):
             self.assertAlmostEqual(
-                9 * 60 * 60, task.get_run_time_remaining(reserve=60 * 60), delta=2,
+                9 * 60 * 60,
+                task.get_run_time_remaining(reserve=60 * 60),
+                delta=2,
             )
 
     def test_a_sufficient_budget_is_left_alone(self):
@@ -516,7 +563,7 @@ class RunTimeLimitTests(unittest.TestCase):
         with self.run_time_remaining(60 * 60, elapsed=3600):
             task.ensure_run_time_remaining(9 * 60 * 60, reserve=60 * 60)
 
-        required_total, = task.increase_calls
+        (required_total,) = task.increase_calls
         # 1h elapsed + 9h needed + 1h reserve.
         self.assertAlmostEqual(11 * 60 * 60, required_total, delta=2)
 
@@ -528,8 +575,10 @@ class RunTimeLimitTests(unittest.TestCase):
 
         task.app.increase_run_soft_time_limit.assert_not_called()
         task.app.set_task_soft_time_limit.assert_called_once_with(
-            'me', 10 + 9 * 60 * 60,
-            destination=['my_worker'], increase_only=True,
+            "me",
+            10 + 9 * 60 * 60,
+            destination=["my_worker"],
+            increase_only=True,
         )
 
     def test_leaves_its_own_limit_alone_when_it_already_covers_the_need(self):
@@ -549,8 +598,10 @@ class RunTimeLimitTests(unittest.TestCase):
             task.ensure_run_time_remaining(9 * 60 * 60)
 
         task.app.set_task_soft_time_limit.assert_called_once_with(
-            'me', 9 * 60 * 60,
-            destination=['my_worker'], increase_only=True,
+            "me",
+            9 * 60 * 60,
+            destination=["my_worker"],
+            increase_only=True,
         )
 
     def test_the_increase_is_confirmed_against_its_own_worker(self):
@@ -564,7 +615,10 @@ class RunTimeLimitTests(unittest.TestCase):
 
         self.assertEqual(1, len(task.increase_calls))
         task.app.set_task_soft_time_limit.assert_called_once_with(
-            'me', 12 + 10, destination=['my_worker'], increase_only=True,
+            "me",
+            12 + 10,
+            destination=["my_worker"],
+            increase_only=True,
         )
 
     def test_a_need_smaller_than_the_resolve_floor_still_raises_the_budget(self):
@@ -575,7 +629,7 @@ class RunTimeLimitTests(unittest.TestCase):
         with self.run_time_remaining(-9, elapsed=12):
             task.ensure_run_time_remaining(10)
 
-        required_total, = task.increase_calls
+        (required_total,) = task.increase_calls
         # 12s elapsed + 10s needed.
         self.assertAlmostEqual(22, required_total, delta=2)
 

@@ -3,7 +3,7 @@ import os
 import sys
 
 
-def find_in_stack(file_to_find)->bool:
+def find_in_stack(file_to_find) -> bool:
     frame = inspect.currentframe()
     while frame.f_back:
         if str(frame.f_code.co_filename).endswith(file_to_find):
@@ -12,11 +12,11 @@ def find_in_stack(file_to_find)->bool:
     return False
 
 
-def is_running_under_coverage()->bool:
+def is_running_under_coverage() -> bool:
     return find_in_stack("coverage/cmdline.py")
 
 
-def is_celery()->bool:
+def is_celery() -> bool:
     return find_in_stack("celery/bin/celery.py")
 
 
@@ -25,10 +25,18 @@ def restart_celery_under_coverage():
 
     # assemble new command line
     import coverage
-    coverage_cmd = [sys.executable, os.path.dirname(coverage.__file__), "run", "--branch", "--parallel-mode", "-m"]
+
+    coverage_cmd = [
+        sys.executable,
+        os.path.dirname(coverage.__file__),
+        "run",
+        "--branch",
+        "--parallel-mode",
+        "-m",
+    ]
     coverage_celery = coverage_cmd + ["celery"] + sys.argv[1:]
     # coverage does not support forks
-    coverage_celery +=["--pool=eventlet"]
+    coverage_celery += ["--pool=eventlet"]
     print(coverage_celery)
 
     # restart the process under coverage

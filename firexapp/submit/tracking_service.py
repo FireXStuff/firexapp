@@ -7,7 +7,6 @@ _services = None
 
 
 class TrackingService(ABC):
-
     install_configs: FireXInstallConfigs
 
     def extra_cli_arguments(self, arg_parser):
@@ -39,11 +38,15 @@ def get_tracking_services() -> tuple[TrackingService, ...]:
         _services = tuple([point() for point in entry_objects])
     return _services
 
+
 def get_tracking_services_versions() -> list[PkgVersionInfo]:
-    version_infos = [service.get_pkg_version_info() for service in get_tracking_services()]
+    version_infos = [
+        service.get_pkg_version_info() for service in get_tracking_services()
+    ]
     return [v for v in version_infos if v]
+
 
 def has_flame() -> bool:
     # Unfortunate coupling, but just too many things vary depending on presence of flame. Will eventually bring
     # flame in to firexapp.
-    return 'FlameLauncher' in get_tracking_services()
+    return "FlameLauncher" in get_tracking_services()

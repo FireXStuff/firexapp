@@ -22,14 +22,16 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_CELERY_SHUTDOWN_TIMEOUT = 5 * 60
-MaybeCeleryActiveTasks = namedtuple('MaybeCeleryActiveTasks', ['celery_read_success', 'active_tasks'])
+MaybeCeleryActiveTasks = namedtuple(
+    "MaybeCeleryActiveTasks", ["celery_read_success", "active_tasks"]
+)
 
 
 def _launch_shutdown_subprocess(shutdown_cmd: list[str], logs_dir: str) -> int:
     shutdown_subprocess_env = FxEnvVars.select_minimal_fx_env_from_os_env()
     shutdown_cwd = logs_dir if os.path.isdir(logs_dir) else tempfile.gettempdir()
     try:
-        import detach # noqa
+        import detach
     except ModuleNotFoundError:
         # don't break old installs that don't have detach
 
@@ -49,13 +51,19 @@ def _launch_shutdown_subprocess(shutdown_cmd: list[str], logs_dir: str) -> int:
         )
 
 
-def launch_background_shutdown(logs_dir, reason, celery_shutdown_timeout=DEFAULT_CELERY_SHUTDOWN_TIMEOUT) -> int | None:
+def launch_background_shutdown(
+    logs_dir, reason, celery_shutdown_timeout=DEFAULT_CELERY_SHUTDOWN_TIMEOUT
+) -> int | None:
     try:
-        shutdown_cmd = [qualify_firex_bin("firex_shutdown"),
-                        "--logs_dir",  logs_dir,
-                        "--celery_shutdown_timeout", str(celery_shutdown_timeout)]
+        shutdown_cmd = [
+            qualify_firex_bin("firex_shutdown"),
+            "--logs_dir",
+            logs_dir,
+            "--celery_shutdown_timeout",
+            str(celery_shutdown_timeout),
+        ]
         if reason:
-            shutdown_cmd += ['--reason', reason]
+            shutdown_cmd += ["--reason", reason]
         pid = _launch_shutdown_subprocess(shutdown_cmd, logs_dir)
     except Exception:
         logger.exception("SHUTDOWN PROCESS FAILED TO LAUNCH -- REDIS WILL LEAK.")
@@ -82,7 +90,9 @@ def wait_for_broker_shutdown(broker, timeout=15, force_kill=True):
     if not broker.is_alive():
         logger.debug("Confirmed successful graceful broker shutdown.")
     elif force_kill:
-        logger.debug(f"Warning! Broker was not shut down after {timeout} seconds. FORCE KILLING BROKER.")
+        logger.debug(
+            f"Warning! Broker was not shut down after {timeout} seconds. FORCE KILLING BROKER."
+        )
         broker.force_kill()
 
     return not broker.is_alive()
@@ -103,10 +113,14 @@ def _inspect_broker_safe(inspect_fn, broker, celery_app, **kwargs):
 
 
 def get_active_broker_safe(broker, celery_app):
-    return _inspect_broker_safe(get_active, broker, celery_app,
-                                # shutdown can't deserialize task args because it doesn't know about many classes
-                                # (e.g. FireXUid), so set active(safe=True)
-                                method_args=(True,))
+    return _inspect_broker_safe(
+        get_active,
+        broker,
+        celery_app,
+        # shutdown can't deserialize task args because it doesn't know about many classes
+        # (e.g. FireXUid), so set active(safe=True)
+        method_args=(True,),
+    )
 
 
 def is_celery_responsive(broker, celery_app) -> bool:
@@ -114,7 +128,7 @@ def is_celery_responsive(broker, celery_app) -> bool:
     # because get_active can fail to deserialize its response (i.e. raise DecodeError).
     # Need some celery call that uses broadcast, since we'll call shutdown that uses
     # broadcast.
-    r =  _inspect_broker_safe(ping, broker, celery_app)
+    r = _inspect_broker_safe(ping, broker, celery_app)
     return bool(r)
 
 
@@ -134,7 +148,9 @@ def revoke_active_tasks(
     task_predicate=lambda task: True,
 ):
     logger.debug("Querying Celery to find any remaining active tasks.")
-    maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
+    maybe_active_tasks = _tasks_from_active(
+        get_active_broker_safe(broker, celery_app), task_predicate
+    )
     revoke_retries = 0
     # Revoke retry loop
     while (
@@ -143,21 +159,23 @@ def revoke_active_tasks(
         and revoke_retries < max_revoke_retries
     ):
         if revoke_retries:
-            logger.warning(f"Found {len(maybe_active_tasks.active_tasks)} active tasks after revoke. Revoking active tasks again.")
+            logger.warning(
+                f"Found {len(maybe_active_tasks.active_tasks)} active tasks after revoke. Revoking active tasks again."
+            )
 
         # Revoke tasks in order they were started. This avoids ChainRevokedException errors when children are revoked
         # before their parents.
         for task in sorted(
             maybe_active_tasks.active_tasks,
-            key=lambda t: t.get('time_start', float('inf'))
+            key=lambda t: t.get("time_start", float("inf")),
         ):
             logger.info(f"Revoking {task['name']}[{task['id']}]")
-            celery_app.control.revoke(
-                task_id=task["id"],
-                terminate=True)
+            celery_app.control.revoke(task_id=task["id"], terminate=True)
 
         # wait for confirmation of revoke
-        maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
+        maybe_active_tasks = _tasks_from_active(
+            get_active_broker_safe(broker, celery_app), task_predicate
+        )
         wait_for_task_revoke_start = time.monotonic()
         while (
             maybe_active_tasks.celery_read_success
@@ -165,12 +183,16 @@ def revoke_active_tasks(
             and time.monotonic() - wait_for_task_revoke_start < 3
         ):
             time.sleep(0.25)
-            maybe_active_tasks = _tasks_from_active(get_active_broker_safe(broker, celery_app), task_predicate)
+            maybe_active_tasks = _tasks_from_active(
+                get_active_broker_safe(broker, celery_app), task_predicate
+            )
 
         revoke_retries += 1
 
     if not maybe_active_tasks.celery_read_success:
-        logger.info("Failed to read active tasks from celery. May shutdown with unrevoked tasks.")
+        logger.info(
+            "Failed to read active tasks from celery. May shutdown with unrevoked tasks."
+        )
     elif len(maybe_active_tasks.active_tasks) == 0:
         logger.info("Confirmed no active tasks after revoke.")
     elif revoke_retries >= max_revoke_retries:
@@ -182,26 +204,40 @@ def revoke_active_tasks(
 
 def init():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--logs_dir", help="Logs directory for the firexapp run to shutdown.",
-                        required=True)
-    parser.add_argument("--reason", help="A reason that will be logged for clarity.",
-                        required=False, default='No reason provided.')
-    parser.add_argument("--celery_shutdown_timeout", help="Timeout in seconds for which to wait for Celery shutdown before terminating Celery processes individually."
-                        " Celery will wait for task completion after receiving a graceful shutdown, so this timeout should consider how "
-                        "long FireX shutdown should be willing to wait for remaining tasks.",
-                        default=DEFAULT_CELERY_SHUTDOWN_TIMEOUT, type=int)
+    parser.add_argument(
+        "--logs_dir",
+        help="Logs directory for the firexapp run to shutdown.",
+        required=True,
+    )
+    parser.add_argument(
+        "--reason",
+        help="A reason that will be logged for clarity.",
+        required=False,
+        default="No reason provided.",
+    )
+    parser.add_argument(
+        "--celery_shutdown_timeout",
+        help="Timeout in seconds for which to wait for Celery shutdown before terminating Celery processes individually."
+        " Celery will wait for task completion after receiving a graceful shutdown, so this timeout should consider how "
+        "long FireX shutdown should be willing to wait for remaining tasks.",
+        default=DEFAULT_CELERY_SHUTDOWN_TIMEOUT,
+        type=int,
+    )
     args = parser.parse_args()
     logs_dir = args.logs_dir
 
-    log_file = os.path.join(logs_dir, Uid.debug_dirname, 'shutdown.log.txt')
-    logging.basicConfig(filename=log_file, level=logging.DEBUG,
-                        format='[%(asctime)s %(levelname)s] %(message)s',
-                        datefmt="%Y-%m-%d %H:%M:%S")
+    log_file = os.path.join(logs_dir, Uid.debug_dirname, "shutdown.log.txt")
+    logging.basicConfig(
+        filename=log_file,
+        level=logging.DEBUG,
+        format="[%(asctime)s %(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
     return logs_dir, args.reason, args.celery_shutdown_timeout
 
 
-def _shutdown_run(logs_dir: str, celery_shutdown_timeout, reason='No reason provided'):
+def _shutdown_run(logs_dir: str, celery_shutdown_timeout, reason="No reason provided"):
     logger.info(f"Shutting down due to reason: {reason}")
     logger.info(f"Shutting down with logs: {logs_dir}.")
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
@@ -211,7 +247,7 @@ def _shutdown_run(logs_dir: str, celery_shutdown_timeout, reason='No reason prov
     )
     celery_app = Celery(
         broker=broker.broker_url,
-        accept_content=['pickle', 'json'],
+        accept_content=["pickle", "json"],
     )
     try:
         if is_celery_responsive(broker, celery_app):
@@ -226,14 +262,20 @@ def _shutdown_run(logs_dir: str, celery_shutdown_timeout, reason='No reason prov
             else:
                 logger.info("Celery appears unresponsive")
 
-            celery_shutdown_success = celery_manager.wait_for_shutdown(celery_shutdown_timeout)
+            celery_shutdown_success = celery_manager.wait_for_shutdown(
+                celery_shutdown_timeout
+            )
             if not celery_shutdown_success:
-                logger.warning(f"Celery not shutdown after {celery_shutdown_timeout} secs, force killing instead.")
+                logger.warning(
+                    f"Celery not shutdown after {celery_shutdown_timeout} secs, force killing instead."
+                )
                 celery_manager.shutdown()
             else:
                 logger.debug("Confirmed Celery shutdown successfully.")
         elif celery_manager.find_all_procs():
-            logger.info("Celery not active, but found celery processes to force shutdown.")
+            logger.info(
+                "Celery not active, but found celery processes to force shutdown."
+            )
             celery_manager.shutdown()
         else:
             logger.info("No active Celery processes.")

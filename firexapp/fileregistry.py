@@ -37,7 +37,9 @@ class FileRegistry(metaclass=Singleton):
 
     def register_file(self, key, relative_path):
         if key in self.file_registry:
-            raise KeyAlreadyRegistered(f'{key!r} already registered; callable={self.file_registry[key]}')
+            raise KeyAlreadyRegistered(
+                f"{key!r} already registered; callable={self.file_registry[key]}"
+            )
         else:
             self.file_registry[key] = relative_path
 
@@ -45,14 +47,18 @@ class FileRegistry(metaclass=Singleton):
         try:
             return self.resolve_path(uid_or_logsdir, self.get_relative_path(key))
         except KeyError:
-            raise KeyNotRegistered(f'{key!r} is not registered')
+            raise KeyNotRegistered(f"{key!r} is not registered")
 
     def get_relative_path(self, key):
         return self.file_registry[key]
 
     @staticmethod
     def resolve_path(uid_or_logsdir, relative_path):
-        logs_dir = uid_or_logsdir.logs_dir if isinstance(uid_or_logsdir, Uid) else uid_or_logsdir
+        logs_dir = (
+            uid_or_logsdir.logs_dir
+            if isinstance(uid_or_logsdir, Uid)
+            else uid_or_logsdir
+        )
         return os.path.join(logs_dir, relative_path)
 
     @staticmethod
@@ -61,5 +67,5 @@ class FileRegistry(metaclass=Singleton):
             return json.load(fp)
 
     def dump_to_file(self, path):
-        with open(path, 'w') as fp:
+        with open(path, "w") as fp:
             json.dump(self.file_registry, fp, sort_keys=True, indent=2)

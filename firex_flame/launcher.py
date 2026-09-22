@@ -31,11 +31,12 @@ def _send_flame_indicate_ready(celery_app):
     if celery_app:
         with celery_app.events.default_dispatcher(hostname=socket.gethostname()) as d:
             # Flame will indicate it's ready for tasks once it gets this Celery event.
-            return d.send('flame-indicate-ready')
+            return d.send("flame-indicate-ready")
     else:
         logger.warning(
             "Flame launcher did not receive Celery app, "
-            "cannot send event for server to indicate readiness.")
+            "cannot send event for server to indicate readiness."
+        )
 
 
 def get_flame_args(uid, broker_recv_ready_file, args):
@@ -46,35 +47,34 @@ def get_flame_args(uid, broker_recv_ready_file, args):
 
     # assemble startup cmd
     cmd_args = {
-        'port': args.flame_port,
-        'uid': str(uid),
-        'logs_dir': uid.logs_dir,
-        'chain': args.chain,
-        'recording': rec_file,
-        'central_server': args.flame_central_server,
-        'central_server_ui_path': args.flame_central_server_ui_path,
-        'logs_server': args.flame_logs_server,
-        'central_documentation_url': args.flame_central_documentation_url,
-        'flame_timeout': args.flame_timeout,
-        'broker_recv_ready_file': broker_recv_ready_file,
-        'broker_max_retry_attempts': args.broker_max_retry_attempts,
-        'terminate_on_complete': args.flame_terminate_on_complete,
-        'firex_bin_path': args.firex_bin_path,
-        'extra_task_dump_paths': args.flame_extra_task_dump_paths,
-        'serve_logs_dir': args.flame_serve_logs_dir,
-        'authed_user_request_path': args.flame_authed_user_request_path,
-        'wait_for_webserver': args.flame_wait_for_webserver,
+        "port": args.flame_port,
+        "uid": str(uid),
+        "logs_dir": uid.logs_dir,
+        "chain": args.chain,
+        "recording": rec_file,
+        "central_server": args.flame_central_server,
+        "central_server_ui_path": args.flame_central_server_ui_path,
+        "logs_server": args.flame_logs_server,
+        "central_documentation_url": args.flame_central_documentation_url,
+        "flame_timeout": args.flame_timeout,
+        "broker_recv_ready_file": broker_recv_ready_file,
+        "broker_max_retry_attempts": args.broker_max_retry_attempts,
+        "terminate_on_complete": args.flame_terminate_on_complete,
+        "firex_bin_path": args.firex_bin_path,
+        "extra_task_dump_paths": args.flame_extra_task_dump_paths,
+        "serve_logs_dir": args.flame_serve_logs_dir,
+        "authed_user_request_path": args.flame_authed_user_request_path,
+        "wait_for_webserver": args.flame_wait_for_webserver,
     }
     result = []
     for k, v in cmd_args.items():
         if v is not None:
-            result.append(f'--{k}')
-            result.append(f'{v}')
+            result.append(f"--{k}")
+            result.append(f"{v}")
     return result
 
 
 class FlameLauncher(TrackingService):
-
     def __init__(self):
         self.broker_recv_ready_file = None
         self.sync = None
@@ -85,55 +85,83 @@ class FlameLauncher(TrackingService):
         self.wait_for_webserver = None
 
     def extra_cli_arguments(self, arg_parser):
-        arg_parser.add_argument('--flame_timeout', help='How long the webserver should run for, in seconds.',
-                                default=DEFAULT_FLAME_TIMEOUT)
-        arg_parser.add_argument('--flame_central_server',
-                                help='Server URL from which flame resources can be fetched to enable browser caching'
-                                     'and client-side settings.',
-                                default=None)
-        arg_parser.add_argument('--flame_central_server_ui_path',
-                                help='Path relative to flame_central_server from which the Flame UI is served.',
-                                default=None)
-        arg_parser.add_argument('--flame_logs_server',
-                                help='Server URL from which flame logs can be fetched.',
-                                default=None)
-        arg_parser.add_argument('--flame_central_documentation_url',
-                                help='URL linking to main out-of-app docs.',
-                                default=None)
-        arg_parser.add_argument('--firex_bin_path',
-                                help='Path to firex executable.',
-                                default=None)
-        arg_parser.add_argument('--broker_max_retry_attempts',
-                                help='See Flame argument help.',
-                                default=None)
-        arg_parser.add_argument('--flame_record',
-                                help='A file to record flame events',
-                                default=None)
-        arg_parser.add_argument('--flame_port',
-                                help='Flame port to be used', type=int,
-                                default=0)
-        arg_parser.add_argument('--flame_terminate_on_complete',
-                                help='Terminate Flame when run completes. Ignores timeout arg entirely.',
-                                default=None, const=True, nargs='?', action=OptionalBoolean)
-        arg_parser.add_argument('--flame_wait_for_webserver',
-                                help='Wait for webserver when waiting to be ready for tasks.',
-                                default=True, const=True, nargs='?', action=OptionalBoolean)
-        arg_parser.add_argument('--flame_extra_task_dump_paths',
-                                help='Paths specifying alternative task represetnation to dump at end of flame.',
-                                default=None)
-        arg_parser.add_argument('--flame_authed_user_request_path', default=None)
-        arg_parser.add_argument('--flame_serve_logs_dir',
-                                help="Control if the Flame server makes the run's logs_dir available via HTTP(S).",
-                                type=lambda x: bool(distutils.util.strtobool(x)),
-                                default=None)
+        arg_parser.add_argument(
+            "--flame_timeout",
+            help="How long the webserver should run for, in seconds.",
+            default=DEFAULT_FLAME_TIMEOUT,
+        )
+        arg_parser.add_argument(
+            "--flame_central_server",
+            help="Server URL from which flame resources can be fetched to enable browser caching"
+            "and client-side settings.",
+            default=None,
+        )
+        arg_parser.add_argument(
+            "--flame_central_server_ui_path",
+            help="Path relative to flame_central_server from which the Flame UI is served.",
+            default=None,
+        )
+        arg_parser.add_argument(
+            "--flame_logs_server",
+            help="Server URL from which flame logs can be fetched.",
+            default=None,
+        )
+        arg_parser.add_argument(
+            "--flame_central_documentation_url",
+            help="URL linking to main out-of-app docs.",
+            default=None,
+        )
+        arg_parser.add_argument(
+            "--firex_bin_path", help="Path to firex executable.", default=None
+        )
+        arg_parser.add_argument(
+            "--broker_max_retry_attempts", help="See Flame argument help.", default=None
+        )
+        arg_parser.add_argument(
+            "--flame_record", help="A file to record flame events", default=None
+        )
+        arg_parser.add_argument(
+            "--flame_port", help="Flame port to be used", type=int, default=0
+        )
+        arg_parser.add_argument(
+            "--flame_terminate_on_complete",
+            help="Terminate Flame when run completes. Ignores timeout arg entirely.",
+            default=None,
+            const=True,
+            nargs="?",
+            action=OptionalBoolean,
+        )
+        arg_parser.add_argument(
+            "--flame_wait_for_webserver",
+            help="Wait for webserver when waiting to be ready for tasks.",
+            default=True,
+            const=True,
+            nargs="?",
+            action=OptionalBoolean,
+        )
+        arg_parser.add_argument(
+            "--flame_extra_task_dump_paths",
+            help="Paths specifying alternative task represetnation to dump at end of flame.",
+            default=None,
+        )
+        arg_parser.add_argument("--flame_authed_user_request_path", default=None)
+        arg_parser.add_argument(
+            "--flame_serve_logs_dir",
+            help="Control if the Flame server makes the run's logs_dir available via HTTP(S).",
+            type=lambda x: bool(distutils.util.strtobool(x)),
+            default=None,
+        )
 
-
-    def start(self, args, install_configs: FireXInstallConfigs, uid=None, **kwargs) -> dict:
+    def start(
+        self, args, install_configs: FireXInstallConfigs, uid=None, **kwargs
+    ) -> dict:
         super().start(args, install_configs, uid=uid, **kwargs)
 
         flame_debug_dir = get_flame_debug_dir(uid.logs_dir)
         os.makedirs(flame_debug_dir, exist_ok=True)
-        self.broker_recv_ready_file = os.path.join(flame_debug_dir, 'celery_receiver_ready')
+        self.broker_recv_ready_file = os.path.join(
+            flame_debug_dir, "celery_receiver_ready"
+        )
 
         self.sync = args.sync
         self.firex_logs_dir = uid.logs_dir
@@ -141,19 +169,21 @@ class FlameLauncher(TrackingService):
         self.wait_for_webserver = args.flame_wait_for_webserver
 
         flame_args = get_flame_args(uid, self.broker_recv_ready_file, args)
-        self.stdout_file = os.path.join(flame_debug_dir, 'flame.stdout')
+        self.stdout_file = os.path.join(flame_debug_dir, "flame.stdout")
 
         self.start_time = time.time()
         try:
-            with open(self.stdout_file, 'w+') as f:
-                subprocess.Popen([qualify_firex_bin("firex_flame")] + flame_args,
-                                 stdout=f, stderr=subprocess.STDOUT,
-                                 close_fds=True,
-                                 env=FxEnvVars.select_minimal_fx_env_from_os_env(),
-                                 # Avoid SIGINTs sent to FireX by creating a new process group.
-                                 start_new_session=True,
-                                 cwd=flame_debug_dir,
-                                 )
+            with open(self.stdout_file, "w+") as f:
+                subprocess.Popen(
+                    [qualify_firex_bin("firex_flame")] + flame_args,
+                    stdout=f,
+                    stderr=subprocess.STDOUT,
+                    close_fds=True,
+                    env=FxEnvVars.select_minimal_fx_env_from_os_env(),
+                    # Avoid SIGINTs sent to FireX by creating a new process group.
+                    start_new_session=True,
+                    cwd=flame_debug_dir,
+                )
         except Exception as e:
             logger.error(f"Flame subprocess start failed: {e}.")
             raise
@@ -169,8 +199,12 @@ class FlameLauncher(TrackingService):
             broker_ready = os.path.isfile(self.broker_recv_ready_file)
 
             if self.wait_for_webserver:
-                run_metadata_file = get_run_metadata_file(firex_logs_dir=self.firex_logs_dir)
-                webserver_ready = os.path.isfile(run_metadata_file) and is_json_file(run_metadata_file)
+                run_metadata_file = get_run_metadata_file(
+                    firex_logs_dir=self.firex_logs_dir
+                )
+                webserver_ready = os.path.isfile(run_metadata_file) and is_json_file(
+                    run_metadata_file
+                )
             else:
                 webserver_ready = True
 
@@ -187,8 +221,10 @@ class FlameLauncher(TrackingService):
     def write_flame_redirect(self):
         # Write the flame redirect file in the run's logs dir
         flame_redirect_filepath = get_flame_redirect_file_path(self.firex_logs_dir)
-        with open(flame_redirect_filepath, 'w') as f:
-            f.write(f'<meta http-equiv="refresh" content="0; url={self.get_viewer_url()}" />')
+        with open(flame_redirect_filepath, "w") as f:
+            f.write(
+                f'<meta http-equiv="refresh" content="0; url={self.get_viewer_url()}" />'
+            )
 
     def ready_release_console(self, **kwargs) -> bool:
         if self.sync:
@@ -197,15 +233,12 @@ class FlameLauncher(TrackingService):
         return True
 
     def get_viewer_url(self):
-        if (
-            not self.install_configs.has_viewer()
-            and self.firex_logs_dir
-        ):
+        if not self.install_configs.has_viewer() and self.firex_logs_dir:
             return wait_and_get_flame_url(self.firex_logs_dir, timeout=0)
         return self.install_configs.run_url
 
     @staticmethod
     def get_pkg_version_info() -> PkgVersionInfo:
         import firex_flame
-        return PkgVersionInfo(pkg='firex-flame',
-                              version=firex_flame.__version__)
+
+        return PkgVersionInfo(pkg="firex-flame", version=firex_flame.__version__)

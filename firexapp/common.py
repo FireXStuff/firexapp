@@ -11,12 +11,12 @@ from jinja2 import Template
 
 logger = get_task_logger(__name__)
 
-FIREX_BIN_DIR_ENV = 'firex_bin_dir'
+FIREX_BIN_DIR_ENV = "firex_bin_dir"
 
 
 def delimit2list(
     str_to_split,
-    delimiters=(',', ';', '|', ' '),
+    delimiters=(",", ";", "|", " "),
 ) -> list[str]:
     if not str_to_split:
         return []
@@ -25,20 +25,29 @@ def delimit2list(
         return str_to_split
 
     # regex for only comma is (([^,'"]|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')+)
-    regex = """(([^""" + "".join(delimiters).replace(" ", r"\s") + """'"]|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')+)"""
+    regex = (
+        """(([^"""
+        + "".join(delimiters).replace(" ", r"\s")
+        + """'"]|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')+)"""
+    )
     tokens = re.findall(regex, str_to_split)
 
     # unquote "tokens" if necessary
-    tokens = [g1 if g1.strip() != g2.strip() or g2[0] not in "'\"" else g2.strip(g2[0]) for g1, g2 in tokens]
+    tokens = [
+        g1 if g1.strip() != g2.strip() or g2[0] not in "'\"" else g2.strip(g2[0])
+        for g1, g2 in tokens
+    ]
     tokens = [t.strip() for t in tokens]  # remove extra whitespaces
-    tokens = [t.strip("".join(delimiters) + " ") for t in tokens]  # remove any extra (or lone) delimiters
+    tokens = [
+        t.strip("".join(delimiters) + " ") for t in tokens
+    ]  # remove any extra (or lone) delimiters
     tokens = [t for t in tokens if t]  # remove empty tokens
     return tokens
 
 
 def get_available_port():
     with socket.socket() as sock:
-        sock.bind(('', 0))
+        sock.bind(("", 0))
         port = sock.getsockname()[1]
     return port
 
@@ -54,19 +63,19 @@ def poll_until_path_exist(path, timeout=10):
         time.sleep(0.1)
         path_exists = os.path.exists(path)
     if not path_exists:
-        raise AssertionError(f'{path} did not exist within {timeout}s')
+        raise AssertionError(f"{path} did not exist within {timeout}s")
 
 
 def poll_until_file_exist(file_path, timeout=10):
     poll_until_path_exist(file_path, timeout=timeout)
-    assert os.path.isfile(file_path), f'{file_path} does not appear to be a file'
+    assert os.path.isfile(file_path), f"{file_path} does not appear to be a file"
 
 
 def poll_until_existing_file_not_empty(file_path, timeout: float = 10):
     timeout_time = time.time() + timeout
     while os.stat(file_path).st_size == 0 and time.time() < timeout_time:
         time.sleep(0.1)
-    assert os.stat(file_path).st_size > 0, f'File {file_path} size is zero'
+    assert os.stat(file_path).st_size > 0, f"File {file_path} size is zero"
 
 
 def poll_until_file_not_empty(file_path, timeout=10):
@@ -86,7 +95,8 @@ def poll_until_dir_empty(dir_path, timeout=15):
 from collections.abc import Callable
 from typing import TypeVar
 
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 def wait_until(
     predicate: Callable[..., T],
@@ -140,9 +150,7 @@ def render_template(template_str, template_args):
 #
 def create_link(src, target, delete_link=None, relative=False, create_target_dir=False):
     if create_target_dir:
-        silent_mkdir(
-            os.path.dirname(target)
-        )
+        silent_mkdir(os.path.dirname(target))
 
     if relative:
         src = os.path.relpath(src, os.path.dirname(target))
@@ -150,14 +158,14 @@ def create_link(src, target, delete_link=None, relative=False, create_target_dir
     if not delete_link:
         try:
             os.symlink(src, target)
-            logger.debug(f'Symbolic link created: {target} -> {src}')
+            logger.debug(f"Symbolic link created: {target} -> {src}")
             return  # <-- Done!
         except FileExistsError:
             if delete_link is False:
                 raise
 
     # If we want to delete the link, we do a link-replace in an atomic manner
-    temp_target = target + f'.{get_native_id()}.tmp'
+    temp_target = target + f".{get_native_id()}.tmp"
     try:
         # Avoid errors with possibly stale links
         os.remove(temp_target)
@@ -167,7 +175,7 @@ def create_link(src, target, delete_link=None, relative=False, create_target_dir
     try:
         os.symlink(src, temp_target)
         os.rename(temp_target, target)
-        logger.debug(f'Symbolic link created: {src} -> {target}')
+        logger.debug(f"Symbolic link created: {src} -> {target}")
     except Exception:
         try:
             os.remove(temp_target)
@@ -175,6 +183,7 @@ def create_link(src, target, delete_link=None, relative=False, create_target_dir
             pass
 
         raise
+
 
 # Creating link is sometime slow (e.g. on NFS, so do it in a thread
 def create_link_async(
@@ -190,22 +199,23 @@ def create_link_async(
     thread.start()
     return thread
 
-def dict2str(mydict, sort=False, sep='    ', usevrepr=True, line_prefix=''):
-    if not mydict:
-        return 'None'
 
-    txt = ''
+def dict2str(mydict, sort=False, sep="    ", usevrepr=True, line_prefix=""):
+    if not mydict:
+        return "None"
+
+    txt = ""
     items = mydict.items()
     if sort:
         items = sorted(items)
     maxlen = len(max(mydict.keys(), key=len))
-    wrap_space = '\n' + ' ' * (maxlen + len(sep))
+    wrap_space = "\n" + " " * (maxlen + len(sep))
     for k, v in items:
         txt += line_prefix
         if usevrepr:
-            txt += '{}{}{!r}\n'.format(k.ljust(maxlen, " "), sep, v)
+            txt += "{}{}{!r}\n".format(k.ljust(maxlen, " "), sep, v)
         else:
             v = str(v)
-            v = v.replace('\n', wrap_space)
-            txt += '{}{}{}\n'.format(k.ljust(maxlen, " "), sep, v)
+            v = v.replace("\n", wrap_space)
+            txt += "{}{}{}\n".format(k.ljust(maxlen, " "), sep, v)
     return txt

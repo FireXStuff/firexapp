@@ -15,13 +15,13 @@ returns = FireXResults.returns
 
 
 class InvalidChainArgsException(Exception):
-    def __init__(self, msg, wrong_args: dict | None=None):
+    def __init__(self, msg, wrong_args: dict | None = None):
         super().__init__(msg)
         self.wrong_args = wrong_args or {}
 
 
 def _simulate_chain_args_kwargs(
-    prev_task_return_args : dict[str, Any] | None,
+    prev_task_return_args: dict[str, Any] | None,
     task_pos_args: tuple,
     task_kwargs: dict[str, Any],
     chain_depth: int,
@@ -34,9 +34,9 @@ def _simulate_chain_args_kwargs(
         simulated_pos_args = tuple(
             # don't know why, but in a chain the previous task's results are supplied
             # as the fist positional arg. Crazy.
-            [ prev_task_return_args ] + list(task_pos_args)
+            [prev_task_return_args] + list(task_pos_args)
         )
-        simulated_kwargs = task_kwargs | {'chain_depth': chain_depth}
+        simulated_kwargs = task_kwargs | {"chain_depth": chain_depth}
     else:
         simulated_pos_args = task_pos_args
         simulated_kwargs = task_kwargs
@@ -45,7 +45,7 @@ def _simulate_chain_args_kwargs(
 
 
 def _task_python_signature(task_obj) -> inspect.Signature:
-    py_sig = getattr(task_obj, 'sig', None)
+    py_sig = getattr(task_obj, "sig", None)
     if py_sig is None:
         # the UT app sometimes doesn't set the FireXTask base class, so 'sig' is missing.
         py_sig = inspect.signature(task_obj.run)
@@ -57,13 +57,13 @@ def _with_adopted_defaults(
     defaults_by_arg: dict[str, Any],
 ) -> list[inspect.Parameter]:
     """
-        Fill in the defaults an overridden service gives to args that this service
-        declares without one, skipping the ones python's Signature won't accept.
+    Fill in the defaults an overridden service gives to args that this service
+    declares without one, skipping the ones python's Signature won't accept.
 
-        A positional arg can only take a default when every positional arg of the
-        same kind after it already has one, so the params are walked right to left.
+    A positional arg can only take a default when every positional arg of the
+    same kind after it already has one, so the params are walked right to left.
     """
-    adopted : list[inspect.Parameter] = []
+    adopted: list[inspect.Parameter] = []
     trailing_kind = None
     trailing_all_have_defaults = True
     for param in reversed(params):
@@ -79,7 +79,8 @@ def _with_adopted_defaults(
             and param.kind not in (param.VAR_POSITIONAL, param.VAR_KEYWORD)
             and (
                 trailing_all_have_defaults
-                or param.kind not in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD)
+                or param.kind
+                not in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD)
             )
         ):
             param = param.replace(default=defaults_by_arg[param.name])
@@ -93,23 +94,25 @@ def _with_adopted_defaults(
 
 def _merged_python_signature(task_obj) -> inspect.Signature:
     """
-        Get a service's signature extended with the args of the services it overrides.
+    Get a service's signature extended with the args of the services it overrides.
 
-        An override is expected to be given the args of the service it replaces, so
-        chain arg validation needs to consider both. Args only the overridden service
-        declares are added as optional keyword-only params, which is always a valid
-        position and never claims a positional arg the overriding service wants.
+    An override is expected to be given the args of the service it replaces, so
+    chain arg validation needs to consider both. Args only the overridden service
+    declares are added as optional keyword-only params, which is always a valid
+    position and never claims a positional arg the overriding service wants.
     """
     py_sig = _task_python_signature(task_obj)
 
-    own_params : dict[str, inspect.Parameter] = dict(py_sig.parameters)
-    added_params : dict[str, inspect.Parameter] = {}
+    own_params: dict[str, inspect.Parameter] = dict(py_sig.parameters)
+    added_params: dict[str, inspect.Parameter] = {}
     # the nearest override wins, matching how the args themselves resolve.
-    orig_defaults : dict[str, Any] = {}
+    orig_defaults: dict[str, Any] = {}
 
-    orig_task = getattr(task_obj, 'orig', None)
+    orig_task = getattr(task_obj, "orig", None)
     while orig_task:
-        for orig_arg, orig_param in _task_python_signature(orig_task).parameters.items():
+        for orig_arg, orig_param in _task_python_signature(
+            orig_task
+        ).parameters.items():
             # auto-inject args must not have defaults since it makes
             # priority resolution too complicated for the user.
             if BagOfGoodies.get_auto_inject_type(orig_param.annotation):
@@ -127,11 +130,12 @@ def _merged_python_signature(task_obj) -> inspect.Signature:
                     kind=orig_param.KEYWORD_ONLY,
                     # an arg this service doesn't declare can't be mandatory for it.
                     default=(
-                        orig_param.default if orig_param.default is not orig_param.empty
+                        orig_param.default
+                        if orig_param.default is not orig_param.empty
                         else None
                     ),
                 )
-        orig_task = getattr(orig_task, 'orig', None)
+        orig_task = getattr(orig_task, "orig", None)
 
     return py_sig.replace(
         parameters=sorted(
@@ -152,7 +156,8 @@ def _fake_validation_bog(
     from firexkit.task import (
         FireXTask,  # FIXME: bad relationship between core abstractions
     )
-    task_obj : FireXTask
+
+    task_obj: FireXTask
     bog = BagOfGoodies(
         # there is something insane in UT here where the base class isn't set.
         # I think this is due to the wrong app being used due to module-level init.
@@ -175,13 +180,13 @@ def _fake_validation_bog(
 
 class SignatureX(Signature):
     """
-        Fake class to make intended support of monkey-patched celery.Signature
-        more clear. Ideally this class would actually be used, but this is step1.
-        Ideally FireX would use Celery's builtin extension mechanisms instead of
-        monkey patching.
+    Fake class to make intended support of monkey-patched celery.Signature
+    more clear. Ideally this class would actually be used, but this is step1.
+    Ideally FireX would use Celery's builtin extension mechanisms instead of
+    monkey patching.
     """
 
-    def clone(self, args=None, kwargs=None, **opts) -> 'SignatureX':
+    def clone(self, args=None, kwargs=None, **opts) -> "SignatureX":
         cloned = super().clone(args=args, kwargs=kwargs, **opts)
         return type(self)(
             task=self.type,
@@ -198,8 +203,8 @@ class SignatureX(Signature):
             FireXTask,  # FIXME: bad relationship between core abstractions
         )
 
-        prev_task_return_args : dict[str, Any] | None = None
-        task_names_to_missing_required_arg_names : dict[str, set[str]] = {}
+        prev_task_return_args: dict[str, Any] | None = None
+        task_names_to_missing_required_arg_names: dict[str, set[str]] = {}
         for chain_depth, task_sig in enumerate(self._get_sigs()):
             simulated_pos_args, simulated_kwargs = _simulate_chain_args_kwargs(
                 prev_task_return_args,
@@ -210,11 +215,15 @@ class SignatureX(Signature):
 
             # I think task_sig/task_obj is bound/unbound distinction, or maybe something
             # to do with plugins, but it's not clear.
-            task_obj : FireXTask = self.app.tasks[task_sig.task]
-            task_bog = _fake_validation_bog(task_obj, simulated_pos_args, simulated_kwargs)
+            task_obj: FireXTask = self.app.tasks[task_sig.task]
+            task_bog = _fake_validation_bog(
+                task_obj, simulated_pos_args, simulated_kwargs
+            )
             unbound_required_arg_names = task_bog.get_unbound_required_arg_names()
             if unbound_required_arg_names:
-                task_names_to_missing_required_arg_names[task_obj.name] = unbound_required_arg_names
+                task_names_to_missing_required_arg_names[task_obj.name] = (
+                    unbound_required_arg_names
+                )
 
             # If any of the previous keys has a dynamic return, then we can't do any validation
             if task_obj.has_dynamic_returns():
@@ -224,25 +233,30 @@ class SignatureX(Signature):
             if undefined_indirect:
                 txt = "\n".join([f"{k}: {v}" for k, v in undefined_indirect.items()])
                 raise InvalidChainArgsException(
-                    msg=f'Service {task_obj.name} indirectly references the following unavailable parameters: \n{txt}',
+                    msg=f"Service {task_obj.name} indirectly references the following unavailable parameters: \n{txt}",
                     wrong_args=undefined_indirect,
                 )
 
             prev_task_return_args = dict(
                 task_bog.all_supplied_args()
                 | {
-                    rk: True # we ignore falsy values when resolving???
+                    rk: True  # we ignore falsy values when resolving???
                     for rk in task_obj.return_keys
                 }
             )
 
         if task_names_to_missing_required_arg_names:
             service_msgs = []
-            for task_name, arg_names in task_names_to_missing_required_arg_names.items():
-                service_msgs.append(f' {", ".join(arg_names)} \t required by {task_name}')
+            for (
+                task_name,
+                arg_names,
+            ) in task_names_to_missing_required_arg_names.items():
+                service_msgs.append(
+                    f" {', '.join(arg_names)} \t required by {task_name}"
+                )
             msg = "\n".join(service_msgs)
             raise InvalidChainArgsException(
-                msg=f'Missing mandatory arguments: \n{msg}',
+                msg=f"Missing mandatory arguments: \n{msg}",
                 wrong_args=task_names_to_missing_required_arg_names,
             )
 
@@ -253,38 +267,35 @@ class SignatureX(Signature):
         # even where the object was cloned in __or__ above (kwargs isn't copied and is still the same object)
         task_sig.kwargs = kwargs | task_sig.kwargs
 
-    def get_first_sig(self) -> 'SignatureX':
+    def get_first_sig(self) -> "SignatureX":
         try:
-            return self.tasks[0] # This might be a chain
+            return self.tasks[0]  # This might be a chain
         except AttributeError:
-            return self # This might be a signature
+            return self  # This might be a signature
 
-    def _get_sigs(self) -> list['SignatureX']:
+    def _get_sigs(self) -> list["SignatureX"]:
         try:
-            tasks : list[SignatureX] = self.tasks
+            tasks: list[SignatureX] = self.tasks
         except AttributeError:
             return [self]
         else:
             if len(tasks) > 1:
                 return [
-                    t for t in tasks
+                    t
+                    for t in tasks
                     # one of many hacks needed due to InjectArgs hack.
                     if t.name is not None
                 ]
             return tasks
 
     def remove_inject_args(self):
-        if (
-            self._is_chain()
-            and len( tasks := self.tasks ) > 1
-        ):
+        if self._is_chain() and len(tasks := self.tasks) > 1:
             for s in tasks:
                 if s.name is None and not isinstance(s, InjectArgs):
-                    logger.error(
-                        f'removing {s} with name {s.name}'
-                    )
+                    logger.error(f"removing {s} with name {s.name}")
             self.tasks = [
-                s for s in tasks
+                s
+                for s in tasks
                 # one of many hacks need due to InjectArgs hack.
                 if s.name is not None
             ]
@@ -301,7 +312,7 @@ class SignatureX(Signature):
         return any(
             # a task of this chain isn't necessarily registered here, e.g. a signature
             # built for a service that only lives on another worker.
-            getattr(s.app.tasks.get(s.task), 'forget', False)
+            getattr(s.app.tasks.get(s.task), "forget", False)
             for s in self._get_sigs()
         )
 
@@ -312,9 +323,9 @@ class SignatureX(Signature):
         self,
         block: bool = False,
         raise_exception_on_failure: bool = True,
-        queue: str | None=None,
-        priority: int | None=None,
-        soft_time_limit: int | None=None,
+        queue: str | None = None,
+        priority: int | None = None,
+        soft_time_limit: int | None = None,
     ) -> FxAsyncResult:
 
         self.remove_inject_args()
@@ -329,7 +340,7 @@ class SignatureX(Signature):
         if soft_time_limit:
             self.set_soft_time_limit(soft_time_limit)
 
-        result_promise : FxAsyncResult = self.delay()
+        result_promise: FxAsyncResult = self.delay()
         if block:
             result_promise.fx_wait(
                 raise_on_failure=raise_exception_on_failure,
@@ -367,13 +378,13 @@ class SignatureX(Signature):
     def get_label(self):
         try:
             if self.options:
-                return self.options['label']
+                return self.options["label"]
         except KeyError:
             pass
-        return '|'.join([s.name for s in self._get_sigs()])
+        return "|".join([s.name for s in self._get_sigs()])
 
     def _is_chain(self) -> bool:
-        return hasattr(self, 'tasks')
+        return hasattr(self, "tasks")
 
     def apply_async_x(
         self,
@@ -381,40 +392,40 @@ class SignatureX(Signature):
     ) -> FxAsyncResult:
         self.remove_inject_args()
         first_sig = self.get_first_sig()
-        if (
-            auto_inject_reg
-            and not first_sig.kwargs.get(AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY)
+        if auto_inject_reg and not first_sig.kwargs.get(
+            AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY
         ):
             first_sig.kwargs[AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY] = auto_inject_reg
 
         if self._is_chain():
             for chain_depth, chain_sig in enumerate(self._get_sigs()):
-                chain_sig.kwargs['chain_depth'] = chain_depth
+                chain_sig.kwargs["chain_depth"] = chain_depth
 
         self.verify_args()
 
         # args & kwargs are expected to be set by prior kludges
-        fx_r : FxAsyncResult = self.apply_async()
+        fx_r: FxAsyncResult = self.apply_async()
         return fx_r
 
     def enqueue_and_extract(
         self,
-        queue: str | None=None,
+        queue: str | None = None,
         return_keys: str | tuple = (),
-        raise_exception_on_failure: bool=True,
-        priority: int | None=None,
-        soft_time_limit: int | None=None,
+        raise_exception_on_failure: bool = True,
+        priority: int | None = None,
+        soft_time_limit: int | None = None,
         block=True,
         **_kwargs,
     ) -> tuple | dict:
 
         if _kwargs:
-            logger.warning(f'Unexpected kwargs: {_kwargs}')
+            logger.warning(f"Unexpected kwargs: {_kwargs}")
 
         if not block:
             logger.warning(
-                f'enqueue_and_extract ignored block={block}, '
-                'since it needs to block in order to extract results')
+                f"enqueue_and_extract ignored block={block}, "
+                "since it needs to block in order to extract results"
+            )
 
         result_promise = self.enqueue(
             queue=queue or socket.gethostname(),
@@ -429,18 +440,17 @@ class SignatureX(Signature):
 
 
 class InjectArgs(SignatureX):
-
     def __init__(self, *args, **kwargs):
-        assert not args, 'Inject args accepts no positional args.'
+        assert not args, "Inject args accepts no positional args."
         self.args = ()
         self.kwargs = kwargs
 
-    def clone(self, args=None, kwargs=None, **opts) -> 'InjectArgs':
-        assert not args, 'InjectArgs accepts no positional args.'
+    def clone(self, args=None, kwargs=None, **opts) -> "InjectArgs":
+        assert not args, "InjectArgs accepts no positional args."
         return type(self)(**(self.kwargs | (kwargs or {})))
 
     def __str__(self):
-        return f'InjectArgs({", ".join(self.kwargs.keys())})'
+        return f"InjectArgs({', '.join(self.kwargs.keys())})"
 
     @property
     def options(self):

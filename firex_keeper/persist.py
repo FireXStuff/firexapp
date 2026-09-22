@@ -27,12 +27,14 @@ def task_by_uuid_exp(task_uuid):
 
 
 def task_uuid_complete_exp(task_uuid):
-    return and_(firex_tasks.c.uuid == task_uuid,
-                firex_tasks.c.state.in_(COMPLETE_RUNSTATES))
+    return and_(
+        firex_tasks.c.uuid == task_uuid, firex_tasks.c.state.in_(COMPLETE_RUNSTATES)
+    )
 
 
 def cur_task_by_uuid_exp():
     from celery import current_task
+
     if not current_task:
         return False
     return task_by_uuid_exp(current_task.request.id)
@@ -47,10 +49,11 @@ def _custom_json_loads(*args, **kwargs):
 
 
 def _get_pragmas(use_wal):
-    pragmas = [ 'page_size = 4096' ]
+    pragmas = ["page_size = 4096"]
     if use_wal:
         pragmas += [
-            'journal_mode=WAL', 'synchronous=NORMAL',
+            "journal_mode=WAL",
+            "synchronous=NORMAL",
         ]
     return pragmas
 
@@ -60,7 +63,7 @@ def execute_pragmas(engine, use_wal=False):
     try:
         cursor = dbapi_connection.cursor()
         for pragma in _get_pragmas(use_wal):
-            cmd = 'PRAGMA ' + pragma
+            cmd = "PRAGMA " + pragma
             logger.debug(f"Executing: {cmd}")
             cursor.execute(cmd)
         cursor.close()
@@ -70,25 +73,25 @@ def execute_pragmas(engine, use_wal=False):
 
 
 def _db_connection_str(db_file, read_only, is_run_complete=False):
-    db_conn_str = f'sqlite:///file:{db_file}'
+    db_conn_str = f"sqlite:///file:{db_file}"
 
-    params = {'uri': 'true'}
+    params = {"uri": "true"}
 
     if is_run_complete:
-        params['immutable'] = '1'
+        params["immutable"] = "1"
         read_only = True
 
     if read_only:
-        params['mode'] = 'ro'
+        params["mode"] = "ro"
 
-    db_conn_str += '?' + '&'.join(
-        [f'{k}={v}' for k, v in params.items()]
-    )
+    db_conn_str += "?" + "&".join([f"{k}={v}" for k, v in params.items()])
 
     return db_conn_str
 
 
-def connect_db(db_file, read_only=False, metadata_to_create=metadata, is_run_complete=False):
+def connect_db(
+    db_file, read_only=False, metadata_to_create=metadata, is_run_complete=False
+):
     engine = create_engine(
         _db_connection_str(db_file, read_only, is_run_complete=is_run_complete),
         json_deserializer=_custom_json_loads,
@@ -108,14 +111,14 @@ def connect_db(db_file, read_only=False, metadata_to_create=metadata, is_run_com
 
 
 def get_db_file_dir_path(logs_dir: str) -> str:
-    return os.path.join(logs_dir, Uid.debug_dirname, 'keeper')
+    return os.path.join(logs_dir, Uid.debug_dirname, "keeper")
 
 
 def get_keeper_complete_file_path(logs_dir):
     # A way for checking if the keeper DB is complete without inspecting the DB
     # file. This can be used to inform connection decisions, like if the DB
     # is not expected to change.
-    return os.path.join(get_db_file_dir_path(logs_dir), '.keeper_complete')
+    return os.path.join(get_db_file_dir_path(logs_dir), ".keeper_complete")
 
 
 def is_keeper_db_complete(logs_dir):
@@ -123,19 +126,19 @@ def is_keeper_db_complete(logs_dir):
 
 
 def get_keeper_query_ready_file_path(logs_dir: str) -> str:
-    return os.path.join(get_db_file_dir_path(logs_dir), '.keeper_query_ready')
+    return os.path.join(get_db_file_dir_path(logs_dir), ".keeper_query_ready")
 
 
 def is_keeper_db_query_ready(logs_dir: str) -> bool:
-    return os.path.isfile(
-        get_keeper_query_ready_file_path(logs_dir)
-    )
+    return os.path.isfile(get_keeper_query_ready_file_path(logs_dir))
 
 
 def get_db_file(logs_dir: str, new=False) -> str:
-    db_file = os.path.join(get_db_file_dir_path(logs_dir), 'firex_run.db')
+    db_file = os.path.join(get_db_file_dir_path(logs_dir), "firex_run.db")
     if new:
-        assert not os.path.exists(db_file), f"Cannot create new DB file, it already exists: {db_file}"
+        assert not os.path.exists(db_file), (
+            f"Cannot create new DB file, it already exists: {db_file}"
+        )
         db_file_parent = os.path.dirname(db_file)
         os.makedirs(db_file_parent, exist_ok=True)
     else:
@@ -165,10 +168,14 @@ def _row_to_run_metadata(row):
     # Can't add the Column now as it won't be backward compatible
     return FireXRunMetadata(*row[:4], firex_requester=None)
 
+
 RETRYING_DB_EXCEPTIONS = (OperationalError, SqlLiteOperationalError)
 DEFAULT_MAX_RETRY_ATTEMPTS = 20
 
-def retry(exceptions, max_attempts: int=DEFAULT_MAX_RETRY_ATTEMPTS, retry_delay: int=1):
+
+def retry(
+    exceptions, max_attempts: int = DEFAULT_MAX_RETRY_ATTEMPTS, retry_delay: int = 1
+):
     def retry_decorator(func):
         def retrying_wrapper(*args, **kwargs):
             attempt = 0
@@ -182,7 +189,9 @@ def retry(exceptions, max_attempts: int=DEFAULT_MAX_RETRY_ATTEMPTS, retry_delay:
                     sleep(retry_delay)
 
         return retrying_wrapper
+
     return retry_decorator
+
 
 class FireXRunDbManager:
     """
@@ -199,7 +208,9 @@ class FireXRunDbManager:
     def wait_before_query(self, whereclause, max_wait, error_on_wait_exceeded):
         if not self._is_keeper_complete():
             start_wait_time = perf_counter()
-            exists = wait_until(self.does_task_whereclause_exist, max_wait, 0.5, whereclause)
+            exists = wait_until(
+                self.does_task_whereclause_exist, max_wait, 0.5, whereclause
+            )
             if not exists:
                 msg = f"Wait exceeded {max_wait} seconds for {whereclause} to exist, but it still does not."
                 if error_on_wait_exceeded:
@@ -208,10 +219,14 @@ class FireXRunDbManager:
                     logger.warning(msg)
             else:
                 wait_duration = perf_counter() - start_wait_time
-                logger.debug(f"Keeper query waited {wait_duration:.2f} secs for wait query to exist.")
+                logger.debug(
+                    f"Keeper query waited {wait_duration:.2f} secs for wait query to exist."
+                )
 
     @retry(RETRYING_DB_EXCEPTIONS)
-    def query_tasks(self, exp, wait_for_exp_exist=None, max_wait=15, error_on_wait_exceeded=False) -> list[FireXTask]:
+    def query_tasks(
+        self, exp, wait_for_exp_exist=None, max_wait=15, error_on_wait_exceeded=False
+    ) -> list[FireXTask]:
         if wait_for_exp_exist is not None:
             self.wait_before_query(wait_for_exp_exist, max_wait, error_on_wait_exceeded)
 
@@ -232,7 +247,11 @@ class FireXRunDbManager:
 
     @retry(RETRYING_DB_EXCEPTIONS)
     def query_run_metadata(self, firex_id) -> FireXRunMetadata:
-        result = self.db_conn.execute(select([firex_run_metadata]).where(firex_run_metadata.c.firex_id == firex_id))
+        result = self.db_conn.execute(
+            select([firex_run_metadata]).where(
+                firex_run_metadata.c.firex_id == firex_id
+            )
+        )
         if not result:
             raise LookupError(f"Found no run data for {firex_id}")
         return next(_row_to_run_metadata(row) for row in result)
@@ -241,12 +260,14 @@ class FireXRunDbManager:
         result = self.db_conn.execute(select([firex_run_metadata]))
         rows = [r for r in result]
         if len(rows) != 1:
-            raise RuntimeError(f"Expected exactly one firex_run_metadata, but found {len(rows)}")
+            raise RuntimeError(
+                f"Expected exactly one firex_run_metadata, but found {len(rows)}"
+            )
         return rows[0]
 
     @retry(RETRYING_DB_EXCEPTIONS)
     def _is_keeper_complete(self) -> bool:
-        return self._query_single_run_metadata_row()['keeper_complete']
+        return self._query_single_run_metadata_row()["keeper_complete"]
 
     @retry(RETRYING_DB_EXCEPTIONS)
     def query_single_run_metadata(self) -> FireXRunMetadata:

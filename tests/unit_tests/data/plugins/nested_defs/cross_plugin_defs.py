@@ -7,10 +7,11 @@ cross_importing_plugin.py imports from it, which is exactly why it does not get
 plugin precedence: the tasks it defines here are overridden by the plugin file that
 imported it.
 """
+
 from firexapp.engine.celery import app
 from firexkit.task import FireXTask
 
-SOME_CONSTANT = 'imported-to-force-module-load'
+SOME_CONSTANT = "imported-to-force-module-load"
 
 
 @app.task(base=FireXTask)

@@ -24,31 +24,32 @@ class PluginLoadError(Exception):
 @dataclasses.dataclass(frozen=True)
 class LoadedPlugin:
     """
-        A plugin file that was loaded, and the module it was loaded as.
+    A plugin file that was loaded, and the module it was loaded as.
 
-        Only explicitly listed plugin files get plugin precedence. The modules a
-        plugin file happens to import are deliberately not recorded here: a module
-        that defines tasks and is shared between plugins (firex_cisco's
-        plugins/nxpidt/*, imported by plugins/nxospinvebringup_slurm.py) would
-        otherwise inherit the precedence of whichever plugin imported it first,
-        outranking genuine overrides from plugins listed after it.
+    Only explicitly listed plugin files get plugin precedence. The modules a
+    plugin file happens to import are deliberately not recorded here: a module
+    that defines tasks and is shared between plugins (firex_cisco's
+    plugins/nxpidt/*, imported by plugins/nxospinvebringup_slurm.py) would
+    otherwise inherit the precedence of whichever plugin imported it first,
+    outranking genuine overrides from plugins listed after it.
 
-        'plugin_file_hash' identifies the plugin by content rather than by path, so
-        that the same plugin reached through two different absolute paths is
-        recognised as one plugin. See is_same_plugin().
+    'plugin_file_hash' identifies the plugin by content rather than by path, so
+    that the same plugin reached through two different absolute paths is
+    recognised as one plugin. See is_same_plugin().
     """
+
     plugin_file: str
     module_name: str
     plugin_file_hash: str | None = None
 
-    def is_same_plugin(self, other: 'LoadedPlugin') -> bool:
+    def is_same_plugin(self, other: "LoadedPlugin") -> bool:
         """
-            Whether both groups came from what is really the same plugin.
+        Whether both groups came from what is really the same plugin.
 
-            The same plugin is routinely reachable through more than one absolute
-            path -- firex_cisco's ci_plugins, for instance, ships both in
-            site-packages and in the workspace -- so identical module name plus
-            identical file content means identical plugin, even when the paths differ.
+        The same plugin is routinely reachable through more than one absolute
+        path -- firex_cisco's ci_plugins, for instance, ships both in
+        site-packages and in the workspace -- so identical module name plus
+        identical file content means identical plugin, even when the paths differ.
         """
         if self.plugin_file == other.plugin_file:
             return True
@@ -64,7 +65,7 @@ def _hash_file(file_path: str | None) -> str | None:
     if not file_path:
         return None
     try:
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             return hashlib.sha256(f.read()).hexdigest()
     except OSError:
         # Unreadable or not a regular file. Callers treat an unknown hash as
@@ -85,18 +86,18 @@ def plugins_has(plugins: str | list[str], query_basename: str) -> bool:
     if isinstance(plugins, list):
         # Handle list of plugins
         return any(
-            plugin == query_basename or plugin.endswith(f'/{query_basename}')
+            plugin == query_basename or plugin.endswith(f"/{query_basename}")
             for plugin in plugins
         )
-    return plugins == query_basename or plugins.endswith(f'/{query_basename}')
+    return plugins == query_basename or plugins.endswith(f"/{query_basename}")
 
 
 def _get_short_name(long_name: str) -> str:
-    return long_name.split('.')[-1]
+    return long_name.split(".")[-1]
 
 
 def _get_module_name(long_task_name: str) -> str:
-    return long_task_name.rsplit('.', 1)[0]
+    return long_task_name.rsplit(".", 1)[0]
 
 
 def convert_plugins_to_list(plugin_files: None | str | list[str]) -> list[str]:
@@ -104,9 +105,7 @@ def convert_plugins_to_list(plugin_files: None | str | list[str]) -> list[str]:
         return []
 
     if not isinstance(plugin_files, list):
-        plugin_files = [
-            file.strip() for file in plugin_files.split(",")
-        ]
+        plugin_files = [file.strip() for file in plugin_files.split(",")]
 
     return plugin_files
 
@@ -120,6 +119,7 @@ def _get_plugin_module_name(plugin_file):
 def _get_signals_with_connections():
     import celery.signals as sigs
     from celery.utils.dispatch.signal import NONE_ID, Signal
+
     # get all official signals
     signals = [s for s in sigs.__dict__.values() if type(s) is Signal]
     # only use the ones registered to specific microservices (as opposed to sender=None)
@@ -128,6 +128,7 @@ def _get_signals_with_connections():
     # now get the task specific registrations
     def from_sender_only(sig):
         return [k for k in sig.receivers if k[0][1] != NONE_ID]
+
     signals = {s: from_sender_only(s) for s in signals}
     signals = {s: k for s, k in signals.items() if k}
 
@@ -135,7 +136,6 @@ def _get_signals_with_connections():
 
 
 class FxPluginRegistry:
-
     def __init__(self):
         # Every plugin file loaded so far, in increasing order of precedence, so that
         # _unregister_duplicate_tasks still sees plugins from earlier
@@ -173,7 +173,7 @@ class FxPluginRegistry:
                 "flame",
                 "use_cache",
                 "pending_child_strategy",
-                "pydantic_validate", # FIXME: shouldn't need to duplicate.
+                "pydantic_validate",  # FIXME: shouldn't need to duplicate.
             ]
             if key in dir(original)
         }
@@ -182,7 +182,7 @@ class FxPluginRegistry:
             bind=bound,
             base=inspect.getmro(original.__class__)[1],
             check_name_for_override_posfix=False,
-            **options
+            **options,
         )(fun=func)
 
         # Set on the instance rather than passed through 'options' above: celery puts
@@ -203,6 +203,7 @@ class FxPluginRegistry:
             # there is no way of copying the signals without coupling with the internals of celery signals
             # noinspection PyProtectedMember
             from celery.utils.dispatch.signal import _make_id
+
             orig_task_id = _make_id(original)
             for s, receivers in sigs.items():
                 for r in receivers:
@@ -214,7 +215,9 @@ class FxPluginRegistry:
                         s.receivers.append(entry)
         # Celery signal internals and third-party receivers can fail in arbitrary ways.
         except Exception as e:  # noqa: BLE001
-            logger.error(f"Unable to copy signals while overriding {original.name}:\n{e!s}")
+            logger.error(
+                f"Unable to copy signals while overriding {original.name}:\n{e!s}"
+            )
         return new_task
 
     @classmethod
@@ -260,10 +263,11 @@ class FxPluginRegistry:
                 new_task = self.create_replacement_task(
                     fx_app,
                     original_task,
-                    name_postfix=REPLACEMENT_TASK_NAME_POSTFIX * (len(single_task_long_names) - index - 1),
+                    name_postfix=REPLACEMENT_TASK_NAME_POSTFIX
+                    * (len(single_task_long_names) - index - 1),
                     sigs=sigs,
                 )
-                overrider = single_task_long_names[index+1]
+                overrider = single_task_long_names[index + 1]
                 fx_app.tasks[overrider].orig = new_task
 
     @classmethod
@@ -281,7 +285,7 @@ class FxPluginRegistry:
         # new_tasks).
         plugin_file_module_names: list[str] = []
         if plugin_files := cls.resolve_plugin_paths(plugin_files):
-            new_tasks : set[str] = set()
+            new_tasks: set[str] = set()
 
             for plugin_file in plugin_files:
                 pre_import_task_names = set(fx_app.tasks)
@@ -296,7 +300,7 @@ class FxPluginRegistry:
                         )
                     )
 
-                    new_task_names : list[str] = [
+                    new_task_names: list[str] = [
                         t for t in fx_app.tasks if t not in pre_import_task_names
                     ]
                     new_tasks.update(new_task_names)
@@ -306,30 +310,29 @@ class FxPluginRegistry:
                     # plugin's precedence and outranks genuine overrides from the
                     # plugins listed after it.
                     imported_module_names = list(
-                        dict.fromkeys(
-                            _get_module_name(t) for t in new_task_names
-                        )
+                        dict.fromkeys(_get_module_name(t) for t in new_task_names)
                     )
 
                     plugin_modules_info = (
-                        f'{imported_module_names} ' if imported_module_names else ''
+                        f"{imported_module_names} " if imported_module_names else ""
                     )
                     logger.log(
                         log_level,
-                        f'{len(new_task_names)} new service{"s" if len(new_task_names)>1 else ""} '
-                        f'imported from plugin modules {plugin_modules_info}'
-                        f'found in {mod.__file__ if mod else plugin_file}',
+                        f"{len(new_task_names)} new service{'s' if len(new_task_names) > 1 else ''} "
+                        f"imported from plugin modules {plugin_modules_info}"
+                        f"found in {mod.__file__ if mod else plugin_file}",
                     )
 
             if plugin_file_module_names:
                 uniq_mods = len(set(plugin_file_module_names))
                 logger.log(
                     log_level,
-                    f'--> {len(new_tasks)} total new service{"s" if len(new_tasks)>1 else ""} imported '
-                    f'from {uniq_mods} plugin module{"s" if uniq_mods > 1 else ""} '
-                    f'{plugin_file_module_names}')
+                    f"--> {len(new_tasks)} total new service{'s' if len(new_tasks) > 1 else ''} imported "
+                    f"from {uniq_mods} plugin module{'s' if uniq_mods > 1 else ''} "
+                    f"{plugin_file_module_names}",
+                )
             else:
-                logger.log(log_level, f'No new services imported from {plugin_files}!')
+                logger.log(log_level, f"No new services imported from {plugin_files}!")
 
             # Mark tasks defined by any of these plugin modules with
             # "from_plugin". This intentionally does NOT rely solely on
@@ -343,16 +346,17 @@ class FxPluginRegistry:
             # "new" here -- even though they are still genuinely from this
             # plugin file and must be marked accordingly.
             for t, task in fx_app.tasks.items():
-                if t in new_tasks or getattr(task, '__module__', None) in plugin_file_module_names:
+                if (
+                    t in new_tasks
+                    or getattr(task, "__module__", None) in plugin_file_module_names
+                ):
                     task.from_plugin = True
 
         return loaded_plugins
 
     @classmethod
     def set_plugins_env(cls, plugin_files):
-        os.environ[PLUGINS_ENV_NAME] = ",".join(
-            cls.resolve_plugin_paths(plugin_files)
-        )
+        os.environ[PLUGINS_ENV_NAME] = ",".join(cls.resolve_plugin_paths(plugin_files))
 
     def load_plugin_modules(
         self,
@@ -374,7 +378,8 @@ class FxPluginRegistry:
             for plugin in newly_loaded:
                 existing = next(
                     (
-                        i for i, p in enumerate(self._loaded_plugins)
+                        i
+                        for i, p in enumerate(self._loaded_plugins)
                         if p.is_same_plugin(plugin)
                     ),
                     None,
@@ -413,12 +418,12 @@ class FxPluginRegistry:
 
 def _priority_module_names(loaded_plugins: list[LoadedPlugin]) -> list[str]:
     """
-        The module backing each loaded plugin file, in increasing order of priority.
+    The module backing each loaded plugin file, in increasing order of priority.
 
-        Only these get plugin precedence. A module a plugin file merely imports is
-        not included even when it defines tasks: such modules are routinely shared
-        between plugins, and giving one the precedence of whichever plugin imported
-        it first silently outranks genuine overrides from the plugins listed after it.
+    Only these get plugin precedence. A module a plugin file merely imports is
+    not included even when it defines tasks: such modules are routinely shared
+    between plugins, and giving one the precedence of whichever plugin imported
+    it first silently outranks genuine overrides from the plugins listed after it.
     """
     return [plugin.module_name for plugin in loaded_plugins]
 
@@ -433,20 +438,15 @@ def _identify_duplicate_tasks(
     the one used. Tasks from modules absent from 'new_plugin_module_names' have the lowest priority,
     and ties are broken by the order of 'all_task_long_names' (i.e. registration order).
     """
-    short_names_to_lone_names : dict[str, list[str]] = {
-        _get_short_name(long_name): []
-        for long_name in all_task_long_names
+    short_names_to_lone_names: dict[str, list[str]] = {
+        _get_short_name(long_name): [] for long_name in all_task_long_names
     }
     for long_name in all_task_long_names:
-        short_names_to_lone_names[
-            _get_short_name(long_name)
-        ].append(long_name)
+        short_names_to_lone_names[_get_short_name(long_name)].append(long_name)
 
     def priority_index(long_task_name):
         try:
-            return new_plugin_module_names.index(
-                _get_module_name(long_task_name)
-            )
+            return new_plugin_module_names.index(_get_module_name(long_task_name))
         except ValueError:
             return -1
 
@@ -469,17 +469,16 @@ def _should_import(
         existing_mod = sys.modules[module_name]
         # Builtin and namespace modules have no __file__, so a plugin file whose
         # basename collides with one of those must not raise AttributeError here.
-        module_source = getattr(existing_mod, '__file__', None)
+        module_source = getattr(existing_mod, "__file__", None)
         # Compare resolved paths so that the same file reached through a symlink
         # isn't mistaken for a different module of the same name.
-        if (
-            module_source is None
-            or os.path.realpath(module_source) != os.path.realpath(plugin_file)
+        if module_source is None or os.path.realpath(module_source) != os.path.realpath(
+            plugin_file
         ):
             if replace:
                 logger.warning(
-                    f'Plugin module {module_name!r} already loaded from {module_source!r}. '
-                    f'Will replace with module from {plugin_file!r}'
+                    f"Plugin module {module_name!r} already loaded from {module_source!r}. "
+                    f"Will replace with module from {plugin_file!r}"
                 )
                 should_import = True
             else:
@@ -490,19 +489,23 @@ def _should_import(
                 # workspace), and identical content means nothing was lost, so that
                 # case is not worth an error.
                 existing_hash = _hash_file(module_source)
-                if existing_hash is not None and existing_hash == _hash_file(plugin_file):
+                if existing_hash is not None and existing_hash == _hash_file(
+                    plugin_file
+                ):
                     logger.debug(
-                        f'Plugin module {module_name!r} was already imported from '
-                        f'{module_source!r}, which is identical in content to '
-                        f'{plugin_file!r}.'
+                        f"Plugin module {module_name!r} was already imported from "
+                        f"{module_source!r}, which is identical in content to "
+                        f"{plugin_file!r}."
                     )
                     # Same code, so the resident module *is* this plugin: hand it back
                     # like the same-path case, otherwise the caller sees no module and
                     # the plugin contributes no tasks and no priority at all.
                     already_loaded = existing_mod
                 else:
-                    logger.error(f'Plugin module {module_name!r} was NOT imported from {plugin_file!r}. '
-                                 f'A module with the same name was already imported from {module_source!r}')
+                    logger.error(
+                        f"Plugin module {module_name!r} was NOT imported from {plugin_file!r}. "
+                        f"A module with the same name was already imported from {module_source!r}"
+                    )
                 should_import = False
         else:
             # Literally the same file, so there is nothing to warn about: the caller
@@ -511,7 +514,8 @@ def _should_import(
             # script_plugins re-imports every preceding plugin in each forked child,
             # and a fork inherits the parent's sys.modules -- so this is noise.
             logger.debug(
-                f'Plugin module {module_name!r} was already imported from {module_source!r}.')
+                f"Plugin module {module_name!r} was already imported from {module_source!r}."
+            )
             should_import = False
             already_loaded = existing_mod
     else:
@@ -525,7 +529,7 @@ def _import_plugin(module_name: str, plugin_file: str) -> ModuleType:
     spec = importlib.util.spec_from_file_location(module_name, plugin_file)
     if spec is None or spec.loader is None:
         raise PluginLoadError(
-            f'Cannot load plugin {plugin_file!r}: not an importable Python module.'
+            f"Cannot load plugin {plugin_file!r}: not an importable Python module."
         )
     module = importlib.util.module_from_spec(spec)
     module_directory = os.path.dirname(os.path.realpath(plugin_file))
@@ -539,8 +543,8 @@ def _import_plugin(module_name: str, plugin_file: str) -> ModuleType:
         spec.loader.exec_module(module)
         loaded = True
     except Exception as e:
-        logger.exception(f'Failed to load {plugin_file}')
-        raise PluginLoadError(f'Fatal Error loading plugin {plugin_file!r}') from e
+        logger.exception(f"Failed to load {plugin_file}")
+        raise PluginLoadError(f"Fatal Error loading plugin {plugin_file!r}") from e
     finally:
         if not loaded:
             # Don't leave a partially executed module behind: _should_import would
@@ -579,7 +583,11 @@ class CommaDelimitedListAction(Action):
         super().__init__(option_strings, dest, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
-        old_value = getattr(namespace, self.dest) if hasattr(namespace, self.dest) and not self.is_default else ""
+        old_value = (
+            getattr(namespace, self.dest)
+            if hasattr(namespace, self.dest) and not self.is_default
+            else ""
+        )
         self.is_default = False
         if old_value:
             old_value += ","
@@ -589,9 +597,13 @@ class CommaDelimitedListAction(Action):
 
 plugin_support_parser = ArgumentParser(add_help=False)
 plugin_support_parser.add_argument(
-    "--external", "--plugins", '-external', '-plugins', "--plugin",
+    "--external",
+    "--plugins",
+    "-external",
+    "-plugins",
+    "--plugin",
     help="Comma delimited list of plugins files to load",
     default="",
-    dest='plugins',
+    dest="plugins",
     action=CommaDelimitedListAction,
 )
