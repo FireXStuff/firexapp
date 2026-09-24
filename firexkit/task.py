@@ -1489,7 +1489,6 @@ class FireXTask(Task):
                     raise_on_failure=raise_on_failure,
                     max_wait=max_wait,
                     callbacks=callbacks,
-                    parent_id=self.request.id,
                 )
             finally:
                 if apply and add_to_enqueued_children:

@@ -678,7 +678,7 @@ wheels = [
 
 [[package]]
 name = "firexapp"
-version = "5.7.208"
+version = "5.7.209"
 source = { editable = "." }
 dependencies = [
     { name = "bcrypt" },

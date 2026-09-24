@@ -203,7 +203,7 @@ def wait_on_a_sibling_branch(self, uid, waiton):
     # still blocked on work that now runs longer, and it declared no limit of its own,
     # so the raise has to reach it through the worker default it was already following.
     _write_marker(uid.logs_dir, "sibling_waiter_blocked")
-    waiton.fx_wait(max_wait=RunTimeReserve(5), parent_id=self.request.id)
+    waiton.fx_wait(max_wait=RunTimeReserve(5))
     _write_marker(uid.logs_dir, "sibling_waiter_returned")
 
 

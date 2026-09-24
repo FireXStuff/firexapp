@@ -1317,14 +1317,6 @@ def _celery_worker_ready(sender: Consumer, **_kwargs):
         sender.app.backend.client.sadd(firexkit.broker.FX_QUEUES_KEY, *queue_names)
 
 
-@celery.signals.task_received.connect
-def on_task_received(sender: FireXTask, request=None, **kwargs):
-    if request and request.parent_id:
-        sender.app.backend_hset_task_attr(
-            request.id, "_fx_parent_id", request.parent_id
-        )
-
-
 @celery.signals.task_postrun.connect()
 def statsd_task_postrun(
     sender: FireXTask,

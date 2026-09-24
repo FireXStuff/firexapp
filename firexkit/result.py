@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
-import socket
 import time
 import uuid
 from collections import deque, namedtuple
@@ -17,6 +16,7 @@ from typing import (
 )
 
 import vine
+from celery._state import get_current_task
 from celery.local import PromiseProxy
 from celery.result import AsyncResult
 from celery.states import FAILURE, PENDING, RECEIVED, RETRY, REVOKED, STARTED, SUCCESS
@@ -157,7 +157,6 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
         self._fx_name: str | None = None
         self._fx_parent: FxAsyncResult | None = None
-        self._fx_parent_id: str | None = None
         self._fx_queue: str | None = None
         self._fx_terminal_state: str | None = None
         self._fx_seen_queue: str | None = None
@@ -364,48 +363,29 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             return True
         return False
 
-    def fx_get_parent_id(self) -> str | None:
-        if self._fx_parent_id is None:
-            self._fx_parent_id = (
-                self._fx_get_backend_attr(
-                    "_fx_parent_id",
-                    timeout=_DEFAULT_AR_QUERY_TIMEOUT,
-                    retry_delay=_DEFAULT_AR_RETRY_DELAY,
-                )
-                or None
-            )
-        return self._fx_parent_id
-
     @contextlib.contextmanager
-    def update_parent_task_blocked_states(
-        self,
-        parent_id: str | None = None,
-    ):
-        if not parent_id:
-            if not self.fx_is_ready():
-                parent_id = self.fx_get_parent_id()
-            else:
-                # disable blocking state change on parent since this ar
-                # is already complete
-                parent_id = None
-
-        if parent_id and not FxAsyncResult(parent_id, app=self.app).fx_is_ready():
-            with self.app.events.default_dispatcher(
-                hostname=self.fx_get_hostname() or socket.gethostname(),
-            ) as d:
-                d.send("task-blocked", uuid=parent_id)
-                try:
-                    yield
-                finally:
-                    try:
-                        d.send("task-unblocked", uuid=parent_id)
-                    # Unblocking is cleanup and must not replace the original exception.
-                    except Exception:
-                        logger.debug(
-                            "Failed to send task-unblocked cleanup event", exc_info=True
-                        )
-        else:
+    def update_parent_task_blocked_states(self):
+        # The blocked task is the one doing the waiting: the currently executing
+        # task. Sending through it keeps the uuid and hostname consistent with the
+        # events celery itself emits for that worker, instead of guessing the
+        # waiter from this result's stored parent and labelling the event with
+        # either the child's worker or a bare machine hostname.
+        current_task = get_current_task()
+        if current_task is None or not current_task.request.id or self.fx_is_ready():
             yield
+            return
+
+        current_task.send_event("task-blocked")
+        try:
+            yield
+        finally:
+            try:
+                current_task.send_event("task-unblocked")
+            # Unblocking is cleanup and must not replace the original exception.
+            except Exception:
+                logger.debug(
+                    "Failed to send task-unblocked cleanup event", exc_info=True
+                )
 
     def _handle_broker_timeout(
         self,
@@ -580,9 +560,8 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         max_sleep: float = _SLEEP_BETWEEN_ITERATIONS * 20 * 15,  # Somewhat arbitrary,
         last_callback_time: dict[Callable, float] | None = None,
         raise_on_failure: bool = True,
-        parent_id: str | None = None,
     ) -> str:
-        with self.update_parent_task_blocked_states(parent_id=parent_id):
+        with self.update_parent_task_blocked_states():
             return self.fx_wait_no_state_update(
                 max_wait=max_wait,
                 callbacks=callbacks,

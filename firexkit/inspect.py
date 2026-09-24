@@ -143,7 +143,7 @@ class InspectedTask(pydantic.BaseModel):
     _is_localhost: bool | None = None
 
     def __str__(self):
-        return f'{self.name}[{self.id}] (pid {self.worker_pid})'
+        return f"{self.name}[{self.id}] (pid {self.worker_pid})"
 
     def get_only_hostname(self) -> str | None:
         if self.hostname is None:

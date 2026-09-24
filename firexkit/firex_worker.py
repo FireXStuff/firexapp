@@ -15,7 +15,6 @@ class FxWorkerTypes(enum.Enum):
     MASTER = "master"
     WORKER = "worker"
 
-
     @classmethod
     def fx_worker_type_from_str(
         cls,
@@ -42,7 +41,7 @@ class FxBuiltinQueues(enum.Enum):
     MC = FxWorkerTypes.MC.value
     MASTER = FxWorkerTypes.MASTER.value
     WORKER = FxWorkerTypes.WORKER.value
-    SHUTDOWN = 'shutdown'
+    SHUTDOWN = "shutdown"
 
     def __str__(self):
         return self.value
