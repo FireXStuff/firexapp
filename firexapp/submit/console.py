@@ -7,6 +7,7 @@ import colorlog
 from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 
 from firexkit.result import ChainInterruptedException
+from firexapp.engine.logging import add_hostname_to_log_records, FireXLogger
 
 # BeautifulSoup thinks we're giving it an URL because there is an URL in msg.
 # Not good. Keep stderr clean by ignoring this warning.
@@ -74,7 +75,7 @@ def setup_console_logging(
     console_datefmt="%H:%M:%S",
     stderr_logging_level=logging.ERROR,
     module_logger_logging_level=None,
-):
+) -> FireXLogger:
 
     if console_logging_formatter is None:
         if os.environ.get("NO_COLOR"):
@@ -122,9 +123,6 @@ def setup_console_logging(
 
         if not console_stdout:
             # This setup hasn't been done before
-
-            from firexapp.engine.logging import add_hostname_to_log_records
-
             add_hostname_to_log_records()
 
             console_stdout = logging.StreamHandler(sys.stdout)

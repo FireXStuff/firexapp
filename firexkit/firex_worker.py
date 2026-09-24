@@ -15,6 +15,7 @@ class FxWorkerTypes(enum.Enum):
     MASTER = "master"
     WORKER = "worker"
 
+
     @classmethod
     def fx_worker_type_from_str(
         cls,
@@ -35,6 +36,19 @@ class FxWorkerTypes(enum.Enum):
                 FxWorkerTypes.WORKER.value,
             )
         return worker_name
+
+
+class FxBuiltinQueues(enum.Enum):
+    MC = FxWorkerTypes.MC.value
+    MASTER = FxWorkerTypes.MASTER.value
+    WORKER = FxWorkerTypes.WORKER.value
+    SHUTDOWN = 'shutdown'
+
+    def __str__(self):
+        return self.value
+
+    def as_worker_type(self) -> Optional[FxWorkerTypes]:
+        return FxWorkerTypes.fx_worker_type_from_str(self.value)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -91,7 +105,7 @@ class FxWorkerName:
     @classmethod
     def fx_worker_name_from_queue_and_sg(
         cls,
-        fx_queue: FxWorkerTypes,
+        fx_queue: FxBuiltinQueues,
         spawn_group: str | None,
     ) -> Self:
         return cls(
