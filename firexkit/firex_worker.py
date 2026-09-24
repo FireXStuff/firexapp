@@ -51,9 +51,7 @@ class FxWorkerName:
         return prefix
 
     def is_worker_type(self, worker_type: FxWorkerTypes) -> bool:
-        return (
-            FxWorkerTypes.fx_worker_type_from_str(self.queue_name) is worker_type
-        )
+        return FxWorkerTypes.fx_worker_type_from_str(self.queue_name) is worker_type
 
     def get_subworker_name(self) -> "FxWorkerName":
         return FxWorkerName(
@@ -105,12 +103,7 @@ class FxWorkerName:
     def as_fx_worker_name(
         worker_name: "str | FxWorkerName",
     ) -> "FxWorkerName":
-        """Normalize a worker name that may already be one.
-
-        Names cross task boundaries in their string form, so callers accepting
-        them from an argument would otherwise each have to work out whether they
-        were handed a name or a rendering of one.
-        """
+        """Normalize a worker name that may already be one."""
         if isinstance(worker_name, FxWorkerName):
             return worker_name
         return FxWorkerName.fx_worker_name_from_str(worker_name)
