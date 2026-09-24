@@ -18,8 +18,11 @@ from firexapp.engine.default_celery_config import FxEnvVars
 from firexapp.plugins import FxPluginRegistry
 from firexapp.submit.console import setup_console_logging
 from firexapp.submit.uid import Uid
+from firexkit.firex_worker import FxWorkerHostName, FxWorkerId, FxWorkerName
 
 logger = setup_console_logging(__name__)
+
+_PID_FILE_SUFFIX = ".pid"
 
 
 class CeleryWorkerStartFailed(Exception):
@@ -57,7 +60,7 @@ class CeleryManager:
         if env:
             self.update_env(env)
 
-        self.pid_files: dict[str, str] = {}
+        self.pid_files: dict[FxWorkerId, str] = {}
 
         self._celery_logs_dir = None
         self._celery_pids_dir = None
@@ -104,19 +107,51 @@ class CeleryManager:
         return self._celery_pids_dir
 
     @staticmethod
-    def __get_pid_file(pids_logs_dir, worker_and_host):
-        return os.path.join(pids_logs_dir, f"{worker_and_host}.pid")
+    def __get_pid_file(pids_logs_dir: str, worker_id: FxWorkerId) -> str:
+        return os.path.join(pids_logs_dir, f"{worker_id}{_PID_FILE_SUFFIX}")
+
+    @staticmethod
+    def _find_pid_files_by_name(
+        pids_logs_dir: str,
+        worker_name: FxWorkerHostName,
+    ) -> list[str]:
+        """The pid files of all workers named 'worker_name', least recently written first."""
+        pid_files = [
+            os.path.join(pids_logs_dir, f)
+            for f, worker_id in _get_pid_file_worker_ids(pids_logs_dir).items()
+            if worker_id and worker_id.as_host_worker_name() == worker_name
+        ]
+        return sorted(pid_files, key=os.path.getmtime)
 
     @classmethod
     def get_celery_pid(
         cls,
         logs_dir: str,
-        worker_and_host: str,
-    ):
-        pid_file = cls.__get_pid_file(
-            cls._get_celery_pids_dir(logs_dir),
-            worker_and_host,
-        )
+        worker_and_host: str | FxWorkerHostName | FxWorkerId,
+    ) -> int:
+        """Get the pid of the worker with the supplied ID, or name.
+
+        Since a name, unlike an ID, can be re-used by successive workers, a name
+        matching several pid files resolves to the most recently written one.
+        """
+        pids_logs_dir = cls._get_celery_pids_dir(logs_dir)
+        if isinstance(worker_and_host, FxWorkerId):
+            pid_file = cls.__get_pid_file(pids_logs_dir, worker_and_host)
+        else:
+            if isinstance(worker_and_host, str):
+                worker_and_host = FxWorkerHostName.fx_worker_host_name_from_str(
+                    worker_and_host,
+                )
+            pid_files = cls._find_pid_files_by_name(
+                pids_logs_dir,
+                worker_and_host,
+            )
+            if not pid_files:
+                logger.warning(
+                    f"No pid file found for {worker_and_host} in {pids_logs_dir}"
+                )
+                raise FileNotFoundError(f"No pid file for worker {worker_and_host}")
+            pid_file = pid_files[-1]
         return _get_pid_from_file(pid_file)
 
     @staticmethod
@@ -136,18 +171,27 @@ class CeleryManager:
         autoscale: tuple | None = None,
         detach: bool = True,
         celery_cmd_log_level=DEBUG,
-    ):
+    ) -> FxWorkerId:
 
-        celery_worker_name = f"{workername}@{gethostname()}"
-
-        pid_path = pathlib.Path(
-            self.__get_pid_file(self.celery_pids_dir, celery_worker_name)
+        # Celery only ever knows this worker by its name, but files belonging to
+        # this particular worker instance are identified by its ID, so that a
+        # worker re-using the name doesn't clobber them.
+        worker_id = (
+            FxWorkerName.fx_worker_name_from_str(workername)
+            .as_host_worker(gethostname())
+            .as_worker_id()
         )
+        celery_worker_name = worker_id.as_host_worker_name()
+
+        pid_path = pathlib.Path(self.__get_pid_file(self.celery_pids_dir, worker_id))
         pid_path.parent.mkdir(parents=True, exist_ok=True)
-        self.pid_files[workername] = str(pid_path)
+        self.pid_files[worker_id] = str(pid_path)
 
         cel_worker_logfile = pathlib.Path(
-            self.get_worker_logs_dir(self.logs_dir), f"{celery_worker_name}.html"
+            self.get_worker_logs_dir(self.logs_dir),
+            # deliberately named after the worker, not the ID: this log file is
+            # shared by all the workers that have had this name on this host.
+            f"{celery_worker_name}.html",
         )
         tasks_logs_dir = cel_worker_logfile.parent
         tasks_logs_dir.mkdir(parents=True, exist_ok=True)
@@ -197,10 +241,8 @@ class CeleryManager:
         if detach:
             cmd += " &"
 
-        self.log(f"Starting {celery_worker_name}...")
-        stdout_file = os.path.join(
-            pid_path.parent.parent, f"{celery_worker_name}.stdout.txt"
-        )
+        self.log(f"Starting {worker_id}...")
+        stdout_file = os.path.join(pid_path.parent.parent, f"{worker_id}.stdout.txt")
         firexapp.firex_subprocess.check_output(
             cmd,
             shell=True,
@@ -216,8 +258,10 @@ class CeleryManager:
                 pid_file=str(pid_path),
                 timeout=timeout,
                 stdout_file=stdout_file,
-                celery_worker_name=celery_worker_name,
+                worker_id=worker_id,
             )
+
+        return worker_id
 
     @staticmethod
     def _find_procs(pid_file: str) -> list[psutil.Process]:
@@ -249,17 +293,22 @@ class CeleryManager:
 
     def shutdown(self, timeout=60):
         if self.pid_files:
-            name_to_pid_file = self.pid_files
+            worker_id_to_pid_file = self.pid_files
         else:
             # self.pid_files is only populated when starting celery, so if this manager didn't start the celery
             # instance being operated on, fallback to the pid directory.
-            name_to_pid_file = {
-                pf: os.path.join(self.celery_pids_dir, pf)
-                for pf in os.listdir(self.celery_pids_dir)
+            worker_id_to_pid_file = {
+                # fallback to the filename for pid files that aren't named after a worker ID.
+                worker_id or pid_filename: os.path.join(
+                    self.celery_pids_dir, pid_filename
+                )
+                for pid_filename, worker_id in _get_pid_file_worker_ids(
+                    self.celery_pids_dir,
+                ).items()
             }
 
-        for name, pid_file in name_to_pid_file.items():
-            self.log(f"Attempting shutdown of {name}")
+        for worker_id, pid_file in worker_id_to_pid_file.items():
+            self.log(f"Attempting shutdown of {worker_id}")
             try:
                 pid = _get_pid_from_file(pid_file)
             except (AssertionError, OSError, ValueError) as e:
@@ -279,6 +328,26 @@ class CeleryManager:
         )
 
 
+def _get_pid_file_worker_ids(pids_logs_dir: str) -> dict[str, FxWorkerId | None]:
+    """The ID of the worker owning each pid file in 'pids_logs_dir', by pid file name.
+
+    The ID is None for any pid file not named after a worker ID, which can
+    happen for pid files written by an older version of this module.
+    """
+    pid_file_worker_ids: dict[str, FxWorkerId | None] = {}
+    for filename in os.listdir(pids_logs_dir):
+        if not filename.endswith(_PID_FILE_SUFFIX):
+            continue
+        try:
+            worker_id = FxWorkerId.fx_worker_id_from_str(
+                filename[: -len(_PID_FILE_SUFFIX)],
+            )
+        except ValueError:
+            worker_id = None
+        pid_file_worker_ids[filename] = worker_id
+    return pid_file_worker_ids
+
+
 def _get_pid_from_file(pid_file: str) -> int:
     try:
         with open(pid_file) as f:
@@ -296,7 +365,7 @@ def _get_pid_from_file(pid_file: str) -> int:
 def _wait_until_active(
     pid_file: str,
     stdout_file: str,
-    celery_worker_name: str,
+    worker_id: FxWorkerId,
     timeout,
 ):
     extra_err_info = ""
@@ -320,7 +389,7 @@ def _wait_until_active(
             extra_err_info += f"\nstderr: {deleted_pids.stderr}"
 
         raise CeleryWorkerStartFailed(
-            f"The worker {celery_worker_name} did not come up after"
+            f"The worker {worker_id} did not come up after"
             f" {timeout} seconds.\n"
             f"Please look into {stdout_file!r} for details."
             f"{extra_err_info}"

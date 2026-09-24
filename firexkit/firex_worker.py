@@ -6,6 +6,10 @@ from typing import ClassVar, Optional
 from typing_extensions import Self
 
 
+def _create_uniq_slug() -> str:
+    return str(uuid.uuid4())[:8]
+
+
 class FxWorkerTypes(enum.Enum):
     MC = "mc"
     MASTER = "master"
@@ -46,6 +50,11 @@ class FxWorkerName:
             prefix += f":{self.spawn_group}"
         return prefix
 
+    def is_worker_type(self, worker_type: FxWorkerTypes) -> bool:
+        return (
+            FxWorkerTypes.fx_worker_type_from_str(self.queue_name) is worker_type
+        )
+
     def get_subworker_name(self) -> "FxWorkerName":
         return FxWorkerName(
             FxWorkerTypes.get_subworker_name(self.queue_name),
@@ -72,7 +81,8 @@ class FxWorkerName:
     ) -> Self:
         parts = worker_name.split(":", maxsplit=2)
         if len(parts) > 1:
-            spawn_group = ":".join(parts[1:])
+            # an empty spawn group is the same as not having one at all.
+            spawn_group = ":".join(parts[1:]) or None
         else:
             spawn_group = None
         return cls(
@@ -91,6 +101,20 @@ class FxWorkerName:
             spawn_group=spawn_group,
         )
 
+    @staticmethod
+    def as_fx_worker_name(
+        worker_name: "str | FxWorkerName",
+    ) -> "FxWorkerName":
+        """Normalize a worker name that may already be one.
+
+        Names cross task boundaries in their string form, so callers accepting
+        them from an argument would otherwise each have to work out whether they
+        were handed a name or a rendering of one.
+        """
+        if isinstance(worker_name, FxWorkerName):
+            return worker_name
+        return FxWorkerName.fx_worker_name_from_str(worker_name)
+
 
 @dataclasses.dataclass(frozen=True)
 class FxWorkerHostName(FxWorkerName):
@@ -103,10 +127,16 @@ class FxWorkerHostName(FxWorkerName):
         """
         e.g. master:g2@some-ad-hostname
         """
-        worker_str = self.queue_name
-        if self.spawn_group:
-            worker_str += f":{self.spawn_group}"
         return f"{self.queue_and_sgroup()}@{self.host}"
+
+    def as_worker_id(self, uniq_slug: str | None = None) -> "FxWorkerId":
+        """Create an identifier for a single worker instance with this name."""
+        return FxWorkerId(
+            queue_name=self.queue_name,
+            spawn_group=self.spawn_group,
+            host=self.host,
+            uniq_slug=uniq_slug or _create_uniq_slug(),
+        )
 
     @classmethod
     def fx_worker_host_name_from_str(
@@ -125,7 +155,18 @@ class FxWorkerHostName(FxWorkerName):
 
 @dataclasses.dataclass(frozen=True)
 class FxWorkerId(FxWorkerHostName):
-    uniq_slug: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4())[:8])
+    """Identifies a single worker instance, unlike a name, which can be re-used
+    by successive workers (e.g. a restarted sandbox worker).
+    """
+
+    uniq_slug: str = dataclasses.field(default_factory=_create_uniq_slug)
+
+    def __post_init__(self):
+        super().__post_init__()
+        assert self.uniq_slug, f"FxWorkerId must have a uniq_slug: {self}"
+        assert ":" not in self.uniq_slug and "@" not in self.uniq_slug, (
+            f'FxWorkerId uniq_slug must not contain ":" or "@": {self}'
+        )
 
     def __str__(self):
         """
@@ -138,26 +179,36 @@ class FxWorkerId(FxWorkerHostName):
             queue_and_sgroup = f"{queue_and_sgroup}:"
         return f"{queue_and_sgroup}:{self.uniq_slug}@{self.host}"
 
+    def as_host_worker_name(self) -> FxWorkerHostName:
+        """The name this worker is known by, notably to Celery itself."""
+        return FxWorkerHostName(
+            queue_name=self.queue_name,
+            spawn_group=self.spawn_group,
+            host=self.host,
+        )
+
     @classmethod
     def fx_worker_id_from_str(
         cls,
         worker_host_id: str,
     ) -> Self:
         parts = worker_host_id.split("@")
-        name_part = parts[0]
-        name_parts = parts[0].split(":")
-        uniq_slug = name_parts[-1]
-        if len(name_parts) > 2:
-            name_part = ":".join(name_parts[:-1])
-        else:
+        if len(parts) != 2 or not parts[-1]:
             raise ValueError(
-                f'Value {worker_host_id} does not have enough parts before "@" to a worker ID, maybe its a name?'
+                f"Value {worker_host_id} does not have exactly one host"
+                ' delimited by "@" to be a worker ID.'
+            )
+        name_parts = parts[0].split(":")
+        if len(name_parts) < 3 or not name_parts[-1]:
+            raise ValueError(
+                f'Value {worker_host_id} does not have enough parts before "@"'
+                " to be a worker ID, maybe its a name?"
             )
 
-        worker_name = FxWorkerName.fx_worker_name_from_str(name_part)
+        worker_name = FxWorkerName.fx_worker_name_from_str(":".join(name_parts[:-1]))
         return cls(
             queue_name=worker_name.queue_name,
             spawn_group=worker_name.spawn_group,
             host=parts[-1],
-            uniq_slug=uniq_slug,
+            uniq_slug=name_parts[-1],
         )

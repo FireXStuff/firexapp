@@ -36,7 +36,7 @@ from firexkit.bag_of_goodies import (
     ValidateArgs,
     log_unvalidatable_annotations,
 )
-from firexkit.chain import InjectArgs, SignatureX
+from firexkit.chain import AUTO_QUEUE, InjectArgs, SignatureX
 from firexkit.firex_worker import FxWorkerTypes
 from firexkit.firexkit_common import JINJA_ENV, REPLACEMENT_TASK_NAME_POSTFIX
 from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
@@ -1393,7 +1393,7 @@ class FireXTask(Task):
             return None
 
     def _resolve_queue(self, queue: str | None) -> str | None:
-        if queue == "auto":
+        if queue == AUTO_QUEUE:
             current_queue = self.get_request_queue()
             if current_queue and self.is_mc_queue(current_queue):
                 queue = current_queue
@@ -1514,7 +1514,7 @@ class FireXTask(Task):
     def enqueue_child_and_get_results(
         self,
         chain: SignatureX,
-        queue: str | None = "auto",
+        queue: str | None = AUTO_QUEUE,
         priority: int | None = None,
         soft_time_limit: int | RunTimeReserve | None = None,
         return_keys: str | tuple[str, ...] = (),
@@ -1579,7 +1579,7 @@ class FireXTask(Task):
     def enqueue_child_and_extract(
         self,
         chain: SignatureX,
-        queue: str | None = "auto",
+        queue: str | None = AUTO_QUEUE,
         priority: int | None = None,
         soft_time_limit: int | RunTimeReserve | None = None,
         return_keys: str | tuple[str, ...] = (),

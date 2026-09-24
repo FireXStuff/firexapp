@@ -1,7 +1,7 @@
 import inspect
-import socket
 from typing import Any
 
+from celery._state import get_current_task
 from celery.canvas import Signature
 from celery.utils.log import get_task_logger
 
@@ -12,6 +12,28 @@ logger = get_task_logger(__name__)
 
 # this is where most code import from!!
 returns = FireXResults.returns
+
+# Route to whatever queue the currently running task would route to.
+AUTO_QUEUE = "auto"
+
+
+def _resolve_queue_for_current_task(queue: str | None) -> str | None:
+    """Resolve ``queue`` the way :meth:`FireXTask.enqueue_child` does.
+
+    Signatures are enqueued from plain functions that have no task to call
+    ``enqueue_child`` on, so the task celery is currently running stands in for
+    the explicit ``self``.
+    """
+    # Deliberately duck-typed: firexkit.task imports this module, so FireXTask
+    # cannot be imported here to isinstance() against.
+    resolve_queue = getattr(get_current_task(), "_resolve_queue", None)
+    if resolve_queue is None:
+        # No FireX task is running on this thread (the submit process, a background
+        # thread, a plain celery task), so there is no worker queue to route back
+        # to. Leaving the queue unset lets the task's own queue -- else
+        # task_default_queue -- decide, which beats guessing at a queue name.
+        return None if queue == AUTO_QUEUE else queue
+    return resolve_queue(queue)
 
 
 class InvalidChainArgsException(Exception):
@@ -331,8 +353,8 @@ class SignatureX(Signature):
         self.remove_inject_args()
         self.verify_args()
 
-        if queue:
-            self.set_queue(queue)
+        if resolved_queue := _resolve_queue_for_current_task(queue):
+            self.set_queue(resolved_queue)
 
         if priority:
             self.set_priority(priority)
@@ -428,7 +450,7 @@ class SignatureX(Signature):
             )
 
         result_promise = self.enqueue(
-            queue=queue or socket.gethostname(),
+            queue=queue or AUTO_QUEUE,
             block=True,
             raise_exception_on_failure=raise_exception_on_failure,
             priority=priority,
