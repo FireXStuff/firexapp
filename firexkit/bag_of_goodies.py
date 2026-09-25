@@ -950,9 +950,13 @@ class AutoInjectRegistry:
                         auto_in_v = spec.default_value
                     auto_inject_kwargs[auto_inject_name] = auto_in_v
                 else:
-                    logger.warning(f'AutoInject arg {auto_inject_name} did not match type {auto_inject_type}')
+                    logger.warning(
+                        f"AutoInject arg {auto_inject_name} did not match type {auto_inject_type}"
+                    )
                     if param.default != param.empty:
-                        logger.warning(f'Not setting AutoInject {auto_inject_name} default {param.default} for down stream.')
+                        logger.warning(
+                            f"Not setting AutoInject {auto_inject_name} default {param.default} for down stream."
+                        )
 
             else:
                 raise TypeError(
