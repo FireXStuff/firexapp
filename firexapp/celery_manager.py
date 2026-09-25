@@ -251,6 +251,13 @@ class CeleryManager:
             cwd=cwd,
             log_level=celery_cmd_log_level,
             remove_firex_pythonpath=False,
+            # A backgrounded job of a non-interactive shell keeps the shell's
+            # process group and session, so a detached worker stays reachable by
+            # pgid/session-wide kills aimed at the submitting shell long after
+            # that shell is gone. Break away like firex_flame and firex_shutdown
+            # do. Only when detaching: otherwise check_output waits on Celery
+            # itself, and a new session would make it unkillable from the console.
+            start_new_session=detach,
         )
 
         if detach and wait:

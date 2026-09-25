@@ -1,5 +1,4 @@
 import os
-import subprocess
 
 from psutil import Process, TimeoutExpired
 
@@ -7,7 +6,10 @@ from firex_keeper.keeper_helper import get_keeper_dir
 from firexapp.common import qualify_firex_bin
 from firexapp.discovery import PkgVersionInfo
 from firexapp.submit.console import setup_console_logging
-from firexapp.submit.tracking_service import TrackingService
+from firexapp.submit.tracking_service import (
+    TrackingService,
+    popen_tracking_service_subproc,
+)
 
 logger = setup_console_logging(__name__)
 
@@ -36,11 +38,9 @@ class FireXKeeperLauncher(TrackingService):
             self.broker_recv_ready_file,
         ]
         with open(stdout_file, "w+") as f:
-            pid = subprocess.Popen(
+            pid = popen_tracking_service_subproc(
                 cmd,
-                stdout=f,
-                stderr=subprocess.STDOUT,
-                close_fds=True,
+                stdout_file_handle=f,
                 cwd=keeper_debug_dir,
             ).pid
 
