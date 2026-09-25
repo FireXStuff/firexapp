@@ -1,5 +1,15 @@
 #!/bin/sh
 set -e
 
+# Record what was actually staged before ruff rewrites anything, so we can
+# re-stage exactly those files and never pull in unrelated working-tree edits.
+staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.py' '*.pyi')
+
 uv run ruff check --fix
 uv run ruff format
+
+# ruff rewrites files in the working tree but leaves the index alone; without
+# this the commit would record the pre-fix version of the code.
+if [ -n "$staged" ]; then
+    printf '%s\n' "$staged" | tr '\n' '\0' | xargs -0 git add --
+fi
