@@ -4,12 +4,13 @@ from collections.abc import Iterable, Sequence
 from typing import Any
 
 import psutil
+import pydantic
 from celery import Celery
 from celery.local import Proxy
 from celery.utils.log import get_task_logger
 from typing_extensions import Self
 
-from firexkit.firex_worker import FxWorkerHostName
+from firexkit.firex_worker import FxBuiltinQueues, FxWorkerHostName, FxWorkerName
 
 logger = get_task_logger(__name__)
 
@@ -105,11 +106,6 @@ def get_revoked(**kwargs):
     return inspect_with_retry(inspect_method="revoked", **kwargs)
 
 
-def get_active_queues(**kwargs):
-    kwargs.pop("inspect_method", None)
-    return inspect_with_retry(inspect_method="active_queues", **kwargs)
-
-
 def _get_task(**kwargs):
     kwargs.pop("inspect_method", None)
     return inspect_with_retry(inspect_method="query_task", **kwargs)
@@ -120,11 +116,27 @@ def ping(**kwargs):
     return inspect_with_retry(inspect_method="ping", **kwargs)
 
 
-import pydantic
-
 # celery defaults to 1.0, which might not be long enough internally,
 # but leave for now.
 _DEFAULT_INSPECT_TIMEOUT = 1.0
+
+
+def _as_celery_destinations(
+    destinations: Sequence[str | FxWorkerName] | None,
+) -> tuple[str, ...] | None:
+    """Celery knows a worker only by the string its name renders to."""
+    if destinations is None:
+        return None
+    return tuple(str(d) for d in destinations)
+
+
+def _on_destinations(
+    destinations: Sequence[str | FxWorkerName] | None,
+) -> str:
+    """Name the destinations a broadcast was addressed to, for logging."""
+    if not destinations:
+        return ""  # a broadcast reaches every worker, so there is nothing to name.
+    return " on " + ",".join(str(d) for d in destinations)
 
 
 class InspectedTask(pydantic.BaseModel):
@@ -200,13 +212,11 @@ class InspectedTask(pydantic.BaseModel):
         timeout=_DEFAULT_INSPECT_TIMEOUT,
     ) -> dict[str, list[Self]]:
         assert query_task_status in ["active", "reserved", "scheduled", "revoked"]
-        if destinations is not None:
-            destinations = tuple(str(d) for d in destinations)
         tasks_by_dest: dict[str, list[dict[str, Any]]] = (
             inspect_with_retry(
                 inspect_method=query_task_status,
                 celery_app=celery_app,
-                destination=destinations,
+                destination=_as_celery_destinations(destinations),
                 timeout=timeout,
             )
             or {}
@@ -316,7 +326,7 @@ class InspectedTask(pydantic.BaseModel):
         cls,
         celery_app,
         query_task_ids: Sequence[str],
-        destinations: Sequence[str] | None = None,
+        destinations: Sequence[str | FxWorkerHostName] | None = None,
         timeout=_DEFAULT_INSPECT_TIMEOUT,
     ) -> list[Self]:
         tasks_by_dest_and_id: dict[
@@ -332,14 +342,14 @@ class InspectedTask(pydantic.BaseModel):
             _get_task(
                 celery_app=celery_app,
                 method_args=tuple(query_task_ids),
-                destination=destinations,
+                destination=_as_celery_destinations(destinations),
                 timeout=timeout,
             )
             or {}
         )
         if not tasks_by_dest_and_id:
             logger.warning(
-                f"Found no tasks for {query_task_ids}{' on ' + (','.join(destinations) if destinations else '')}"
+                f"Found no tasks for {query_task_ids}{_on_destinations(destinations)}"
             )
 
         tasks = []
@@ -375,7 +385,7 @@ class InspectedTask(pydantic.BaseModel):
         cls,
         celery_app,
         query_task_id: str,
-        destinations: Sequence[str] | None = None,
+        destinations: Sequence[str | FxWorkerHostName] | None = None,
         timeout=_DEFAULT_INSPECT_TIMEOUT,
     ) -> Self | None:
         tasks = cls.inspect_query_tasks(
@@ -386,7 +396,7 @@ class InspectedTask(pydantic.BaseModel):
         )
         if not tasks:
             logger.warning(
-                f"Found no tasks for {query_task_id}{' on ' + (','.join(destinations) if destinations else '')}"
+                f"Found no tasks for {query_task_id}{_on_destinations(destinations)}"
             )
         else:
             if len(tasks) > 1:
@@ -404,3 +414,110 @@ class InspectedTask(pydantic.BaseModel):
             return task
 
         return None
+
+
+class InspectedQueue(pydantic.BaseModel):
+    """A queue a worker replied it is consuming from.
+
+    Celery describes queues in RabbitMQ/AMQP terms, most of which mean nothing
+    for the other brokers; only the fields that carry over are modelled here.
+    Not modelled: exchange, bindings, binding_arguments, queue_arguments,
+    consumer_arguments, expires, message_ttl, max_length, max_length_bytes,
+    max_priority, no_declare.
+    """
+
+    name: str
+    alias: str | None = None
+    routing_key: str | None = None
+    durable: bool = True
+    exclusive: bool = False
+    auto_delete: bool = False
+    no_ack: bool = False
+
+    def __str__(self):
+        return self.name
+
+    def is_builtin_queue(self, fx_queue: FxBuiltinQueues) -> bool:
+        """Whether this is the given builtin queue, for any spawn group or host.
+
+        For example the shutdown queue is really a family of queues -- one per
+        host and one per master on it -- that all answer to the same name.
+        """
+        # Queue names optionally carry a spawn group and a host, e.g.
+        # shutdown:g1@a-host, in the same shape worker names do.
+        queue_name = self.name.split("@")[0]
+        return queue_name == str(fx_queue) or queue_name.startswith(f"{fx_queue}:")
+
+    @classmethod
+    def inspect_active_queues(
+        cls,
+        celery_app,
+        destinations: Sequence[FxWorkerHostName] | None = None,
+        timeout=_DEFAULT_INSPECT_TIMEOUT,
+    ) -> dict[FxWorkerHostName, list[Self]]:
+        """The queues each worker replied it is consuming from.
+
+        Only destinations that replied are present: a requested destination
+        that didn't answer is absent, which is not the same as a destination
+        that answered with no queues (present with an empty list).
+        """
+        queues_by_dest: dict[str, list[dict[str, Any]]] = (
+            inspect_with_retry(
+                inspect_method="active_queues",
+                celery_app=celery_app,
+                destination=_as_celery_destinations(destinations),
+                timeout=timeout,
+            )
+            or {}
+        )
+
+        modelled_queues_by_dest: dict[FxWorkerHostName, list[Self]] = {}
+        for d, queues in queues_by_dest.items():
+            try:
+                worker = FxWorkerHostName.fx_worker_host_name_from_str(d)
+            except (AssertionError, ValueError) as e:
+                logger.error(f"Failure {e} while parsing Celery destination: {d}")
+                continue
+
+            modelled_queues: list[Self] = []
+            for q in queues:
+                try:
+                    modelled_queues.append(cls.model_validate(q))
+                except ValueError as e:
+                    logger.error(f"Failure {e} while validating Celery queue: {q}")
+            modelled_queues_by_dest[worker] = modelled_queues
+
+        return modelled_queues_by_dest
+
+    @classmethod
+    def inspect_active_queues_single_destination(
+        cls,
+        celery_app,
+        destination: FxWorkerHostName,
+        timeout=_DEFAULT_INSPECT_TIMEOUT,
+    ) -> list[Self] | None:
+        """None when the destination didn't reply, which is not the same as it
+        replying that it consumes no queues (an empty list)."""
+        return cls.inspect_active_queues(
+            celery_app=celery_app,
+            destinations=[destination],
+            timeout=timeout,
+        ).get(destination)
+
+    @classmethod
+    def inspect_active_queue_names(
+        cls,
+        celery_app,
+        destinations: Sequence[FxWorkerHostName] | None = None,
+        timeout=_DEFAULT_INSPECT_TIMEOUT,
+    ) -> set[str]:
+        """Every queue name being consumed, no matter which worker consumes it."""
+        return {
+            q.name
+            for queues in cls.inspect_active_queues(
+                celery_app=celery_app,
+                destinations=destinations,
+                timeout=timeout,
+            ).values()
+            for q in queues
+        }

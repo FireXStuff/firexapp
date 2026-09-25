@@ -1,9 +1,11 @@
 import datetime
+import gc
 import unittest
 from time import monotonic
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import pytest
 import pytz
 
 from firexapp.submit.uid import firex_id_str
@@ -12,8 +14,10 @@ from firexkit.firex_celery import (
     _FX_SOFT,
     FX_TIME_RESERVE_HEADER,
     FireXAsynPool,
+    FireXBlockingPool,
     FireXCelery,
     FireXTaskPool,
+    _fx_freeze_for_fork,
     _fx_increase_run_soft_time_limit,
     _request_run_time_reserve,
 )
@@ -662,3 +666,57 @@ class ResolveRunRelativeTimeLimitTests(unittest.TestCase):
 
     def test_tolerates_a_message_without_time_limits(self):
         self.assertEqual({}, self.resolve({}))
+
+
+@pytest.fixture
+def restore_gc_freeze():
+    """
+    gc.freeze() is process-wide and permanent, so a test that freezes would stop
+    every later test in this process from having its cycles collected.
+    """
+    try:
+        yield
+    finally:
+        gc.unfreeze()
+
+
+def test_freeze_for_fork_makes_existing_objects_permanent(restore_gc_freeze):
+    before = gc.get_freeze_count()
+
+    _fx_freeze_for_fork()
+
+    assert gc.get_freeze_count() > before
+
+
+def test_freeze_for_fork_leaves_later_allocations_collectable(restore_gc_freeze):
+    _fx_freeze_for_fork()
+    frozen = gc.get_freeze_count()
+
+    # A cycle a pool child could create while running tasks: it has to stay
+    # collectable, otherwise freezing would trade shared pages for a leak.
+    cycle = {}
+    cycle["self"] = cycle
+    del cycle
+
+    assert gc.collect() > 0
+    assert gc.get_freeze_count() == frozen
+
+
+@pytest.mark.parametrize("pool_cls", [FireXAsynPool, FireXBlockingPool])
+def test_pools_freeze_before_forking(pool_cls, restore_gc_freeze):
+    """
+    Freezing has to happen before the child exists, so assert on what the GC
+    looks like at the moment the superclass would fork.
+    """
+    frozen_at_fork = None
+
+    def fake_create(self, i):
+        nonlocal frozen_at_fork
+        frozen_at_fork = gc.get_freeze_count()
+        return f"child-{i}"
+
+    pool = pool_cls.__new__(pool_cls)
+    with patch.object(pool_cls.__bases__[0], "_create_worker_process", fake_create):
+        assert pool._create_worker_process(3) == "child-3"
+
+    assert frozen_at_fork > 0

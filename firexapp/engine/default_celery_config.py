@@ -122,9 +122,10 @@ class FxEnvVars(pydantic.BaseModel):
     def load_firex_env_vars_from_logs_dir(
         cls,
         logs_dir: str,
-        plugins,
+        plugins: str,
+        broker_mgr: RedisManager | None = None,
     ) -> Self:
-        broker_mgr = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
+        broker_mgr = broker_mgr or BrokerFactory.broker_manager_from_logs_dir(logs_dir)
         firex_id = os.path.basename(logs_dir)
         if not is_firex_id(firex_id):
             logger.error(

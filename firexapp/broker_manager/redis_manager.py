@@ -558,9 +558,6 @@ class RedisManager:
         rc = self.cli(f"SET {key} {value}", timeout=timeout)
         assert rc == "OK", f"The return value was {rc}"
 
-    def purge(self, timeout=None):
-        return self.cli("MEMORY PURGE", timeout=timeout)
-
     def monitor(self, monitor_file):
         cmd = (
             os.path.join(self.redis_bin_base, "redis-cli")

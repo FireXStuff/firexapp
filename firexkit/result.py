@@ -24,6 +24,7 @@ from celery.utils.log import get_task_logger
 
 import firexkit.broker
 from firexkit import inspect as fx_inspect
+from firexkit.firex_worker import FxWorkerHostName
 from firexkit.revoke import RevokedRequests
 from firexkit.run_time import (
     RunTimeReserve,
@@ -1085,11 +1086,13 @@ def _is_worker_alive(result: FxAsyncResult) -> bool:
             if not ((task_queue := result.fx_get_queue()) and result.fx_seen_queue()):
                 return True
 
-            queues_by_dest: dict[str, list[dict[str, str]]] = (
-                fx_inspect.get_active_queues(celery_app=result.app, timeout=180) or {}
+            queues_by_dest: dict[FxWorkerHostName, list[fx_inspect.InspectedQueue]] = (
+                fx_inspect.InspectedQueue.inspect_active_queues(
+                    celery_app=result.app, timeout=180
+                )
             )
             active_queues: set[str] = {
-                q["name"] for queues in queues_by_dest.values() for q in queues
+                q.name for queues in queues_by_dest.values() for q in queues
             }
             if task_queue in active_queues:
                 return True

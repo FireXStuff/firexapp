@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import dataclasses
+import math
+import time
 from collections.abc import Iterable
 from typing import Any, ClassVar
 from uuid import uuid4
@@ -77,6 +79,7 @@ class UtClient:
 
     def __init__(self):
         self._store = {}
+        self._expiries = {}
         self._call_counts = {}
 
     def call_count(self, name):
@@ -93,17 +96,63 @@ class UtClient:
         # only supports strings and bytes (returned as is) for now
         return v.encode() if not isinstance(v, bytes) else v
 
+    def _drop_if_expired(self, encoded_key):
+        """Redis drops an expired key lazily, when something next asks for it."""
+        deadline = self._expiries.get(encoded_key)
+        if deadline is not None and deadline <= time.monotonic():
+            self._store.pop(encoded_key, None)
+            del self._expiries[encoded_key]
+
     def get(self, key):
         self._inc_count("get")
+        encoded_key = self._encode(key)
+        self._drop_if_expired(encoded_key)
         try:
-            return self._store[self._encode(key)]
+            return self._store[encoded_key]
         except KeyError:
             return None
 
     def set(self, key, value):
         self._inc_count("set")
-        self._store[self._encode(key)] = self._encode(str(value))
+        encoded_key = self._encode(key)
+        self._store[encoded_key] = self._encode(str(value))
+        # redis discards any time to live the key had when it is set again.
+        self._expiries.pop(encoded_key, None)
         return True
+
+    def expire(self, key, seconds):
+        """Give a key a time to live, reporting whether there was a key to give it to.
+
+        A time to live that has already run out deletes the key outright,
+        as redis does rather than leaving it to be reaped later.
+        """
+        self._inc_count("expire")
+        encoded_key = self._encode(key)
+        self._drop_if_expired(encoded_key)
+        if encoded_key not in self._store:
+            return False
+        if seconds <= 0:
+            del self._store[encoded_key]
+            self._expiries.pop(encoded_key, None)
+        else:
+            self._expiries[encoded_key] = time.monotonic() + seconds
+        return True
+
+    def ttl(self, key):
+        """Seconds left on a key, with redis's two sentinels.
+
+        -2 for a key that isn't there (or whose time to live has run out), and
+        -1 for one that is there with no time to live set.
+        """
+        self._inc_count("ttl")
+        encoded_key = self._encode(key)
+        self._drop_if_expired(encoded_key)
+        if encoded_key not in self._store:
+            return -2
+        deadline = self._expiries.get(encoded_key)
+        if deadline is None:
+            return -1
+        return math.ceil(deadline - time.monotonic())
 
     def incr(self, key):
         self._inc_count("incr")
@@ -114,7 +163,10 @@ class UtClient:
 
     def mget(self, keys):
         self._inc_count("mget")
-        return [self._store.get(self._encode(key)) for key in keys]
+        encoded_keys = [self._encode(key) for key in keys]
+        for encoded_key in encoded_keys:
+            self._drop_if_expired(encoded_key)
+        return [self._store.get(encoded_key) for encoded_key in encoded_keys]
 
     def rpush(self, key, value):
         self._inc_count("rpush")
@@ -156,10 +208,12 @@ class UtClient:
 
     def setnx(self, key, value):
         self._inc_count("setnx")
-        if self._encode(key) in self._store:
+        encoded_key = self._encode(key)
+        self._drop_if_expired(encoded_key)
+        if encoded_key in self._store:
             return False
 
-        self._store[self._encode(key)] = self._encode(value)
+        self._store[encoded_key] = self._encode(value)
         return True
 
     def hmset(self, key, d):
@@ -196,10 +250,13 @@ class UtClient:
 
     def delete(self, key):
         self._inc_count("delete")
-        del self._store[self._encode(key)]
+        encoded_key = self._encode(key)
+        self._expiries.pop(encoded_key, None)
+        del self._store[encoded_key]
 
     def reset(self):
         self._store.clear()
+        self._expiries.clear()
         self._call_counts.clear()
 
     @property
