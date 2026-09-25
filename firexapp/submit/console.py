@@ -6,8 +6,8 @@ import warnings
 import colorlog
 from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 
+from firexapp.engine.logging import FireXLogger, add_hostname_to_log_records
 from firexkit.result import ChainInterruptedException
-from firexapp.engine.logging import add_hostname_to_log_records, FireXLogger
 
 # BeautifulSoup thinks we're giving it an URL because there is an URL in msg.
 # Not good. Keep stderr clean by ignoring this warning.

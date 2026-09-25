@@ -934,16 +934,6 @@ class AutoInjectRegistry:
             if BagOfGoodies.get_auto_inject_type(p.annotation)
         }
         for auto_inject_name, param in possible_auto_injectable_params.items():
-            if param.default != param.empty:
-                # for now don't support service-level defaults since all use-cases require run-level defaults
-                # and none additionally require service-level defaults. The point of AutoInject is that
-                # service definitions can be written assuming AutoInject is populated with a valide type,
-                # to adding a default at the service level confuses that and encourages "always have a default"
-                # needless defensive coding.
-                raise TypeError(
-                    f"AutoInject arg {auto_inject_name} has a default value."
-                )
-
             auto_inject_type = BagOfGoodies.get_auto_inject_type(param.annotation)
             if auto_inject_type:
                 spec = self._get_spec_by_name_and_type(
@@ -959,6 +949,11 @@ class AutoInjectRegistry:
                         logger.debug(f"Setting default AutoInject {auto_inject_name}")
                         auto_in_v = spec.default_value
                     auto_inject_kwargs[auto_inject_name] = auto_in_v
+                else:
+                    logger.warning(f'AutoInject arg {auto_inject_name} did not match type {auto_inject_type}')
+                    if param.default != param.empty:
+                        logger.warning(f'Not setting AutoInject {auto_inject_name} default {param.default} for down stream.')
+
             else:
                 raise TypeError(
                     f'AutoInject arg {auto_inject_name} has no inner type. The "Foo" in AutoInject[Foo] is required.'

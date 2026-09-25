@@ -46,7 +46,7 @@ class FxBuiltinQueues(enum.Enum):
     def __str__(self):
         return self.value
 
-    def as_worker_type(self) -> Optional[FxWorkerTypes]:
+    def as_worker_type(self) -> FxWorkerTypes | None:
         return FxWorkerTypes.fx_worker_type_from_str(self.value)
 
 
