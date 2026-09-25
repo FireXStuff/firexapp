@@ -1,3 +1,4 @@
+import gc
 import importlib
 import logging
 import os
@@ -933,6 +934,34 @@ def _clamped_soft_time_limit(
     return soft_time_limit
 
 
+def _fx_freeze_for_fork() -> None:
+    """
+    Moves everything allocated so far into the GC's permanent generation, so that
+    pool children forked from here keep sharing it.
+
+    CPython's cyclic collector writes to the GC header of every object it visits,
+    so one collection in a child turns every page holding a tracked object
+    private. A worker that has imported its task modules has a few hundred
+    thousand such objects, which costs tens of MB of private memory per child --
+    memory that is otherwise an untouched copy of the parent's. gc.freeze()
+    excludes them from collection, keeping those pages copy-on-write shared for
+    the life of the child. Objects the child allocates itself are unaffected and
+    still collected normally.
+
+    Collect first: gc.freeze() freezes whatever is tracked right now, including
+    garbage that has not been collected yet, and frozen garbage is never
+    reclaimed.
+
+    Cheap to repeat -- after the first call a collection only has to scan what
+    this process has allocated since -- which is why it is done before every fork
+    rather than once at pool start: the parent keeps allocating during a run, and
+    a child forked by the autoscaler an hour in should be as lean as the first
+    one.
+    """
+    gc.collect()
+    gc.freeze()
+
+
 class FireXAsynPool(AsynPool):
     """
     AsynPool that arms the soft and hard time limit timers of a job
@@ -955,6 +984,12 @@ class FireXAsynPool(AsynPool):
         self._fx_trefs: dict[int, dict[str, Entry]] = {}
         self._fx_hub = None
         super().__init__(*args, **kwargs)
+
+    def _create_worker_process(self, i):
+        # Upstream already collects here (celery Issue #2927); freezing on top of
+        # that is what keeps the imported task graph shared with the child.
+        _fx_freeze_for_fork()
+        return super()._create_worker_process(i)
 
     def _create_timelimit_handlers(self, hub):
         # Replaces (does not extend) the upstream implementation: the closures it
@@ -1064,6 +1099,13 @@ class FireXBlockingPool(BilliardPool):
     Note billiard won't re-signal a job whose soft time limit has already fired,
     so in this mode a limit can only be changed before it expires.
     """
+
+    def _create_worker_process(self, i):
+        # billiard's Pool doesn't collect before forking, so unlike FireXAsynPool
+        # this is the only thing standing between a child and a private copy of
+        # the parent's task graph.
+        _fx_freeze_for_fork()
+        return super()._create_worker_process(i)
 
     def set_job_soft_time_limit(
         self,
