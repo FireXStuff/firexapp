@@ -55,6 +55,10 @@ class CeleryManager:
             | {
                 "CELERY_RDBSIG": "1",
                 "FIREX_START_CELERY_WORKER": "True",
+                # Forces glibc to share far fewer arenas across threads, trading a
+                # little lock contention for substantially less fragmentation on
+                # bursty I/O-bound workloads like Regress/MBnR
+                "MALLOC_ARENA_MAX": "2",
             }
         )
         if env:
