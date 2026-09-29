@@ -112,12 +112,16 @@ class UtClient:
         except KeyError:
             return None
 
-    def set(self, key, value):
+    def set(self, key, value, ex=None):
         self._inc_count("set")
         encoded_key = self._encode(key)
         self._store[encoded_key] = self._encode(str(value))
-        # redis discards any time to live the key had when it is set again.
-        self._expiries.pop(encoded_key, None)
+        # redis discards any time to live the key had when it is set again,
+        # unless this set carries one of its own.
+        if ex is None:
+            self._expiries.pop(encoded_key, None)
+        else:
+            self._expiries[encoded_key] = time.monotonic() + ex
         return True
 
     def expire(self, key, seconds):

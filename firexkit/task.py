@@ -37,7 +37,7 @@ from firexkit.bag_of_goodies import (
     log_unvalidatable_annotations,
 )
 from firexkit.chain import AUTO_QUEUE, InjectArgs, SignatureX
-from firexkit.firex_worker import FxWorkerTypes
+from firexkit.firex_worker import FxBuiltinQueues, FxWorkerTypes
 from firexkit.firexkit_common import JINJA_ENV, REPLACEMENT_TASK_NAME_POSTFIX
 from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
 from firexkit.result import (
@@ -389,6 +389,7 @@ class FireXTask(Task):
     """
 
     DYNAMIC_RETURN = DYNAMIC_RETURN
+    AUTO_QUEUE = AUTO_QUEUE
 
     # prevent clients from needing to know about bag_of_goodes module.
     AutoInject = AutoInject
@@ -1374,8 +1375,10 @@ class FireXTask(Task):
                     self.forget_specific_children_results([r for r in async_results])
 
     @staticmethod
-    def is_mc_queue(queue: str) -> bool:
-        return queue.startswith("mc")
+    def is_mc_queue(queue: str | None) -> bool:
+        # There is only ever one mc in a run, never one per spawn group, so
+        # its queue is never suffixed and nothing but an exact match is it.
+        return queue == FxBuiltinQueues.MC.value
 
     def get_worker_queue(self) -> str | None:
         hostname = self.request.hostname
