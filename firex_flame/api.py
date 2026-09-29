@@ -2,22 +2,21 @@
 Flask API module for interacting with celery tasks.
 """
 
-import getpass
 import logging
 import os
 import subprocess
-import urllib.parse
 from socket import gethostname
 
 import paramiko
-import requests
 from flask import jsonify, request
 from gevent import sleep, spawn
 
+from firex_flame.api_client import (
+    flame_revoke,  # noqa: F401  (re-exported; see firex_flame.api_client)
+)
 from firex_flame.controller import FlameAppController
 from firex_flame.flame_helper import REVOKE_REASON_KEY, wait_until
 from firex_flame.flame_task_graph import FlameTaskGraph, is_task_dict_complete
-from firex_flame.model_dumper import wait_and_get_flame_url
 from firexkit.firex_celery import FireXCelery
 
 logger = logging.getLogger(__name__)
@@ -453,36 +452,3 @@ def create_revoke_api(
             logger.debug(f"Successfully revoked task {uuid}.")
 
         return revoked  # If the task was successfully revoked, return true
-
-
-def flame_revoke(
-    logs_dir: str,
-    task_uuid: str
-    | None = None,  # None revokes the whole run by revoking the root task.
-    revoke_reason: str | None = None,
-    revoking_user: str | None = getpass.getuser(),
-    timeout=10 * 60,
-) -> requests.Response | None:
-
-    flame_url = wait_and_get_flame_url(firex_logs_dir=logs_dir)
-    if not flame_url:
-        logger.warning(
-            f"Flame URL not found for {logs_dir}; revoke via Flame will likely fail."
-        )
-    else:
-        # requesting /api/revoke will revoke the root task, which revoked the entire run.
-        url_path = "/api/revoke"
-        if task_uuid:
-            url_path = os.path.join(url_path, task_uuid)
-
-        url_params = {"revoking_user": revoking_user}
-        if revoke_reason:
-            url_params[REVOKE_REASON_KEY] = revoke_reason
-
-        return requests.get(
-            urllib.parse.urljoin(flame_url, url_path),
-            params=url_params,
-            timeout=timeout,
-        )
-
-    return None

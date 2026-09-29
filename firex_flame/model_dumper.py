@@ -4,8 +4,6 @@ import os
 import tempfile
 from pathlib import Path
 
-from gevent.fileobject import FileObject
-
 from firex_flame.flame_helper import get_flame_debug_dir
 from firexapp.common import wait_until
 
@@ -13,6 +11,12 @@ logger = logging.getLogger(__name__)
 
 
 def atomic_write_json(filename, data):
+    # gevent is imported here rather than at module scope because the readers
+    # of this module -- celery workers and submit processes reaching it through
+    # the service discovery manifest -- never dump a model, and gevent costs
+    # them ~2 MB each. Only the Flame server writes. See firex_flame.api_client.
+    from gevent.fileobject import FileObject
+
     filename = os.path.realpath(filename)
     filedir = os.path.dirname(filename)
     with tempfile.NamedTemporaryFile(mode="w", dir=filedir, delete=False) as f:
