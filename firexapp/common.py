@@ -92,6 +92,13 @@ def poll_until_dir_empty(dir_path, timeout=15):
     return not os.listdir(dir_path)
 
 
+def poll_until_path_gone(path, timeout=15):
+    timeout_time = time.time() + timeout
+    while os.path.exists(path) and time.time() < timeout_time:
+        time.sleep(0.1)
+    return not os.path.exists(path)
+
+
 from collections.abc import Callable
 from typing import TypeVar
 

@@ -338,6 +338,23 @@ class CeleryManager:
             timeout=timeout,
         )
 
+    def wait_for_worker_shutdown(self, worker_id: FxWorkerId, timeout: float) -> bool:
+        return _poll_until_path_gone(
+            self.pid_files.get(worker_id)
+            or self.__get_pid_file(self.celery_pids_dir, worker_id),
+            timeout=timeout,
+        )
+
+
+import time
+
+
+def _poll_until_path_gone(path: str, timeout: float):
+    timeout_time = time.time() + timeout
+    while os.path.exists(path) and time.time() < timeout_time:
+        time.sleep(0.1)
+    return not os.path.exists(path)
+
 
 def _get_pid_file_worker_ids(pids_logs_dir: str) -> dict[str, FxWorkerId | None]:
     """The ID of the worker owning each pid file in 'pids_logs_dir', by pid file name.

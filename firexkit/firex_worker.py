@@ -10,6 +10,13 @@ def _create_uniq_slug() -> str:
     return str(uuid.uuid4())[:8]
 
 
+# What a unique name puts between the name it was made from and what makes it
+# unique. Deliberately not ":", which already separates a queue name from its
+# spawn group: anything reading a spawn group off a unique name has to keep
+# reading the one the name it was made from had.
+_UNIQ_NAME_SEP = "-"
+
+
 class FxWorkerTypes(enum.Enum):
     MC = "mc"
     MASTER = "master"
@@ -70,6 +77,20 @@ class FxWorkerName:
         return FxWorkerName(
             FxWorkerTypes.get_subworker_name(self.queue_name),
             spawn_group=self.spawn_group,
+        )
+
+    def as_uniq_name(self) -> Self:
+        """A variant of this name that no other worker will be given.
+
+        Celery only ever knows a worker by its name, so workers sharing one
+        share a queue, each other's inspect replies and each other's
+        shutdowns. That is what a pool of interchangeable workers wants, and
+        exactly what workers that have to be told apart -- concurrent sandbox
+        workers on one host, say -- have to avoid.
+        """
+        return dataclasses.replace(
+            self,
+            queue_name=f"{self.queue_name}{_UNIQ_NAME_SEP}{_create_uniq_slug()}",
         )
 
     def as_host_worker(self, host: str) -> "FxWorkerHostName":
