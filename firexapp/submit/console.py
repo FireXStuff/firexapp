@@ -4,7 +4,6 @@ import sys
 import warnings
 
 import colorlog
-from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 
 from firexapp.engine.logging import FireXLogger, add_hostname_to_log_records
 from firexkit.result import ChainInterruptedException
@@ -12,10 +11,30 @@ from firexkit.result import ChainInterruptedException
 # BeautifulSoup thinks we're giving it an URL because there is an URL in msg.
 # Not good. Keep stderr clean by ignoring this warning.
 warnings.filterwarnings("ignore", category=UserWarning, module="bs4")
-warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 console_stdout = None
 console_stderr = None
+
+_beautiful_soup = None
+
+
+def _get_beautiful_soup():
+    """Returns bs4.BeautifulSoup, importing bs4 on first use.
+
+    bs4 is imported here rather than at module scope because this module is
+    reachable from the celery worker's startup imports, and bs4 plus soupsieve
+    cost every worker process memory it only needs if it formats a console
+    record. The result is cached: format() runs per log record.
+    """
+    global _beautiful_soup
+    if _beautiful_soup is None:
+        from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
+
+        # Deferred with the import: the category does not exist until bs4 is
+        # loaded, and nothing can raise it before then either.
+        warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
+        _beautiful_soup = BeautifulSoup
+    return _beautiful_soup
 
 
 class RequeueingUndeliverableFilter(logging.Filter):
@@ -41,7 +60,7 @@ class FireXColoredConsoleFormatter(colorlog.TTYColoredFormatter):
             override_exc_text = record.exc_text
             record.exc_text = None
         try:
-            record.msg = BeautifulSoup(record.msg, "html.parser").get_text()
+            record.msg = _get_beautiful_soup()(record.msg, "html.parser").get_text()
         # Logging must still succeed for message objects BeautifulSoup cannot parse.
         except Exception:  # noqa: BLE001, S110
             pass
