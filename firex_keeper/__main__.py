@@ -7,21 +7,12 @@ import sys
 # Prevent dependencies from taking module loading hit of pkg_resources.
 sys.modules["pkg_resources"] = type("noop", (object,), {})
 
-from celery.app.base import Celery
-
 from firex_keeper.keeper_event_consumer import TaskDatabaseAggregatorThread
 from firex_keeper.keeper_helper import get_keeper_dir
-from firexapp.broker_manager.broker_factory import RedisManager
 from firexapp.events.model import FireXRunMetadata
+from firexkit.firex_celery import FireXCelery
 
 logger = logging.getLogger(__name__)
-
-
-def celery_app_from_logs_dir(logs_dir):
-    return Celery(
-        broker=RedisManager.get_broker_url_from_logs_dir(logs_dir),
-        accept_content=["pickle", "json"],
-    )
 
 
 def _sig_handler(_, __):
@@ -69,7 +60,7 @@ def init_keeper():
 
     signal.signal(signal.SIGTERM, _sig_handler)
 
-    celery_app = celery_app_from_logs_dir(run_metadata.logs_dir)
+    celery_app = FireXCelery.create_event_receiver_fx_celery_from_os_env()
     return celery_app, run_metadata, args.broker_recv_ready_file
 
 

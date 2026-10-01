@@ -8,15 +8,14 @@ import sys
 # Prevent dependencies from taking module loading hit of pkg_resources.
 sys.modules["pkg_resources"] = type("noop", (object,), {})
 
-
 from firex_blaze.blaze_event_consumer import BlazeKafkaSenderThread
 from firex_blaze.blaze_helper import (
     BlazeSenderConfig,
-    celery_app_from_logs_dir,
     get_blaze_events_file,
 )
 from firex_blaze.fast_blaze_helper import get_blaze_dir
 from firexapp.events.model import FireXRunMetadata
+from firexkit.firex_celery import FireXCelery
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +119,7 @@ def init_blaze():
 
     signal.signal(signal.SIGTERM, lambda _, __: sys.exit(1))
 
-    celery_app = celery_app_from_logs_dir(run_metadata.logs_dir)
+    celery_app = FireXCelery.create_event_receiver_fx_celery_from_os_env()
     blaze_sender_config = BlazeSenderConfig(
         kafka_topic=args.kafka_topic,
         kafka_bootstrap_servers=args.bootstrap_servers.split(","),

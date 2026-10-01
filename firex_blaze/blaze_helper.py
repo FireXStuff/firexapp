@@ -6,10 +6,7 @@ import json
 import os
 from dataclasses import dataclass
 
-from celery.app.base import Celery
-
 from firex_blaze.fast_blaze_helper import get_blaze_dir
-from firexapp.broker_manager.broker_factory import RedisManager
 from firexapp.events.event_aggregator import FireXEventAggregator
 
 KAFKA_EVENTS_FILE_DELIMITER = "--END_OF_EVENT--"
@@ -58,10 +55,3 @@ def aggregate_blaze_kafka_msgs(firex_id, kafka_msgs):
             event_aggregator.aggregate_events([celery_event])
 
     return event_aggregator.tasks_by_uuid
-
-
-def celery_app_from_logs_dir(logs_dir):
-    return Celery(
-        broker=RedisManager.get_broker_url_from_logs_dir(logs_dir),
-        accept_content=["pickle", "json"],
-    )

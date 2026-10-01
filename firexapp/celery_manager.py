@@ -274,35 +274,15 @@ class CeleryManager:
 
         return worker_id
 
-    @staticmethod
-    def _find_procs(pid_file: str) -> list[psutil.Process]:
-        return _find_procs(
-            "celery",
-            cmdline_contains=f"--pidfile={pid_file}",
-        )
-
     def find_all_procs(self):
         procs = []
         for pid_file in os.listdir(self.celery_pids_dir):
-            procs += self._find_procs(os.path.join(self.celery_pids_dir, pid_file))
+            procs += _find_all_celery_procs_by_cmdline_pidfile_arg(
+                pid_file=os.path.join(self.celery_pids_dir, pid_file)
+            )
         return procs
 
-    def kill_all_forked(self, pid_file):
-        for proc in self._find_procs(pid_file):
-            self.log(f"Killing  pid {proc.pid}", level=INFO)
-            try:
-                proc.kill()
-            except psutil.Error:
-                self.log(f"Failed to kill pid {proc.pid}", level=WARNING)
-
-    @classmethod
-    def terminate(cls, pid, timeout=60):
-        cls.log(f"Terminating pid {pid}", level=INFO)
-        p = psutil.Process(pid)
-        p.terminate()
-        p.wait(timeout=timeout)
-
-    def shutdown(self, timeout=60):
+    def shutdown(self, timeout=60.0):
         if self.pid_files:
             worker_id_to_pid_file = self.pid_files
         else:
@@ -326,9 +306,17 @@ class CeleryManager:
                 self.log(e)
             else:
                 try:
-                    self.terminate(pid, timeout=timeout)
+                    self.log(f"Terminating pid {pid}", level=INFO)
+                    p = psutil.Process(pid)
+                    p.terminate()
+                    p.wait(timeout=timeout)
                 except (psutil.TimeoutExpired, psutil.NoSuchProcess):
-                    self.kill_all_forked(pid_file)
+                    for proc in _find_all_celery_procs_by_cmdline_pidfile_arg(pid_file):
+                        self.log(f"Killing  pid {proc.pid}", level=INFO)
+                        try:
+                            proc.kill()
+                        except psutil.Error:
+                            self.log(f"Failed to kill pid {proc.pid}", level=WARNING)
                 except psutil.Error as e:
                     self.log(e)
 
@@ -364,15 +352,14 @@ def _get_pid_file_worker_ids(pids_logs_dir: str) -> dict[str, FxWorkerId | None]
     """
     pid_file_worker_ids: dict[str, FxWorkerId | None] = {}
     for filename in os.listdir(pids_logs_dir):
-        if not filename.endswith(_PID_FILE_SUFFIX):
-            continue
-        try:
-            worker_id = FxWorkerId.fx_worker_id_from_str(
-                filename[: -len(_PID_FILE_SUFFIX)],
-            )
-        except ValueError:
-            worker_id = None
-        pid_file_worker_ids[filename] = worker_id
+        if filename.endswith(_PID_FILE_SUFFIX):
+            try:
+                worker_id = FxWorkerId.fx_worker_id_from_str(
+                    filename[: -len(_PID_FILE_SUFFIX)],
+                )
+            except ValueError:
+                worker_id = None
+            pid_file_worker_ids[filename] = worker_id
     return pid_file_worker_ids
 
 
@@ -440,28 +427,19 @@ def _extract_errors_from_celery_logs(celery_log_file, max_errors=20):
     return err_list
 
 
-def _find_procs(name, cmdline_contains=None) -> list[psutil.Process]:
-    matching_procs = []
-    for proc in psutil.process_iter():
+def _find_all_celery_procs_by_cmdline_pidfile_arg(
+    pid_file: str,
+) -> list[psutil.Process]:
+    matching_procs: list[psutil.Process] = []
+    for proc in psutil.process_iter(["name", "cmdline", "pid"]):
         try:
-            pinfo = proc.as_dict(attrs=["name", "cmdline", "pid"])
+            cmdline_pidfile_part = f"--pidfile={pid_file}"
+            if proc.info["name"] == "celery" and any(
+                cmdline_pidfile_part in cmd_part
+                for cmd_part in (proc.info["cmdline"] or [])
+            ):
+                matching_procs.append(proc)
         except psutil.NoSuchProcess:
             pass
-        else:
-            if _proc_matches(pinfo, name, cmdline_contains):
-                matching_procs.append(proc)
 
     return matching_procs
-
-
-def _proc_matches(proc_info, pname, cmdline_contains):
-    if proc_info["name"] == pname:
-        if cmdline_contains:
-            return any(
-                cmdline_contains in cmd_part
-                for cmd_part in (proc_info["cmdline"] or [])
-            )
-        else:
-            return True
-    else:
-        return False

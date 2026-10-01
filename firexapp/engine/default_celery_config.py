@@ -3,7 +3,6 @@ import functools
 import os
 from typing import Annotated, Any, ClassVar
 
-import billiard.pool
 import pydantic
 from celery.utils.log import get_task_logger
 from kombu.transport.redis import QoS
@@ -23,25 +22,6 @@ from firexapp.submit.install_configs import (
     load_existing_install_configs,
 )
 from firexapp.submit.uid import is_firex_id
-
-
-def _worker_active_monkey_patch(self, worker):
-    for job in self._cache.values():
-        worker_pids = job.worker_pids()
-        # This crude fix would declare a worker busy if there were ANY jobs received but not ack'd
-        # (i.e., were not assigned a worker pid yet)
-        if not worker_pids or worker.pid in worker_pids:
-            return True
-    return False
-
-
-# Monkey Patch for auto-scaler race condition where a forked worker pool instance that
-# was sent a job (Pool.apply) but didn't get a chance to ack it (ApplyResult._ack)  would be wrongly
-# eligible to be scaled down (Pool.shrink).
-# This bug manifests itself in the following error:
-# "Task handler raised error: WorkerLostError('Worker exited prematurely: signal 15 (SIGTERM) Job: 628.')"
-billiard.pool.Pool._worker_active = _worker_active_monkey_patch
-# End of Monkey Patch
 
 # prevent tasks from running again if a worker receives SIGHUP
 QoS.restore_at_shutdown = False

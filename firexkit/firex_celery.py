@@ -962,6 +962,21 @@ def _fx_freeze_for_fork() -> None:
     gc.freeze()
 
 
+# Override our pools for auto-scaler race condition where a forked worker pool instance that
+# was sent a job (Pool.apply) but didn't get a chance to ack it (ApplyResult._ack)  would be wrongly
+# eligible to be scaled down (Pool.shrink).
+# This bug manifests itself in the following error:
+# "Task handler raised error: WorkerLostError('Worker exited prematurely: signal 15 (SIGTERM) Job: 628.')"
+def _fx_worker_active(pool: BilliardPool, worker):
+    for job in pool._cache.values():
+        worker_pids = job.worker_pids()
+        # This crude fix would declare a worker busy if there were ANY jobs received but not ack'd
+        # (i.e., were not assigned a worker pid yet)
+        if not worker_pids or worker.pid in worker_pids:
+            return True
+    return False
+
+
 class FireXAsynPool(AsynPool):
     """
     AsynPool that arms the soft and hard time limit timers of a job
@@ -984,6 +999,9 @@ class FireXAsynPool(AsynPool):
         self._fx_trefs: dict[int, dict[str, Entry]] = {}
         self._fx_hub = None
         super().__init__(*args, **kwargs)
+
+    def _worker_active(self, worker) -> bool:
+        return _fx_worker_active(self, worker)
 
     def _create_worker_process(self, i):
         # Upstream already collects here (celery Issue #2927); freezing on top of
@@ -1099,6 +1117,9 @@ class FireXBlockingPool(BilliardPool):
     Note billiard won't re-signal a job whose soft time limit has already fired,
     so in this mode a limit can only be changed before it expires.
     """
+
+    def _worker_active(self, worker) -> bool:
+        return _fx_worker_active(self, worker)
 
     def _create_worker_process(self, i):
         # billiard's Pool doesn't collect before forking, so unlike FireXAsynPool

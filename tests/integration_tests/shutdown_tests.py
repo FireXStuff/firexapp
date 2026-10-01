@@ -352,7 +352,7 @@ class ShutdownDetachedFromParentProcess(NoBrokerLeakOnCeleryTerminated):
     sync = False
 
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "Sleep", "--sleep", "20"]
+        return ["--chain", "Sleep", "--sleep", "20"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_dir = get_log_dir_from_output(cmd_output)

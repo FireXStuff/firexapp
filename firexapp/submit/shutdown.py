@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CELERY_SHUTDOWN_TIMEOUT = 5 * 60
 MaybeCeleryActiveTasks = namedtuple(
-    "MaybeCeleryActiveTasks", ["celery_read_success", "active_tasks"]
+    "MaybeCeleryActiveTasks",
+    ["celery_read_success", "active_tasks"],
 )
 
 
@@ -52,7 +53,9 @@ def _launch_shutdown_subprocess(shutdown_cmd: list[str], logs_dir: str) -> int:
 
 
 def launch_background_shutdown(
-    logs_dir, reason, celery_shutdown_timeout=DEFAULT_CELERY_SHUTDOWN_TIMEOUT
+    logs_dir: str,
+    reason,
+    celery_shutdown_timeout=DEFAULT_CELERY_SHUTDOWN_TIMEOUT,
 ) -> int | None:
     try:
         shutdown_cmd = [
@@ -79,7 +82,7 @@ def launch_background_shutdown(
             return None
 
 
-def wait_for_broker_shutdown(broker, timeout=15, force_kill=True):
+def _wait_for_broker_shutdown(broker, timeout=15, force_kill=True):
     logger.debug("Waiting for broker to shut down")
     shutdown_wait_time = time.time() + timeout
     while time.time() < shutdown_wait_time:
@@ -237,7 +240,11 @@ def init():
     return logs_dir, args.reason, args.celery_shutdown_timeout
 
 
-def _shutdown_run(logs_dir: str, celery_shutdown_timeout, reason="No reason provided"):
+def _shutdown_run(
+    logs_dir: str,
+    celery_shutdown_timeout: float,
+    reason="No reason provided",
+):
     logger.info(f"Shutting down due to reason: {reason}")
     logger.info(f"Shutting down with logs: {logs_dir}.")
     broker = BrokerFactory.broker_manager_from_logs_dir(logs_dir)
@@ -283,7 +290,7 @@ def _shutdown_run(logs_dir: str, celery_shutdown_timeout, reason="No reason prov
         if broker.is_alive():
             logger.info("Broker is alive; sending redis shutdown.")
             broker.shutdown()
-            wait_for_broker_shutdown(broker)
+            _wait_for_broker_shutdown(broker)
         else:
             logger.info("No active Broker.")
 
