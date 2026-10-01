@@ -1,9 +1,12 @@
+import logging
 import subprocess
 from abc import ABC, abstractmethod
 
 from firexapp.discovery import PkgVersionInfo, get_firex_tracking_services_entry_points
 from firexapp.engine.default_celery_config import FxEnvVars
 from firexapp.submit.install_configs import FireXInstallConfigs
+
+logger = logging.getLogger(__name__)
 
 _services = None
 
@@ -35,9 +38,18 @@ def get_service_name(service: TrackingService) -> str:
 def get_tracking_services() -> tuple[TrackingService, ...]:
     global _services
     if _services is None:
-        entry_pts = get_firex_tracking_services_entry_points()
-        entry_objects = [e.load() for e in entry_pts]
-        _services = tuple([point() for point in entry_objects])
+        # A tracking service that can't be imported or constructed must not take
+        # down the whole run, so each is handled independently.
+        services = []
+        for entry_pt in get_firex_tracking_services_entry_points():
+            try:
+                services.append(entry_pt.load()())
+            except Exception:
+                logger.warning(
+                    f"Skipping tracking service {entry_pt.name}: it failed to load.",
+                    exc_info=True,
+                )
+        _services = tuple(services)
     return _services
 
 
@@ -51,7 +63,10 @@ def get_tracking_services_versions() -> list[PkgVersionInfo]:
 def has_flame() -> bool:
     # Unfortunate coupling, but just too many things vary depending on presence of flame. Will eventually bring
     # flame in to firexapp.
-    return "FlameLauncher" in get_tracking_services()
+    return any(
+        get_service_name(service) == "FlameLauncher"
+        for service in get_tracking_services()
+    )
 
 
 def popen_tracking_service_subproc(

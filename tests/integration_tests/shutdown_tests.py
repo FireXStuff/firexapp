@@ -350,7 +350,10 @@ class ShutdownDetachedFromParentProcess(NoBrokerLeakOnCeleryTerminated):
     sync = False
 
     def initial_firex_options(self) -> list:
-        return ["submit", "--chain", "Sleep", "--sleep", "20"]
+        # 'sleep' is firexapp.tasks.example.sleep, which is always imported. Do not
+        # use a task from a discovered bundle here: firexapp's integration tests must
+        # run against firexapp's own entry points only.
+        return ["submit", "--chain", "sleep", "--sleep", "20"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_dir = get_log_dir_from_output(cmd_output)

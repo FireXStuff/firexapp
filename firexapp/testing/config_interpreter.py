@@ -5,6 +5,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
+from firexapp.discovery import ENTRY_POINT_DISTROS
 from firexapp.reporters.json_reporter import FireXRunData
 from firexapp.submit.install_configs import (
     INSTALL_CONFIGS_ENV_NAME,
@@ -23,6 +24,14 @@ class ConfigInterpreter:
         self.profile = False
         self.coverage = False
         self.is_public = False
+        # Comma separated distribution names, or None to discover every installed
+        # FireX entry point. See firexapp.discovery.ENTRY_POINT_DISTROS.
+        self.entry_point_distros = None
+
+    def get_run_env(self) -> dict[str, str]:
+        if not self.entry_point_distros:
+            return {}
+        return {ENTRY_POINT_DISTROS: self.entry_point_distros}
 
     @staticmethod
     def is_submit_command(test_config: FlowTestConfiguration):
@@ -145,7 +154,9 @@ class ConfigInterpreter:
                     universal_newlines=True,
                     shell=False,
                     cwd=self.execution_directory,
-                    env=os.environ | flow_test_config.get_extra_run_env(),
+                    env=os.environ
+                    | self.get_run_env()
+                    | flow_test_config.get_extra_run_env(),
                 )
                 process.communicate(
                     timeout=getattr(flow_test_config, "timeout", 30 * 60)
