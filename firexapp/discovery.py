@@ -7,6 +7,14 @@ from entrypoints import EntryPoint
 
 TASKS_DIRECTORY = "firex_tasks_directory"
 
+# Comma separated distribution names. When set, only FireX entry points (bundles,
+# core packages and tracking services) contributed by those distributions are
+# discovered; when unset every FireX entry point on sys.path is discovered, which
+# is what a real deployment wants. It exists for runs that share a venv with other
+# FireX distributions whose dependencies aren't installed, most notably firexapp's
+# own integration tests.
+ENTRY_POINT_DISTROS = "firex_entry_point_distros"
+
 logger = logging.getLogger(__name__)
 
 _loaded_firex_bundles = {}
@@ -42,12 +50,44 @@ def prune_duplicate_module_entry_points(entry_points) -> list[EntryPoint]:
     return list(id_to_entry_points.values())
 
 
+def _distro_name(entry_point: EntryPoint) -> str | None:
+    return entry_point.distro.name if entry_point.distro else None
+
+
+def _get_allowed_distros() -> frozenset[str] | None:
+    # None means no restriction, which is the default.
+    names = frozenset(
+        d.strip()
+        for d in os.environ.get(ENTRY_POINT_DISTROS, "").split(",")
+        if d.strip()
+    )
+    return names or None
+
+
+def filter_entry_points_by_distro(entry_points) -> list[EntryPoint]:
+    allowed = _get_allowed_distros()
+    if allowed is None:
+        return list(entry_points)
+
+    kept = []
+    for e in entry_points:
+        if _distro_name(e) in allowed:
+            kept.append(e)
+        else:
+            logger.debug(
+                f"Ignoring entry point {e.name} from distribution {_distro_name(e)};"
+                f" {ENTRY_POINT_DISTROS} restricts discovery to: {','.join(sorted(allowed))}"
+            )
+    return kept
+
+
 def _get_entrypoints(name, prune_duplicates=True, path=None) -> list[EntryPoint]:
     import entrypoints
 
     if path is not None and not isinstance(path, list):
         path = [path]
     eps = [ep for ep in entrypoints.get_group_all(name, path=path)]
+    eps = filter_entry_points_by_distro(eps)
     if prune_duplicates:
         eps = prune_duplicate_module_entry_points(eps)
     return eps
@@ -73,7 +113,18 @@ def _load_firex_entry_points(entrypoint_name, path=None) -> dict[EntryPoint, obj
         return _loaded_firex_bundles[key][entrypoint_name]
     except KeyError:
         eps = _get_entrypoints(entrypoint_name, path=path)
-        loaded_eps = {ep: ep.load() for ep in eps}
+        # A single unimportable third-party package must not take down every FireX
+        # entry point, so each is loaded independently and failures are skipped.
+        loaded_eps = {}
+        for ep in eps:
+            try:
+                loaded_eps[ep] = ep.load()
+            except Exception:
+                logger.warning(
+                    f"Skipping {entrypoint_name} entry point {ep.name} from distribution"
+                    f" {_distro_name(ep)}: it failed to import.",
+                    exc_info=True,
+                )
         try:
             _loaded_firex_bundles[key][entrypoint_name] = loaded_eps
         except KeyError:

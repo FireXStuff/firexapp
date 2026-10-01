@@ -63,6 +63,32 @@ class FlowTestInfra(unittest.TestCase):
             self._outcome.result.shouldStop = True
 
 
+def _get_firexapp_tests_dir() -> str:
+    import firexapp
+
+    repo_root = os.path.dirname(os.path.dirname(os.path.realpath(firexapp.__file__)))
+    return os.path.join(repo_root, "tests")
+
+
+def default_entry_point_distros(tests: str) -> str | None:
+    """Restrict entry point discovery when running firexapp's own integration tests.
+
+    firexapp's integration tests verify firexapp, so they must run against firexapp's
+    entry points only. Without this they also discover whatever other FireX bundles
+    happen to share the venv, and importing those is enough to fail the run before it
+    starts. Other repos' tests legitimately want every installed bundle, so they keep
+    the unrestricted default.
+    """
+    firexapp_tests_dir = _get_firexapp_tests_dir()
+    test_paths = [os.path.realpath(p) for p in tests.split(",")]
+    if all(
+        p == firexapp_tests_dir or p.startswith(firexapp_tests_dir + os.sep)
+        for p in test_paths
+    ):
+        return "firexapp"
+    return None
+
+
 def main(default_results_dir, default_test_dir):
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -111,6 +137,16 @@ def main(default_results_dir, default_test_dir):
         default=False,
         help="Should links be generated to point to public flame deployment?",
     )
+    parser.add_argument(
+        "--entry_point_distros",
+        default=None,
+        help="Comma separated distribution names to restrict FireX entry point "
+        "discovery to (bundles, core packages and tracking services). Use this when "
+        "the venv also holds FireX distributions the tests under test don't want. "
+        "Defaults to 'firexapp' when running firexapp's own integration tests, and to "
+        "discovering every installed FireX entry point otherwise. Pass an empty string "
+        "to force discovering everything.",
+    )
     args = parser.parse_args()
 
     if args.coverage:
@@ -142,6 +178,11 @@ def main(default_results_dir, default_test_dir):
     FlowTestInfra.config_interpreter.profile = args.profile
     FlowTestInfra.config_interpreter.coverage = args.coverage
     FlowTestInfra.config_interpreter.is_public = args.public_runs
+    FlowTestInfra.config_interpreter.entry_point_distros = (
+        args.entry_point_distros
+        if args.entry_point_distros is not None
+        else default_entry_point_distros(args.tests)
+    )
     FlowTestInfra.results_dir = results_directory
     FlowTestInfra.test_configs = discover_tests(args.tests, args.config)
     if not FlowTestInfra.test_configs:

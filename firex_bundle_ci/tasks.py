@@ -27,6 +27,7 @@ def RunIntegrationTests(
     uid=None,
     coverage=True,
     public_runs=False,
+    entry_point_distros=None,
 ):
     assert flow_tests_configs or flow_tests_file, (
         "Must provide at least flow_tests_configs or flow_tests_file"
@@ -51,6 +52,8 @@ def RunIntegrationTests(
         cmd += ["--coverage"]
     if public_runs:
         cmd += ["--public_runs"]
+    if entry_point_distros:
+        cmd += ["--entry_point_distros", entry_point_distros]
     start = time.monotonic()
     try:
         completed = firex_subprocess.run(
@@ -118,6 +121,7 @@ def RunAllIntegrationTests(
     coverage=True,
     public_runs=False,
     max_parallel_tests: int = 15,
+    entry_point_distros=None,
 ):
     if not integration_tests_logs and uid:
         test_output_dir = os.path.join(uid.logs_dir, "integration_tests_logs")
@@ -146,6 +150,7 @@ def RunAllIntegrationTests(
                 xunit_file_name=xunit_file_name,
                 public_runs=public_runs,
                 coverage=coverage,
+                entry_point_distros=entry_point_distros,
             )
         )
     if parallel_tasks:

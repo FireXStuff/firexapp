@@ -139,7 +139,15 @@ class FxEnvVars(pydantic.BaseModel):
 
     @classmethod
     def select_minimal_fx_env_from_os_env(cls) -> dict[str, str]:
-        env_names = ["PATH", "PYTHONPATH", "VIRTUAL_ENV"] + list(cls.model_fields)
+        # ENTRY_POINT_DISTROS must survive in to these subprocesses, since they
+        # rediscover FireX entry points and need the same view of them as the
+        # process that launched them.
+        env_names = [
+            "PATH",
+            "PYTHONPATH",
+            "VIRTUAL_ENV",
+            firexapp.discovery.ENTRY_POINT_DISTROS,
+        ] + list(cls.model_fields)
         return {k: v for k, v in os.environ.items() if k in env_names}
 
 

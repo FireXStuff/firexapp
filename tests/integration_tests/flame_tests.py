@@ -531,6 +531,9 @@ class FlameRedisKillCleanupTest(FlameFlowTestConfiguration):
 
     # Don't run with --sync, since this test will revoke the incomplete root task.
     sync = False
+    # This test asserts flame outlives redis, so it must not be told to self-terminate
+    # once it considers the run complete.
+    flame_terminate_on_complete = False
 
     def initial_firex_options(self) -> list:
         # Sleep so that assert_on_flame_url can kill redis and verify the data is clean up.
