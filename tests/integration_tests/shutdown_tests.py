@@ -34,6 +34,9 @@ test_data_dir = os.path.join(os.path.dirname(__file__), "data")
 
 def get_broker(cmd_output):
     logs_dir = get_log_dir_from_output(cmd_output)
+    assert logs_dir, (
+        f"No logs dir found in firex output; the run likely never started: {cmd_output!r}"
+    )
     file_exists = wait_until(
         lambda: os.path.exists(RedisManager.get_metadata_file(logs_dir)),
         timeout=10,
@@ -308,15 +311,10 @@ class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         super().assert_expected_firex_output(cmd_output, cmd_err)
         logs_dir = get_log_dir_from_output(cmd_output)
-        existing_procs = []
-        celery_pids_dir = CeleryManager(
+        existing_procs = CeleryManager(
             logs_dir,
             fx_env=FxEnvVars.create_no_task_exec_fx_env(),
-        ).celery_pids_dir
-        for f in os.listdir(celery_pids_dir):
-            existing_procs += CeleryManager._find_procs(
-                os.path.join(celery_pids_dir, f)
-            )
+        ).find_all_procs()
 
         assert not existing_procs, (
             f"Expected no remaining celery processes, found: {existing_procs}"
@@ -352,10 +350,13 @@ class ShutdownDetachedFromParentProcess(NoBrokerLeakOnCeleryTerminated):
     sync = False
 
     def initial_firex_options(self) -> list:
-        return ["--chain", "Sleep", "--sleep", "20"]
+        return ["submit", "--chain", "Sleep", "--sleep", "20"]
 
     def assert_expected_firex_output(self, cmd_output, cmd_err):
         logs_dir = get_log_dir_from_output(cmd_output)
+        assert logs_dir, (
+            f"No logs dir found in firex output; the run likely never started: {cmd_output!r}"
+        )
         shutdown_pid = launch_background_shutdown(
             logs_dir,
             "terminating out-of-run for integration testing",

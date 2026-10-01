@@ -54,7 +54,10 @@ def RunIntegrationTests(
     start = time.monotonic()
     try:
         completed = firex_subprocess.run(
-            cmd, capture_output=True, timeout=6 * 60, check=True, text=True
+            cmd,
+            capture_output=True,
+            timeout=6 * 60,
+            check=True,
         )
     except (firex_subprocess.CommandFailed, subprocess.TimeoutExpired) as e:
         # TimeoutExpired doesn't respect text=True, so we need to decode the output
