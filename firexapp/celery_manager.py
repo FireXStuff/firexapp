@@ -10,6 +10,7 @@ import psutil
 
 import firexapp.firex_subprocess
 from firexapp.common import (
+    FIREX_BIN_DIR_ENV,
     poll_until_dir_empty,
     poll_until_file_not_empty,
     qualify_firex_bin,
@@ -27,6 +28,14 @@ _PID_FILE_SUFFIX = ".pid"
 
 class CeleryWorkerStartFailed(Exception):
     pass
+
+
+class CeleryVenvMismatchError(Exception):
+    pass
+
+
+def get_venv_bin_dir(virtual_env: str) -> str:
+    return os.path.normpath(os.path.join(virtual_env, "bin"))
 
 
 class CeleryManager:
@@ -162,6 +171,36 @@ class CeleryManager:
     def cap_cpu_count(count, cap_concurrency):
         return min(count, cap_concurrency) if cap_concurrency else count
 
+    def _assert_worker_venv_consistent(self):
+        """
+        Refuse to start a worker whose bin dir and venv disagree.
+
+        qualify_firex_bin resolves celery to an absolute path under
+        firex_bin_dir, so that variable alone decides which install's
+        interpreter the worker runs, while the worker's inherited PYTHONPATH
+        still resolves modules out of VIRTUAL_ENV. A mismatch therefore runs one
+        install's celery against the other's modules, which only surfaces once
+        the worker boots, as an ImportError naming neither the two installs nor
+        the run that mixed them.
+
+        firex_bin_dir is inherited, so a cascading invocation (a run that builds
+        a new install and then submits into it) is how the two come apart.
+        """
+        virtual_env = self.env.get("VIRTUAL_ENV")
+        firex_bin_dir = self.env.get(FIREX_BIN_DIR_ENV)
+        if not virtual_env or not firex_bin_dir:
+            return
+
+        expected_bin_dir = get_venv_bin_dir(virtual_env)
+        if os.path.normpath(firex_bin_dir) != expected_bin_dir:
+            raise CeleryVenvMismatchError(
+                f"Refusing to start a celery worker from a different install"
+                f" than this run: {FIREX_BIN_DIR_ENV}={firex_bin_dir} but"
+                f" VIRTUAL_ENV={virtual_env} (expected {expected_bin_dir})."
+                f" Workers would run {firex_bin_dir}/celery against"
+                f" {virtual_env} modules."
+            )
+
     def start_celery_worker(
         self,
         workername: str,
@@ -176,6 +215,7 @@ class CeleryManager:
         detach: bool = True,
         celery_cmd_log_level=DEBUG,
     ) -> FxWorkerId:
+        self._assert_worker_venv_consistent()
 
         # Celery only ever knows this worker by its name, but files belonging to
         # this particular worker instance are identified by its ID, so that a
