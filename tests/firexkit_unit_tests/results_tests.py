@@ -20,7 +20,7 @@ from firexkit.result import (
 )
 from firexkit.revoke import RevokedRequests, _now_utc
 from firexkit.run_time import RunTimeReserve
-from firexkit.testing import MockFxAsyncResult, ut_celery_app
+from firexkit.testing import MockFxAsyncResult, ut_backed_celery_app
 
 
 def get_mocks(
@@ -30,8 +30,7 @@ def get_mocks(
     if result_ids is None:
         result_ids = ["anything"]
 
-    test_app = ut_celery_app()
-    test_app.config_from_object({"result_backend": "cache", "cache_backend": "memory"})
+    test_app = ut_backed_celery_app()
     mock_results = [
         MockFxAsyncResult(state=_state, id=r, app=test_app) for r in result_ids
     ]
@@ -127,9 +126,8 @@ class WaitOnResultsTests(unittest.TestCase):
 
     def test_wait_on_single_result(self):
         setup_revoke()
-        test_app, mock_result = get_mocks()
+        _test_app, mock_result = get_mocks()
         mock_result = mock_result[0]
-        test_app.backend.set("anything", b"yep")
 
         mock_result._state = SUCCESS
         self.assertIsNone(wait_on_async_results(mock_result))

@@ -196,6 +196,10 @@ class UtClient:
         self._inc_count("smembers")
         return set(self._store.get(self._encode(key), set()))
 
+    def sismember(self, key, member):
+        self._inc_count("sismember")
+        return self._encode(member) in self._store.get(self._encode(key), set())
+
     def hget(self, key, subkey):
         self._inc_count("hget")
         try:
@@ -281,6 +285,7 @@ class UtBackend:
     thread_safe: bool = True
 
     READY_STATES: ClassVar[frozenset[str]] = celery.states.READY_STATES
+    task_keyprefix: ClassVar[str] = "celery-task-meta-"
 
     def remove_pending_result(self, _):
         pass
@@ -294,6 +299,20 @@ class UtBackend:
 
     def set(self, key, value):
         return self.client.set(key, value)
+
+    def get_key_for_task(self, task_id: str) -> str:
+        return self.task_keyprefix + task_id
+
+    # Mirrors celery.backends.base.BaseKeyValueStoreBackend, whose forget()
+    # deletes the task's meta entry: with nothing left to read the task's
+    # state back from, it reads as PENDING again.
+    def forget(self, task_id: str):
+        try:
+            self.client.delete(self.get_key_for_task(task_id))
+        except KeyError:
+            # redis deletes what is there and says how much that was, rather
+            # than complaining about a key that was never stored.
+            pass
 
 
 def ut_backed_celery_app(*args, **kwargs) -> FireXCelery:

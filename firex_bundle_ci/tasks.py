@@ -234,7 +234,6 @@ def AggregateXunit(uid, xunit_result_files):
             # noinspection PyProtectedMember
             xml_tree._setroot(new_root)
 
-        # strip_system_out(xml_tree)
         xml_tree.getroot().attrib.clear()  # merge_trees can barf of float point 'time'
         xml_trees.append(xml_tree)
 
