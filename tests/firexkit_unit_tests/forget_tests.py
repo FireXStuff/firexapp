@@ -2,16 +2,19 @@
 Tasks declaring @app.task(forget=True) are forgotten by whoever enqueues them.
 """
 
+import itertools
 from functools import partial
 from unittest import mock
 from uuid import uuid4
 
 import pytest
+from celery.states import PENDING, SUCCESS
 
 from firexkit.chain import SignatureX
 from firexkit.firex_celery import FireXCelery
-from firexkit.result import FxAsyncResult, ManyFxAsyncResults
+from firexkit.result import FxAsyncResult, ManyFxAsyncResults, WaitOnChainTimeoutError
 from firexkit.task import FireXTask
+from firexkit.testing import MockFxAsyncResult
 
 
 @pytest.fixture
@@ -232,3 +235,56 @@ class TestWaitingForForgottenChildren:
 
         assert _wait_for_specific_children(waited) == [waited]
         assert _wait_for_specific_children(_child_result(forgotten=True)) == []
+
+
+class TestWaitingOnAResultThatIsForgotten:
+    """
+    Forgetting deletes the entry a result's state is read back from, so a
+    forgotten result reads as PENDING and is never going to become ready. The
+    up-front filter in wait_for_specific_children only catches the children
+    already forgotten when the wait starts; a child that is still running then
+    forgets itself at its own postrun, part way through being waited on.
+    """
+
+    @pytest.fixture
+    def child(self, ut_app: FireXCelery) -> MockFxAsyncResult:
+        """An enqueued child that has yet to report a state of its own."""
+        return MockFxAsyncResult(state=PENDING, app=ut_app)
+
+    def test_a_result_forgotten_before_the_wait_is_not_waited_for(self, child):
+        child.fx_forget()
+
+        # PENDING, rather than the ChainRevokedPreRunException that state would
+        # otherwise mean: a forgotten result reads just like one revoked before
+        # it ever ran.
+        assert child.fx_wait_no_state_update(max_wait=10) == PENDING
+
+    def test_a_result_forgotten_mid_wait_stops_the_wait(self, child, monkeypatch):
+        # re-check on every poll instead of waiting out the real cadence.
+        monkeypatch.setattr("firexkit.result._CHECK_FORGOTTEN_FREQ", 0)
+        state_reads = itertools.count(1)
+
+        def state() -> str:
+            # the child runs for a while, then drops its own results at its
+            # postrun, leaving nothing behind to read its state back from.
+            if next(state_reads) > 3:
+                child.fx_forget()
+            return PENDING
+
+        child._state = state
+
+        assert child.fx_wait_no_state_update(max_wait=10) == PENDING
+        assert next(state_reads) > 3, "stopped before the result was forgotten"
+
+    def test_a_result_that_is_not_forgotten_is_still_waited_for(self, child):
+        with pytest.raises(WaitOnChainTimeoutError):
+            child.fx_wait_no_state_update(max_wait=0.1)
+
+    def test_a_forgotten_result_does_not_hold_up_the_others(self, ut_app):
+        forgotten = MockFxAsyncResult(state=PENDING, app=ut_app, name="forgotten")
+        forgotten.fx_forget()
+        succeeded = MockFxAsyncResult(state=SUCCESS, app=ut_app, name="succeeded")
+
+        waited = ManyFxAsyncResults.create_fx_ars([forgotten, succeeded])
+
+        assert list(waited.wait_for_all(max_wait=10)) == [forgotten, succeeded]

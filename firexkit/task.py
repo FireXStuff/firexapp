@@ -871,7 +871,15 @@ class FireXTask(Task):
 
             if self._lagging_children_strategy is PendingChildStrategy.BLOCK:
                 try:
-                    self.wait_for_children()
+                    # Bounded by the run's own deadline: an implicit wait that
+                    # never completes would otherwise hold this task, and the
+                    # worker slot it occupies, until the whole run is killed.
+                    self.wait_for_children(max_wait=RunTimeReserve())
+                except WaitOnChainTimeoutError as e:
+                    logger.warning(
+                        "Giving up waiting for this task's children, which are "
+                        "still not complete with no run time left:\n" + str(e),
+                    )
                 # Child failures are deliberately deferred to explicit result handling.
                 except Exception as e:  # noqa: BLE001
                     logger.debug(
