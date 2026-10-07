@@ -38,7 +38,11 @@ from firexkit.bag_of_goodies import (
 )
 from firexkit.chain import AUTO_QUEUE, InjectArgs, SignatureX
 from firexkit.firex_worker import FxBuiltinQueues, FxWorkerTypes
-from firexkit.firexkit_common import JINJA_ENV, REPLACEMENT_TASK_NAME_POSTFIX
+from firexkit.firexkit_common import (
+    JINJA_ENV,
+    REPLACEMENT_TASK_NAME_POSTFIX,
+    sec2hms,
+)
 from firexkit.resources import get_firex_css_filepath, get_firex_logo_filepath
 from firexkit.result import (
     DYNAMIC_RETURN,
@@ -622,9 +626,9 @@ class FireXTask(Task):
 
         required_total = (time.time() - get_run_start_time(self.app)) + need + reserve
         logger.warning(
-            f"Increasing the run time limit to {required_total:.0f}s:"
-            f" this task needs {need:.0f}s more (leaving {reserve:.0f}s),"
-            f" but only {remaining:.0f}s of the run remain."
+            f"Increasing the run time limit to {sec2hms(required_total)}:"
+            f" this task needs {sec2hms(need)} more (leaving {sec2hms(reserve)}),"
+            f" but only {sec2hms(remaining)} of the run remain."
         )
         self.app.increase_run_soft_time_limit(required_total)
         # The broadcast above is fire-and-forget, so returning now would hand control

@@ -2,7 +2,9 @@ import unittest
 from collections import OrderedDict
 from html.parser import HTMLParser
 
-from firexkit.firexkit_common import get_link
+import pytest
+
+from firexkit.firexkit_common import get_link, sec2hms
 
 
 class SimpleHtmlParser(HTMLParser):
@@ -38,3 +40,23 @@ class HtmlTemplateTests(unittest.TestCase):
         self.assertEqual(parser.data, text)
         self.assertEqual(parser.start_tag_attrs["href"], url)
         self.assertEqual(parser.start_tag_attrs["a"], "b")
+
+
+@pytest.mark.parametrize(
+    "seconds, expected",
+    [
+        (0, "0s"),
+        (9, "9s"),
+        (60, "1m0s"),
+        (90, "1m30s"),
+        (60 * 60, "1h0s"),
+        (3723, "1h2m3s"),
+        # The run time limit messages pass floats straight through.
+        (3723.9, "1h2m3s"),
+        # A run that is already past its deadline has negative time remaining; the
+        # sign belongs on the duration as a whole, not on each unit within it.
+        (-90, "-1m30s"),
+    ],
+)
+def test_sec2hms(seconds, expected):
+    assert sec2hms(seconds) == expected

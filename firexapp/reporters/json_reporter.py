@@ -3,6 +3,7 @@ import datetime
 import enum
 import json
 import os
+import pathlib
 from contextlib import contextmanager
 from getpass import getuser
 from socket import gethostname
@@ -333,6 +334,11 @@ class FireXRunData:
         completed_json_filepath = self._get_completion_run_json_path(self.logs_path)
         _write_run_json(self, completed_json_filepath)
 
+        # remove all write permissions from completed json.
+        # external systems have clobbered this critical file accidentally.
+        completed_json_file_path = pathlib.Path(completed_json_filepath)
+        completed_json_file_path.chmod(completed_json_file_path.stat().st_mode & ~0o222)
+
         report_link = _run_json_link_path_from_logs_dir(self.logs_path)
         create_link(completed_json_filepath, report_link, relative=True)
         return report_link
@@ -576,7 +582,10 @@ def _write_run_json(data: FireXRunData, report_file: str):
     # other methods have failed, it's a theoretical possibility they will run concurrently depending
     # on the order of kill signals, especially in the sync case.
     with NamedTemporaryFile(
-        mode="w", encoding="utf-8", dir=os.path.dirname(report_file), delete=False
+        mode="w",
+        encoding="utf-8",
+        dir=os.path.dirname(report_file),
+        delete=False,
     ) as f:
         json.dump(data.as_serializable(), fp=f, skipkeys=True, sort_keys=True, indent=4)
         f.flush()

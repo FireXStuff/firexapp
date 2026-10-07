@@ -179,6 +179,19 @@ class FxWorkerHostName(FxWorkerName):
             host=parts[-1],
         )
 
+    def get_self_and_subworkerhost_names(
+        self,
+    ) -> tuple["FxWorkerHostName", "FxWorkerHostName"]:
+        sub_name = self.get_subworker_name()
+        return (
+            self,
+            FxWorkerHostName(
+                queue_name=sub_name.queue_name,
+                spawn_group=sub_name.spawn_group,
+                host=self.host,
+            ),
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class FxWorkerId(FxWorkerHostName):
