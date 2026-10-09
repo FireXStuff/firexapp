@@ -1,7 +1,9 @@
 import os
 import pathlib
 import re
+import shlex
 import subprocess
+import time
 from collections.abc import Iterable
 from logging import DEBUG, INFO, WARNING
 from socket import gethostname
@@ -12,7 +14,6 @@ import firexapp.firex_subprocess
 from firexapp.common import (
     FIREX_BIN_DIR_ENV,
     poll_until_dir_empty,
-    poll_until_file_not_empty,
     qualify_firex_bin,
 )
 from firexapp.engine.default_celery_config import FxEnvVars
@@ -24,6 +25,11 @@ from firexkit.firex_worker import FxWorkerHostName, FxWorkerId, FxWorkerName
 logger = setup_console_logging(__name__)
 
 _PID_FILE_SUFFIX = ".pid"
+
+# How often a worker that hasn't written its pid file yet is checked for still
+# existing. Each check walks the whole process table, so it is deliberately much
+# coarser than the pid file poll it rides along with.
+_LIVENESS_POLL_INTERVAL_SECS = 2.0
 
 
 class CeleryWorkerStartFailed(Exception):
@@ -44,12 +50,10 @@ class CeleryManager:
         logs_dir: str,
         fx_env: FxEnvVars,
         plugins: None | str | list[str] = None,
-        app="firexapp.engine.celery:app",
-        env=None,
+        env: dict[str, str] | None = None,
     ):
         self.plugins = plugins
         self.logs_dir = logs_dir
-        self.app = app
 
         fx_env = fx_env.model_copy(
             update={
@@ -95,17 +99,13 @@ class CeleryManager:
             msg = f"[{header}] {msg}"
         logger.log(level, msg)
 
-    def update_env(self, env):
+    def update_env(self, env: dict[str, str]):
         assert isinstance(env, dict), "env needs to be a dictionary"
         self.env.update({k: str(v) for k, v in env.items()})
 
     @classmethod
-    def _get_celery_logs_dir(cls, logs_dir):
-        return os.path.join(logs_dir, Uid.debug_dirname, "celery")
-
-    @classmethod
-    def _get_celery_pids_dir(cls, logs_dir):
-        return os.path.join(cls._get_celery_logs_dir(logs_dir), "pids")
+    def _get_celery_pids_dir(cls, logs_dir: str) -> str:
+        return os.path.join(logs_dir, Uid.debug_dirname, "celery", "pids")
 
     @staticmethod
     def get_worker_logs_dir(logs_dir: str) -> str:
@@ -120,8 +120,11 @@ class CeleryManager:
         return self._celery_pids_dir
 
     @staticmethod
-    def __get_pid_file(pids_logs_dir: str, worker_id: FxWorkerId) -> str:
-        return os.path.join(pids_logs_dir, f"{worker_id}{_PID_FILE_SUFFIX}")
+    def _get_pid_file(pids_logs_dir: str, worker_id: FxWorkerId) -> str:
+        return os.path.join(
+            pids_logs_dir,
+            f"{worker_id}{_PID_FILE_SUFFIX}",
+        )
 
     @staticmethod
     def _find_pid_files_by_name(
@@ -149,7 +152,7 @@ class CeleryManager:
         """
         pids_logs_dir = cls._get_celery_pids_dir(logs_dir)
         if isinstance(worker_and_host, FxWorkerId):
-            pid_file = cls.__get_pid_file(pids_logs_dir, worker_and_host)
+            pid_file = cls._get_pid_file(pids_logs_dir, worker_and_host)
         else:
             if isinstance(worker_and_host, str):
                 worker_and_host = FxWorkerHostName.fx_worker_host_name_from_str(
@@ -204,16 +207,17 @@ class CeleryManager:
     def start_celery_worker(
         self,
         workername: str,
-        queues=None,
-        wait=True,
+        queues: str,
+        wait_celery_active=True,
         timeout=15 * 60,
         concurrency=None,
         cap_concurrency=None,
         cwd=None,
         soft_time_limit=None,
         autoscale: tuple | None = None,
-        detach: bool = True,
         celery_cmd_log_level=DEBUG,
+        app="firexapp.engine.celery:app",
+        extra_celery_args: list[str] | None = None,
     ) -> FxWorkerId:
         self._assert_worker_venv_consistent()
 
@@ -227,7 +231,7 @@ class CeleryManager:
         )
         celery_worker_name = worker_id.as_host_worker_name()
 
-        pid_path = pathlib.Path(self.__get_pid_file(self.celery_pids_dir, worker_id))
+        pid_path = pathlib.Path(self._get_pid_file(self.celery_pids_dir, worker_id))
         pid_path.parent.mkdir(parents=True, exist_ok=True)
         self.pid_files[worker_id] = str(pid_path)
 
@@ -240,21 +244,25 @@ class CeleryManager:
         tasks_logs_dir = cel_worker_logfile.parent
         tasks_logs_dir.mkdir(parents=True, exist_ok=True)
 
-        cmd = (
-            f"{qualify_firex_bin('celery')} "
-            f"--app={self.app} worker "
-            f"--hostname={celery_worker_name} "
-            f"--loglevel=debug "
-            f"--logfile={cel_worker_logfile} "
-            f"--pidfile={pid_path} "
-            f"--events "
-            f"--without-gossip "
-            f"--without-heartbeat "
-            f"--without-mingle "
-            f"-Ofair"
-        )
+        # A list, not a string: every path in here comes from a caller-supplied
+        # logs dir, and a shell splitting one of them on a space would surface
+        # only as a worker that never writes its pid file.
+        cmd = [
+            qualify_firex_bin("celery"),
+            f"--app={app}",
+            "worker",
+            f"--hostname={celery_worker_name}",
+            "--loglevel=debug",
+            f"--logfile={cel_worker_logfile}",
+            f"--pidfile={pid_path}",
+            "--events",
+            "--without-gossip",
+            "--without-heartbeat",
+            "--without-mingle",
+            "-Ofair",
+        ]
         if queues:
-            cmd += f" --queues={queues}"
+            cmd.append(f"--queues={queues}")
 
         if concurrency and autoscale:
             raise AssertionError(
@@ -262,7 +270,9 @@ class CeleryManager:
             )
 
         if concurrency:
-            cmd += f" --concurrency={self.cap_cpu_count(concurrency, cap_concurrency)}"
+            cmd.append(
+                f"--concurrency={self.cap_cpu_count(concurrency, cap_concurrency)}"
+            )
         elif autoscale:
             assert isinstance(autoscale, Iterable), (
                 "autoscale should be a tuple of (min, max)"
@@ -277,38 +287,57 @@ class CeleryManager:
             autoscale_max = self.cap_cpu_count(
                 max(autoscale_v1, autoscale_v2), cap_concurrency
             )
-            cmd += f" --autoscale={autoscale_max},{autoscale_min}"
+            cmd.append(f"--autoscale={autoscale_max},{autoscale_min}")
 
         if soft_time_limit:
-            cmd += f" --soft-time-limit={soft_time_limit}"
+            cmd.append(f"--soft-time-limit={soft_time_limit}")
 
-        if detach:
-            cmd += " &"
+        # Deliberately appended, i.e. after the 'worker' subcommand: an option
+        # an app contributes via user_options['preload'] is attached to each
+        # subcommand and not to the top-level group (celery/bin/celery.py), so
+        # it is only parseable here. Appending also keeps this clear of the
+        # 'worker' element itself, wherever it ends up in cmd.
+        cmd.extend(extra_celery_args or [])
 
         self.log(f"Starting {worker_id}...")
         stdout_file = os.path.join(pid_path.parent.parent, f"{worker_id}.stdout.txt")
-        firexapp.firex_subprocess.check_output(
-            cmd,
-            shell=True,
-            file=stdout_file,
-            env=self.env,
-            cwd=cwd,
-            log_level=celery_cmd_log_level,
-            remove_firex_pythonpath=False,
-            # A backgrounded job of a non-interactive shell keeps the shell's
-            # process group and session, so a detached worker stays reachable by
-            # pgid/session-wide kills aimed at the submitting shell long after
-            # that shell is gone. Break away like firex_flame and firex_shutdown
-            # do. Only when detaching: otherwise check_output waits on Celery
-            # itself, and a new session would make it unkillable from the console.
-            start_new_session=detach,
-        )
+        try:
+            firexapp.firex_subprocess.check_output(
+                # shlex.join, so that a logs dir with a space in it reaches
+                # celery as one argument. The shell is here only for the
+                # trailing '&'; it returns as soon as it has forked.
+                shlex.join(cmd) + " &",
+                shell=True,
+                file=stdout_file,
+                env=self.env,
+                cwd=cwd,
+                log_level=celery_cmd_log_level,
+                remove_firex_pythonpath=False,
+                # The only thing putting the worker in a session of its own:
+                # celery isn't daemonising, and a backgrounded job of a
+                # non-interactive shell otherwise keeps the submitting shell's
+                # process group and session, so a Ctrl+C or pgid-wide kill
+                # aimed at that shell would reach the worker long after the
+                # shell itself was gone.
+                start_new_session=True,
+            )
+        except (firexapp.firex_subprocess.CommandFailed, OSError) as e:
+            # Only covers failing to get the shell started at all -- a cwd that
+            # doesn't exist, say. The trailing '&' means the shell reports its
+            # own exit status, which is 0 however celery fares, so every
+            # failure of the worker itself is left to _wait_until_active.
+            raise CeleryWorkerStartFailed(
+                f"The shell launching {worker_id} failed: {e}\n"
+                f"Please look into {stdout_file!r} for details."
+                f"{_describe_errors_in_file(stdout_file)}"
+            ) from e
 
-        if detach and wait:
+        if wait_celery_active:
             _wait_until_active(
                 pid_file=str(pid_path),
                 timeout=timeout,
                 stdout_file=stdout_file,
+                worker_logfile=str(cel_worker_logfile),
                 worker_id=worker_id,
             )
 
@@ -366,22 +395,30 @@ class CeleryManager:
             timeout=timeout,
         )
 
-    def wait_for_worker_shutdown(self, worker_id: FxWorkerId, timeout: float) -> bool:
-        return _poll_until_path_gone(
-            self.pid_files.get(worker_id)
-            or self.__get_pid_file(self.celery_pids_dir, worker_id),
+    def wait_for_worker_shutdown(
+        self,
+        worker_id: FxWorkerId,
+        timeout: float | None = None,
+    ) -> bool:
+        """Wait for a worker to exit. False if it is still up at 'timeout'.
+
+        Waits on the processes rather than on the pid file: celery unlinks its
+        pid file from an atexit handler (celery.platforms.create_pidlock), so a
+        worker that is killed outright -- by the OOM killer, most often --
+        leaves the file behind and would never be seen to stop. A 'timeout' of
+        None waits indefinitely, which is only safe for that reason.
+        """
+        pid_file = self.pid_files.get(worker_id) or self._get_pid_file(
+            self.celery_pids_dir,
+            worker_id,
+        )
+        # One process table walk, then a wait per process: the pool children
+        # share the worker's command line, so this covers them too.
+        _, alive = psutil.wait_procs(
+            _find_all_celery_procs_by_cmdline_pidfile_arg(pid_file),
             timeout=timeout,
         )
-
-
-import time
-
-
-def _poll_until_path_gone(path: str, timeout: float):
-    timeout_time = time.time() + timeout
-    while os.path.exists(path) and time.time() < timeout_time:
-        time.sleep(0.1)
-    return not os.path.exists(path)
+        return not alive
 
 
 def _get_pid_file_worker_ids(pids_logs_dir: str) -> dict[str, FxWorkerId | None]:
@@ -420,37 +457,72 @@ def _get_pid_from_file(pid_file: str) -> int:
 def _wait_until_active(
     pid_file: str,
     stdout_file: str,
+    worker_logfile: str,
     worker_id: FxWorkerId,
     timeout,
 ):
-    extra_err_info = ""
-    try:
-        poll_until_file_not_empty(pid_file, timeout=timeout)
-    except AssertionError:
-        err_list = _extract_errors_from_celery_logs(stdout_file)
-        if err_list:
-            extra_err_info += "\nFound the following errors:\n" + "\n".join(err_list)
+    """Wait for the backgrounded worker to write its pid file, or for it to die trying.
 
-        deleted_pids = subprocess.run(
-            ["/bin/pkill", "-e", "-f", pid_file],
-            capture_output=True,
-            check=False,
-            text=True,
-        )
-        extra_err_info += "\nAttempting to delete the invocation pids"
-        if deleted_pids.stdout:
-            extra_err_info += f"\nstdout: {deleted_pids.stdout}"
-        if deleted_pids.stderr:
-            extra_err_info += f"\nstderr: {deleted_pids.stderr}"
+    The shell that backgrounded the worker reports its own exit status, which is
+    0 however celery fares, so every failure of the worker itself lands here
+    rather than in the launch. What the worker prints goes to 'stdout_file',
+    which it inherits from that shell, until celery has logging up and switches
+    to 'worker_logfile'. Neither is a signal on its own that a boot has failed:
+    what that leaves here is a pid file that never appears, which is
+    indistinguishable from a worker that is merely slow. Watching for the
+    process is what tells those apart without waiting out the whole timeout.
+    """
+    timeout_time = time.time() + timeout
+    # Also the grace period before the first check: the shell has exited by
+    # now, but the worker it forked may not have been scheduled yet.
+    next_liveness_poll = time.time() + _LIVENESS_POLL_INTERVAL_SECS
+    while not (os.path.isfile(pid_file) and os.path.getsize(pid_file) > 0):
+        now = time.time()
+        if now >= next_liveness_poll:
+            if not _find_all_celery_procs_by_cmdline_pidfile_arg(pid_file):
+                raise CeleryWorkerStartFailed(
+                    f"The worker {worker_id} exited before it became active.\n"
+                    f"Please look into {stdout_file!r} and {worker_logfile!r}"
+                    f" for details."
+                    f"{_describe_errors_in_file(stdout_file)}"
+                    f"{_describe_errors_in_file(worker_logfile)}"
+                )
+            next_liveness_poll = now + _LIVENESS_POLL_INTERVAL_SECS
 
-        raise CeleryWorkerStartFailed(
-            f"The worker {worker_id} did not come up after"
-            f" {timeout} seconds.\n"
-            f"Please look into {stdout_file!r} for details."
-            f"{extra_err_info}"
-        )
+        if now >= timeout_time:
+            raise CeleryWorkerStartFailed(
+                f"The worker {worker_id} did not come up after"
+                f" {timeout} seconds.\n"
+                f"Please look into {stdout_file!r} for details."
+                f"{_describe_errors_in_file(stdout_file)}"
+                f"{_kill_invocation_pids(pid_file)}"
+            )
+        time.sleep(0.1)
+
     pid = _get_pid_from_file(pid_file)
-    logger.info(f"Celery pid {pid} became active")
+    logger.info(f"Celery pid {pid} became active for FireX worker: {worker_id}")
+
+
+def _kill_invocation_pids(pid_file: str) -> str:
+    deleted_pids = subprocess.run(
+        ["/bin/pkill", "-e", "-f", pid_file],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    extra_err_info = "\nAttempting to delete the invocation pids"
+    if deleted_pids.stdout:
+        extra_err_info += f"\nstdout: {deleted_pids.stdout}"
+    if deleted_pids.stderr:
+        extra_err_info += f"\nstderr: {deleted_pids.stderr}"
+    return extra_err_info
+
+
+def _describe_errors_in_file(celery_log_file: str) -> str:
+    err_list = _extract_errors_from_celery_logs(celery_log_file)
+    if not err_list:
+        return ""
+    return "\nFound the following errors:\n" + "\n".join(err_list)
 
 
 def _extract_errors_from_celery_logs(celery_log_file, max_errors=20):
@@ -470,13 +542,23 @@ def _extract_errors_from_celery_logs(celery_log_file, max_errors=20):
 def _find_all_celery_procs_by_cmdline_pidfile_arg(
     pid_file: str,
 ) -> list[psutil.Process]:
+    """Every celery worker process invoked with '--pidfile=pid_file'.
+
+    Matched on the command line alone, deliberately, rather than also on the
+    process name: celery is launched through a console script, so what the
+    process ends up named after depends on how that script was installed and on
+    whether the pool children were forked or spawned. The pid file path is
+    absolute and per-worker, so it identifies the worker on its own; requiring
+    the 'worker' subcommand alongside it only rules out processes that merely
+    mention the path.
+    """
+    cmdline_pidfile_part = f"--pidfile={pid_file}"
     matching_procs: list[psutil.Process] = []
-    for proc in psutil.process_iter(["name", "cmdline", "pid"]):
+    for proc in psutil.process_iter(["cmdline", "pid"]):
         try:
-            cmdline_pidfile_part = f"--pidfile={pid_file}"
-            if proc.info["name"] == "celery" and any(
-                cmdline_pidfile_part in cmd_part
-                for cmd_part in (proc.info["cmdline"] or [])
+            cmdline = proc.info["cmdline"] or []
+            if "worker" in cmdline and any(
+                cmdline_pidfile_part in cmd_part for cmd_part in cmdline
             ):
                 matching_procs.append(proc)
         except psutil.NoSuchProcess:

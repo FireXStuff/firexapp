@@ -19,7 +19,7 @@ from typing_extensions import Self
 
 from firexapp.common import create_link, silent_mkdir, wait_until
 from firexapp.events.model import RevokeDetails
-from firexapp.submit.uid import FIREX_ID_REGEX, Uid
+from firexapp.submit.uid import FIREX_ID_REGEX, FireXIdParts, Uid
 from firexkit.result import (
     RUN_RESULTS_NAME,
     RUN_UNSUCCESSFUL_NAME,
@@ -71,6 +71,7 @@ class FireXRunData:
     # Recorded here, and not only in the broker, because the things that decide whether a
     # run has overrun -- kill_runs above all -- outlive that run's broker.
     run_soft_time_limit: float | None = None
+    max_completion_timestamp: datetime.datetime | None = None
 
     _extra_fields: dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -83,6 +84,7 @@ class FireXRunData:
         original_cli,
         inputs: dict[str, Any],
         submit_proc_start_timestamp: datetime.datetime | None = None,
+        run_soft_time_limit: float | None = None,
     ) -> "FireXRunData":
         from firexkit.firex_celery import FireXCelery
 
@@ -97,7 +99,7 @@ class FireXRunData:
         viewers = uid.viewers or {}
         _extra_fields = dict(viewers)  # backwards compat
 
-        return FireXRunData(
+        run_data = FireXRunData(
             firex_id=uid.identifier,
             logs_path=uid.logs_dir,
             completed=False,
@@ -109,7 +111,12 @@ class FireXRunData:
             inputs=inputs,
             _extra_fields=_extra_fields,
             submit_proc_start_timestamp=submit_proc_start_timestamp,
+            run_soft_time_limit=run_soft_time_limit,
         )
+        # So the very first run.json already carries a deadline, rather than only the
+        # ones rewritten later by write_update_input_args.
+        run_data._refresh_max_completion_timestamp()
+        return run_data
 
     @classmethod
     def run_logs_dir_from_firex_id(cls, firex_id: str) -> str:
@@ -132,6 +139,12 @@ class FireXRunData:
         if modelled_fields.get("completed_timestamp"):
             modelled_fields["completed_timestamp"] = datetime.datetime.fromisoformat(
                 modelled_fields["completed_timestamp"]
+            )
+        if modelled_fields.get("max_completion_timestamp"):
+            modelled_fields["max_completion_timestamp"] = (
+                datetime.datetime.fromisoformat(
+                    modelled_fields["max_completion_timestamp"]
+                )
             )
         if modelled_fields.get("revoked_details"):
             modelled_fields["revoked_details"] = RevokeDetails(
@@ -230,8 +243,15 @@ class FireXRunData:
             # Updating the report is best effort and must not fail the run.
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"Failed to normalize chain names: {e}")
+        # Deliberately not in the same try as the write below: the budget is a
+        # best-effort embellishment, and failing to refresh it must not cost run.json
+        # the inputs this method exists to record.
         try:
             self._refresh_run_soft_time_limit()
+        # Updating the report is best effort and must not fail the run.
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Failed to refresh the run's time budget: {e}")
+        try:
             _write_run_json(self, _get_initial_run_json_path(self.logs_path))
         # Updating the report is best effort and must not fail the run.
         except Exception as e:  # noqa: BLE001
@@ -252,12 +272,34 @@ class FireXRunData:
             persisted = self.load_initial(self.logs_path).run_soft_time_limit
         except (OSError, ValueError) as e:
             logger.warning(f"Failed reading the recorded run_soft_time_limit: {e}")
-            return
+        else:
+            if persisted is not None and (
+                self.run_soft_time_limit is None or persisted > self.run_soft_time_limit
+            ):
+                self.run_soft_time_limit = persisted
 
-        if persisted is not None and (
-            self.run_soft_time_limit is None or persisted > self.run_soft_time_limit
-        ):
-            self.run_soft_time_limit = persisted
+        self._refresh_max_completion_timestamp()
+
+    def _refresh_max_completion_timestamp(self):
+        """
+        Derives the run's deadline from whichever budget is now in effect.
+
+        Every writer of run_soft_time_limit must call this, since the point of the
+        field is that a reader does not have to know which budget source won: a
+        deadline that disagrees with the budget beside it is worse than no deadline.
+        """
+        time_limit = self.run_soft_time_limit
+        if time_limit is None:
+            # Pre-dates run_soft_time_limit, or a bundle that never seeded it.
+            time_limit = self.inputs.get("soft_time_limit")
+
+        # Chain args arrive as strings unless a converter typed them, so this is
+        # routinely not a number. Leave the recorded deadline alone rather than
+        # replacing it with one derived from an unusable budget.
+        if isinstance(time_limit, (int, float)):
+            self.max_completion_timestamp = (
+                self.get_run_start_time() + datetime.timedelta(seconds=time_limit)
+            )
 
     @classmethod
     def persist_run_soft_time_limit(
@@ -281,6 +323,10 @@ class FireXRunData:
                 return recorded
 
             run_data.run_soft_time_limit = run_soft_time_limit
+            # A raise moves the run's end time out; leaving the recorded deadline at
+            # the superseded budget would report a still-running run as overdue, which
+            # is the exact confusion max_completion_timestamp exists to prevent.
+            run_data._refresh_max_completion_timestamp()
             _write_run_json(run_data, _get_initial_run_json_path(logs_dir))
             return run_soft_time_limit
 
@@ -326,9 +372,6 @@ class FireXRunData:
                     now,
                 )
 
-        # Readers prefer the completion report over the initial one, so a raise recorded
-        # by a worker has to be carried across or it disappears the moment the run ends --
-        # exactly when kill_runs starts asking whether the run overran.
         self._refresh_run_soft_time_limit()
 
         completed_json_filepath = self._get_completion_run_json_path(self.logs_path)
@@ -386,6 +429,9 @@ class FireXRunData:
 
     def get_status(self) -> "FireXRunStatus":
         return self.get_status_and_description()[0]
+
+    def get_run_start_time(self) -> datetime.datetime:
+        return FireXIdParts.from_str(self.firex_id).timestamp
 
     def chain_has_service(
         self,
@@ -638,6 +684,7 @@ class FireXJsonReportGenerator:
         argv,
         original_cli=None,
         json_file=None,
+        run_soft_time_limit: float | None = None,
         **inputs,
     ) -> FireXRunData:
         run_info = FireXRunData.create_from_common_run_data(
@@ -650,6 +697,7 @@ class FireXJsonReportGenerator:
             submit_proc_start_timestamp=datetime.datetime.fromtimestamp(
                 psutil.Process().create_time(), tz=datetime.timezone.utc
             ),
+            run_soft_time_limit=run_soft_time_limit,
         )
         report_link = run_info.write_initial_run_json()
         if json_file:
@@ -669,7 +717,7 @@ class FireXJsonReportGenerator:
         uid: Uid | None = None,
         run_revoked: bool = True,
         chain=None,
-        root_id=None,
+        root_id: FxAsyncResult | None = None,
         submission_dir=None,
         argv=None,
         original_cli=None,

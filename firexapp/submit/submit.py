@@ -112,7 +112,7 @@ class AdjustCeleryConcurrency(argparse.Action):
 
 def _safe_create_completed_run_json(
     uid: Uid,
-    chain_result: FxAsyncResult,
+    chain_result: FxAsyncResult | None,
     run_revoked: bool,
     chain_args: dict[str, Any],
     shutdown_reason: str,
@@ -412,10 +412,11 @@ class SubmitBaseApp:
         if results_str:
             logger.print("\n\nReturned values:\n" + results_str)
 
-    # TODO: move this functionality earlier in application.run() once the install_configs is loaded earlier
     def resolve_install_configs_args(
-        self, args_from_first_pass: argparse.Namespace, other_args_from_first_pass: list
-    ) -> (argparse.Namespace, list):
+        self,
+        args_from_first_pass: argparse.Namespace,
+        other_args_from_first_pass: list,
+    ) -> tuple[argparse.Namespace, list]:
         args = args_from_first_pass
         others = other_args_from_first_pass
 
@@ -481,7 +482,7 @@ class SubmitBaseApp:
 
         # Execute chain
         try:
-            root_task_name = fx_app.conf.get("root_task")
+            root_task_name = fx_app.conf.root_task
             if root_task_name is None:
                 raise NotRegistered("No root task configured")
             root_task = fx_app.get_app_task(root_task_name)
@@ -491,8 +492,13 @@ class SubmitBaseApp:
             sys.exit(-1)
         self.wait_tracking_services_task_ready(fx_app)
 
-        run_info = safe_create_initial_run_json(**chain_args)
-        if run_info:
+        if run_info := safe_create_initial_run_json(
+            # The budget the run starts with -- --soft_time_limit when given, else the
+            # configured default -- so run.json carries a deadline from the outset. A
+            # worker raising it later supersedes this monotonically.
+            run_soft_time_limit=fx_app.get_run_soft_time_limit(),
+            **chain_args,
+        ):
             # Normalizes the chain names now that the app's tasks are imported.
             run_info.write_update_input_args(chain_args)
 
@@ -623,7 +629,8 @@ class SubmitBaseApp:
             plugins=plugins,
         ).start_celery_worker(
             workername=fx_app.conf.primary_worker_name,
-            wait=True,
+            queues=fx_app.conf.task_default_queue,
+            wait_celery_active=True,
             concurrency=args.celery_concurrency,
             autoscale=autoscale,
             soft_time_limit=args.soft_time_limit,

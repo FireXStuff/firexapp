@@ -1,4 +1,5 @@
 import contextlib
+import datetime
 import json
 import os
 import tempfile
@@ -14,16 +15,18 @@ from firexapp.reporters.json_reporter import (
 
 def _run_data(logs_dir, **overrides) -> FireXRunData:
     return FireXRunData(
-        firex_id="FireX-someuser-260914-120000-1234",
-        logs_path=logs_dir,
-        completed=False,
-        chain=["nop"],
-        submission_host="somehost",
-        submission_dir="/some/dir",
-        submission_cmd=["firexapp", "submit", "--chain", "nop"],
-        viewers={},
-        inputs={"soft_time_limit": 40 * 60 * 60},
-        **overrides,
+        **{
+            "firex_id": "FireX-someuser-260914-120000-1234",
+            "logs_path": logs_dir,
+            "completed": False,
+            "chain": ["nop"],
+            "submission_host": "somehost",
+            "submission_dir": "/some/dir",
+            "submission_cmd": ["firexapp", "submit", "--chain", "nop"],
+            "viewers": {},
+            "inputs": {"soft_time_limit": 40 * 60 * 60},
+            **overrides,
+        }
     )
 
 
@@ -77,8 +80,25 @@ class RunSoftTimeLimitInRunJsonTests(unittest.TestCase):
 
         after = _read_initial(self.logs_dir)
         self.assertEqual(after["run_soft_time_limit"], 60 * 60 * 60)
+        # The deadline is derived from the budget, so a raise is expected to move it;
+        # everything else must be untouched.
         del before["run_soft_time_limit"], after["run_soft_time_limit"]
+        del before["max_completion_timestamp"], after["max_completion_timestamp"]
         self.assertEqual(before, after)
+
+    def test_a_raise_moves_the_recorded_deadline_out(self):
+        # Without this the run.json of a run that bought itself more time still says it
+        # should already have finished -- the confusion the field exists to remove.
+        _run_data(self.logs_dir).write_initial_run_json()
+
+        with _unlocked():
+            FireXRunData.persist_run_soft_time_limit(self.logs_dir, 60 * 60 * 60)
+
+        run_data = FireXRunData.load_initial(self.logs_dir)
+        self.assertEqual(
+            run_data.max_completion_timestamp,
+            run_data.get_run_start_time() + datetime.timedelta(hours=60),
+        )
 
     def test_fields_this_class_does_not_model_survive_a_raise(self):
         # Bundles subclass FireXRunData; the raise is written by the base class, which
@@ -206,6 +226,66 @@ class RefreshRunSoftTimeLimitTests(unittest.TestCase):
         run_data._refresh_run_soft_time_limit()
 
         self.assertEqual(run_data.run_soft_time_limit, 60 * 60 * 60)
+
+
+class MaxCompletionTimestampTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp_dir.cleanup)
+        self.logs_dir = self._tmp_dir.name
+
+    def test_derived_from_the_recorded_budget(self):
+        run_data = _run_data(self.logs_dir, run_soft_time_limit=60 * 60 * 60)
+        run_data.write_initial_run_json()
+
+        run_data.write_update_input_args(run_data.inputs)
+
+        self.assertEqual(
+            run_data.max_completion_timestamp,
+            run_data.get_run_start_time() + datetime.timedelta(hours=60),
+        )
+
+    def test_falls_back_to_the_submitted_limit(self):
+        # Runs submitted before the budget was recorded, and bundles that never seed it.
+        run_data = _run_data(self.logs_dir)
+        run_data.write_initial_run_json()
+
+        run_data.write_update_input_args(run_data.inputs)
+
+        self.assertIsNone(run_data.run_soft_time_limit)
+        self.assertEqual(
+            run_data.max_completion_timestamp,
+            run_data.get_run_start_time() + datetime.timedelta(hours=40),
+        )
+
+    def test_a_non_numeric_submitted_limit_still_writes_run_json(self):
+        # Chain args arrive as strings unless a converter typed them. Deriving a
+        # deadline is best effort; recording the inputs is not.
+        run_data = _run_data(self.logs_dir, inputs={"soft_time_limit": "not-a-number"})
+        run_data.write_initial_run_json()
+
+        run_data.write_update_input_args(run_data.inputs)
+
+        self.assertIsNone(run_data.max_completion_timestamp)
+        self.assertEqual(
+            _read_initial(self.logs_dir)["inputs"],
+            {"soft_time_limit": "not-a-number"},
+        )
+
+    def test_inputs_are_recorded_even_if_the_budget_refresh_fails(self):
+        run_data = _run_data(self.logs_dir)
+        run_data.write_initial_run_json()
+
+        with mock.patch.object(
+            FireXRunData,
+            "_refresh_run_soft_time_limit",
+            side_effect=RuntimeError("boom"),
+        ):
+            run_data.write_update_input_args({"some_arg": "some_value"})
+
+        self.assertEqual(
+            _read_initial(self.logs_dir)["inputs"], {"some_arg": "some_value"}
+        )
 
 
 if __name__ == "__main__":
