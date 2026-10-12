@@ -292,11 +292,11 @@ class CeleryManager:
         if soft_time_limit:
             cmd.append(f"--soft-time-limit={soft_time_limit}")
 
-        # Deliberately appended, i.e. after the 'worker' subcommand: an option
-        # an app contributes via user_options['preload'] is attached to each
-        # subcommand and not to the top-level group (celery/bin/celery.py), so
-        # it is only parseable here. Appending also keeps this clear of the
-        # 'worker' element itself, wherever it ends up in cmd.
+        # Deliberately appended, i.e. after the 'worker' subcommand: an option an
+        # app contributes via user_options['worker'] is attached to the worker
+        # command and not to the top-level group (celery/bin/celery.py), so it is
+        # only parseable here. Appending also keeps this clear of the 'worker'
+        # element itself, wherever it ends up in cmd.
         cmd.extend(extra_celery_args or [])
 
         self.log(f"Starting {worker_id}...")

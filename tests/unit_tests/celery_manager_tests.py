@@ -217,6 +217,24 @@ def test_paths_reach_celery_whole_when_the_logs_dir_has_a_space(fake_celery, tmp
     assert fake_celery.opt("pidfile").startswith(f"{logs_dir}/")
 
 
+def test_extra_args_reach_celery_after_the_worker_subcommand(fake_celery, tmp_path):
+    """Where these land on the command line is the whole reason they're a list.
+
+    An option an app contributes via user_options['worker'] is attached by celery
+    to the worker command and not to the top-level group (celery/bin/celery.py),
+    so one placed before 'worker' is rejected by a group that never declared it.
+    """
+    _ut_celery_manager(tmp_path).start_celery_worker(
+        workername="ut_worker",
+        queues=UT_QUEUE,
+        timeout=UT_TIMEOUT,
+        extra_celery_args=["--ut-app-option=ut_value"],
+    )
+
+    argv = fake_celery.argv
+    assert argv.index("--ut-app-option=ut_value") > argv.index("worker")
+
+
 def test_the_launch_returns_while_the_worker_is_still_running(
     fake_celery, tmp_path, monkeypatch
 ):
