@@ -60,35 +60,74 @@ def _unlink_if_exists(path: str) -> None:
         pass
 
 
+def _rsync_keeper_db(rsync_bin: str, src: str, dest: str, cwd: str) -> bool:
+    """Copy one keeper DB with rsync.
+
+    ``src`` may be ``host:path``. rsync uses SSH only for that form.
+    ``-e ssh`` is ignored for a plain local path.
+    """
+    logger.info("Copying keeper DB for local query using rsync %s to %s", src, dest)
+    try:
+        subprocess.check_call(
+            [
+                rsync_bin,
+                "--whole-file",
+                "-e",
+                "ssh -o BatchMode=yes -o StrictHostKeyChecking=no",
+                src,
+                dest,
+            ],
+            cwd=cwd,
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.warning("rsync keeper copy failed: %s", e)
+        _unlink_if_exists(dest)
+        return False
+    if os.path.isfile(dest) and os.path.getsize(dest) > 0:
+        logger.info("Copied keeper DB for local query using rsync %s to %s", src, dest)
+        return True
+    logger.warning(
+        "rsync keeper copy succeeded but dest missing or empty: %s",
+        dest,
+    )
+    _unlink_if_exists(dest)
+    return False
+
+
 def _copy_keeper_db_for_local_query(
-    existing_db_file: str, new_tmp_db_file: str, tmp_cwd: str
+    existing_db_file: str,
+    new_tmp_db_file: str,
+    tmp_cwd: str,
+    rsync_src_host: str | None = None,
 ) -> None:
     """Copy keeper SQLite to a temp path for local reads.
-    try rsync (good over NFS / cross-geo), then sqlite3 .backup (consistent snapshot),
-    then shutil.copyfile.
+
+    ``rsync_src_host`` is an SSH host that should read ``existing_db_file``.
+    The rsync source is ``host:existing_db_file`` when a host is given, and
+    the local database path otherwise. Then sqlite3 .backup, then shutil.copyfile.
     """
     rsync_bin = shutil.which("rsync")
     if rsync_bin:
-        try:
-            subprocess.check_output(
-                [rsync_bin, existing_db_file, new_tmp_db_file],
-                cwd=tmp_cwd,
-            )
-            if os.path.isfile(new_tmp_db_file) and os.path.getsize(new_tmp_db_file) > 0:
-                logger.info("Copied keeper DB for local query using rsync")
-                return
-            logger.warning(
-                "rsync keeper copy succeeded but dest missing or empty: %s",
-                new_tmp_db_file,
-            )
-        except (OSError, subprocess.SubprocessError) as e:
-            logger.warning("rsync keeper copy failed: %s", e)
-        _unlink_if_exists(new_tmp_db_file)
+        src = (
+            f"{rsync_src_host}:{existing_db_file}"
+            if rsync_src_host
+            else existing_db_file
+        )
+        if _rsync_keeper_db(rsync_bin, src, new_tmp_db_file, tmp_cwd):
+            return
+        if rsync_src_host and _rsync_keeper_db(
+            rsync_bin, existing_db_file, new_tmp_db_file, tmp_cwd
+        ):
+            return
 
     sqlite_bin = "/bin/sqlite3"
     if os.path.isfile(sqlite_bin):
+        logger.info(
+            "Copying keeper DB for local query using sqlite3 .backup from %s",
+            existing_db_file,
+        )
         try:
-            subprocess.check_output(
+            subprocess.check_call(
                 [sqlite_bin, existing_db_file, f".backup {new_tmp_db_file}"],
                 cwd=tmp_cwd,
             )
@@ -98,12 +137,21 @@ def _copy_keeper_db_for_local_query(
             logger.warning("sqlite3 .backup keeper copy failed: %s", e)
         _unlink_if_exists(new_tmp_db_file)
 
+    logger.info(
+        "Copying keeper DB for local query using shutil.copyfile from %s",
+        existing_db_file,
+    )
     shutil.copyfile(existing_db_file, new_tmp_db_file)
     logger.info("Copied keeper DB for local query using shutil.copyfile")
 
 
 def _query_tasks(
-    logs_dir, query, db_file_query_ready_timeout=15, copy_before_query=False, **kwargs
+    logs_dir,
+    query,
+    db_file_query_ready_timeout=15,
+    copy_before_query=False,
+    rsync_src_host: str | None = None,
+    **kwargs,
 ) -> list[FireXTask]:
     if copy_before_query:
         tmp_base_dir = "/dev/shm" if os.path.isdir("/dev/shm") else None
@@ -112,7 +160,10 @@ def _query_tasks(
             new_tmp_db_file = get_db_file(temp_log_dir, new=True)
 
             _copy_keeper_db_for_local_query(
-                existing_db_file, new_tmp_db_file, temp_log_dir
+                existing_db_file,
+                new_tmp_db_file,
+                temp_log_dir,
+                rsync_src_host=rsync_src_host,
             )
 
             query_results = _wait_and_query(
