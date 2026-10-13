@@ -5,6 +5,7 @@ import contextlib
 import dataclasses
 import time
 import uuid
+import weakref
 from collections import deque, namedtuple
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from pprint import pformat
@@ -151,8 +152,11 @@ R = TypeVar("R")
 
 
 class FxAsyncResult(AsyncResult, Generic[ARR]):
-    # tracked only if enable_ar_tracking is set
-    _ARS_BY_ID: ClassVar[dict[str, FxAsyncResult] | None] = None
+    # Every live instance, tracked only if enable_ar_tracking is set.
+    # Values are weak so that tracking doesn't pin every result for the whole run.
+    _TRACKED_ARS: ClassVar[weakref.WeakValueDictionary[int, FxAsyncResult] | None] = (
+        None
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -172,8 +176,8 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         # AsyncResult objects cannot be in memory after the broker (i.e. backend) shutdowns, otherwise errors are
         # produced when they are garbage collected. We therefore track AsyncResults so
         # that disable_all_ar_backends can disable their references to the backend.
-        if FxAsyncResult._ARS_BY_ID is not None:
-            FxAsyncResult._ARS_BY_ID[self.id] = self
+        if FxAsyncResult._TRACKED_ARS is not None:
+            FxAsyncResult._TRACKED_ARS[id(self)] = self
 
         from firexkit.firex_celery import FireXCelery
 
@@ -181,12 +185,14 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
     @classmethod
     def enable_ar_tracking(cls):
-        if cls._ARS_BY_ID is None:
-            cls._ARS_BY_ID = {}
+        if cls._TRACKED_ARS is None:
+            cls._TRACKED_ARS = weakref.WeakValueDictionary()
 
     @classmethod
     def disable_all_ar_backends(cls):
-        for ar in (cls._ARS_BY_ID or {}).values():
+        # Materialise first: a WeakValueDictionary can shrink mid-iteration whenever a
+        # tracked result happens to be collected.
+        for ar in list((cls._TRACKED_ARS or {}).values()):
             ar.backend = None
 
     def fx_get_name(
@@ -472,7 +478,6 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         self._cache = None
         self.backend.client.sadd(firexkit.broker.FX_FORGOTTEN_AR_IDS_KEY, self.id)
         self.backend.forget(self.id)
-        (self._ARS_BY_ID or {}).pop(self.id, None)
 
     def fx_is_forgotten(self) -> bool:
         return bool(

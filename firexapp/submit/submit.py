@@ -827,8 +827,8 @@ class SubmitBaseApp:
                 except Exception:
                     # Under no circumstances should report generation prevent celery and broker cleanup
                     logger.exception("Error in generating reports")
-                finally:
-                    FxAsyncResult.disable_all_ar_backends()
+
+            FxAsyncResult.disable_all_ar_backends()
 
             logger.debug("Running FireX self destruct")
             launch_background_shutdown(
