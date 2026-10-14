@@ -10,7 +10,7 @@ import textwrap
 import time
 import typing
 from collections import OrderedDict
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
 from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime
@@ -140,7 +140,13 @@ def _nop():
 
 
 def _empty_bog() -> BagOfGoodies:
-    return BagOfGoodies(inspect.signature(_nop), (), {}, ValidateArgs.DISABLED)
+    return BagOfGoodies(
+        inspect.signature(_nop),
+        (),
+        {},
+        root_orig_task_sig=None,
+        pydantic_validate=ValidateArgs.DISABLED,
+    )
 
 
 def _get_signature_with_resolved_annotations(run_func) -> inspect.Signature:
@@ -492,8 +498,8 @@ class FireXTask(Task):
         """Return the very original `Task` that this `Task` had overridden.
         If this task has been overridden multiple times, this will return the very first/original task.
         Return `self` if the task was not overridden"""
-        if orig_task := getattr(self, "orig", None):
-            return orig_task.root_orig
+        if self.orig:
+            return self.orig.root_orig
         return self
 
     def is_overriding_task(self) -> bool:
@@ -508,7 +514,7 @@ class FireXTask(Task):
             # let's use the original name for serialization, in case that
             # override name isn't available in the execution context.
             # This can obviously be dangerous (but a risk we're deliberately taking)
-            # since we bind the args/kwargs/runtime options with the ovverriden service
+            # since we bind the args/kwargs/runtime options with the overriden service
             # but might end up executing in a context that doesn't have it.
             self.name = self.root_orig.name_without_orig
 
@@ -689,6 +695,9 @@ class FireXTask(Task):
             self.sig,
             args,
             kwargs,
+            root_orig_task_sig=self.root_orig.sig
+            if self.is_overriding_task()
+            else None,
             pydantic_validate=self.get_pydantic_validate(),
         )
 
@@ -1280,7 +1289,7 @@ class FireXTask(Task):
         max_wait: float | RunTimeReserve | None = None,
         poll_max_wait: float | None = None,
         callbacks: Iterable[WaitLoopCallBack] = (),
-    ):
+    ) -> Generator[FxAsyncResult, None, None]:
         """Wait for any of the enqueued child tasks to run and complete"""
         for completed_child_result in ManyFxAsyncResults.fx_ars_from_list(
             self.pending_enqueued_children
@@ -1546,7 +1555,6 @@ class FireXTask(Task):
 
         This is a better version of `enqueue_child_and_extract` where the defaults for
         `extract_from_children` and `extract_task_returns_only` defaults are more intuitive.
-        Additionally, extract_from_parents defaults to True in this API.
 
         Note:
             This is shorthand for :meth:`enqueue_child` followed with :meth:`get_results`.
@@ -1608,9 +1616,6 @@ class FireXTask(Task):
         block=True,
     ) -> tuple | dict:
         """Apply a ``chain``, and extract results from it.
-
-        Note:
-            This is shorthand for :meth:`enqueue_child` followed with :meth:`extract_and_filter`.
 
         Args:
             *args: Tuple of args required by  :meth:`enqueue_child`

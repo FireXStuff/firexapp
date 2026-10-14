@@ -104,6 +104,50 @@ class ValidateArgs(enum.Enum):
     REQUIRE = enum.auto()
 
 
+def _bind_pos_args(
+    sig: inspect.Signature,
+    pos_args: tuple[Any, ...],
+    root_orig_task_sig: inspect.Signature | None,
+) -> tuple[
+    dict[str, Any],  # bound
+    dict[str, Any],  # extras
+]:
+
+    # find positional parameters (POSITIONAL_ONLY and POSITIONAL_OR_KEYWORD)
+    positional_params = [
+        p
+        for p in sig.parameters.values()
+        if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+    ]
+    extras = {}
+    # currently all plugins that override will be permissive, but ideally
+    # there would be a strict option.
+    if (
+        root_orig_task_sig
+        and not any(p.kind == p.VAR_POSITIONAL for p in sig.parameters.values())
+        and len(pos_args) > (num_positional := len(positional_params))
+    ):
+        args_to_bind = pos_args[:num_positional]
+
+        root_sig_pos_params = [
+            p
+            for p in root_orig_task_sig.parameters.values()
+            if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+        ]
+        if (num_root_positional := len(root_sig_pos_params)) > num_positional:
+            extras = {
+                root_sig_pos_params[i].name: pos_args[i]
+                for i in range(num_positional, min(num_root_positional, len(pos_args)))
+            }
+    else:
+        args_to_bind = pos_args
+
+    return (
+        sig.bind_partial(*args_to_bind).arguments,
+        extras,
+    )
+
+
 class BagOfGoodies:
     """
     This class attempts to avoid runtime errors by avoiding sending
@@ -148,7 +192,7 @@ class BagOfGoodies:
         sig: inspect.Signature,
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
-        # FIXME: default just for UT, should always be explicit.
+        root_orig_task_sig: inspect.Signature | None = None,
         pydantic_validate: ValidateArgs = ValidateArgs.DISABLED,
     ):
 
@@ -164,10 +208,13 @@ class BagOfGoodies:
             prev_task_result.pop(RETURN_KEYS_KEY, None)
 
             # Remove chain prev task results from positional args
-            self.bound_pos_args = sig.bind_partial(*args[1:]).arguments
+            self.bound_pos_args, extra_pos_args = _bind_pos_args(
+                sig, args[1:], root_orig_task_sig
+            )
             for k, v in self.bound_pos_args.items():
                 if BagOfGoodies.is_self_indirect_ref(v, k) and k in prev_task_result:
                     self.bound_pos_args[k] = prev_task_result[k]
+
             resolved_kwargs, unaccepted_args = (
                 _resolve_indirect_prev_results_and_split_accepted_args(
                     types.MappingProxyType(kwargs),
@@ -176,10 +223,12 @@ class BagOfGoodies:
                     bound_pos_arg_names=set(self.bound_pos_args),
                 )
             )
+            unaccepted_args = extra_pos_args | unaccepted_args
         else:
-            self.bound_pos_args = sig.bind_partial(*args).arguments
+            self.bound_pos_args, unaccepted_args = _bind_pos_args(
+                sig, args, root_orig_task_sig
+            )
             resolved_kwargs = dict(kwargs)
-            unaccepted_args = {}
 
         # remove keys from kwargs that are bound by the positional args
         for k, v in dict(resolved_kwargs).items():
@@ -751,20 +800,9 @@ def log_unvalidatable_annotations(task_name: str, sig: inspect.Signature) -> Non
     annotations pydantic can't do anything with are reported once, at registration,
     instead of from inside a running service.
     """
-    for arg_name, param in sig.parameters.items():
-        if not param.annotation or param.annotation is param.empty:
-            continue
-        validator = _get_annotation_validator(param.annotation)
-        if validator.adapter is None:
-            logger.debug(
-                f"{task_name}: arg {arg_name} annotation {param.annotation!r} cannot be"
-                " modelled by pydantic; it will never be validated."
-            )
-        elif validator.is_instance_only:
-            logger.debug(
-                f"{task_name}: arg {arg_name} annotation {param.annotation} is only an"
-                " isinstance() check to pydantic; it will not be converted."
-            )
+    for param in sig.parameters.values():
+        if param.annotation and param.annotation is not param.empty:
+            _get_annotation_validator(param.annotation)
 
 
 def _validate_var_pos_arg(var_pos_name: str, var_pos_value) -> tuple[Any, ...]:

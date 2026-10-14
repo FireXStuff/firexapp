@@ -123,6 +123,10 @@ def _merged_python_signature(task_obj) -> inspect.Signature:
     declares are added as optional keyword-only params, which is always a valid
     position and never claims a positional arg the overriding service wants.
     """
+    # FIXME: bad relationship between core abstractions
+    from firexkit.task import FireXTask
+
+    task_obj: FireXTask
     py_sig = _task_python_signature(task_obj)
 
     own_params: dict[str, inspect.Parameter] = dict(py_sig.parameters)
@@ -130,7 +134,7 @@ def _merged_python_signature(task_obj) -> inspect.Signature:
     # the nearest override wins, matching how the args themselves resolve.
     orig_defaults: dict[str, Any] = {}
 
-    orig_task = getattr(task_obj, "orig", None)
+    orig_task: FireXTask | None = task_obj.orig
     while orig_task:
         for orig_arg, orig_param in _task_python_signature(
             orig_task
@@ -138,8 +142,8 @@ def _merged_python_signature(task_obj) -> inspect.Signature:
             # auto-inject args must not have defaults since it makes
             # priority resolution too complicated for the user.
             if BagOfGoodies.get_auto_inject_type(orig_param.annotation):
-                continue
-            if orig_arg in own_params:
+                pass
+            elif orig_arg in own_params:
                 if orig_param.default is not orig_param.empty:
                     orig_defaults.setdefault(orig_arg, orig_param.default)
             elif orig_arg not in added_params and orig_param.kind not in (
@@ -157,7 +161,7 @@ def _merged_python_signature(task_obj) -> inspect.Signature:
                         else None
                     ),
                 )
-        orig_task = getattr(orig_task, "orig", None)
+        orig_task = orig_task.orig
 
     return py_sig.replace(
         parameters=sorted(
@@ -174,20 +178,20 @@ def _fake_validation_bog(
     task_obj,
     simulated_pos_args: tuple[Any, ...],
     simulated_kwargs: dict[str, Any],
-):
-    from firexkit.task import (
-        FireXTask,  # FIXME: bad relationship between core abstractions
-    )
+) -> BagOfGoodies:
+    # FIXME: bad relationship between core abstractions
+    from firexkit.task import FireXTask
 
     task_obj: FireXTask
+    merged_py_sig = _merged_python_signature(task_obj)
+
     bog = BagOfGoodies(
-        # there is something insane in UT here where the base class isn't set.
-        # I think this is due to the wrong app being used due to module-level init.
-        # this means the UT is very low-fidelity.
-        # getattr(task_obj, 'sig', inspect.signature(task_obj.run)),
-        _merged_python_signature(task_obj),
+        merged_py_sig,
         simulated_pos_args,
         simulated_kwargs,
+        root_orig_task_sig=task_obj.root_orig.sig
+        if task_obj.is_overriding_task()
+        else None,
         pydantic_validate=task_obj.get_pydantic_validate(),
     )
     bog.update(

@@ -49,6 +49,7 @@ class TestNoOverride:
 
         class NoSigTask:
             run = staticmethod(task)
+            orig = None
 
         assert _merged_python_signature(NoSigTask()) == inspect.signature(task)
 

@@ -594,6 +594,18 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         raise_on_failure=True,
     ) -> tuple[Any, ...]:
         assert return_keys, "No return_keys supplied"
+        assert not _is_dict_results_return(return_keys), (
+            f"Cannot get tuple for dict result keys: {return_keys}"
+        )
+
+        return _results2tuple(
+            self.get_results(
+                raise_on_failure=raise_on_failure,
+            ),
+            tuple(return_keys),
+        )
+
+    def get_results(self, raise_on_failure=True) -> dict[str, Any]:
         if not self.fx_is_ready():
             self.fx_wait(raise_on_failure=raise_on_failure)
         else:
@@ -602,7 +614,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             except ChainInterruptedException:
                 if raise_on_failure:
                     raise
-        return _get_results_tuple(self, return_keys=return_keys)
+        return _get_results_dict(self)
 
     def get_result_key(
         self,
@@ -817,13 +829,17 @@ class ManyFxAsyncResults(Generic[K]):
             )
         )
 
-    def get_as_completed(
+    def get_keyed_as_completed(
         self,
         max_wait: float | RunTimeReserve | None = None,
         poll_max_wait: float | None = None,
         callbacks: Iterable[WaitLoopCallBack] = (),
         raise_on_failure: bool = True,
-    ) -> Generator[FxAsyncResult, None, None]:
+    ) -> Generator[
+        tuple[K, FxAsyncResult],
+        None,
+        None,
+    ]:
         poll_wait = poll_max_wait or 0.1
         max_poll_wait = 5  # arbitrary
         _warn_on_never_callback(callbacks, poll_wait)
@@ -861,14 +877,30 @@ class ManyFxAsyncResults(Generic[K]):
                             )
                         except WaitOnChainTimeoutError:
                             poll_wait = _sleep_exponential_backoff(
-                                poll_wait, max_poll_wait
+                                poll_wait,
+                                max_poll_wait,
                             )
                         else:
-                            yield ar
+                            yield (k, ar)
                             logger.debug(
                                 f"--> {ar.fx_logging_name()} completed with state {ar.fx_get_state()}"
                             )
                             remaining_ars._fx_ars_by_key.pop(k, None)
+
+    def get_as_completed(
+        self,
+        max_wait: float | RunTimeReserve | None = None,
+        poll_max_wait: float | None = None,
+        callbacks: Iterable[WaitLoopCallBack] = (),
+        raise_on_failure: bool = True,
+    ) -> Generator[FxAsyncResult, None, None]:
+        for k, ar in self.get_keyed_as_completed(
+            max_wait=max_wait,
+            poll_max_wait=poll_max_wait,
+            callbacks=callbacks,
+            raise_on_failure=raise_on_failure,
+        ):
+            yield ar
 
     def wait_for_all(
         self,
@@ -1403,6 +1435,8 @@ def _results2tuple(
 def _get_results_dict(
     result: FxAsyncResult,
     parent_id: str | None = None,
+    #
+    # these are the "good" default for bool-soup get_result args
     return_keys_only=True,
     merge_children_results=False,
     extract_from_parents=True,
@@ -1446,27 +1480,6 @@ def _is_dict_results_return(return_keys: Sequence[str]) -> bool:
     )
 
 
-def _get_results_tuple(
-    result: FxAsyncResult,
-    return_keys: Sequence[str],
-    parent_id: str | None = None,
-    return_keys_only=True,
-    merge_children_results=False,
-    extract_from_parents=True,
-) -> tuple[Any, ...]:
-    assert return_keys
-    assert not _is_dict_results_return(return_keys)
-    all_results = _get_results_dict(
-        result=result,
-        parent_id=parent_id,
-        return_keys_only=return_keys_only,
-        merge_children_results=merge_children_results,
-        extract_from_parents=extract_from_parents,
-    )
-
-    return _results2tuple(all_results, tuple(return_keys))
-
-
 def get_results(
     result: FxAsyncResult,
     return_keys: str | Sequence[str] = (),
@@ -1474,7 +1487,7 @@ def get_results(
     return_keys_only=True,
     merge_children_results=False,
     extract_from_parents=True,
-) -> dict[str, Any]:
+) -> dict[str, Any] | tuple[Any, ...]:
     """
     Extract and return task results
 

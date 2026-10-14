@@ -169,14 +169,13 @@ class FlameLauncher(TrackingService):
 
         self.wait_for_webserver = args.flame_wait_for_webserver
 
-        flame_args = get_flame_args(uid, self.broker_recv_ready_file, args)
         self.stdout_file = os.path.join(flame_debug_dir, "flame.stdout")
-
         self.start_time = time.time()
         try:
             with open(self.stdout_file, "w+") as f:
                 popen_tracking_service_subproc(
-                    [qualify_firex_bin("firex_flame")] + flame_args,
+                    [qualify_firex_bin("firex_flame")]
+                    + get_flame_args(uid, self.broker_recv_ready_file, args),
                     stdout_file_handle=f,
                     cwd=flame_debug_dir,
                 )

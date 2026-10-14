@@ -67,10 +67,7 @@ FileRegistry().register_file(
     ENVIRON_FILE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, "environ.json")
 )
 
-RUN_COMPLETE_REGISTRY_KEY = "RUN_COMPLETE_REGISTRY_KEY"
-FileRegistry().register_file(
-    RUN_COMPLETE_REGISTRY_KEY, os.path.join(Uid.debug_dirname, "RUN_COMPLETE")
-)
+RUN_COMPLETE_FILENAME = "RUN_COMPLETE"
 
 
 class JsonFileAction(argparse.Action):
@@ -847,7 +844,9 @@ class SubmitBaseApp:
 
     @staticmethod
     def write_run_complete_file(log_path: str):
-        completion_file = FileRegistry().get_file(RUN_COMPLETE_REGISTRY_KEY, log_path)
+        completion_file = os.path.join(
+            log_path, Uid.debug_dirname, RUN_COMPLETE_FILENAME
+        )
         logger.debug(f"Writing {completion_file}")
         try:
             pathlib.Path(completion_file).touch()

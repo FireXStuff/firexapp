@@ -13,12 +13,12 @@ from firexapp.celery_manager import CeleryManager
 from firexapp.common import wait_until
 from firexapp.engine.celery import app
 from firexapp.engine.default_celery_config import FxEnvVars
-from firexapp.fileregistry import FileRegistry
 from firexapp.submit.arguments import InputConverter
 from firexapp.submit.reporting import ReportGenerator, report
 from firexapp.submit.shutdown import launch_background_shutdown
-from firexapp.submit.submit import RUN_COMPLETE_REGISTRY_KEY, get_log_dir_from_output
+from firexapp.submit.submit import RUN_COMPLETE_FILENAME, get_log_dir_from_output
 from firexapp.submit.tracking_service import TrackingService, get_tracking_services
+from firexapp.submit.uid import Uid
 from firexapp.tasks.root_tasks import get_configured_root_task
 from firexapp.testing.config_base import (
     FlowTestConfiguration,
@@ -320,7 +320,9 @@ class NoBrokerLeakOnCeleryTerminated(NoBrokerLeakBase):
             f"Expected no remaining celery processes, found: {existing_procs}"
         )
 
-        completion_file = FileRegistry().get_file(RUN_COMPLETE_REGISTRY_KEY, logs_dir)
+        completion_file = os.path.join(
+            logs_dir, Uid.debug_dirname, RUN_COMPLETE_FILENAME
+        )
         assert os.path.exists(completion_file), (
             f"RUN_COMPLETED is expected to be found in {completion_file}"
         )
