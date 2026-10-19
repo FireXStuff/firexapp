@@ -1369,18 +1369,7 @@ class FireXTask(Task):
     ):
         """Wait for the explicitly provided child_results to run and complete"""
 
-        if isinstance(child_results, FxAsyncResult):
-            child_results = [child_results]
-
-        async_results = ManyFxAsyncResults.create_fx_ars(
-            [
-                # a child enqueued to forget itself drops its results at its own postrun,
-                # so there is nothing left to wait for and it would only ever time out.
-                ar
-                for ar in child_results or []
-                if not ar.fx_is_forgotten()
-            ]
-        )
+        async_results = ManyFxAsyncResults.create_fx_ars(child_results)
         if async_results:
             logger.debug(f"Waiting for enqueued children: {async_results}")
             try:

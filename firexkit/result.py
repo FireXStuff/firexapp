@@ -42,8 +42,11 @@ RUN_UNSUCCESSFUL_NAME = "unsuccessful_services"
 logger = get_task_logger(__name__)
 
 _CHECK_TASK_WORKER_FREQ = 600
-_CHECK_FORGOTTEN_FREQ = 60
 _SLEEP_BETWEEN_ITERATIONS = 0.05
+
+# Not a celery state: the terminal state of a result whose results were forgotten
+# (see FxAsyncResult.fx_is_ready), since there is nothing left to say how it ended.
+FORGOTTEN = "FORGOTTEN"
 
 
 class ReturnsCodingException(Exception):
@@ -369,6 +372,12 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             # nuts but this means PENDING can be terminal, sometimes!!
             self._fx_terminal_state = state
             return True
+        # Forgetting deletes the entry the state is read back from, so a forgotten
+        # result reads as PENDING for good and would otherwise never become ready.
+        # Only PENDING is checked, sparing results that are still running the query.
+        if state == PENDING and self.fx_is_forgotten():
+            self._fx_terminal_state = FORGOTTEN
+            return True
         return False
 
     @contextlib.contextmanager
@@ -534,7 +543,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
 
         result_state: str | None = None
         try:
-            forgotten = _poll_for_ar_complete(
+            _poll_for_ar_complete(
                 self,
                 start_time=start_time,
                 max_wait=max_wait,
@@ -542,16 +551,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
                 callbacks=callbacks,
                 last_callback_time=last_callback_time,
             )
-            if forgotten:
-                # Deliberately not _handle_fx_ready: a forgotten result reads as
-                # PENDING, which that would take for a task revoked before it ran.
-                if log_msg:
-                    logger.debug(
-                        f"-> Stopped waiting for {self.fx_logging_name()}:"
-                        " its results were forgotten while waiting."
-                    )
-            else:
-                result_state = self._handle_fx_ready()
+            result_state = self._handle_fx_ready()
         except ChainInterruptedException as e:
             if raise_on_failure:
                 raise
@@ -1172,34 +1172,16 @@ def _poll_for_ar_complete(
     max_sleep: float,
     callbacks: Iterable[WaitLoopCallBack],
     last_callback_time: dict[Callable, float],
-) -> bool:
-    """Poll until 'result' is ready, reporting whether it was forgotten instead.
-
-    A result forgotten while being waited on is never going to become ready:
-    forgetting deletes the backend entry its state is read from, so the state
-    reverts to PENDING for good. There is nothing left to wait for, so say so
-    rather than poll until the run is out of time.
-    """
+) -> None:
+    """Poll until 'result' is ready, which includes being forgotten mid-wait."""
     task_worker_failures = 0
     fail_on_worker_failures = 3
     sleep_between_iterations = _SLEEP_BETWEEN_ITERATIONS
     last_dead_task_worker_check = time.monotonic()
-    last_forgotten_check = None
     while not result.fx_is_ready():
         _check_for_failure_in_parents(result)
 
         current_time = time.monotonic()
-
-        # Check there is still something to wait for. Checked on the first
-        # iteration too, since short waits that are re-entered repeatedly (see
-        # get_as_completed) would never reach a purely periodic check.
-        if (
-            last_forgotten_check is None
-            or (current_time - last_forgotten_check) > _CHECK_FORGOTTEN_FREQ
-        ):
-            last_forgotten_check = current_time
-            if result.fx_is_forgotten():
-                return True
 
         # Re-resolved every iteration; see get_as_completed.
         remaining_wait = resolve_remaining_wait(
@@ -1240,8 +1222,6 @@ def _poll_for_ar_complete(
         sleep_between_iterations = _sleep_exponential_backoff(
             sleep_between_iterations, max_sleep
         )
-
-    return False
 
 
 def _sleep_exponential_backoff(

@@ -8,11 +8,12 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
-from celery.states import FAILURE, PENDING, SUCCESS
+from celery.states import FAILURE, PENDING, STARTED, SUCCESS
 
 from firexkit.chain import SignatureX
 from firexkit.firex_celery import FireXCelery
 from firexkit.result import (
+    FORGOTTEN,
     FxAsyncResult,
     FxEagerResult,
     ManyFxAsyncResults,
@@ -210,57 +211,107 @@ class TestEnqueueManyForget:
         assert not task.forget_specific_children_results.called
 
 
-def _child_result(forgotten: bool) -> mock.Mock:
-    child = mock.Mock(spec=FxAsyncResult)
-    child.fx_is_forgotten.return_value = forgotten
-    child.fx_logging_name.return_value = "forgotten" if forgotten else "waited"
+def _wait_for_specific_children(
+    app: FireXCelery,
+    child_results: FxAsyncResult | list[FxAsyncResult],
+) -> list[FxAsyncResult]:
+    """Have a task wait for children it enqueued, and report any still pending."""
+    still_pending: list[FxAsyncResult] = []
+
+    @app.task(base=FireXTask)
+    def parent():
+        for child in ManyFxAsyncResults.create_fx_ars(child_results):
+            parent._update_child_state(child, FireXTask._PENDING)
+        parent.wait_for_specific_children(child_results, max_wait=10)
+        still_pending.extend(parent.pending_enqueued_children)
+
+    parent()
+    return still_pending
+
+
+def _forgotten_child(app: FireXCelery) -> MockFxAsyncResult:
+    """A child that dropped its own results at its postrun, as forget=True has it do."""
+    child = MockFxAsyncResult(state=PENDING, app=app, name="forgotten")
+    child.fx_forget()
     return child
-
-
-def _wait_for_specific_children(child_results) -> list[mock.Mock]:
-    """Wait for the given children, and report which of them were waited on."""
-    task = mock.Mock(spec=FireXTask)
-
-    with mock.patch.object(
-        ManyFxAsyncResults,
-        "wait_for_all",
-        autospec=True,
-    ) as wait_for_all:
-        FireXTask.wait_for_specific_children(task, child_results)
-
-    if not wait_for_all.called:
-        return []
-    (waited_on,) = wait_for_all.call_args.args
-    return list(waited_on)
 
 
 class TestWaitingForForgottenChildren:
     """There is nothing left to wait for once a child has dropped its own results."""
 
-    def test_a_forgotten_child_is_not_waited_for(self):
-        assert _wait_for_specific_children([_child_result(forgotten=True)]) == []
+    def test_a_forgotten_child_is_not_waited_for(self, ut_app):
+        assert _wait_for_specific_children(ut_app, [_forgotten_child(ut_app)]) == []
 
-    def test_the_remaining_children_are_still_waited_for(self):
-        waited = _child_result(forgotten=False)
+    def test_the_remaining_children_are_still_waited_for(self, ut_app):
+        state_reads = itertools.count(1)
+        waited = MockFxAsyncResult(app=ut_app, name="waited")
+        waited._state = lambda: PENDING if next(state_reads) < 3 else SUCCESS
 
-        assert _wait_for_specific_children([_child_result(forgotten=True), waited]) == [
-            waited
-        ]
+        still_pending = _wait_for_specific_children(
+            ut_app, [_forgotten_child(ut_app), waited]
+        )
 
-    def test_a_single_child_is_accepted_as_well_as_a_list(self):
-        waited = _child_result(forgotten=False)
+        assert still_pending == []
+        assert next(state_reads) > 3, "stopped before the remaining child completed"
 
-        assert _wait_for_specific_children(waited) == [waited]
-        assert _wait_for_specific_children(_child_result(forgotten=True)) == []
+    def test_a_single_child_is_accepted_as_well_as_a_list(self, ut_app):
+        assert _wait_for_specific_children(ut_app, _forgotten_child(ut_app)) == []
+
+
+class TestAForgottenResultIsReady:
+    """
+    Forgetting deletes the entry a result's state is read back from, so a
+    forgotten result reads as PENDING and would otherwise never become ready,
+    hanging anything polling it that didn't think to also check fx_is_forgotten.
+    """
+
+    def test_a_forgotten_result_is_ready(self, ut_app):
+        forgotten = _forgotten_child(ut_app)
+
+        assert forgotten.fx_is_ready()
+        assert forgotten.fx_get_state() == FORGOTTEN
+        # there is nothing left to say how it ended either way.
+        assert not forgotten.fx_is_successful()
+        assert not forgotten.fx_is_failed()
+
+    def test_a_result_that_is_still_running_is_not_checked(self, ut_app, ut_client):
+        running = MockFxAsyncResult(state=STARTED, app=ut_app)
+
+        assert not running.fx_is_ready()
+        # only a PENDING result can have been forgotten, so readiness polls of
+        # running tasks cost no more broker queries than they did.
+        assert ut_client.call_count("sismember") == 0
+
+    def test_a_result_completed_after_being_forgotten_reads_as_completed(self, ut_app):
+        # e.g. a still running descendant forgotten along with the rest of its
+        # chain's subtree, which stores its result again once it completes.
+        completed = MockFxAsyncResult(state=SUCCESS, app=ut_app)
+        completed.fx_forget()
+
+        assert completed.fx_is_ready()
+        assert completed.fx_get_state() == SUCCESS
+
+    def test_its_results_are_empty_rather_than_a_revoke(self, ut_app):
+        forgotten = _forgotten_child(ut_app)
+        assert forgotten.fx_is_ready()
+
+        # read back as PENDING, it would be taken for a task revoked before it ran.
+        assert forgotten.get_results() == {}
+
+    def test_a_forgotten_result_is_not_revoked(self, ut_app):
+        forgotten = _forgotten_child(ut_app)
+
+        with mock.patch.object(forgotten, "revoke") as revoke:
+            revoked = ManyFxAsyncResults.create_fx_ars(forgotten).revoke_non_ready()
+
+        assert not revoke.called
+        assert not revoked
 
 
 class TestWaitingOnAResultThatIsForgotten:
     """
-    Forgetting deletes the entry a result's state is read back from, so a
-    forgotten result reads as PENDING and is never going to become ready. The
-    up-front filter in wait_for_specific_children only catches the children
-    already forgotten when the wait starts; a child that is still running then
-    forgets itself at its own postrun, part way through being waited on.
+    A child can also forget itself at its own postrun part way through being
+    waited on, after any check made when the wait started.
     """
 
     @pytest.fixture
@@ -271,14 +322,9 @@ class TestWaitingOnAResultThatIsForgotten:
     def test_a_result_forgotten_before_the_wait_is_not_waited_for(self, child):
         child.fx_forget()
 
-        # PENDING, rather than the ChainRevokedPreRunException that state would
-        # otherwise mean: a forgotten result reads just like one revoked before
-        # it ever ran.
-        assert child.fx_wait_no_state_update(max_wait=10) == PENDING
+        assert child.fx_wait_no_state_update(max_wait=10) == FORGOTTEN
 
-    def test_a_result_forgotten_mid_wait_stops_the_wait(self, child, monkeypatch):
-        # re-check on every poll instead of waiting out the real cadence.
-        monkeypatch.setattr("firexkit.result._CHECK_FORGOTTEN_FREQ", 0)
+    def test_a_result_forgotten_mid_wait_stops_the_wait(self, child):
         state_reads = itertools.count(1)
 
         def state() -> str:
@@ -290,7 +336,7 @@ class TestWaitingOnAResultThatIsForgotten:
 
         child._state = state
 
-        assert child.fx_wait_no_state_update(max_wait=10) == PENDING
+        assert child.fx_wait_no_state_update(max_wait=10) == FORGOTTEN
         assert next(state_reads) > 3, "stopped before the result was forgotten"
 
     def test_a_result_that_is_not_forgotten_is_still_waited_for(self, child):
@@ -298,8 +344,7 @@ class TestWaitingOnAResultThatIsForgotten:
             child.fx_wait_no_state_update(max_wait=0.1)
 
     def test_a_forgotten_result_does_not_hold_up_the_others(self, ut_app):
-        forgotten = MockFxAsyncResult(state=PENDING, app=ut_app, name="forgotten")
-        forgotten.fx_forget()
+        forgotten = _forgotten_child(ut_app)
         succeeded = MockFxAsyncResult(state=SUCCESS, app=ut_app, name="succeeded")
 
         waited = ManyFxAsyncResults.create_fx_ars([forgotten, succeeded])
