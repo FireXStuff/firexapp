@@ -410,7 +410,9 @@ class BagOfGoodies:
                 unbound_param.VAR_POSITIONAL,
                 unbound_param.VAR_KEYWORD,
             ):
-                if arg_names_to_validatable_names.get(unbound_name) < all_args:
+                if (
+                    validatable := arg_names_to_validatable_names.get(unbound_name)
+                ) and (validatable < all_args):
                     convertible.add(unbound_name)  # we can create this
 
                 if any(

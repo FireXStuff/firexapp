@@ -218,7 +218,6 @@ class CeleryManager:
         celery_cmd_log_level=DEBUG,
         app="firexapp.engine.celery:app",
         extra_celery_args: list[str] | None = None,
-        celery_bin: str | None = None,
     ) -> FxWorkerId:
         self._assert_worker_venv_consistent()
 
@@ -249,7 +248,7 @@ class CeleryManager:
         # logs dir, and a shell splitting one of them on a space would surface
         # only as a worker that never writes its pid file.
         cmd = [
-            celery_bin or qualify_firex_bin("celery"),
+            qualify_firex_bin("celery"),
             f"--app={app}",
             "worker",
             f"--hostname={celery_worker_name}",
