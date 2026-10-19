@@ -406,27 +406,20 @@ class BagOfGoodies:
         )
         all_args = set(self.all_supplied_args())
         for unbound_name, unbound_param in self.get_unsupplied_arg_params().items():
-            if unbound_param.kind in (
+            if unbound_param.kind not in (
                 unbound_param.VAR_POSITIONAL,
                 unbound_param.VAR_KEYWORD,
             ):
-                # *args/**kwargs name a container of args, not an arg pydantic can supply.
-                continue
-
-            if validatable_args := arg_names_to_validatable_names.get(unbound_name):
-                if validatable_args < all_args:
+                if arg_names_to_validatable_names.get(unbound_name) < all_args:
                     convertible.add(unbound_name)  # we can create this
-                else:
-                    logger.debug(f"cannot create {unbound_name}")
 
-            is_hoistable = any(
-                unbound_name in model_field_names and model_arg in all_args
-                for model_arg, model_field_names in arg_names_to_validatable_names.items()
-            )
-            if is_hoistable:
-                # we can pull this up to the bog from a modelled arg.
-                # for backwards compatibility
-                convertible.add(unbound_name)
+                if any(
+                    unbound_name in model_field_names and model_arg in all_args
+                    for model_arg, model_field_names in arg_names_to_validatable_names.items()
+                ):
+                    # we can pull this up to the bog from a modelled arg.
+                    # for backwards compatibility
+                    convertible.add(unbound_name)
 
         return convertible
 

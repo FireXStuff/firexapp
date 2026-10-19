@@ -8,11 +8,16 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
-from celery.states import PENDING, SUCCESS
+from celery.states import FAILURE, PENDING, SUCCESS
 
 from firexkit.chain import SignatureX
 from firexkit.firex_celery import FireXCelery
-from firexkit.result import FxAsyncResult, ManyFxAsyncResults, WaitOnChainTimeoutError
+from firexkit.result import (
+    FxAsyncResult,
+    FxEagerResult,
+    ManyFxAsyncResults,
+    WaitOnChainTimeoutError,
+)
 from firexkit.task import FireXTask
 from firexkit.testing import MockFxAsyncResult
 
@@ -132,6 +137,18 @@ class TestBlockingEnqueueChildForget:
         task = _enqueue_child(child_result, declares_forget=False, block=True)
 
         assert not task.forget_specific_children_results.called
+
+
+def test_a_blocking_childs_snapshot_keeps_its_traceback(ut_app: FireXCelery):
+    # e.g. the snapshot of a child that was itself snapshotted.
+    child_result = FxEagerResult(
+        ret_value=ValueError("boom"),
+        state=FAILURE,
+        traceback="Traceback: boom",
+        app=ut_app,
+    )
+
+    assert FxEagerResult(fx_ar=child_result).traceback == "Traceback: boom"
 
 
 def _enqueue_many(declares_forget: bool, **kwargs) -> tuple[mock.Mock, mock.Mock]:

@@ -732,7 +732,7 @@ class FxEagerResult(FxAsyncResult):
 
     @property
     def traceback(self):
-        return self.traceback
+        return self._traceback
 
 
 K = TypeVar("K")

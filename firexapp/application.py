@@ -113,10 +113,12 @@ class FireXBaseApp:
 
     def main_error_exit_handler(self, reason=None, run_revoked=False):
         if self.running_app and hasattr(
-            self.running_app, self.main_error_exit_handler.__name__
+            self.running_app,
+            self.main_error_exit_handler.__name__,
         ):
             self.running_app.main_error_exit_handler(
-                reason=reason, run_revoked=run_revoked
+                reason=reason,
+                run_revoked=run_revoked,
             )
         sys.exit(-1)
 

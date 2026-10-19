@@ -300,6 +300,9 @@ class UtBackend:
     def set(self, key, value):
         return self.client.set(key, value)
 
+    def incr(self, key):
+        return self.client.incr(key)
+
     def get_key_for_task(self, task_id: str) -> str:
         return self.task_keyprefix + task_id
 
