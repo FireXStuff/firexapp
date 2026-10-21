@@ -1,10 +1,12 @@
 import glob
 import os
-from time import sleep
+import signal
+from time import monotonic, sleep
 
 from firex_keeper import task_query
 from firexapp.engine.celery import app
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
+from firexkit.result import FxAsyncResult, ManyFxAsyncResults
 
 
 @app.task()
@@ -50,3 +52,54 @@ class RevokeOnShutdown(FlowTestConfiguration):
 
     def assert_expected_return_code(self, ret_value):
         assert_is_bad_run(ret_value)
+
+
+@app.task()
+def sleep_until_killed():
+    sleep(120)
+
+
+@app.task()
+def kill_own_process():
+    os.kill(os.getpid(), signal.SIGKILL)
+
+
+def _wait_until_started(child: FxAsyncResult):
+    deadline = monotonic() + 60
+    while not child.app.task_id_has_prerun(child.id):
+        assert monotonic() < deadline, f"{child} never started"
+        sleep(0.1)
+
+
+def _assert_stops_running(child: FxAsyncResult):
+    # A process that dies without running any Python cleanup never reaches its task's
+    # postrun, so unless its worker records that the task stopped, it reads as running
+    # until this gives up.
+    assert ManyFxAsyncResults.create_fx_ars(child).wait_for_running(max_wait=30), (
+        f"{child} still reads as running after its process died"
+    )
+
+
+@app.task(bind=True)
+def sigkill_running_child(self):
+    child = self.enqueue_child(sleep_until_killed.s())
+    _wait_until_started(child)
+    app.control.revoke(child.id, terminate=True, signal="SIGKILL")
+    _assert_stops_running(child)
+
+
+@app.task(bind=True)
+def run_child_whose_process_dies(self):
+    child = self.enqueue_child(kill_own_process.s())
+    _wait_until_started(child)
+    _assert_stops_running(child)
+
+
+class SigkillRunningChild(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "sigkill_running_child"]
+
+
+class ChildProcessDies(FlowTestConfiguration):
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "run_child_whose_process_dies"]

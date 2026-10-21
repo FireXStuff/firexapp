@@ -306,6 +306,17 @@ class UtBackend:
     def get_key_for_task(self, task_id: str) -> str:
         return self.task_keyprefix + task_id
 
+    # Mirror celery.backends.base.Backend's, through which a worker's controlling
+    # process records how a task ended when the task's own process couldn't (e.g.
+    # because it was killed). Only the state is kept.
+    def mark_as_failure(self, task_id: str, *_args, store_result=True, **_kwargs):
+        if store_result:
+            self.client.set(self.get_key_for_task(task_id), celery.states.FAILURE)
+
+    def mark_as_revoked(self, task_id: str, *_args, store_result=True, **_kwargs):
+        if store_result:
+            self.client.set(self.get_key_for_task(task_id), celery.states.REVOKED)
+
     # Mirrors celery.backends.base.BaseKeyValueStoreBackend, whose forget()
     # deletes the task's meta entry: with nothing left to read the task's
     # state back from, it reads as PENDING again.

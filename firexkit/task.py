@@ -22,10 +22,13 @@ from urllib.parse import urljoin
 
 import celery.states
 import pydantic
+from billiard.einfo import ExceptionWithTraceback
 from celery.app.task import Task
 from celery.backends.redis import RedisBackend
+from celery.exceptions import Terminated, WorkerLostError
 from celery.local import PromiseProxy
 from celery.utils.log import get_logger, get_task_logger
+from celery.worker.request import Request
 
 from firexkit.argument_conversion import ConverterRegister
 from firexkit.bag_of_goodies import (
@@ -393,6 +396,48 @@ def get_current_reports_uids(db) -> set[str]:
     }
 
 
+class FireXTaskRequest(Request):
+    """
+    The worker's controlling process' handle on a FireXTask it has handed to its pool.
+
+    A task whose process is killed (e.g. revoked with terminate=True) never reaches
+    task_postrun, so nothing records that it stopped running and anyone waiting for it
+    to stop (e.g. ManyFxAsyncResults.wait_for_running) waits until they time out. This
+    records it instead, once the pool reports the task's process is gone.
+    """
+
+    # The controlling process' event loop is blocked while this waits on the backend.
+    _MARK_POSTRUN_TIMEOUT = 30
+
+    def on_failure(self, exc_info, send_failed_event=True, return_ok=False):
+        try:
+            return super().on_failure(
+                exc_info, send_failed_event=send_failed_event, return_ok=return_ok
+            )
+        finally:
+            # After super(), as on a task's own process, where postrun follows the
+            # result being stored.
+            if self._ended_without_postrun(exc_info.exception):
+                try:
+                    self.task.app.mark_task_postrun(
+                        self.id, timeout=self._MARK_POSTRUN_TIMEOUT
+                    )
+                # Best effort; there's nothing more the controlling process can do.
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"Failed to mark postrun of task {self.id}: {e}")
+
+    def _ended_without_postrun(self, exc: BaseException) -> bool:
+        if isinstance(exc, ExceptionWithTraceback):
+            exc = exc.exc
+        # The pool only reports these once the task's process has exited, or when the
+        # task never made it to one. It reports TimeLimitExceeded *before* killing the
+        # process, so that isn't one of them.
+        if isinstance(exc, WorkerLostError):
+            # Unless celery requeues the task, to run again under the same id.
+            return not (self.task.acks_late and self.task.reject_on_worker_lost)
+        return isinstance(exc, Terminated)
+
+
 class FireXTask(Task):
     """
     Task object that facilitates passing of arguments and return values from one task to another, to be used in chains
@@ -400,6 +445,8 @@ class FireXTask(Task):
 
     DYNAMIC_RETURN = DYNAMIC_RETURN
     AUTO_QUEUE = AUTO_QUEUE
+
+    Request = FireXTaskRequest
 
     # prevent clients from needing to know about bag_of_goodes module.
     AutoInject = AutoInject

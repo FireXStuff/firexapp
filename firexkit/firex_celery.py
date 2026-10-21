@@ -696,7 +696,10 @@ class FireXCelery(Celery):
 
         imports = imports or self.conf.imports
         for module_name in imports:
-            importlib.import_module(module_name)
+            try:
+                importlib.import_module(module_name)
+            except Exception as e:
+                raise RuntimeError(f"Failed to load module {module_name}") from e
 
         assert self.conf.fx_env, (
             "fx_env must be set before service tasks can be loaded."
@@ -771,6 +774,14 @@ class FireXCelery(Celery):
                 "Broker doesn't support postrun info; probably a dummy broker. Defaulting to postrun=True"
             )
         return True
+
+    def mark_task_postrun(self, task_id: str, timeout=15 * 60) -> None:
+        """Records that task_id is no longer running, forgetting it if it asked to be."""
+        self.backend_hset_task_attr(
+            task_id, _TASK_POST_RUN_KEY, "True", timeout=timeout
+        )
+        if self.backend_hget_task_attr(task_id, "_fx_forget", timeout=timeout):
+            self.AsyncResult(task_id).fx_forget()
 
     def backend_hset_task_attr(
         self,
@@ -1352,9 +1363,8 @@ def _fx_increase_run_soft_time_limit(
 
 @celery.signals.task_postrun.connect
 def _mark_task_postrun(task: FireXTask, task_id: str, **_kwargs):
-    task.app.backend_hset_task_attr(task_id, _TASK_POST_RUN_KEY, "True")
-    if task.app.backend_hget_task_attr(task_id, "_fx_forget"):
-        task.AsyncResult(task_id).fx_forget()
+    # A task whose process is killed never gets here; FireXTaskRequest marks those.
+    task.app.mark_task_postrun(task_id)
 
 
 @celery.signals.task_prerun.connect
