@@ -93,8 +93,12 @@ class UtClient:
 
     @staticmethod
     def _encode(v):
-        # only supports strings and bytes (returned as is) for now
-        return v.encode() if not isinstance(v, bytes) else v
+        # as redis' own client does, minus its errors for other types.
+        if isinstance(v, bytes):
+            return v
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return repr(v).encode()
+        return v.encode()
 
     def _drop_if_expired(self, encoded_key):
         """Redis drops an expired key lazily, when something next asks for it."""

@@ -28,6 +28,7 @@ from celery.backends.redis import RedisBackend
 from celery.exceptions import Terminated, WorkerLostError
 from celery.local import PromiseProxy
 from celery.utils.log import get_logger, get_task_logger
+from celery.worker import state as worker_state
 from celery.worker.request import Request
 
 from firexkit.argument_conversion import ConverterRegister
@@ -400,14 +401,18 @@ class FireXTaskRequest(Request):
     """
     The worker's controlling process' handle on a FireXTask it has handed to its pool.
 
-    A task whose process is killed (e.g. revoked with terminate=True) never reaches
-    task_postrun, so nothing records that it stopped running and anyone waiting for it
-    to stop (e.g. ManyFxAsyncResults.wait_for_running) waits until they time out. This
-    records it instead, once the pool reports the task's process is gone.
+    A task whose process dies without running any Python cleanup (e.g. SIGKILL, the OOM
+    killer, or a revoke's SIGTERM landing after an earlier one used up the process'
+    handler) never reaches task_postrun, so nothing records that it stopped running and
+    anyone waiting for it to stop (e.g. ManyFxAsyncResults.wait_for_running) waits until
+    they time out, and event listeners (e.g. Flame) never hear it's complete. This does
+    what its task_postrun would have instead, once the pool reports the task's process is
+    gone, unless its process got that far after all (e.g. one revoked with a first
+    SIGTERM).
     """
 
     # The controlling process' event loop is blocked while this waits on the backend.
-    _MARK_POSTRUN_TIMEOUT = 30
+    _BACKEND_TIMEOUT = 30
 
     def on_failure(self, exc_info, send_failed_event=True, return_ok=False):
         try:
@@ -418,13 +423,26 @@ class FireXTaskRequest(Request):
             # After super(), as on a task's own process, where postrun follows the
             # result being stored.
             if self._ended_without_postrun(exc_info.exception):
-                try:
-                    self.task.app.mark_task_postrun(
-                        self.id, timeout=self._MARK_POSTRUN_TIMEOUT
-                    )
-                # Best effort; there's nothing more the controlling process can do.
-                except Exception as e:  # noqa: BLE001
-                    logger.warning(f"Failed to mark postrun of task {self.id}: {e}")
+                self._stand_in_for_postrun()
+
+    def _stand_in_for_postrun(self) -> None:
+        app = self.task.app
+        try:
+            if app.task_id_has_postrun(self.id, timeout=self._BACKEND_TIMEOUT):
+                return
+            app.mark_task_postrun(self.id, timeout=self._BACKEND_TIMEOUT)
+            app.send_task_completion_events(
+                self.id,
+                self.send_event,
+                # Not AsyncResult.fx_is_revoked(), which can wait on every worker.
+                revoked=self._already_revoked or self.id in worker_state.revoked,
+                actual_runtime=self.task.duration(
+                    self.id, timeout=self._BACKEND_TIMEOUT
+                ),
+            )
+        # Best effort; there's nothing more the controlling process can do.
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Failed to stand in for postrun of task {self.id}: {e}")
 
     def _ended_without_postrun(self, exc: BaseException) -> bool:
         if isinstance(exc, ExceptionWithTraceback):
@@ -2036,16 +2054,19 @@ class FireXTask(Task):
         if not self.request.called_directly:
             super().send_event(*args, **kwargs)
 
-    def duration(self) -> float | None:
-        if start_time := self.start_time():
+    def duration(self, task_id: str | None = None, timeout=15 * 60) -> float | None:
+        """How long task_id (by default, the current request's) has been running."""
+        if start_time := self.start_time(task_id, timeout=timeout):
             return time.time() - start_time
         return None
 
-    def start_time(self) -> float | None:
-        if self.request.id:
+    def start_time(self, task_id: str | None = None, timeout=15 * 60) -> float | None:
+        if task_id := task_id or self.request.id:
             try:
                 return float(
-                    self.app.backend_hget_task_attr(self.request.id, "_fx_start_time")
+                    self.app.backend_hget_task_attr(
+                        task_id, "_fx_start_time", timeout=timeout
+                    )
                 )
             # Timing is optional diagnostic data and backend implementations vary.
             except Exception:

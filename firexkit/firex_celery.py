@@ -2,10 +2,10 @@ import gc
 import importlib
 import logging
 import os
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from time import monotonic
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import celery.signals
 import celery.worker.state
@@ -756,9 +756,11 @@ class FireXCelery(Celery):
             attr_val = raw_attr_val.decode()
         return attr_val
 
-    def task_id_has_prerun(self, task_id: str) -> bool:
+    def task_id_has_prerun(self, task_id: str, timeout=15 * 60) -> bool:
         try:
-            return bool(self.backend_hget_task_attr(task_id, _TASK_PRE_RUN_KEY))
+            return bool(
+                self.backend_hget_task_attr(task_id, _TASK_PRE_RUN_KEY, timeout=timeout)
+            )
         except AttributeError:
             logger.info(
                 "Broker does not support prerun info; probably a dummy broker. Defaulting to prerun=False"
@@ -766,9 +768,13 @@ class FireXCelery(Celery):
 
         return False
 
-    def task_id_has_postrun(self, task_id: str) -> bool:
+    def task_id_has_postrun(self, task_id: str, timeout=15 * 60) -> bool:
         try:
-            return bool(self.backend_hget_task_attr(task_id, _TASK_POST_RUN_KEY))
+            return bool(
+                self.backend_hget_task_attr(
+                    task_id, _TASK_POST_RUN_KEY, timeout=timeout
+                )
+            )
         except AttributeError:
             logger.info(
                 "Broker doesn't support postrun info; probably a dummy broker. Defaulting to postrun=True"
@@ -782,6 +788,42 @@ class FireXCelery(Celery):
         )
         if self.backend_hget_task_attr(task_id, "_fx_forget", timeout=timeout):
             self.AsyncResult(task_id).fx_forget()
+
+    def send_task_completion_events(
+        self,
+        task_id: str,
+        send_event: Callable[..., Any],
+        revoked: bool,
+        actual_runtime: float | None,
+    ) -> None:
+        """
+        Tells event listeners task_id is _really_ complete, as of its postrun.
+
+        send_event sends an event about task_id.
+        """
+        # Celery can send task-revoked event before task is completed, allowing other states (e.g. task-unblocked) to
+        # be emitted after task-revoked. Sending another indicator of revoked here allows the terminal state to be
+        # correctly captured by listeners, since task_postrun occurs when the task is _really_ complete.
+        if revoked:
+            try:
+                revoke_details = self.complete_task_revoke(task_id)
+            # Revocation completion is best effort; the task has stopped either way.
+            except Exception as e:  # noqa: BLE001
+                revoke_details = None
+                logger.warning(
+                    f"Failed to write revoke complete for task {task_id}: {e}"
+                )
+
+            revoke_reason = revoke_details.reason if revoke_details else None
+            send_event(
+                RunStates.REVOKE_COMPLETED.to_celery_event_type(),
+                # Why this task was revoked, so consumers of the event stream can show the
+                # reason against the task itself. Left out entirely when nothing was
+                # recorded, rather than sent as null.
+                **({TASK_REVOKE_REASON_KEY: revoke_reason} if revoke_reason else {}),
+            )
+
+        _send_task_completed_event(send_event, actual_runtime)
 
     def backend_hset_task_attr(
         self,
@@ -1363,7 +1405,8 @@ def _fx_increase_run_soft_time_limit(
 
 @celery.signals.task_postrun.connect
 def _mark_task_postrun(task: FireXTask, task_id: str, **_kwargs):
-    # A task whose process is killed never gets here; FireXTaskRequest marks those.
+    # A task whose process dies without running Python cleanup (e.g. SIGKILL) never
+    # gets here; FireXTaskRequest marks those.
     task.app.mark_task_postrun(task_id)
 
 
@@ -1398,27 +1441,14 @@ def statsd_task_postrun(
     *_args,
     **donotcare,
 ):
-    # Celery can send task-revoked event before task is completed, allowing other states (e.g. task-unblocked) to
-    # be emitted after task-revoked. Sending another indicator of revoked here allows the terminal state to be
-    # correctly captured by listeners, since task_postrun occurs when the task is _really_ complete.
-    if task.AsyncResult(task_id).fx_is_revoked():
-        try:
-            revoke_details = sender.app.complete_task_revoke(task_id)
-        # Revocation completion is best effort during Celery's post-run signal.
-        except Exception as e:  # noqa: BLE001
-            revoke_details = None
-            logger.warning(f"Failed to write revoke complete for task {task_id}: {e}")
-
-        revoke_reason = revoke_details.reason if revoke_details else None
-        task.send_event(
-            RunStates.REVOKE_COMPLETED.to_celery_event_type(),
-            # Why this task was revoked, so consumers of the event stream can show the
-            # reason against the task itself. Left out entirely when nothing was
-            # recorded, rather than sent as null.
-            **({TASK_REVOKE_REASON_KEY: revoke_reason} if revoke_reason else {}),
-        )
-
-    _send_task_completed_event(task)
+    # A task whose process dies without running Python cleanup (e.g. SIGKILL) never
+    # gets here; FireXTaskRequest sends these for those.
+    sender.app.send_task_completion_events(
+        task_id,
+        task.send_event,
+        revoked=task.AsyncResult(task_id).fx_is_revoked(),
+        actual_runtime=task.duration(),
+    )
 
 
 @celery.signals.task_revoked.connect()
@@ -1429,15 +1459,17 @@ def statsd_task_revoked(sender: FireXTask, request=None, *_args, **_kwargs):
     if request:
         sender.request_stack.push(request)
     try:
-        _send_task_completed_event(sender)
+        _send_task_completed_event(sender.send_event, sender.duration())
     finally:
         if request:
             sender.request_stack.pop()
 
 
-def _send_task_completed_event(task: FireXTask | None):
-    if task and (actual_runtime := task.duration()) is not None:
-        task.send_event(
+def _send_task_completed_event(
+    send_event: Callable[..., Any], actual_runtime: float | None
+):
+    if actual_runtime is not None:
+        send_event(
             "task-completed",
             actual_runtime=convert_to_serializable(max(actual_runtime, 0)),
         )

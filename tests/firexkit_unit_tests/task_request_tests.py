@@ -1,6 +1,6 @@
 """
 A task whose process dies never reaches its own postrun, so the worker's controlling
-process records that it has stopped running instead.
+process records that it has stopped running, and tells event listeners, instead.
 """
 
 import signal
@@ -16,7 +16,8 @@ from celery.exceptions import WorkerLostError
 from celery.states import FAILURE, REVOKED
 from kombu.utils.imports import symbol_by_name
 
-from firexkit.firex_celery import _TASK_PRE_RUN_KEY, FireXCelery
+from firexapp.events.model import TASK_REVOKE_REASON_KEY, RevokeDetails, RunStates
+from firexkit.firex_celery import FireXCelery, _update_task_name
 from firexkit.task import FireXTask, FireXTaskRequest
 from firexkit.testing import UtClient
 
@@ -59,9 +60,34 @@ class _Pool:
     mark_as_worker_lost = BilliardPool.mark_as_worker_lost
 
 
+class _Eventer:
+    """The worker's event dispatcher, minus the broker: it keeps what it's sent."""
+
+    enabled = True
+
+    def __init__(self):
+        self.sent = []
+
+    def send(self, event_type, uuid, **fields):
+        self.sent.append({"type": event_type, "uuid": uuid, **fields})
+
+    def completion_events(self) -> list[dict]:
+        return [
+            event
+            for event in self.sent
+            if event["type"]
+            in ("task-completed", RunStates.REVOKE_COMPLETED.to_celery_event_type())
+        ]
+
+
 @pytest.fixture
 def pool() -> _Pool:
     return _Pool()
+
+
+@pytest.fixture
+def eventer() -> _Eventer:
+    return _Eventer()
 
 
 @pytest.fixture
@@ -73,12 +99,16 @@ def task(ut_app: FireXCelery) -> FireXTask:
     return a_task
 
 
-def _start(app: FireXCelery, task: FireXTask, pool: _Pool):
+def _start(
+    app: FireXCelery, task: FireXTask, pool: _Pool, eventer: _Eventer | None = None
+):
     """Hand task to the pool the way the worker does, and have the pool start it."""
-    request = symbol_by_name(task.Request)(TaskMessage(task.name), app=app, task=task)
+    request = symbol_by_name(task.Request)(
+        TaskMessage(task.name), app=app, task=task, eventer=eventer
+    )
     job = request.execute_using_pool(pool)
     job._ack(None, monotonic(), _PID, None)  # its process accepts it,
-    app.backend_hset_task_attr(request.id, _TASK_PRE_RUN_KEY, "True")  # and starts it.
+    _update_task_name(task, request.id)  # and starts it.
     return request, job
 
 
@@ -107,13 +137,13 @@ def test_a_task_killed_by_revoke_stops_running_once_its_process_exits(
 ):
     request, job = _start(ut_app, task, pool)
 
-    request.terminate(pool)
+    request.terminate(pool, signal="SIGKILL")
     assert pool.terminated_pids == [_PID]
     assert _stored_state(ut_app, request) == REVOKED
     # until the signal lands, the task is still going.
     assert _is_running(ut_app, request)
 
-    job._set_terminated(-signal.SIGTERM)  # as the pool does once it reaps the process.
+    job._set_terminated(-signal.SIGKILL)  # as the pool does once it reaps the process.
     assert not _is_running(ut_app, request)
 
 
@@ -126,17 +156,73 @@ def test_a_task_whose_process_dies_stops_running(ut_app, task, pool):
     assert _stored_state(ut_app, request) == FAILURE
 
 
-def test_a_task_requeued_when_its_process_dies_is_left_to_run_again(ut_app, pool):
+def test_listeners_hear_a_task_whose_process_dies_is_complete(
+    ut_app, task, pool, eventer
+):
+    request, job = _start(ut_app, task, pool, eventer)
+
+    pool.mark_as_worker_lost(job, -signal.SIGKILL)
+
+    [completed] = eventer.completion_events()
+    assert completed["type"] == "task-completed"
+    assert completed["uuid"] == request.id
+    assert completed["actual_runtime"] >= 0
+
+
+def test_listeners_hear_a_task_killed_by_revoke_is_revoke_complete(
+    ut_app, tmp_path, task, pool, eventer
+):
+    ut_app.conf.logs_dir = str(tmp_path)
+    request, job = _start(ut_app, task, pool, eventer)
+    revoke_request = RevokeDetails(
+        str(tmp_path), reason="not needed", task_uuid=request.id, root_revoke=False
+    )
+    revoke_request.write()
+
+    request.terminate(pool, signal="SIGKILL")
+    # until the signal lands, the task is still going.
+    assert eventer.completion_events() == []
+
+    job._set_terminated(-signal.SIGKILL)
+
+    revoke_completed, completed = eventer.completion_events()
+    assert revoke_completed == {
+        "type": RunStates.REVOKE_COMPLETED.to_celery_event_type(),
+        "uuid": request.id,
+        TASK_REVOKE_REASON_KEY: "not needed",
+    }
+    assert completed["type"] == "task-completed"
+    assert ut_app.get_task_revoke_details(request.id).is_revoke_completed()
+
+
+def test_a_task_whose_process_reached_its_postrun_is_left_to_it(
+    ut_app, task, pool, eventer
+):
+    request, job = _start(ut_app, task, pool, eventer)
+
+    # A revoke's first SIGTERM lets its process run its postrun before it exits.
+    request.terminate(pool)
+    ut_app.mark_task_postrun(request.id)
+    job._set_terminated(-signal.SIGTERM)
+
+    assert not _is_running(ut_app, request)
+    assert eventer.completion_events() == []
+
+
+def test_a_task_requeued_when_its_process_dies_is_left_to_run_again(
+    ut_app, pool, eventer
+):
     @ut_app.task(base=FireXTask, acks_late=True, reject_on_worker_lost=True)
     def requeued():
         pass
 
-    request, job = _start(ut_app, requeued, pool)
+    request, job = _start(ut_app, requeued, pool, eventer)
 
     pool.mark_as_worker_lost(job, -signal.SIGKILL)
 
     # it runs again under the same id, so it's that run's postrun to record.
     assert not ut_app.task_id_has_postrun(request.id)
+    assert eventer.completion_events() == []
 
 
 def test_a_task_past_its_hard_time_limit_runs_until_its_process_is_killed(
@@ -155,8 +241,8 @@ def test_a_killed_task_that_asked_to_be_forgotten_is_forgotten(ut_app, task, poo
     request, job = _start(ut_app, task, pool)
     ut_app.AsyncResult(request.id).set_fx_forget()
 
-    request.terminate(pool)
-    job._set_terminated(-signal.SIGTERM)
+    request.terminate(pool, signal="SIGKILL")
+    job._set_terminated(-signal.SIGKILL)
 
     assert ut_app.AsyncResult(request.id).fx_is_forgotten()
     assert _stored_state(ut_app, request) is None
