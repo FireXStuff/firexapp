@@ -29,7 +29,8 @@ def kill_procs_by_name_and_cmdline(
                 cmdline_regex is None
                 or any(
                     re.match(cmdline_regex, cmd_item)
-                    for cmd_item in proc_info_dict["cmdline"]
+                    # None when it can't be read, e.g. for a zombie.
+                    for cmd_item in proc_info_dict["cmdline"] or []
                 )
             ):
                 try:
