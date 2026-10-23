@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import importlib
 import os
 import shutil
@@ -6,6 +7,7 @@ import sys
 import unittest
 from typing import ClassVar
 
+from lxml import etree
 from xmlrunner.runner import XMLTestRunner
 
 from firexapp.testing.config_base import discover_tests
@@ -87,6 +89,19 @@ def default_entry_point_distros(tests: str) -> str | None:
     ):
         return "firexapp"
     return None
+
+
+def _set_xunit_suite_start(xunit_path: str, suite_start: datetime.datetime) -> None:
+    """Set every <testsuite>'s timestamp to the suite's start, with its UTC offset.
+
+    xmlrunner sets it to the stop time of the suite's last testcase, in host-local
+    time without an offset, but consumers read it as the start time and can't tell
+    which timezone it's in.
+    """
+    tree = etree.parse(xunit_path, etree.XMLParser(strip_cdata=False))
+    for testsuite in tree.iter("testsuite"):
+        testsuite.set("timestamp", suite_start.isoformat())
+    tree.write(xunit_path, encoding="UTF-8", xml_declaration=True)
 
 
 def main(default_results_dir, default_test_dir):
@@ -204,6 +219,7 @@ def main(default_results_dir, default_test_dir):
     if args.coverage:
         os.environ["COVERAGE_FILE"] = os.path.join(results_directory, ".coverage")
 
+    suite_start = datetime.datetime.now().astimezone()
     success = unittest.main(
         module=FlowTestInfra.__module__,
         testRunner=XMLTestRunner(output=args.logs, outsuffix="results", verbosity=2),
@@ -211,6 +227,8 @@ def main(default_results_dir, default_test_dir):
         exit=False,
         verbosity=2,
     ).result.wasSuccessful()
+    if os.path.isfile(orig_output):
+        _set_xunit_suite_start(orig_output, suite_start)
 
     # let the user decide what to call the output
     if args.xunit_file_name:
