@@ -333,6 +333,13 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             self.id
         ) and not self.app.task_id_has_postrun(self.id)
 
+    def _fx_has_settled(self) -> bool:
+        # A revoked task's postrun can come before or after the worker stores
+        # REVOKED, so a task that started has settled only once both are visible.
+        if not self.app.task_id_has_prerun(self.id):
+            return True
+        return self.app.task_id_has_postrun(self.id) and self.fx_is_ready()
+
     def fx_get_state(
         self,
         timeout: int = _DEFAULT_AR_QUERY_TIMEOUT,
@@ -770,9 +777,9 @@ class ManyFxAsyncResults(Generic[K]):
     def __str__(self):
         return ", ".join(r.fx_logging_name() for r in self)
 
-    def _get_running(self) -> ManyFxAsyncResults:
+    def _filter(self, keep: Callable[[FxAsyncResult], bool]) -> ManyFxAsyncResults:
         return ManyFxAsyncResults(
-            {k: ar for k, ar in self._fx_ars_by_key.items() if ar.fx_is_running()}
+            {k: ar for k, ar in self._fx_ars_by_key.items() if keep(ar)}
         )
 
     def __bool__(self):
@@ -812,7 +819,7 @@ class ManyFxAsyncResults(Generic[K]):
                         revoked_ars.append(chain_entry)
         many_revoked = ManyFxAsyncResults.fx_ars_from_list(revoked_ars)
         # wait for visible revoke completion
-        many_revoked.wait_for_running(max_wait)
+        many_revoked.wait_for_settled(max_wait)
         return many_revoked
 
     def wait_for_any(
@@ -952,15 +959,29 @@ class ManyFxAsyncResults(Generic[K]):
         return self
 
     def wait_for_running(self, max_wait: int = 2 * 60) -> bool:
+        return self._wait_while_any(FxAsyncResult.fx_is_running, "running", max_wait)
+
+    def wait_for_settled(self, max_wait: int = 2 * 60) -> bool:
+        """Waits until every task that started has stopped running and stored how it ended."""
+        return self._wait_while_any(
+            lambda ar: not ar._fx_has_settled(), "unsettled", max_wait
+        )
+
+    def _wait_while_any(
+        self,
+        is_waited_on: Callable[[FxAsyncResult], bool],
+        description: str,
+        max_wait: int,
+    ) -> bool:
         sleep_between_iterations = _SLEEP_BETWEEN_ITERATIONS
         max_sleep = _SLEEP_BETWEEN_ITERATIONS * 60  # Somewhat arbitrary
 
-        running_async_results = self._get_running()
+        waited_on = self._filter(is_waited_on)
         start_time = last_debug_output = time.monotonic()
-        while running_async_results:
+        while waited_on:
             time_now = time.monotonic()
             if time_now - last_debug_output >= 30:
-                logger.debug(f"Waiting for running task(s): {running_async_results}")
+                logger.debug(f"Waiting for {description} task(s): {waited_on}")
                 last_debug_output = time_now
 
             if (time_now - start_time) >= max_wait:
@@ -969,12 +990,12 @@ class ManyFxAsyncResults(Generic[K]):
             sleep_between_iterations = _sleep_exponential_backoff(
                 sleep_between_iterations, max_sleep
             )
-            running_async_results = running_async_results._get_running()
+            waited_on = waited_on._filter(is_waited_on)
 
-        if running_async_results:
+        if waited_on:
             logger.error(
-                f"The following tasks may still be running after task-wait timeout has expired:\n"
-                f"{running_async_results}"
+                f"The following tasks may still be {description} after task-wait timeout has expired:\n"
+                f"{waited_on}"
             )
             return False
         return True
