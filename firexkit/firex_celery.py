@@ -44,6 +44,36 @@ from firexapp.submit.uid import Uid
 from firexkit.run_time import RunTimeReserve, get_run_soft_time_limit
 from firexkit.task import FireXTask, convert_to_serializable
 
+# Celery 5.6 asks tzlocal for the host zone when enable_utc is off, and logs a
+# warning when /etc/sysconfig/clock disagrees with the /etc/localtime symlink.
+# It then uses LocalTimezone, which is what Celery 5.3.1 used. Every worker
+# imports this module before that lookup, and forked pool workers inherit the
+# logger filter. worker_process_init puts it back if a child resets logging.
+_LOCAL_TIMEZONE_WARNING = "Failed to retrieve local timezone"
+
+
+class _LocalTimezoneWarningFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return _LOCAL_TIMEZONE_WARNING not in record.getMessage()
+
+
+def silence_local_timezone_warning() -> None:
+    tz_logger = logging.getLogger("celery.utils.time")
+    if any(
+        isinstance(existing, _LocalTimezoneWarningFilter) for existing in tz_logger.filters
+    ):
+        return
+    tz_logger.addFilter(_LocalTimezoneWarningFilter())
+
+
+silence_local_timezone_warning()
+
+
+@celery.signals.worker_process_init.connect
+def _silence_local_timezone_warning_in_pool_worker(**_kwargs):
+    silence_local_timezone_warning()
+
+
 logger = get_task_logger(__name__)
 
 _TASK_PRE_RUN_KEY = "TASK_PRE_RUN"
