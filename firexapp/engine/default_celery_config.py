@@ -1,11 +1,12 @@
 import dataclasses
 import functools
 import os
-from typing import Annotated, Any, ClassVar, Self
+from typing import Annotated, Any, ClassVar
 
 import pydantic
 from celery.utils.log import get_task_logger
 from kombu.transport.redis import QoS
+from typing_extensions import Self
 
 import firexapp.discovery
 from firexapp.broker_manager.broker_factory import BrokerFactory
