@@ -1,12 +1,11 @@
 import dataclasses
 import functools
 import os
-from typing import Annotated, Any, ClassVar
+from typing import Annotated, Any, ClassVar, Self
 
 import pydantic
 from celery.utils.log import get_task_logger
 from kombu.transport.redis import QoS
-from typing_extensions import Self
 
 import firexapp.discovery
 from firexapp.broker_manager.broker_factory import BrokerFactory
@@ -25,6 +24,63 @@ from firexapp.submit.uid import is_firex_id
 
 # prevent tasks from running again if a worker receives SIGHUP
 QoS.restore_at_shutdown = False
+
+
+# Workaround for Kombu 5.6.2 multiprocessing bug: inherited poll state blocks child processes
+# Issue: https://github.com/celery/kombu/issues/1785 (pending PR submission)
+# Fix adopted from: https://github.com/celery/kombu/pull/[pending]
+# When shutdown(reply=True) is called, a Redis BRPOP is left pending with _in_poll set to
+# a connection object from the parent process. Child processes inherit this stale connection.
+# The fix checks if the inherited connection's PID matches the current process PID before
+# attempting to read, preventing child processes from blocking on stale inherited sockets.
+# This manifests as intermittent plugin loading timeouts in FireX CI tests.
+# Remove this patch when kombu >= 5.6.3 is released with this fix.
+def _apply_kombu_5_6_2_multiprocessing_fix():
+    import os
+
+    try:
+        from kombu.transport.redis import Channel
+
+        def patched_close(self, *args, **kwargs):
+            # Only the owning process may consume the pending BRPOP response.
+            # Check if _in_poll exists and its associated connection belongs to
+            # the current process before attempting to read.
+            self._closing = True
+            if self._in_poll and self._in_poll.pid == os.getpid():
+                try:
+                    self._brpop_read()
+                except:  # noqa: E722, S110
+                    pass
+            # Continue with the rest of original close logic
+            if not self.closed:
+                # remove from channel poller
+                self.connection.cycle.discard(self)
+
+                # delete fanout bindings
+                client = self.__dict__.get("client")
+                if client is not None:
+                    for queue in self._fanout_queues:
+                        if queue in self.auto_delete_queues:
+                            self.queue_delete(queue, client=client)
+                self._disconnect_pools()
+                self._close_clients()
+            super(Channel, self).close()
+
+        Channel.close = patched_close
+    except ImportError as e:
+        raise RuntimeError(
+            "Failed to apply Kombu 5.6.2 multiprocessing fix: Kombu is not available. "
+            "This fix is required for Redis-based Celery brokers. "
+            "Install kombu to enable this workaround."
+        ) from e
+    except (TypeError, AttributeError) as e:
+        raise RuntimeError(
+            "Failed to apply Kombu 5.6.2 multiprocessing fix due to unexpected error. "
+            "This indicates a compatibility issue with the current Kombu version."
+        ) from e
+
+
+_apply_kombu_5_6_2_multiprocessing_fix()
 
 add_custom_log_levels()
 add_hostname_to_log_records()
