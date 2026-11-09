@@ -20,6 +20,7 @@ default:
   before_script:
     - git config --global --add safe.directory "$CI_PROJECT_DIR"
     - uv --version
+    - export PATH="/redis-6.2.3/src:$PATH"
 
 build:
   stage: build
@@ -62,6 +63,7 @@ lint-python:
 test-unit:
   stage: test
   script:
+    - redis-server --version
     - uv run --locked --group test coverage run -m unittest discover -s tests/unit_tests -p "*_tests.py"
     # FireXKit tests define intentionally invalid Celery tasks. Run them in a
     # separate process so their global registrations cannot affect app tests.
