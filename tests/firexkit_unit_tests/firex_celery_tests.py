@@ -1,27 +1,33 @@
 import datetime
 import gc
 import unittest
+from contextlib import contextmanager
 from time import monotonic
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
 import pytz
+from kombu.asynchronous.timer import Timer
 
+from firexapp.engine.default_celery_config import FxEnvVars
 from firexapp.submit.uid import firex_id_str
 from firexkit.firex_celery import (
     _FX_HARD,
     _FX_SOFT,
+    FX_RUN_SOFT_TIME_LIMIT_KEY,
     FX_TIME_RESERVE_HEADER,
     FireXAsynPool,
     FireXBlockingPool,
     FireXCelery,
     FireXTaskPool,
+    RunSoftTimeLimitSyncStep,
     _fx_freeze_for_fork,
     _fx_increase_run_soft_time_limit,
     _request_run_time_reserve,
 )
 from firexkit.run_time import RunTimeReserve
+from firexkit.testing import ut_backed_celery_app
 
 _RUN_START = datetime.datetime(2026, 9, 14, 12, 0, 0, tzinfo=pytz.utc)
 _RUN_START_EPOCH = _RUN_START.timestamp()
@@ -91,6 +97,16 @@ def _create_result(job=1, task_id="task-1", soft=100, hard=None, accepted=True):
         _timeout=hard,
         _time_accepted=monotonic() if accepted else None,
     )
+
+
+def _create_task_pool(app, soft_timeout=100, pool=None):
+    pool = pool if pool is not None else _create_pool(_FakeHub())
+    task_pool = FireXTaskPool.__new__(FireXTaskPool)
+    task_pool._pool = pool
+    task_pool.app = app
+    task_pool.options = {"soft_timeout": soft_timeout}
+    pool.soft_timeout = soft_timeout
+    return task_pool
 
 
 class FireXAsynPoolTimerTests(unittest.TestCase):
@@ -339,12 +355,11 @@ class IncreaseOnlyTests(unittest.TestCase):
 
 class RunRelativeTaskPoolTests(unittest.TestCase):
     def create_task_pool(self, pool, app=None, soft_timeout=100):
-        task_pool = FireXTaskPool.__new__(FireXTaskPool)
-        task_pool._pool = pool
-        task_pool.app = app if app is not None else _create_app()
-        task_pool.options = {"soft_timeout": soft_timeout}
-        pool.soft_timeout = soft_timeout
-        return task_pool
+        return _create_task_pool(
+            app if app is not None else _create_app(),
+            soft_timeout=soft_timeout,
+            pool=pool,
+        )
 
     def test_reserve_becomes_a_limit_measured_from_task_start(self):
         pool = _create_pool(_FakeHub())
@@ -447,37 +462,6 @@ class RunRelativeTaskPoolTests(unittest.TestCase):
         self.assertIsNone(task_pool.set_default_soft_time_limit(5000))
         self.assertIsNone(task_pool._pool.soft_timeout)
 
-    def test_a_late_started_worker_seeds_its_default_from_the_budget(self):
-        # e.g. a sandbox worker started after some task raised the budget.
-        task_pool = self.create_task_pool(_create_pool(_FakeHub()), soft_timeout=100)
-
-        task_pool._fx_seed_soft_timeout_from_run_budget()
-
-        self.assertEqual(_TEN_HOURS, task_pool.options["soft_timeout"])
-
-    def test_seeding_never_shortens_a_larger_worker_default(self):
-        task_pool = self.create_task_pool(
-            _create_pool(_FakeHub()),
-            soft_timeout=48 * 60 * 60,
-        )
-
-        task_pool._fx_seed_soft_timeout_from_run_budget()
-
-        self.assertEqual(48 * 60 * 60, task_pool.options["soft_timeout"])
-
-    def test_an_unreadable_budget_leaves_the_default_alone(self):
-        app = _create_app()
-        app.get_run_soft_time_limit = Mock(side_effect=OSError("no broker"))
-        task_pool = self.create_task_pool(
-            _create_pool(_FakeHub()),
-            app=app,
-            soft_timeout=100,
-        )
-
-        task_pool._fx_seed_soft_timeout_from_run_budget()
-
-        self.assertEqual(100, task_pool.options["soft_timeout"])
-
 
 def _create_request(task_id, reserve=None, declared=None, time_limits=(None, None)):
     return SimpleNamespace(
@@ -509,7 +493,11 @@ class RequestRunTimeReserveTests(unittest.TestCase):
 
 
 class IncreaseRunSoftTimeLimitCommandTests(unittest.TestCase):
-    def create_state(self, active=(), reserved=(), soft_timeout=100):
+    def create_state(self, active=(), reserved=(), pending=(), soft_timeout=100):
+        """
+        pending requests have been handed to the pool, which holds a job for each, but
+        no child has accepted them yet: celery counts them as reserved, not active.
+        """
         pool = _create_pool(_FakeHub())
         pool._cache = {}
         task_pool = FireXTaskPool.__new__(FireXTaskPool)
@@ -523,10 +511,18 @@ class IncreaseRunSoftTimeLimitCommandTests(unittest.TestCase):
             pool._cache[i] = result
             pool._fx_on_timeout_set(result, 100, None)
 
+        for i, request in enumerate(pending, start=len(active) + 1):
+            pool._cache[i] = _create_result(
+                job=i,
+                task_id=request.id,
+                soft=soft_timeout,
+                accepted=False,
+            )
+
         state = SimpleNamespace(
             consumer=SimpleNamespace(app=task_pool.app, pool=task_pool),
         )
-        return state, task_pool, list(active), list(reserved)
+        return state, task_pool, list(active), [*reserved, *pending]
 
     def run_command(self, state, active, reserved, budget=_TEN_HOURS):
         with (
@@ -591,6 +587,35 @@ class IncreaseRunSoftTimeLimitCommandTests(unittest.TestCase):
         self.run_command(state, active, reserved)
 
         self.assertEqual(12345, prefetched.time_limits[0])
+
+    def test_extends_a_task_the_pool_holds_but_has_not_started(self):
+        # billiard fixed this task's soft time limit at the old pool default when it was
+        # handed to the pool, and arms its timer from that once a child accepts it. Only
+        # changing the pool's job reaches it; its request's time_limits are never read
+        # again.
+        handed_over = _create_request("handed-over")
+        state, task_pool, active, reserved = self.create_state(pending=[handed_over])
+
+        reply = self.run_command(state, active, reserved)
+
+        job = task_pool._find_job_result("handed-over")
+        # 1h into a 10h run, and not started yet: the remaining 9h.
+        self.assertAlmostEqual(9 * 60 * 60, job._soft_timeout, delta=2)
+        self.assertEqual(job._soft_timeout, reply["ok"]["handed-over"])
+
+    def test_a_task_waiting_for_a_pool_slot_keeps_following_the_run_budget(self):
+        # Not handed to the pool yet, so it will get the raised pool default. Giving it
+        # a number of its own would make it look explicitly limited, and later
+        # increases would pass it by.
+        waiting = _create_request("waiting")
+        state, task_pool, active, reserved = self.create_state(reserved=[waiting])
+
+        reply = self.run_command(state, active, reserved)
+
+        self.assertEqual((None, None), waiting.time_limits)
+        self.assertNotIn("waiting", reply["ok"])
+        self.assertEqual(_TEN_HOURS, task_pool._pool.soft_timeout)
+        self.assertEqual(0, _request_run_time_reserve(waiting))
 
     def test_an_active_task_is_not_also_handled_as_reserved(self):
         # A request stays in reserved_requests while it is active.
@@ -666,6 +691,174 @@ class ResolveRunRelativeTimeLimitTests(unittest.TestCase):
 
     def test_tolerates_a_message_without_time_limits(self):
         self.assertEqual({}, self.resolve({}))
+
+
+_SEVEN_HUNDRED_HOURS = 700 * 60 * 60
+
+
+@pytest.fixture
+def run_app() -> FireXCelery:
+    """
+    A ut_app for a run that started at _RUN_START, with a budget of _TEN_HOURS.
+    """
+    app = ut_backed_celery_app(
+        fx_env=FxEnvVars.model_validate(
+            {
+                "CURRENT_RUN_FIREX_ID": firex_id_str("someuser", _RUN_START, 1234),
+                "firex_logs_dir": "",
+                "redis_bin_dir": "",
+                "BROKER": "",
+                "firex_plugins": None,
+            }
+        )
+    )
+    # What submit's set_attr_in_conf_and_backend leaves, which can't be used here:
+    # UtClient stores the bytes it passes as their repr.
+    app.conf.run_soft_time_limit = _TEN_HOURS
+    app.backend.set(FX_RUN_SOFT_TIME_LIMIT_KEY, _TEN_HOURS)
+    return app
+
+
+@pytest.fixture
+def seeded_pool(run_app: FireXCelery) -> FireXTaskPool:
+    """A pool started on run_app's budget, by a worker whose default is that budget."""
+    task_pool = _create_task_pool(run_app, soft_timeout=_TEN_HOURS)
+    task_pool._fx_seed_soft_timeout_from_run_budget()
+    return task_pool
+
+
+def _raise_budget_elsewhere(app: FireXCelery, run_soft_time_limit: float):
+    """What a task on another worker raising the budget leaves in the broker."""
+    app.backend.set(FX_RUN_SOFT_TIME_LIMIT_KEY, run_soft_time_limit)
+
+
+@contextmanager
+def _holding(*active):
+    """The requests a worker holds, all of them running."""
+    with (
+        patch("celery.worker.state.active_requests", list(active)),
+        patch("celery.worker.state.reserved_requests", list(active)),
+    ):
+        yield
+
+
+def test_a_late_started_worker_seeds_its_default_from_the_budget(run_app):
+    # e.g. a sandbox worker started after some task raised the budget.
+    task_pool = _create_task_pool(run_app, soft_timeout=100)
+
+    task_pool._fx_seed_soft_timeout_from_run_budget()
+
+    assert task_pool.options["soft_timeout"] == _TEN_HOURS
+
+
+def test_seeding_reads_past_a_budget_cached_just_before_an_increase(run_app):
+    # A worker's app reads the budget while it imports task modules, moments before its
+    # pool starts. An increase in between is broadcast before the worker is subscribed
+    # to broadcasts, so the pool start is the only chance to see it.
+    assert run_app.get_run_soft_time_limit() == _TEN_HOURS
+    _raise_budget_elsewhere(run_app, _SEVEN_HUNDRED_HOURS)
+    task_pool = _create_task_pool(run_app, soft_timeout=_TEN_HOURS)
+
+    task_pool._fx_seed_soft_timeout_from_run_budget()
+
+    assert task_pool.options["soft_timeout"] == _SEVEN_HUNDRED_HOURS
+
+
+def test_seeding_never_shortens_a_larger_worker_default(run_app):
+    task_pool = _create_task_pool(run_app, soft_timeout=48 * 60 * 60)
+
+    task_pool._fx_seed_soft_timeout_from_run_budget()
+
+    assert task_pool.options["soft_timeout"] == 48 * 60 * 60
+
+
+def test_an_unreadable_budget_leaves_the_default_alone(run_app):
+    task_pool = _create_task_pool(run_app, soft_timeout=100)
+
+    with patch.object(run_app.backend.client, "get", side_effect=OSError("no broker")):
+        task_pool._fx_seed_soft_timeout_from_run_budget()
+
+    assert task_pool.options["soft_timeout"] == 100
+
+
+def test_re_sync_applies_an_increase_the_worker_never_received(run_app, seeded_pool):
+    # A task that declared no limit is running on the pool default when the budget is
+    # raised, and its worker misses the broadcast.
+    undeclared = _create_request("undeclared")
+    job = _create_result(task_id="undeclared", soft=_TEN_HOURS)
+    job._time_accepted -= 600
+    seeded_pool._pool._cache = {job._job: job}
+    seeded_pool._pool._fx_on_timeout_set(job, job._soft_timeout, None)
+    _raise_budget_elsewhere(run_app, _SEVEN_HUNDRED_HOURS)
+
+    with _holding(undeclared), _at_run_elapsed(60 * 60):
+        seeded_pool.sync_run_soft_time_limit()
+
+    assert seeded_pool._pool.soft_timeout == _SEVEN_HUNDRED_HOURS
+    # Running for 10 minutes, 1h into a 700h run: aimed at the run's new end.
+    assert job._soft_timeout == pytest.approx(600 + 699 * 60 * 60, abs=2)
+
+
+def test_re_sync_leaves_an_increase_the_worker_received_alone(run_app, seeded_pool):
+    _raise_budget_elsewhere(run_app, _SEVEN_HUNDRED_HOURS)
+    with _holding():
+        _fx_increase_run_soft_time_limit(
+            SimpleNamespace(consumer=SimpleNamespace(app=run_app, pool=seeded_pool)),
+            run_soft_time_limit=_SEVEN_HUNDRED_HOURS,
+        )
+
+    with patch.object(seeded_pool, "apply_run_soft_time_limit") as apply:
+        seeded_pool.sync_run_soft_time_limit()
+
+    apply.assert_not_called()
+
+
+def test_an_unreadable_budget_is_left_for_the_next_re_sync(run_app, seeded_pool):
+    _raise_budget_elsewhere(run_app, _SEVEN_HUNDRED_HOURS)
+
+    with _holding():
+        # Mustn't raise: it runs on the worker's event loop.
+        with patch.object(run_app.backend.client, "get", side_effect=OSError("down")):
+            seeded_pool.sync_run_soft_time_limit()
+        assert seeded_pool._pool.soft_timeout == _TEN_HOURS
+
+        seeded_pool.sync_run_soft_time_limit()
+
+    assert seeded_pool._pool.soft_timeout == _SEVEN_HUNDRED_HOURS
+
+
+def test_sync_step_re_syncs_when_started_and_then_periodically(run_app, seeded_pool):
+    consumer = SimpleNamespace(pool=seeded_pool, timer=Timer())
+    step = RunSoftTimeLimitSyncStep(consumer)
+    # Raised while this worker's consumer was down, e.g. reconnecting to the broker.
+    _raise_budget_elsewhere(run_app, 100 * 60 * 60)
+
+    with _holding():
+        step.start(consumer)
+        assert seeded_pool._pool.soft_timeout == 100 * 60 * 60
+
+        _raise_budget_elsewhere(run_app, _SEVEN_HUNDRED_HOURS)
+        tref = step.tref
+        tref()  # the timer fires.
+
+    assert seeded_pool._pool.soft_timeout == _SEVEN_HUNDRED_HOURS
+    step.stop(consumer)
+    assert tref.canceled
+
+
+def test_sync_step_does_nothing_on_a_pool_that_cannot_sync():
+    consumer = SimpleNamespace(pool=SimpleNamespace(), timer=Timer())
+    step = RunSoftTimeLimitSyncStep(consumer)
+
+    step.start(consumer)
+
+    assert step.tref is None
+    assert not consumer.timer.queue
+    step.stop(consumer)
+
+
+def test_workers_run_the_sync_step(ut_app):
+    assert RunSoftTimeLimitSyncStep in ut_app.steps["consumer"]
 
 
 @pytest.fixture
