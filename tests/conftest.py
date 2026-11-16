@@ -1,8 +1,9 @@
 #
 # Fixtures shared by all of firexapp's unit test trees.
 #
-import celery._state
 import pytest
+
+from firexkit.testing import ut_isolate_shared_tasks
 
 # integration_tests are flow_tests configurations (see firex_bundle_ci), not pytest
 # tests. They also reuse unit_tests module basenames, which pytest can't import side
@@ -21,16 +22,8 @@ def pytest_ignore_collect(collection_path, config):
 
 @pytest.fixture(autouse=True)
 def _ut_isolate_shared_tasks():
-    """
-    Stop the tasks a test defines from being recreated on every app finalized after it.
-
-    @app.task defaults to shared=True, which registers a process-wide callback that
-    recreates the task on each app finalized later, e.g. firexapp.engine.celery.app
-    the first time its tasks are read. A task a test deliberately defines badly, as
-    chain_tests' test_bad_returns_code does, then raises in whichever unrelated test
-    next finalizes an app.
-    """
-    saved = set(celery._state._on_app_finalizers)
-    yield
-    celery._state._on_app_finalizers.clear()
-    celery._state._on_app_finalizers.update(saved)
+    # e.g. chain_tests' test_bad_returns_code deliberately defines tasks that raise
+    # when created, which would otherwise break whichever unrelated test next
+    # finalizes an app, such as plugins_tests' test_plugin_env.
+    with ut_isolate_shared_tasks():
+        yield

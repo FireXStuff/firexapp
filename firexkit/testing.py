@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import math
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from typing import Any, ClassVar
 from uuid import uuid4
 
+import celery._state
 import celery.states
 from celery import Celery
 
@@ -19,6 +21,26 @@ def ut_celery_app(*args, **kwargs) -> FireXCelery:
     kwargs["set_as_current"] = False
     kwargs.setdefault("fx_env", FxEnvVars.create_no_task_exec_fx_env())
     return FireXCelery(*args, **kwargs)
+
+
+@contextlib.contextmanager
+def ut_isolate_shared_tasks() -> Iterator[None]:
+    """
+    Stop tasks defined in this context from being recreated on each app finalized later.
+
+    @app.task defaults to shared=True, which registers a process-wide callback that
+    recreates the task on each app finalized later, e.g. firexapp.engine.celery.app
+    the first time its tasks are read. ut_celery_app's set_as_current=False doesn't
+    prevent that. Unless each test's tasks are dropped when it ends, a task one test
+    deliberately defines badly raises in whichever unrelated test next finalizes an
+    app, and a stand-in a test registers under a real task's name shows up there too.
+    """
+    saved = set(celery._state._on_app_finalizers)
+    try:
+        yield
+    finally:
+        celery._state._on_app_finalizers.clear()
+        celery._state._on_app_finalizers.update(saved)
 
 
 class MockFxAsyncResult(FxAsyncResult):

@@ -1,4 +1,5 @@
 import argparse
+import errno
 import logging
 import os
 import subprocess
@@ -27,6 +28,13 @@ MaybeCeleryActiveTasks = namedtuple(
     ["celery_read_success", "active_tasks"],
 )
 
+# fork() fails with these while memory or process slots are briefly exhausted. A run
+# ending under memory pressure is exactly when that happens, and giving up leaks the
+# run's broker, celery workers and tracking services for as long as leak detection
+# takes to notice them.
+_TRANSIENT_LAUNCH_ERRNOS = frozenset({errno.ENOMEM, errno.EAGAIN})
+_SHUTDOWN_LAUNCH_RETRY_DELAYS = (1, 2, 4, 8, 16)
+
 
 def _launch_shutdown_subprocess(shutdown_cmd: list[str], logs_dir: str) -> int:
     shutdown_subprocess_env = FxEnvVars.select_minimal_fx_env_from_os_env()
@@ -52,6 +60,22 @@ def _launch_shutdown_subprocess(shutdown_cmd: list[str], logs_dir: str) -> int:
         )
 
 
+def _launch_shutdown_subprocess_with_retries(
+    shutdown_cmd: list[str], logs_dir: str
+) -> int:
+    for delay in _SHUTDOWN_LAUNCH_RETRY_DELAYS:
+        try:
+            return _launch_shutdown_subprocess(shutdown_cmd, logs_dir)
+        except OSError as e:
+            if e.errno not in _TRANSIENT_LAUNCH_ERRNOS:
+                raise
+            logger.warning(
+                f"Failed to launch shutdown process, retrying in {delay}s: {e}"
+            )
+            time.sleep(delay)
+    return _launch_shutdown_subprocess(shutdown_cmd, logs_dir)
+
+
 def launch_background_shutdown(
     logs_dir: str,
     reason,
@@ -67,7 +91,7 @@ def launch_background_shutdown(
         ]
         if reason:
             shutdown_cmd += ["--reason", reason]
-        pid = _launch_shutdown_subprocess(shutdown_cmd, logs_dir)
+        pid = _launch_shutdown_subprocess_with_retries(shutdown_cmd, logs_dir)
     except Exception:
         logger.exception("SHUTDOWN PROCESS FAILED TO LAUNCH -- REDIS WILL LEAK.")
         raise
