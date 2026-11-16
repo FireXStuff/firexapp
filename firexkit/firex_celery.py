@@ -11,6 +11,7 @@ import celery.signals
 import celery.worker.state
 from billiard.pool import ApplyResult
 from billiard.pool import Pool as BilliardPool
+from celery import bootsteps
 from celery.app import app_or_default
 from celery.app.base import Celery
 from celery.backends.redis import RedisBackend
@@ -41,7 +42,7 @@ from firexapp.plugins import (
 )
 from firexapp.reporters.json_reporter import FireXRunData, ReporterStep
 from firexapp.submit.uid import Uid
-from firexkit.run_time import RunTimeReserve, get_run_soft_time_limit
+from firexkit.run_time import RunTimeReserve
 from firexkit.task import FireXTask, convert_to_serializable
 
 logger = get_task_logger(__name__)
@@ -172,6 +173,7 @@ class FireXCelery(Celery):
             )
 
             self.steps["worker"].add(ReporterStep)
+            self.steps["consumer"].add(RunSoftTimeLimitSyncStep)
 
             # We want this step to finish after Pool at least (because a poolworker writes this file in the async case),
             # but might as well finish after Hub too
@@ -543,17 +545,31 @@ class FireXCelery(Celery):
         self._fx_run_budget_cache = (now, budget)
         return budget
 
+    def refresh_run_soft_time_limit(self, timeout: float = 60) -> float:
+        """
+        The run's total time budget in seconds, read from the result backend now.
+
+        Unlike get_run_soft_time_limit, never answers from the cache. For callers that
+        act on the budget at one particular moment, where a value up to
+        _FX_RUN_BUDGET_CACHE_SECS old can miss an increase they'll never hear about.
+
+        timeout is how long to keep retrying an unreachable broker before raising.
+        """
+        budget = self._read_run_soft_time_limit(timeout=timeout)
+        self._cache_run_soft_time_limit(budget)
+        return budget
+
     def _default_run_soft_time_limit(self) -> float:
         # task_soft_time_limit is what --soft_time_limit has always been plumbed into,
         # so falling back to it keeps bundles correct before they adopt the new name.
         return self.conf.run_soft_time_limit or self.conf.task_soft_time_limit
 
-    def _read_run_soft_time_limit(self) -> float:
+    def _read_run_soft_time_limit(self, timeout: float = 60) -> float:
         try:
             raw_budget = firexkit.broker.handle_broker_timeout(
                 self.backend.get,
                 args=(FX_RUN_SOFT_TIME_LIMIT_KEY,),
-                timeout=60,
+                timeout=timeout,
             )
         except AttributeError:
             return self._default_run_soft_time_limit()  # probably a dummy broker.
@@ -1204,6 +1220,19 @@ class FireXTaskPool(TaskPool):
     Pool = FireXAsynPool
     BlockingPool = FireXBlockingPool
 
+    # How often a worker re-reads the run time budget from the broker, to apply any
+    # increase whose broadcast it missed. See sync_run_soft_time_limit.
+    FX_RUN_BUDGET_SYNC_SECS: ClassVar[float] = 60
+
+    # How long a re-sync waits for an unreachable broker. It runs on the event loop,
+    # and a later re-sync will try again.
+    _FX_RUN_BUDGET_SYNC_TIMEOUT: ClassVar[float] = 5
+
+    # The largest run time budget this worker has applied to its default and its tasks,
+    # so a re-sync can tell an increase it missed from one it already has. None until
+    # this worker has read the budget at all.
+    _fx_applied_run_soft_time_limit: float | None = None
+
     def on_start(self):
         self._fx_seed_soft_timeout_from_run_budget()
         super().on_start()
@@ -1218,10 +1247,15 @@ class FireXTaskPool(TaskPool):
         already running. A --soft-time-limit command line value could only ever carry
         the budget as it stood when the worker was spawned.
 
+        Read fresh rather than through the app's cache, which was filled moments ago
+        while the task modules were imported. An increase in between is broadcast
+        before this worker is subscribed to broadcasts, so this read is the only
+        thing that can catch it.
+
         Raise-only, so a deliberately larger worker default is never shortened.
         """
         try:
-            budget = get_run_soft_time_limit(self.app)
+            budget = self.app.refresh_run_soft_time_limit()
         except Exception:
             logger.warning(
                 "Could not read the run time budget; leaving this worker"
@@ -1229,6 +1263,7 @@ class FireXTaskPool(TaskPool):
                 exc_info=True,
             )
             return
+        self._fx_applied_run_soft_time_limit = budget
 
         current = self.options.get("soft_timeout")
         # current of None means no default limit at all, which is already more
@@ -1239,6 +1274,101 @@ class FireXTaskPool(TaskPool):
                 f" the run time budget of {budget}s."
             )
             self.options["soft_timeout"] = budget
+
+    def apply_run_soft_time_limit(self, run_soft_time_limit: float) -> dict[str, float]:
+        """
+        Applies an increased run time budget to this worker.
+
+        Raises the default soft time limit of tasks dispatched from now on, and extends
+        every task this worker holds that was following the run budget: running,
+        handed to the pool and waiting for a child to accept it, or prefetched and not
+        yet handed to the pool.
+
+        Returns the soft time limit each extended task now has, by task id.
+
+        Must be called from the worker MainProcess event loop thread, since it re-arms
+        the timers of running jobs.
+        """
+        self._fx_applied_run_soft_time_limit = max(
+            self._fx_applied_run_soft_time_limit or 0,
+            run_soft_time_limit,
+        )
+        # Tasks that declared nothing follow the run through the pool default, which
+        # billiard reads when a task is handed to the pool.
+        self.set_default_soft_time_limit(run_soft_time_limit)
+
+        # A request stays in reserved_requests while it is active, so keying by id
+        # visits each request once.
+        requests = {
+            request.id: request
+            for request in (
+                *celery.worker.state.reserved_requests,
+                *celery.worker.state.active_requests,
+            )
+        }
+        extended = {}
+        for request in requests.values():
+            reserve = _request_run_time_reserve(request)
+            if reserve is None:
+                continue
+            # billiard fixes a job's soft time limit when the job is handed to the pool,
+            # not when a child accepts it, so any request the pool already holds has to
+            # be changed there -- whether or not it has started running.
+            applied = self.set_task_soft_time_limit(
+                request.id,
+                RunTimeReserve(reserve),
+                increase_only=True,
+            )
+            if applied is None:
+                hard_time_limit, soft_time_limit = request.time_limits or (None, None)
+                if soft_time_limit is None:
+                    # Gets the pool default raised above once it is handed to the pool.
+                    # Rewriting it to a number would make it look explicitly limited,
+                    # and stop later increases from reaching it.
+                    continue
+                # Not handed to the pool yet, so its limit is still the one it was
+                # published with, resolved from the old budget. It hasn't started, so
+                # the reserve resolves straight to its limit.
+                applied = RunTimeReserve(reserve).resolve(self.app)
+                request.time_limits = [hard_time_limit, applied]
+            extended[request.id] = applied
+
+        logger.info(
+            f"Run time budget increased to {run_soft_time_limit}s;"
+            f" extended {len(extended)} task(s) on this worker."
+        )
+        return extended
+
+    def sync_run_soft_time_limit(self):
+        """
+        Applies the run time budget from the broker, if it is larger than any this
+        worker has applied.
+
+        Increases reach workers as a broadcast, which redis delivers over pub/sub. A
+        worker that isn't subscribed at that moment -- one still starting up, or
+        reconnecting to the broker -- never receives it, and would otherwise run its
+        tasks on the old budget for the rest of the run. Run periodically by
+        RunSoftTimeLimitSyncStep.
+        """
+        try:
+            budget = self.app.refresh_run_soft_time_limit(
+                timeout=self._FX_RUN_BUDGET_SYNC_TIMEOUT,
+            )
+        except Exception:
+            logger.warning(
+                "Could not read the run time budget to re-sync it; will retry.",
+                exc_info=True,
+            )
+            return
+
+        applied = self._fx_applied_run_soft_time_limit
+        if applied is not None and budget <= applied:
+            return
+        logger.warning(
+            f"The run time budget is {budget}s, but this worker had only applied"
+            f" {applied}s; applying the increase it did not receive."
+        )
+        self.apply_run_soft_time_limit(budget)
 
     def set_task_soft_time_limit(
         self,
@@ -1359,48 +1489,46 @@ def _fx_increase_run_soft_time_limit(
     app._cache_run_soft_time_limit(run_soft_time_limit)
 
     pool = state.consumer.pool
-    set_task_soft_time_limit = getattr(pool, "set_task_soft_time_limit", None)
-    if set_task_soft_time_limit is None:
+    apply_run_soft_time_limit = getattr(pool, "apply_run_soft_time_limit", None)
+    if apply_run_soft_time_limit is None:
         return nok(
             f"{type(pool).__name__} does not support changing the soft time limit"
             f" of running tasks."
         )
+    return ok(apply_run_soft_time_limit(run_soft_time_limit))
 
-    # Tasks that declared nothing follow the run through the pool default, which
-    # billiard re-reads on every dispatch.
-    pool.set_default_soft_time_limit(run_soft_time_limit)
 
-    extended = {}
-    for request in list(celery.worker.state.active_requests):
-        reserve = _request_run_time_reserve(request)
-        if reserve is None:
-            continue
-        applied = set_task_soft_time_limit(
-            request.id,
-            RunTimeReserve(reserve),
-            increase_only=True,
-        )
-        if applied is not None:
-            extended[request.id] = applied
+class RunSoftTimeLimitSyncStep(bootsteps.StartStopStep):
+    """
+    Periodically re-syncs this worker with the run time budget in the broker.
 
-    for request in list(celery.worker.state.reserved_requests):
-        if request.id in extended:
-            continue  # already running; handled above.
-        reserve = _request_run_time_reserve(request)
-        if reserve is None:
-            continue
-        # Prefetched but not yet dispatched, so there is no pool job to re-arm and its
-        # timelimit header was built from the old budget. It hasn't started, so the
-        # reserve resolves straight to its limit.
-        hard_time_limit = (request.time_limits or (None, None))[0]
-        request.time_limits = [hard_time_limit, RunTimeReserve(reserve).resolve(app)]
-        extended[request.id] = request.time_limits[1]
+    The backstop for increases whose broadcast this worker missed; see
+    FireXTaskPool.sync_run_soft_time_limit.
+    """
 
-    logger.info(
-        f"Run time budget increased to {run_soft_time_limit}s;"
-        f" extended {len(extended)} task(s) on this worker."
-    )
-    return ok(extended)
+    # Started once broadcasts can reach this worker, so each re-sync only has to cover
+    # what was broadcast before then.
+    requires: ClassVar[tuple[str, ...]] = ("celery.worker.consumer.control:Control",)
+
+    def __init__(self, c, **kwargs):
+        self.tref = None
+        super().__init__(c, **kwargs)
+
+    def start(self, c):
+        sync = getattr(c.pool, "sync_run_soft_time_limit", None)
+        if sync is None:
+            return
+        # Also runs on every consumer restart, e.g. after a broker reconnect, which is
+        # when broadcasts sent while disconnected were missed.
+        sync()
+        self.tref = c.timer.call_repeatedly(c.pool.FX_RUN_BUDGET_SYNC_SECS, sync)
+
+    def stop(self, c):
+        if self.tref is not None:
+            self.tref.cancel()
+            self.tref = None
+
+    shutdown = stop
 
 
 @celery.signals.task_postrun.connect

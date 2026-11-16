@@ -119,7 +119,7 @@ class UtClient:
     def set(self, key, value, ex=None):
         self._inc_count("set")
         encoded_key = self._encode(key)
-        self._store[encoded_key] = self._encode(str(value))
+        self._store[encoded_key] = self._encode(value)
         # redis discards any time to live the key had when it is set again,
         # unless this set carries one of its own.
         if ex is None:
