@@ -1,7 +1,17 @@
+import enum
 import inspect
 import unittest
 
-from firexkit.bag_of_goodies import BagOfGoodies
+import pytest
+
+from firexkit.bag_of_goodies import (
+    AutoInject,
+    AutoInjectRegistry,
+    AutoInjectSpec,
+    BagOfGoodies,
+)
+from firexkit.firex_celery import FireXCelery
+from firexkit.task import FireXTask
 
 # loads of these tests encode a bug, and when the
 # bug was fixed the test cases with the bug were kept.
@@ -594,3 +604,110 @@ def _in_chain_bog(sig, args, kwargs) -> BagOfGoodies:
 
 def split_for_signature(bog):
     return bog.args, bog.kwargs
+
+
+class Nos(str, enum.Enum):
+    XR = "XR"
+    XE = "XE"
+
+
+def _registry(network_os: Nos = Nos.XR) -> AutoInjectRegistry:
+    return AutoInjectRegistry.create_auto_in_reg(
+        [AutoInjectSpec(Nos, "network_os", network_os)]
+    )
+
+
+def _reg_kwargs(network_os: Nos = Nos.XR) -> dict:
+    return {AutoInjectRegistry.AUTO_IN_REG_ABOG_KEY: _registry(network_os)}
+
+
+def _check(network_os: AutoInject[Nos], checks=None, more=None):
+    pass  # pragma: no cover
+
+
+CHECK_SIG = inspect.signature(_check)
+
+
+@pytest.fixture
+def check_task(ut_app: FireXCelery):
+    @ut_app.task(base=FireXTask, bind=True, returns=("got_network_os", "got_checks"))
+    def check(self, network_os: AutoInject[Nos], checks=None):
+        return network_os, checks
+
+    return check
+
+
+class TestPositionalArgsSkipAutoInjectArgs:
+    def test_positional_arg_skips_injectable_arg(self):
+        bog = BagOfGoodies(CHECK_SIG, (["c"],), _reg_kwargs())
+        assert bog.bound_pos_args == {"network_os": Nos.XR, "checks": ["c"]}
+        assert bog.args == (Nos.XR, ["c"])
+        assert bog.kwargs == {}
+
+    def test_all_positional_args_shift_past_injectable_arg(self):
+        bog = BagOfGoodies(CHECK_SIG, (["c"], "m"), _reg_kwargs())
+        assert bog.args == (Nos.XR, ["c"], "m")
+
+    def test_positional_arg_of_injected_type_is_bound_explicitly(self):
+        bog = BagOfGoodies(CHECK_SIG, (Nos.XE, ["c"]), _reg_kwargs())
+        assert bog.args == (Nos.XE, ["c"])
+        # the explicit value is what descendants get injected, as with a kwarg.
+        assert bog.get_auto_inject_registry().get("network_os") == Nos.XE
+
+    def test_explicit_kwarg_is_supplied_positionally(self):
+        bog = BagOfGoodies(CHECK_SIG, (["c"],), {"network_os": Nos.XE} | _reg_kwargs())
+        assert bog.args == (Nos.XE, ["c"])
+        assert bog.kwargs == {}
+
+    def test_prev_chain_result_is_supplied_positionally(self):
+        bog = BagOfGoodies(
+            CHECK_SIG,
+            ({"network_os": Nos.XE} | _reg_kwargs(), ["c"]),
+            {"chain_depth": 1},
+        )
+        assert bog.args == (Nos.XE, ["c"])
+        assert bog.kwargs == {}
+
+    def test_keyword_args_are_unaffected(self):
+        bog = BagOfGoodies(CHECK_SIG, (), {"checks": ["c"]} | _reg_kwargs())
+        assert bog.args == ()
+        assert bog.kwargs == {"checks": ["c"], "network_os": Nos.XR}
+
+    def test_without_registry_positional_args_bind_in_order(self):
+        # nothing can inject the arg, so it's left to python's binding.
+        bog = BagOfGoodies(CHECK_SIG, (["c"],), {})
+        assert bog.bound_pos_args == {"network_os": ["c"]}
+
+    def test_registry_without_spec_binds_in_order(self):
+        def other(other_nos: AutoInject[Nos], checks=None):
+            pass  # pragma: no cover
+
+        bog = BagOfGoodies(inspect.signature(other), (["c"],), _reg_kwargs())
+        assert bog.bound_pos_args == {"other_nos": ["c"]}
+
+    def test_too_many_positional_args_still_raises(self):
+        with pytest.raises(TypeError):
+            BagOfGoodies(CHECK_SIG, (1, 2, 3), _reg_kwargs())
+
+    def test_var_positional_after_injectable_arg(self):
+        def var_pos(network_os: AutoInject[Nos], *rest):
+            pass  # pragma: no cover
+
+        bog = BagOfGoodies(inspect.signature(var_pos), (1, 2), _reg_kwargs())
+        assert bog.args == (Nos.XR, 1, 2)
+
+
+class TestTaskReceivesPositionalArgsPastAutoInjectArgs:
+    def test_positional_arg_received_by_following_param(self, check_task):
+        results = check_task(["c"], **_reg_kwargs())
+        assert results["got_network_os"] == Nos.XR
+        assert results["got_checks"] == ["c"]
+
+    def test_explicit_positional_auto_inject_value(self, check_task):
+        results = check_task(Nos.XE, ["c"], **_reg_kwargs())
+        assert results["got_network_os"] == Nos.XE
+        assert results["got_checks"] == ["c"]
+
+    def test_signature_validates(self, check_task):
+        # signature validation must agree with how the task will bind its args.
+        check_task.s(["c"], **_reg_kwargs()).verify_args()

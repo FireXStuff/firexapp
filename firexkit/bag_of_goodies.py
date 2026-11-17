@@ -104,14 +104,60 @@ class ValidateArgs(enum.Enum):
     REQUIRE = enum.auto()
 
 
+def _without_skipped_auto_inject_params(
+    sig: inspect.Signature,
+    pos_args: tuple[Any, ...],
+    auto_in_reg: "AutoInjectRegistry",
+) -> inspect.Signature:
+    """
+    Remove the AutoInject params that positional args skip over, so that given
+
+        def SomeTask(network_os: AutoInject[NosType], checks=None)
+
+    SomeTask.s(checks) binds checks to checks and leaves network_os to be
+    auto-injected. A positional arg only skips an AutoInject param the registry
+    can inject, and only when the arg isn't an instance of the AutoInject type,
+    since then it's an explicit value for the param.
+    """
+    skipped: set[str] = set()
+    arg_index = 0
+    for param in sig.parameters.values():
+        if arg_index >= len(pos_args) or param.kind not in (
+            param.POSITIONAL_ONLY,
+            param.POSITIONAL_OR_KEYWORD,
+        ):
+            break
+        if (
+            (auto_inject_type := BagOfGoodies.get_auto_inject_type(param.annotation))
+            and auto_in_reg.can_auto_inject(param.name, auto_inject_type)
+            and not isinstance(pos_args[arg_index], auto_inject_type)
+        ):
+            skipped.add(param.name)
+        else:
+            arg_index += 1
+
+    if not skipped:
+        return sig
+    return sig.replace(
+        parameters=[p for p in sig.parameters.values() if p.name not in skipped]
+    )
+
+
 def _bind_pos_args(
     sig: inspect.Signature,
     pos_args: tuple[Any, ...],
     root_orig_task_sig: inspect.Signature | None,
+    auto_in_reg: "AutoInjectRegistry | None" = None,
 ) -> tuple[
     dict[str, Any],  # bound
     dict[str, Any],  # extras
 ]:
+    if auto_in_reg:
+        sig = _without_skipped_auto_inject_params(sig, pos_args, auto_in_reg)
+        if root_orig_task_sig:
+            root_orig_task_sig = _without_skipped_auto_inject_params(
+                root_orig_task_sig, pos_args, auto_in_reg
+            )
 
     # find positional parameters (POSITIONAL_ONLY and POSITIONAL_OR_KEYWORD)
     positional_params = [
@@ -209,7 +255,11 @@ class BagOfGoodies:
 
             # Remove chain prev task results from positional args
             self.bound_pos_args, extra_pos_args = _bind_pos_args(
-                sig, args[1:], root_orig_task_sig
+                sig,
+                args[1:],
+                root_orig_task_sig,
+                AutoInjectRegistry.get_auto_inject_registry(kwargs)
+                or AutoInjectRegistry.get_auto_inject_registry(prev_task_result),
             )
             for k, v in self.bound_pos_args.items():
                 if BagOfGoodies.is_self_indirect_ref(v, k) and k in prev_task_result:
@@ -226,7 +276,10 @@ class BagOfGoodies:
             unaccepted_args = extra_pos_args | unaccepted_args
         else:
             self.bound_pos_args, unaccepted_args = _bind_pos_args(
-                sig, args, root_orig_task_sig
+                sig,
+                args,
+                root_orig_task_sig,
+                AutoInjectRegistry.get_auto_inject_registry(kwargs),
             )
             resolved_kwargs = dict(kwargs)
 
@@ -257,8 +310,43 @@ class BagOfGoodies:
                     )
                 )
             )
+        self._supply_skipped_pos_args()
 
         self.update({})  # resolve indirect refs for bound_pos_args and kwargs
+
+    def _supply_skipped_pos_args(self):
+        """
+        Positional args can be bound past AutoInject params (see
+        _without_skipped_auto_inject_params), which by now have been supplied by
+        keyword: auto-injected, explicitly, or by a previous task in the chain.
+        Python would bind the positional args to those params instead, so supply
+        them positionally too, in signature order.
+        """
+        if not self.bound_pos_args:
+            return
+        pos_arg_names = [
+            name
+            for name, param in self.fx_params.parameters.items()
+            if param.kind
+            in (
+                param.POSITIONAL_ONLY,
+                param.POSITIONAL_OR_KEYWORD,
+                param.VAR_POSITIONAL,
+            )
+        ]
+        last_bound_index = max(pos_arg_names.index(n) for n in self.bound_pos_args)
+
+        bound_pos_args = {}
+        for name in pos_arg_names[: last_bound_index + 1]:
+            if name in self.bound_pos_args:
+                bound_pos_args[name] = self.bound_pos_args[name]
+            elif name in self.kwargs:
+                bound_pos_args[name] = self.kwargs.pop(name)
+            else:
+                raise TypeError(
+                    f"Positional args were bound past unsupplied arg {name}"
+                )
+        self.bound_pos_args = bound_pos_args
 
     def all_supplied_args(self) -> dict[str, Any]:
         # excludes defaults.
@@ -896,6 +984,9 @@ class AutoInjectRegistry:
 
     def get_auto_injectable_arg_names(self) -> set[str]:
         return set(self._specs_by_name_and_type)
+
+    def can_auto_inject(self, arg_name: str, arg_type: type) -> bool:
+        return arg_type in self._specs_by_name_and_type.get(arg_name, {})
 
     def get(self, name: str, default=None) -> Any:
         if name in self._specs_by_name_and_type:
