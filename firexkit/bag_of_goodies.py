@@ -489,23 +489,24 @@ class BagOfGoodies:
 
     def get_post_pydantic_convert_supplied_arg_names(self) -> set[str]:
         convertible: set[str] = set()
-        arg_names_to_validatable_names = (
-            self._get_arg_names_to_pydantic_convertible_names()
-        )
+        arg_names_to_model_cls = self._get_arg_names_to_pydantic_model_cls()
         all_args = set(self.all_supplied_args())
         for unbound_name, unbound_param in self.get_unsupplied_arg_params().items():
             if unbound_param.kind not in (
                 unbound_param.VAR_POSITIONAL,
                 unbound_param.VAR_KEYWORD,
             ):
-                if (
-                    validatable := arg_names_to_validatable_names.get(unbound_name)
-                ) and (validatable < all_args):
+                if (model_cls := arg_names_to_model_cls.get(unbound_name)) and all(
+                    field_input_names & all_args
+                    for field_input_names in _get_model_input_names_by_field(
+                        model_cls
+                    ).values()
+                ):
                     convertible.add(unbound_name)  # we can create this
 
                 if any(
-                    unbound_name in model_field_names and model_arg in all_args
-                    for model_arg, model_field_names in arg_names_to_validatable_names.items()
+                    unbound_name in model_cls.model_fields and model_arg in all_args
+                    for model_arg, model_cls in arg_names_to_model_cls.items()
                 ):
                     # we can pull this up to the bog from a modelled arg.
                     # for backwards compatibility
@@ -518,20 +519,21 @@ class BagOfGoodies:
             self.get_accepted_supplied_and_default_args()
         )
 
-    def _get_arg_names_to_pydantic_convertible_names(self) -> dict[str, set[str]]:
-        arg_names_to_validatable_names: dict[str, set[str]] = {}
-        for arg_name, param in self.fx_params.parameters.items():
-            if fx_model_cls := _get_fx_model_subclass(param):
-                arg_names_to_validatable_names[arg_name] = set(
-                    fx_model_cls.model_fields.keys()
-                )
-        return arg_names_to_validatable_names
+    def _get_arg_names_to_pydantic_model_cls(
+        self,
+    ) -> dict[str, type["FireXBaseBaseModel"]]:
+        return {
+            arg_name: fx_model_cls
+            for arg_name, param in self.fx_params.parameters.items()
+            if (fx_model_cls := _get_fx_model_subclass(param))
+        }
 
     def get_pydantic_convertible_arg_names(self) -> set[str]:
         convertible: set[str] = set()
         if self.pydantic_validate != ValidateArgs.DISABLED:
-            for names in self._get_arg_names_to_pydantic_convertible_names().values():
-                convertible.update(names)
+            for model_cls in self._get_arg_names_to_pydantic_model_cls().values():
+                for input_names in _get_model_input_names_by_field(model_cls).values():
+                    convertible.update(input_names)
         return convertible
 
     def get_args_to_indirect_value_keys(self) -> dict[str, str]:
@@ -687,6 +689,34 @@ def _get_fx_model_subclass(
     return None
 
 
+def _get_model_input_names_by_field(
+    model_cls: type[pydantic.BaseModel],
+) -> dict[str, set[str]]:
+    """
+    The top-level input keys pydantic will populate each of model_cls's fields from,
+    which aren't the field names when the fields have aliases.
+    """
+    by_alias = model_cls.model_config.get("validate_by_alias", True)
+    by_name = model_cls.model_config.get("validate_by_name", False)
+    input_names_by_field: dict[str, set[str]] = {}
+    for field_name, field_info in model_cls.model_fields.items():
+        input_names: set[str] = set()
+        # pydantic sets validation_alias from alias or an alias_generator too.
+        alias = field_info.validation_alias
+        if alias is None or by_name:
+            input_names.add(field_name)
+        if alias is not None and by_alias:
+            for choice in (
+                alias.choices if isinstance(alias, pydantic.AliasChoices) else [alias]
+            ):
+                # an AliasPath reads from within the value of its first key.
+                input_names.add(
+                    choice.path[0] if isinstance(choice, pydantic.AliasPath) else choice
+                )
+        input_names_by_field[field_name] = input_names
+    return input_names_by_field
+
+
 def _pydantic_validate_args(
     pydantic_validate: ValidateArgs,
     fx_params: _FireXArgParameters,
@@ -706,8 +736,7 @@ def _pydantic_validate_args(
                     and (
                         attempting_expand_default := (
                             input_service_args[arg_name] is None
-                            and fx_model_cls.__pydantic_fields__[arg_name].default
-                            is None
+                            and param.default is None
                         )
                     )
                 ):

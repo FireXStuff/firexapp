@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
+from typing import Annotated
 
 import pydantic
 import pytest
@@ -34,6 +35,22 @@ class PlainDictSubclass(dict):
 
 class AModel(FireXBaseBaseModel):
     a: int
+
+
+class AliasedModel(FireXBaseBaseModel):
+    a: Annotated[int | None, pydantic.Field(validation_alias="aa")] = None
+    b: int | None = pydantic.Field(default=None, alias="bb")
+    c: int | None = pydantic.Field(
+        default=None,
+        validation_alias=pydantic.AliasChoices("c1", pydantic.AliasPath("c2", 0)),
+    )
+    d: int | None = None
+
+
+class AliasedByNameModel(FireXBaseBaseModel):
+    model_config = pydantic.ConfigDict(validate_by_name=True)
+
+    a: Annotated[int | None, pydantic.Field(validation_alias="aa")] = None
 
 
 @dataclasses.dataclass
@@ -150,6 +167,25 @@ class TestValidation:
 
         assert _validated_args(func, {"x": {"a": 1}}) == {"x": AModel(a=1)}
 
+    def test_explicit_none_model_arg_is_populated_from_bog(self):
+        # this raised KeyError before the fix, because the arg's default was
+        # looked up as a field of the model.
+        def func(model: AModel | None = None):
+            pass  # pragma: no cover
+
+        assert _validated_args(func, {"model": None, "a": 1}) == {
+            "model": AModel(a=1),
+            "a": 1,
+        }
+
+    def test_explicit_none_model_arg_keeps_default_when_bog_lacks_fields(self):
+        def func(model: AModel | None = None):
+            pass  # pragma: no cover
+
+        assert _validated_args(func, {"model": None}, ValidateArgs.REQUIRE) == {
+            "model": None
+        }
+
     def test_dataclass_annotation_with_dict_value(self):
         def func(x: ADataclass):
             pass  # pragma: no cover
@@ -233,6 +269,37 @@ class TestModelUserErrorIsContained:
         assert _validated_args(func, {"x": value}) == {"x": value}
 
 
+class TestPydanticConvertibleArgNames:
+    """
+    The names submit accepts as CLI args because a modelled arg is built from them.
+    """
+
+    def test_aliased_fields_are_named_by_their_aliases(self):
+        def func(model: AliasedModel | None = None):
+            pass  # pragma: no cover
+
+        # pydantic ignores an aliased field's own name unless validate_by_name.
+        assert AliasedModel.model_validate({"a": 1}).a is None
+        assert AliasedModel.model_validate({"aa": 1}).a == 1
+
+        bog = _bog(func, {})
+        assert bog.get_pydantic_convertible_arg_names() == {"aa", "bb", "c1", "c2", "d"}
+
+    def test_validate_by_name_accepts_field_names_too(self):
+        def func(model: AliasedByNameModel | None = None):
+            pass  # pragma: no cover
+
+        bog = _bog(func, {})
+        assert bog.get_pydantic_convertible_arg_names() == {"a", "aa"}
+
+    def test_disabled_validation_converts_nothing(self):
+        def func(model: AliasedModel | None = None):
+            pass  # pragma: no cover
+
+        bog = _bog(func, {}, ValidateArgs.DISABLED)
+        assert bog.get_pydantic_convertible_arg_names() == set()
+
+
 class TestPostPydanticConvertSuppliedArgNames:
     """
     The names a service's modelled args let the bog produce, which chain
@@ -262,6 +329,25 @@ class TestPostPydanticConvertSuppliedArgNames:
 
         bog = _bog(func, {"a": 1, "b": 2})
         assert bog.get_post_pydantic_convert_supplied_arg_names() == {"model"}
+
+    def test_model_arg_is_convertible_when_its_fields_are_supplied_by_alias(self):
+        def func(model: AliasedModel | None = None):
+            pass  # pragma: no cover
+
+        bog = _bog(func, {"aa": 1, "bb": 2, "c2": [3], "d": 4})
+        assert bog.get_post_pydantic_convert_supplied_arg_names() == {"model"}
+
+        # the field names alone don't populate the model.
+        bog = _bog(func, {"a": 1, "b": 2, "c": 3, "d": 4})
+        assert bog.get_post_pydantic_convert_supplied_arg_names() == set()
+
+    def test_aliased_fields_are_hoisted_by_field_name(self):
+        def func(model: AliasedModel | None = None, a=None, aa=None):
+            pass  # pragma: no cover
+
+        # hoisting reads the model's attributes, which are named by field.
+        bog = _bog(func, {"model": {"aa": 1}})
+        assert bog.get_post_pydantic_convert_supplied_arg_names() == {"a"}
 
     def test_var_keyword_is_never_convertible(self):
         def func(model: AModel | None = None, **kwargs):
