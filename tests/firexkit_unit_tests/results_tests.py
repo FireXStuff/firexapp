@@ -1,15 +1,19 @@
 import datetime
 import time
 import unittest
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from unittest import mock
 
+import pytest
 from celery.states import FAILURE, PENDING, REVOKED, STARTED, SUCCESS
 
 from firexkit.firex_celery import FireXCelery
 from firexkit.result import (
+    ChainInterruptedByZombieTaskException,
     ChainInterruptedException,
     ChainRevokedException,
+    ManyFxAsyncResults,
     MultipleFailuresException,
     WaitLoopCallBack,
     WaitOnChainTimeoutError,
@@ -447,3 +451,175 @@ class RunRelativeWaitTests(unittest.TestCase):
         self.run_deadline = time.time() + 3600
         with self.assertRaises(WaitOnChainTimeoutError):
             self.wait(0.2)
+
+
+@pytest.fixture
+def no_revoke_updates() -> Generator[None]:
+    # A stale RevokedRequests would ask the workers, of which there are none.
+    prev_instance = RevokedRequests._instance
+    setup_revoke()
+    try:
+        yield
+    finally:
+        RevokedRequests._instance = prev_instance
+
+
+@pytest.fixture
+def always_dead_workers() -> Generator[list[MockFxAsyncResult]]:
+    """Every worker check finds the worker dead, recording the result checked."""
+    checked = []
+
+    def is_worker_alive(result):
+        checked.append(result)
+        return False
+
+    with (
+        mock.patch("firexkit.result._CHECK_TASK_WORKER_FREQ", 0),
+        mock.patch("firexkit.result._is_worker_alive", side_effect=is_worker_alive),
+    ):
+        yield checked
+
+
+def _completes_in(seconds: float, state: str = SUCCESS) -> Callable[[], str]:
+    completes_at = time.monotonic() + seconds
+    return lambda: state if time.monotonic() >= completes_at else STARTED
+
+
+@pytest.mark.usefixtures("no_revoke_updates")
+class TestGetAsCompleted:
+    def test_yields_results_in_the_order_they_complete(self, ut_app):
+        last, first, second = (
+            MockFxAsyncResult(state=_completes_in(s), app=ut_app)
+            for s in (0.9, 0.1, 0.5)
+        )
+
+        completed = ManyFxAsyncResults.fx_ars_from_list([last, first, second])
+
+        assert list(completed.get_as_completed(max_wait=30)) == [first, second, last]
+
+    def test_leaves_the_results_it_was_given_intact(self, ut_app):
+        given = [MockFxAsyncResult(state=SUCCESS, app=ut_app) for _ in range(2)]
+        ars = ManyFxAsyncResults.fx_ars_from_list(given)
+
+        assert list(ars.get_as_completed(max_wait=30)) == given
+        assert list(ars) == given
+
+    def test_a_completion_is_noticed_however_many_others_are_running(self, ut_app):
+        running = [MockFxAsyncResult(state=STARTED, app=ut_app) for _ in range(50)]
+        completes = MockFxAsyncResult(state=_completes_in(0.5), app=ut_app)
+        ars = ManyFxAsyncResults.fx_ars_from_list(running + [completes])
+
+        start = time.monotonic()
+        assert next(ars.get_as_completed(max_wait=60)) == completes
+        # Waiting on each running result in turn had taken over 10s to get to it.
+        assert time.monotonic() - start < 3
+
+    def test_gives_up_after_max_wait_however_many_are_running(self, ut_app):
+        running = [MockFxAsyncResult(state=STARTED, app=ut_app) for _ in range(50)]
+        ars = ManyFxAsyncResults.fx_ars_from_list(running)
+
+        start = time.monotonic()
+        with pytest.raises(WaitOnChainTimeoutError):
+            next(ars.get_as_completed(max_wait=0.5))
+        assert time.monotonic() - start < 3
+
+    def test_callbacks_run_on_their_own_clock(self, ut_app):
+        calls = []
+        ar = MockFxAsyncResult(
+            state=lambda: SUCCESS if len(calls) >= 3 else STARTED, app=ut_app
+        )
+        callbacks = [
+            WaitLoopCallBack(func=lambda: calls.append(1), frequency=0.2, kwargs={})
+        ]
+        ars = ManyFxAsyncResults.fx_ars_from_single(ar)
+
+        start = time.monotonic()
+        assert list(ars.get_as_completed(max_wait=30, callbacks=callbacks)) == [ar]
+        # Restarting the callback clock on every check of a result had kept a
+        # callback this frequent from running for over 10s.
+        assert time.monotonic() - start < 3
+
+    def test_without_raise_on_failure_revoked_and_failed_are_yielded(self, ut_app):
+        revoked = MockFxAsyncResult(state=REVOKED, app=ut_app)
+        failed = MockFxAsyncResult(state=FAILURE, result=OSError(), app=ut_app)
+        succeeds = MockFxAsyncResult(state=_completes_in(0.3), app=ut_app)
+        ars = ManyFxAsyncResults.fx_ars_from_list([revoked, failed, succeeds])
+
+        completed = ars.get_keyed_as_completed(max_wait=30, raise_on_failure=False)
+
+        assert list(completed) == [(0, revoked), (1, failed), (2, succeeds)]
+
+    def test_with_raise_on_failure_a_revoke_raises(self, ut_app):
+        revoked = MockFxAsyncResult(state=REVOKED, app=ut_app)
+        running = MockFxAsyncResult(state=STARTED, app=ut_app)
+        ars = ManyFxAsyncResults.fx_ars_from_list([running, revoked])
+
+        with pytest.raises(ChainRevokedException):
+            next(ars.get_as_completed(max_wait=30))
+
+    def test_results_completed_ahead_of_a_failure_are_yielded_first(self, ut_app):
+        succeeded = MockFxAsyncResult(state=SUCCESS, app=ut_app)
+        failed = MockFxAsyncResult(state=FAILURE, result=OSError(), app=ut_app)
+        ars = ManyFxAsyncResults.fx_ars_from_list([succeeded, failed])
+
+        completed = ars.get_as_completed(max_wait=30)
+
+        assert next(completed) == succeeded
+        with pytest.raises(ChainInterruptedException):
+            next(completed)
+
+    def test_a_failed_chain_parent_completes_its_child(self, ut_app):
+        parent = MockFxAsyncResult(state=FAILURE, result=OSError(), app=ut_app)
+        child = MockFxAsyncResult(state=PENDING, app=ut_app)
+        MockFxAsyncResult.set_heritage(parent, child)
+        ars = ManyFxAsyncResults.fx_ars_from_single(child)
+
+        assert list(ars.get_as_completed(max_wait=30, raise_on_failure=False)) == [
+            child
+        ]
+        with pytest.raises(ChainInterruptedException) as raised:
+            next(ars.get_as_completed(max_wait=30))
+        assert raised.value.task_id == parent.id
+
+    def test_only_the_first_result_waited_on_is_checked_for_being_a_zombie(
+        self, ut_app, always_dead_workers
+    ):
+        first, second = (MockFxAsyncResult(state=STARTED, app=ut_app) for _ in "12")
+        ars = ManyFxAsyncResults.fx_ars_from_list([first, second])
+
+        completed = ars.get_as_completed(max_wait=30, raise_on_failure=False)
+
+        assert list(completed) == [first, second]
+        # As wait_for_all would, second is only checked once first is done with.
+        assert always_dead_workers == [first] * 3 + [second] * 3
+
+    def test_with_raise_on_failure_a_zombie_raises(self, ut_app, always_dead_workers):
+        zombie = MockFxAsyncResult(state=STARTED, app=ut_app)
+        ars = ManyFxAsyncResults.fx_ars_from_single(zombie)
+
+        with pytest.raises(ChainInterruptedByZombieTaskException):
+            next(ars.get_as_completed(max_wait=30))
+
+    def test_wait_for_any_raises_a_revoke_without_raise_on_failure(self, ut_app):
+        revoked = MockFxAsyncResult(state=REVOKED, app=ut_app)
+        ars = ManyFxAsyncResults.fx_ars_from_single(revoked)
+
+        with pytest.raises(ChainRevokedException):
+            ars.wait_for_any(max_wait=30, raise_on_failure=False)
+
+    def test_wait_for_any_returns_a_failure_without_raise_on_failure(self, ut_app):
+        failed = MockFxAsyncResult(state=FAILURE, result=OSError(), app=ut_app)
+        ars = ManyFxAsyncResults.fx_ars_from_single(failed)
+
+        assert ars.wait_for_any(max_wait=30, raise_on_failure=False) == failed
+
+
+@pytest.mark.usefixtures("no_revoke_updates")
+def test_wait_for_all_gives_up_on_a_zombie(ut_app, always_dead_workers):
+    zombie = MockFxAsyncResult(state=STARTED, app=ut_app)
+    succeeded = MockFxAsyncResult(state=SUCCESS, app=ut_app)
+    ars = ManyFxAsyncResults.fx_ars_from_list([zombie, succeeded])
+
+    with pytest.raises(ChainInterruptedByZombieTaskException):
+        ars.wait_for_all(max_wait=30)
+    assert always_dead_workers == [zombie] * 3

@@ -42,7 +42,15 @@ RUN_UNSUCCESSFUL_NAME = "unsuccessful_services"
 logger = get_task_logger(__name__)
 
 _CHECK_TASK_WORKER_FREQ = 600
+_ZOMBIE_CHECK_FAILURES_LIMIT = 3
 _SLEEP_BETWEEN_ITERATIONS = 0.05
+
+# Each pass of ManyFxAsyncResults.get_as_completed checks every result still waited
+# on, so the time between passes backs off faster than a single result's wait does,
+# to keep down the broker traffic of waiting on many results.
+_AS_COMPLETED_FIRST_POLL_WAIT = 0.1
+_AS_COMPLETED_POLL_WAIT_GROWTH = 1.1
+_AS_COMPLETED_MAX_POLL_WAIT = 5
 
 # Not a celery state: the terminal state of a result whose results were forgotten
 # (see FxAsyncResult.fx_is_ready), since there is nothing left to say how it ended.
@@ -828,13 +836,18 @@ class ManyFxAsyncResults(Generic[K]):
         callbacks: Iterable[WaitLoopCallBack] = (),
         raise_on_failure: bool = True,
     ) -> FxAsyncResult:
-        return next(
-            self.get_as_completed(
+        _key, ar, ex = next(
+            self._get_keyed_outcomes_as_completed(
                 max_wait=max_wait,
                 callbacks=callbacks,
-                raise_on_failure=raise_on_failure,
             )
         )
+        # A revoke raises even when failures don't, as it does from wait_for_all.
+        if ex is not None and (
+            raise_on_failure or isinstance(ex, ChainRevokedException)
+        ):
+            raise ex
+        return ar
 
     def get_keyed_as_completed(
         self,
@@ -847,52 +860,98 @@ class ManyFxAsyncResults(Generic[K]):
         None,
         None,
     ]:
-        poll_wait = poll_max_wait or 0.1
-        max_poll_wait = 5  # arbitrary
-        _warn_on_never_callback(callbacks, poll_wait)
+        """
+        Yield each result with its key, as it completes.
 
-        start_time = time.time()
+        With raise_on_failure, the first result to end unsuccessfully (failed,
+        revoked, or a zombie) raises, which ends the iteration. Without it, every
+        result is yielded however it ended, revokes included: unlike wait_for_all,
+        an iteration can't raise and then carry on waiting for the rest.
+
+        poll_max_wait caps the time between checks for completed results.
+        """
+        for k, ar, ex in self._get_keyed_outcomes_as_completed(
+            max_wait=max_wait,
+            poll_max_wait=poll_max_wait,
+            callbacks=callbacks,
+        ):
+            if ex is not None and raise_on_failure:
+                raise ex
+            yield k, ar
+
+    def _get_keyed_outcomes_as_completed(
+        self,
+        max_wait: float | RunTimeReserve | None = None,
+        poll_max_wait: float | None = None,
+        callbacks: Iterable[WaitLoopCallBack] = (),
+    ) -> Generator[
+        tuple[K, FxAsyncResult, ChainException | None],
+        None,
+        None,
+    ]:
+        """
+        As get_keyed_as_completed without raise_on_failure, but also yielding the
+        exception that waiting on each result alone would have raised, which is
+        None for a result that succeeded.
+        """
+        # A copy, so that the caller's results are left intact.
+        remaining_ars: dict[K, FxAsyncResult] = dict(self._fx_ars_by_key)
+        if not remaining_ars:
+            return
+
         logger.debug(
             "Waiting for any of the following tasks to complete:\n"
             + "\n".join([f"-> {r.fx_logging_name()}" for r in self])
         )
-        if first_ar := next(iter(self), None):
-            # assume all ars have same parent.
+        max_poll_wait = poll_max_wait or _AS_COMPLETED_MAX_POLL_WAIT
+        poll_wait = min(_AS_COMPLETED_FIRST_POLL_WAIT, max_poll_wait)
+        start_time = time.monotonic()
+        last_callback_time = {c.func: start_time for c in callbacks}
+        zombie_check: _ZombieCheck | None = None
+        while remaining_ars:
+            # Only the first result still waited on is checked for being a zombie,
+            # which is the one wait_for_all would be blocked on at this point. Each
+            # check can take minutes, so checking every result doesn't scale.
+            first_ar = next(iter(remaining_ars.values()))
+            if zombie_check is None or zombie_check.result is not first_ar:
+                zombie_check = _ZombieCheck(first_ar, time.monotonic())
+
+            completed: list[tuple[K, FxAsyncResult, ChainException | None]] = []
+            # Blocked only while polling, not while the caller handles what's yielded.
             with first_ar.update_parent_task_blocked_states():
-                remaining_ars = ManyFxAsyncResults(self._fx_ars_by_key)
-                while remaining_ars:
-                    # Re-resolved every iteration rather than once up front, so a
+                while not completed:
+                    current_time = time.monotonic()
+                    # Re-resolved every pass rather than once up front, so a
                     # RunTimeReserve tracks a run budget raised while we were blocked.
                     remaining_wait = resolve_remaining_wait(
                         max_wait,
                         start_time,
-                        time.time(),
+                        current_time,
                         app=first_ar.app,
                     )
                     if remaining_wait is not None and remaining_wait <= 0:
                         raise WaitOnChainTimeoutError(
-                            f"Results {remaining_ars} were still not ready after"
-                            f" {describe_wait(max_wait)}"
+                            f"Results {ManyFxAsyncResults(remaining_ars)} were still"
+                            f" not ready after {describe_wait(max_wait)}"
                         )
-                    for k, ar in dict(remaining_ars._fx_ars_by_key).items():
-                        try:
-                            ar.fx_wait_no_state_update(
-                                max_wait=poll_wait,
-                                log_msg=False,
-                                callbacks=callbacks,
-                                raise_on_failure=raise_on_failure,
-                            )
-                        except WaitOnChainTimeoutError:
-                            poll_wait = _sleep_exponential_backoff(
-                                poll_wait,
-                                max_poll_wait,
-                            )
-                        else:
-                            yield (k, ar)
-                            logger.debug(
-                                f"--> {ar.fx_logging_name()} completed with state {ar.fx_get_state()}"
-                            )
-                            remaining_ars._fx_ars_by_key.pop(k, None)
+                    _run_due_callbacks(callbacks, last_callback_time, current_time)
+                    completed = _get_completed_outcomes(
+                        remaining_ars, zombie_check, current_time
+                    )
+                    if not completed:
+                        poll_wait = _sleep_exponential_backoff(
+                            poll_wait,
+                            max_poll_wait,
+                            growth=_AS_COMPLETED_POLL_WAIT_GROWTH,
+                        )
+
+            for k, ar, ex in completed:
+                del remaining_ars[k]
+                logger.debug(
+                    f"--> {ar.fx_logging_name()} completed with state {ar.fx_get_state()}"
+                    + (f" ({type(ex).__name__}: {ex})" if ex else "")
+                )
+                yield k, ar, ex
 
     def get_as_completed(
         self,
@@ -1195,10 +1254,8 @@ def _poll_for_ar_complete(
     last_callback_time: dict[Callable, float],
 ) -> None:
     """Poll until 'result' is ready, which includes being forgotten mid-wait."""
-    task_worker_failures = 0
-    fail_on_worker_failures = 3
     sleep_between_iterations = _SLEEP_BETWEEN_ITERATIONS
-    last_dead_task_worker_check = time.monotonic()
+    zombie_check = _ZombieCheck(result, time.monotonic())
     while not result.fx_is_ready():
         _check_for_failure_in_parents(result)
 
@@ -1217,42 +1274,93 @@ def _poll_for_ar_complete(
                 f" {describe_wait(max_wait)}"
             )
 
-        # callbacks
-        for callback in callbacks:
-            if (current_time - last_callback_time[callback.func]) > callback.frequency:
-                callback.func(**callback.kwargs)
-                last_callback_time[callback.func] = current_time
-
-        # Check for dead workers
-        if (current_time - last_dead_task_worker_check) > _CHECK_TASK_WORKER_FREQ:
-            last_dead_task_worker_check = current_time
-            if not _is_worker_alive(result):
-                task_worker_failures += 1
-                logger.warning(
-                    f"Task {result.fx_logging_name()} appears to be a zombie."
-                    f"Failures: {task_worker_failures}",
-                )
-                if task_worker_failures >= fail_on_worker_failures:
-                    raise ChainInterruptedByZombieTaskException(
-                        task_id=result.id,
-                        task_name=result.fx_get_name(),
-                    )
-            else:
-                task_worker_failures = 0
+        _run_due_callbacks(callbacks, last_callback_time, current_time)
+        zombie_check.check_if_due(current_time)
 
         sleep_between_iterations = _sleep_exponential_backoff(
             sleep_between_iterations, max_sleep
         )
 
 
+def _get_completed_outcomes(
+    ars: dict[K, FxAsyncResult],
+    zombie_check: _ZombieCheck,
+    current_time: float,
+) -> list[tuple[K, FxAsyncResult, ChainException | None]]:
+    """
+    Check each result once, returning those that have completed along with the
+    exception waiting on each alone would have raised, if any.
+    """
+    completed: list[tuple[K, FxAsyncResult, ChainException | None]] = []
+    for k, ar in ars.items():
+        try:
+            if ar.fx_is_ready():
+                ar._handle_fx_ready()
+            else:
+                _check_for_failure_in_parents(ar)
+                if ar is zombie_check.result:
+                    zombie_check.check_if_due(current_time)
+                continue
+        except ChainException as e:
+            completed.append((k, ar, e))
+            # The caller may be about to raise this, so leave the rest for the next
+            # pass rather than do work on their behalf that may never be used.
+            break
+        completed.append((k, ar, None))
+    return completed
+
+
+def _run_due_callbacks(
+    callbacks: Iterable[WaitLoopCallBack],
+    last_callback_time: dict[Callable, float],
+    current_time: float,
+) -> None:
+    for callback in callbacks:
+        if (current_time - last_callback_time[callback.func]) > callback.frequency:
+            callback.func(**callback.kwargs)
+            last_callback_time[callback.func] = current_time
+
+
+@dataclasses.dataclass
+class _ZombieCheck:
+    """
+    Periodically checks that the worker of 'result' is alive, raising once it has
+    failed enough consecutive checks for 'result' to be considered a zombie.
+    """
+
+    result: FxAsyncResult
+    last_check_time: float
+    failures: int = 0
+
+    def check_if_due(self, current_time: float) -> None:
+        if (current_time - self.last_check_time) <= _CHECK_TASK_WORKER_FREQ:
+            return
+        self.last_check_time = current_time
+        if _is_worker_alive(self.result):
+            self.failures = 0
+            return
+
+        self.failures += 1
+        logger.warning(
+            f"Task {self.result.fx_logging_name()} appears to be a zombie."
+            f"Failures: {self.failures}",
+        )
+        if self.failures >= _ZOMBIE_CHECK_FAILURES_LIMIT:
+            raise ChainInterruptedByZombieTaskException(
+                task_id=self.result.id,
+                task_name=self.result.fx_get_name(),
+            )
+
+
 def _sleep_exponential_backoff(
     sleep_between_iterations: float,
     max_sleep: float,
+    growth: float = 1.01,
 ) -> float:
     time.sleep(sleep_between_iterations)
     # Exponential backoff
-    if sleep_between_iterations * 1.01 < max_sleep:
-        return sleep_between_iterations * 1.01
+    if sleep_between_iterations * growth < max_sleep:
+        return sleep_between_iterations * growth
     else:
         return max_sleep
 
@@ -1275,17 +1383,6 @@ def wait_on_async_results(
         log_msg=log_msg,
         raise_on_failure=raise_exception_on_failure,
     )
-
-
-def _warn_on_never_callback(callbacks, poll_max_wait):
-    if callbacks:
-        for will_not_run_callback in [
-            c for c in callbacks if c.frequency > poll_max_wait
-        ]:
-            logger.warning(
-                f"Will not run {will_not_run_callback.func} due to frequency "
-                "being too high relative to any child poll rate."
-            )
 
 
 class WaitOnChainTimeoutError(Exception):
