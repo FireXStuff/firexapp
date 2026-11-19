@@ -519,9 +519,11 @@ class TestGetAsCompleted:
         ars = ManyFxAsyncResults.fx_ars_from_list(running)
 
         start = time.monotonic()
-        with pytest.raises(WaitOnChainTimeoutError):
+        with pytest.raises(WaitOnChainTimeoutError) as exc_info:
             next(ars.get_as_completed(max_wait=0.5))
         assert time.monotonic() - start < 3
+        # Before the results it names, which are too many for a truncated message.
+        assert str(exc_info.value).startswith("Still not ready after 0.5 seconds: ")
 
     def test_callbacks_run_on_their_own_clock(self, ut_app):
         calls = []

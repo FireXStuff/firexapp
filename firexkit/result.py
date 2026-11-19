@@ -930,9 +930,11 @@ class ManyFxAsyncResults(Generic[K]):
                         app=first_ar.app,
                     )
                     if remaining_wait is not None and remaining_wait <= 0:
+                        # The reason first: there can be too many results for a
+                        # truncated message to show both.
                         raise WaitOnChainTimeoutError(
-                            f"Results {ManyFxAsyncResults(remaining_ars)} were still"
-                            f" not ready after {describe_wait(max_wait)}"
+                            f"Still not ready after {describe_wait(max_wait)}:"
+                            f" {ManyFxAsyncResults(remaining_ars)}"
                         )
                     _run_due_callbacks(callbacks, last_callback_time, current_time)
                     completed = _get_completed_outcomes(
