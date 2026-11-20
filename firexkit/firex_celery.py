@@ -42,6 +42,10 @@ from firexapp.plugins import (
 )
 from firexapp.reporters.json_reporter import FireXRunData, ReporterStep
 from firexapp.submit.uid import Uid
+from firexapp.subprocess_coverage import (
+    save_pool_child_coverage,
+    start_pool_child_coverage,
+)
 from firexkit.run_time import RunTimeReserve
 from firexkit.task import FireXTask, convert_to_serializable
 
@@ -1559,6 +1563,19 @@ def _celery_worker_ready(sender: Consumer, **_kwargs):
     queue_names = [queue.name for queue in sender.task_consumer.queues]
     if queue_names:
         sender.app.backend.client.sadd(firexkit.broker.FX_QUEUES_KEY, *queue_names)
+
+
+# Code coverage for the prefork pool, during integration test runs. Both are
+# no-ops unless the worker was started with coverage switched on; see
+# firexapp.subprocess_coverage.
+@celery.signals.worker_process_init.connect
+def _start_pool_child_coverage(**_kwargs):
+    start_pool_child_coverage()
+
+
+@celery.signals.worker_process_shutdown.connect
+def _save_pool_child_coverage(**_kwargs):
+    save_pool_child_coverage()
 
 
 @celery.signals.task_postrun.connect()

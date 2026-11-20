@@ -13,6 +13,7 @@ from firexapp.submit.install_configs import (
 )
 from firexapp.submit.submit import get_firex_id_from_output, get_log_dir_from_output
 from firexapp.submit.tracking_service import has_flame
+from firexapp.subprocess_coverage import coverage_env, get_packaged_coveragerc_path
 from firexapp.testing.config_base import FlowTestConfiguration
 from firexkit.resources import get_cloud_ci_install_config_path
 
@@ -22,16 +23,44 @@ class ConfigInterpreter:
 
     def __init__(self):
         self.profile = False
-        self.coverage = False
         self.is_public = False
+        # Base path for coverage data files, set by test_infra when --coverage
+        # is on, and the only thing that says whether this run is measured.
+        # Every measured process in the run -- including workers on other
+        # hosts -- writes its own suffixed file beside this one.
+        self.coverage_data_file = None
+        # Vestigial, and deliberately never true. Subclasses in other repos
+        # branch on this to decide whether to wrap firex in 'coverage run',
+        # and that is no longer how anything is measured: coverage comes from
+        # the environment get_run_env builds, so the un-wrapped branch is the
+        # correct one. Kept so a firexapp release can be consumed before the
+        # repo holding those subclasses catches up.
+        self.coverage = False
         # Comma separated distribution names, or None to discover every installed
         # FireX entry point. See firexapp.discovery.ENTRY_POINT_DISTROS.
         self.entry_point_distros = None
 
-    def get_run_env(self) -> dict[str, str]:
-        if not self.entry_point_distros:
-            return {}
-        return {ENTRY_POINT_DISTROS: self.entry_point_distros}
+    def is_coverage_enabled(self, flow_test_config) -> bool:
+        # A config sets no_coverage when measuring it would change what it
+        # tests -- soft_time_limit_tests, where the tracing overhead is enough
+        # to move the deadline being asserted on.
+        return bool(self.coverage_data_file) and not hasattr(
+            flow_test_config, "no_coverage"
+        )
+
+    def get_run_env(self, flow_test_config) -> dict[str, str]:
+        run_env = {}
+        if self.entry_point_distros:
+            run_env[ENTRY_POINT_DISTROS] = self.entry_point_distros
+        if self.is_coverage_enabled(flow_test_config):
+            # Inherited from here all the way down: submit passes it to the
+            # celery worker it starts, and StartMaster puts it on the command
+            # it sends over ssh. See firexapp.subprocess_coverage.
+            run_env |= coverage_env(
+                data_file=self.coverage_data_file,
+                config_file=get_packaged_coveragerc_path(),
+            )
+        return run_env
 
     @staticmethod
     def is_submit_command(test_config: FlowTestConfiguration):
@@ -102,8 +131,8 @@ class ConfigInterpreter:
     def get_exe(self, flow_test_config) -> list[str]:
         import firexapp
 
-        if self.coverage and not hasattr(flow_test_config, "no_coverage"):
-            return ["coverage", "run", "--branch", "--append", "-m", firexapp.__name__]
+        # No coverage branch: coverage is switched on by the environment
+        # get_run_env builds, so firex is invoked identically either way.
         if self.profile:
             base_dir = os.path.dirname(firexapp.__file__)
             exe_file = os.path.join(base_dir, "__main__.py")
@@ -114,18 +143,7 @@ class ConfigInterpreter:
         # add test file and dynamically generated files to --plugins
         test_src_file = inspect.getfile(flow_test_config.__class__)
 
-        plugins = [os.path.realpath(test_src_file)]
-        if (
-            self.is_submit_command(flow_test_config)
-            and self.coverage
-            and not hasattr(flow_test_config, "no_coverage")
-        ):
-            # add the coverage plugin to restart celery in coverage mode
-            from firexapp.testing import coverage_plugin
-
-            plugins.append(coverage_plugin.__file__)
-
-        return plugins
+        return [os.path.realpath(test_src_file)]
 
     def run_executable(self, cmd, flow_test_config: FlowTestConfiguration):
 
@@ -155,7 +173,7 @@ class ConfigInterpreter:
                     shell=False,
                     cwd=self.execution_directory,
                     env=os.environ
-                    | self.get_run_env()
+                    | self.get_run_env(flow_test_config)
                     | flow_test_config.get_extra_run_env(),
                 )
                 process.communicate(

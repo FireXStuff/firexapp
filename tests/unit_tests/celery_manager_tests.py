@@ -24,6 +24,7 @@ from firexapp.celery_manager import (
 )
 from firexapp.common import FIREX_BIN_DIR_ENV
 from firexapp.engine.default_celery_config import FxEnvVars
+from firexapp.subprocess_coverage import coverage_env
 
 # The install a cascading invocation leaks down to its child.
 LEAKED_BIN_DIR = "/auto/firex/STAGINGS/MASTER_260930-133104/firex/venv/bin"
@@ -355,3 +356,23 @@ def test_shutdown_wait_watches_the_processes_not_the_pid_file(fake_celery, tmp_p
     assert os.path.isfile(pid_file), (
         "the pid file outlives the worker, which is the point of not watching it"
     )
+
+
+def test_the_worker_inherits_this_process_s_coverage_environment(tmp_path, monkeypatch):
+    """Coverage reaches the worker by being in the environment, nothing else.
+
+    No wrapper and no re-exec, so a CeleryManager that built the worker's
+    environment from scratch -- rather than from os.environ -- would leave
+    every worker in a run silently unmeasured without failing anything. See
+    firexapp.subprocess_coverage.
+    """
+    coverage_env_vars = coverage_env(
+        data_file=str(tmp_path / "coverage_data" / ".coverage"),
+        config_file="/ut/coveragerc",
+    )
+    for name, value in coverage_env_vars.items():
+        monkeypatch.setenv(name, value)
+
+    worker_env = _ut_celery_manager(tmp_path).env
+
+    assert coverage_env_vars.items() <= worker_env.items()

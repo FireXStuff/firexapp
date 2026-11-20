@@ -1,0 +1,29 @@
+# Coverage configuration for integration test runs. Its path reaches every
+# measured process as COV_CORE_CONFIG, so everything that governs what gets
+# measured has to live here rather than on a command line -- a worker three
+# hops away has no command line of ours to read.
+#
+# See firexapp.subprocess_coverage.
+
+[run]
+branch = True
+
+# Each process writes its own '.coverage.<hostname>.<pid>.<random>' beside the
+# configured data file, which 'coverage combine' merges once the run is over.
+# Without this the processes would overwrite each other's results.
+parallel = True
+
+# By package rather than by directory: a worker on another host resolves
+# FireX through its own path, and source_pkgs matches wherever the package
+# turned out to be imported from. Add to this when a new top-level FireX
+# package should be measured.
+source_pkgs =
+    firexapp
+    firexkit
+    firex_cisco
+    microservices
+    services
+
+omit =
+    */lib/*
+    */tests/integration_tests/*

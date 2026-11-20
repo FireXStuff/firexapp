@@ -1,15 +1,19 @@
 import argparse
 import datetime
-import importlib
 import os
 import shutil
 import sys
+import typing
 import unittest
 from typing import ClassVar
 
 from lxml import etree
 from xmlrunner.runner import XMLTestRunner
 
+from firexapp.subprocess_coverage import (
+    COVERAGE_DATA_FILE_BASE_NAME,
+    combine_coverage_data,
+)
 from firexapp.testing.config_base import discover_tests
 from firexapp.testing.config_interpreter import ConfigInterpreter
 from firexkit.permissions import DEFAULT_UMASK
@@ -18,6 +22,47 @@ TEST_EXE = os.path.realpath(os.path.abspath(__file__))
 if not os.path.isfile(TEST_EXE):
     raise RuntimeError("Some import changed the cwd. Can't locate relative files")
 TEST_EXE_DIR = os.path.dirname(TEST_EXE)
+
+COVERAGE_DATA_DIR_NAME = "coverage_data"
+
+
+class CoverageSettings(typing.NamedTuple):
+    """What a run-flowtests invocation does about coverage."""
+
+    enabled: bool
+    # Where measured processes write. None when coverage is off.
+    data_dir: str | None
+    # Whether this invocation merges that directory and reports on it, or
+    # leaves it raw for the caller that supplied it to merge.
+    combine_here: bool
+    html_report_dir: str | None
+
+
+def resolve_coverage_settings(
+    coverage: bool,
+    coverage_data_dir: str | None,
+    results_directory: str,
+    no_html: bool,
+) -> CoverageSettings:
+    """Reconcile --coverage, --coverage_data_dir and --no_html.
+
+    A caller-supplied directory implies coverage and takes ownership of it:
+    RunFireXLegacyFlowtests invokes run-flowtests once per test file into one
+    directory, and combining in each invocation would delete the raw data the
+    others still need to be merged with -- only the raw per-process files can
+    be merged, not the reports built from them.
+    """
+    enabled = coverage or bool(coverage_data_dir)
+    if not enabled:
+        return CoverageSettings(False, None, False, None)
+    if coverage_data_dir:
+        return CoverageSettings(True, coverage_data_dir, False, None)
+    return CoverageSettings(
+        True,
+        os.path.join(results_directory, COVERAGE_DATA_DIR_NAME),
+        True,
+        None if no_html else os.path.join(results_directory, "coverage"),
+    )
 
 
 class FlowTestInfra(unittest.TestCase):
@@ -147,6 +192,15 @@ def main(default_results_dir, default_test_dir):
         "Used in combination with --coverage",
     )
     parser.add_argument(
+        "--coverage_data_dir",
+        default=None,
+        help="Write coverage data into this directory instead of one under "
+        "--logs, and leave combining and reporting to the caller. Implies "
+        "--coverage. Use this to gather several run-flowtests invocations "
+        "into a single report, since only the raw per-process data can be "
+        "merged afterwards.",
+    )
+    parser.add_argument(
         "--public_runs",
         action="store_true",
         default=False,
@@ -164,17 +218,7 @@ def main(default_results_dir, default_test_dir):
     )
     args = parser.parse_args()
 
-    if args.coverage:
-        # coverage requires eventlet, but firexapp does not
-        try:
-            importlib.import_module("eventlet")
-        except ModuleNotFoundError:
-            print(
-                "eventlet is not installed. eventlet is necessary to get code coverage."
-                "Please run again without the --coverage option"
-            )
-            sys.exit(-1)
-    elif args.no_html:
+    if args.no_html and not (args.coverage or args.coverage_data_dir):
         parser.error("--no_html cannot be used without --coverage")
 
     # prepare logging directory
@@ -190,8 +234,22 @@ def main(default_results_dir, default_test_dir):
     os.umask(DEFAULT_UMASK)
     os.mkdir(results_directory)
 
+    coverage_settings = resolve_coverage_settings(
+        coverage=args.coverage,
+        coverage_data_dir=args.coverage_data_dir,
+        results_directory=results_directory,
+        no_html=args.no_html,
+    )
+    if coverage_settings.enabled:
+        # Every measured process in every run of this suite writes here,
+        # including workers on other hosts: the directory is on NFS, and each
+        # process suffixes its own file with its hostname and pid.
+        os.makedirs(coverage_settings.data_dir, exist_ok=True)
+        FlowTestInfra.config_interpreter.coverage_data_file = os.path.join(
+            coverage_settings.data_dir, COVERAGE_DATA_FILE_BASE_NAME
+        )
+
     FlowTestInfra.config_interpreter.profile = args.profile
-    FlowTestInfra.config_interpreter.coverage = args.coverage
     FlowTestInfra.config_interpreter.is_public = args.public_runs
     FlowTestInfra.config_interpreter.entry_point_distros = (
         args.entry_point_distros
@@ -216,9 +274,6 @@ def main(default_results_dir, default_test_dir):
     else:
         orig_output = os.path.join(args.logs, xunit_file_name)
 
-    if args.coverage:
-        os.environ["COVERAGE_FILE"] = os.path.join(results_directory, ".coverage")
-
     suite_start = datetime.datetime.now().astimezone()
     success = unittest.main(
         module=FlowTestInfra.__module__,
@@ -235,25 +290,11 @@ def main(default_results_dir, default_test_dir):
         os.rename(
             orig_output, os.path.join(args.logs, os.path.basename(args.xunit_file_name))
         )
-    if args.coverage:
-        print("combining coverage files...")
-        coverage_files = [
-            f for f in os.listdir(results_directory) if f.startswith(".coverage")
-        ]
-        import subprocess
-
-        if coverage_files:
-            subprocess.check_output(
-                ["coverage", "combine"] + coverage_files, cwd=results_directory
-            )
-
-            if not args.no_html:
-                cov_report = os.path.join(results_directory, "coverage")
-                print("Generating Coverage Report...")
-                subprocess.check_output(
-                    ["coverage", "html", "-d", cov_report], cwd=results_directory
-                )
-                print(cov_report)
+    if coverage_settings.combine_here:
+        combine_coverage_data(
+            coverage_settings.data_dir,
+            html_report_dir=coverage_settings.html_report_dir,
+        )
 
     sys.exit(not success)
 

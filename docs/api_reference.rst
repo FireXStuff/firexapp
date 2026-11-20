@@ -36,6 +36,11 @@ API Reference
     :undoc-members:
     :show-inheritance:
 
+.. automodule:: firexapp.subprocess_coverage
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 .. automodule:: firexapp.engine.celery
     :members:
     :undoc-members:
@@ -97,11 +102,6 @@ API Reference
     :show-inheritance:
 
 .. automodule:: firexapp.testing.config_interpreter
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-.. automodule:: firexapp.testing.coverage_plugin
     :members:
     :undoc-members:
     :show-inheritance:
