@@ -15,6 +15,7 @@ import sqlalchemy.exc
 
 from firex_keeper.db_model import firex_run_metadata, firex_tasks
 from firex_keeper.persist import (
+    KEEPER_WRITER_PRAGMAS,
     RETRYING_DB_EXCEPTIONS,
     FireXRunDbManager,
     connect_db,
@@ -329,7 +330,11 @@ class WritingFireXRunDbManager(FireXRunDbManager, KeeperEventAggregator):
         self.firex_id = run_metadata.firex_id
         self.written_celery_event_count = 0
 
-        db_conn = connect_db(get_db_file(self.run_logs_dir, new=True), read_only=False)
+        db_conn = connect_db(
+            get_db_file(self.run_logs_dir, new=True),
+            read_only=False,
+            pragmas=KEEPER_WRITER_PRAGMAS,
+        )
         logger.info("Created DB connection.")
         Path(get_keeper_query_ready_file_path(self.run_logs_dir)).touch()
 

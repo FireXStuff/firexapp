@@ -1,9 +1,12 @@
+import shutil
+import sqlite3
 import tempfile
 import unittest
 from multiprocessing import Process, Queue
 from sqlite3 import OperationalError as SqlLiteOperationalError
 from unittest.mock import patch
 
+from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
 from firex_keeper import task_query
@@ -15,8 +18,10 @@ from firex_keeper.keeper_event_consumer import (
 from firex_keeper.keeper_helper import can_any_write
 from firex_keeper.persist import (
     DEFAULT_MAX_RETRY_ATTEMPTS,
+    KEEPER_PAGE_SIZE,
     FireXWaitQueryExceeded,
     get_db_file,
+    get_db_manager,
     task_by_uuid_exp,
     task_uuid_complete_exp,
 )
@@ -379,7 +384,19 @@ class FireXKeeperTests(unittest.TestCase):
             writer_proc = _write_events_to_db(
                 logs_dir,
                 [
-                    {"uuid": "1", "name": "Noop", "type": RunStates.FAILED.value},
+                    # an incomplete root keeps the keeper writing.
+                    {
+                        "uuid": "0",
+                        "name": "Root",
+                        "parent_id": None,
+                        "type": RunStates.RECEIVED.value,
+                    },
+                    {
+                        "uuid": "1",
+                        "name": "Noop",
+                        "parent_id": "0",
+                        "type": RunStates.FAILED.value,
+                    },
                 ],
                 stop=False,
             )
@@ -484,8 +501,109 @@ class FireXKeeperTests(unittest.TestCase):
                 self.assertEqual(mock_insert.call_count, DEFAULT_MAX_RETRY_ATTEMPTS)
                 self.assertEqual(db_writer.query_tasks(True), [])
 
+    def test_first_started_kept_across_writes(self):
+        """
+        A task created in one write keeps first_started when its next event
+        arrives in a later write, e.g. its completion after a long run.
+        """
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            db_writer = _create_writing_db_mgr(tmpdirname)
+            db_writer.aggregate_events_and_update_db(
+                [
+                    {
+                        "uuid": "1",
+                        "name": "Noop",
+                        "type": RunStates.RECEIVED.value,
+                        "local_received": 100.0,
+                    },
+                    {
+                        "uuid": "1",
+                        "type": RunStates.STARTED.value,
+                        "local_received": 100.5,
+                    },
+                ]
+            )
+            db_writer.aggregate_events_and_update_db(
+                [
+                    {
+                        "uuid": "1",
+                        "type": RunStates.SUCCEEDED.value,
+                        "local_received": 7300.0,
+                    }
+                ]
+            )
+            tasks = db_writer.query_tasks(True)
+            self.assertEqual(1, len(tasks))
+            self.assertEqual(100.0, tasks[0].first_started)
+            self.assertEqual(RunStates.SUCCEEDED.value, tasks[0].state)
+
 
 def _create_writing_db_mgr(logs_dir: str) -> WritingFireXRunDbManager:
     return WritingFireXRunDbManager(
         FireXRunMetadata("FireX-1", logs_dir, "SomeChain", None, "username")
     )
+
+
+def _pragma(db_conn, name):
+    return db_conn.execute(text(f"PRAGMA {name}")).scalar()
+
+
+def test_keeper_db_pragmas(tmp_path):
+    logs_dir = str(tmp_path)
+    db_writer = _create_writing_db_mgr(logs_dir)
+    try:
+        db_writer.aggregate_events_and_update_db([{"uuid": "1", "name": "Noop"}])
+        assert _pragma(db_writer.db_conn, "journal_mode") == "truncate"
+        assert _pragma(db_writer.db_conn, "busy_timeout") == 60000
+
+        with get_db_manager(logs_dir) as db_manager:
+            assert _pragma(db_manager.db_conn, "page_size") == KEEPER_PAGE_SIZE
+            assert _pragma(db_manager.db_conn, "query_only") == 1
+    finally:
+        db_writer.complete_writing()
+
+
+def test_query_copy_db_without_rsync(tmp_path, monkeypatch):
+    logs_dir = str(tmp_path)
+    _write_events_to_db(
+        logs_dir,
+        [{"uuid": "1", "name": "Noop"}, {"uuid": "2", "name": "Other"}],
+    )
+    monkeypatch.setattr(task_query.shutil, "which", lambda _: None)
+    with patch.object(
+        task_query.shutil,
+        "copyfile",
+        side_effect=AssertionError("expected sqlite backup"),
+    ):
+        tasks = task_query.tasks_by_name(
+            logs_dir, "Noop", copy_before_query=True, db_file_query_ready_timeout=0
+        )
+    assert [t.uuid for t in tasks] == ["1"]
+
+
+def test_copy_db_leaves_hot_looking_journal(tmp_path, monkeypatch):
+    # A host that can't see the writer's NFS lock sees the live DB with a journal that looks hot.
+    # Rolling that journal back would corrupt the live DB, so copying must not.
+    writing_db = tmp_path / "writing.db"
+    writer = sqlite3.connect(writing_db, isolation_level=None)
+    writer.execute("CREATE TABLE t (v TEXT)")
+    writer.execute("BEGIN")
+    writer.executemany("INSERT INTO t VALUES (?)", [("old" * 100,)] * 2000)
+    writer.execute("COMMIT")
+    # spill the uncommitted update to the DB file.
+    writer.execute("PRAGMA cache_size=2")
+    writer.execute("BEGIN")
+    writer.execute("UPDATE t SET v = 'new'")
+    seen_db = tmp_path / "seen.db"
+    for suffix in ("", "-journal"):
+        shutil.copyfile(f"{writing_db}{suffix}", f"{seen_db}{suffix}")
+    writer.close()
+    seen_db_bytes = seen_db.read_bytes()
+
+    monkeypatch.setattr(task_query.shutil, "which", lambda _: None)
+    task_query._copy_keeper_db_for_local_query(
+        str(seen_db), str(tmp_path / "copy.db"), str(tmp_path)
+    )
+
+    assert seen_db.read_bytes() == seen_db_bytes
+    assert (tmp_path / "seen.db-journal").exists()

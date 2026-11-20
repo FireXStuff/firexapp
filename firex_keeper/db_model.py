@@ -80,3 +80,7 @@ firex_tasks = Table(TASKS_TABLENAME, metadata, *TASK_COLUMNS)
 
 Index("task_parent_index", firex_tasks.c.parent_id)  # for descendants query
 Index("task_name_index", firex_tasks.c.name)  # commonly queried
+# Filter columns are stored after the large JSON columns, so an unindexed filter reads all of every row.
+Index("task_long_name_index", firex_tasks.c.long_name)
+Index("task_state_index", firex_tasks.c.state)
+Index("task_exception_cause_uuid_index", firex_tasks.c.exception_cause_uuid)

@@ -1,11 +1,12 @@
 import json
 import logging
 import os
+from collections.abc import Sequence
 from contextlib import contextmanager
 from sqlite3 import OperationalError as SqlLiteOperationalError
 from time import perf_counter, sleep
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.sql import and_, select
 from sqlalchemy.sql.selectable import Select
@@ -48,28 +49,41 @@ def _custom_json_loads(*args, **kwargs):
     return json.loads(*args, **kwargs)
 
 
-def _get_pragmas(use_wal):
-    pragmas = ["page_size = 4096"]
-    if use_wal:
-        pragmas += [
-            "journal_mode=WAL",
-            "synchronous=NORMAL",
-        ]
-    return pragmas
+# Keeper's writer thread holds the only read-write connection to the keeper DB, which is
+# often on NFS. Every other connection must be read-only: a read-write connection rolls
+# back any journal it believes is hot, and if it can't see the writer's NFS lock, it rolls
+# back a live transaction and corrupts the DB.
+# WAL must not be used while other hosts read the live DB: its wal-index is shared memory,
+# which isn't coherent across hosts. synchronous must stay FULL (the default): NORMAL can
+# corrupt rollback-journal DBs on power loss.
+KEEPER_PAGE_SIZE = 16384
+KEEPER_WRITER_PRAGMAS = (
+    # Only applies when the DB is created. Task rows average ~20KB of JSON, so 4K pages put
+    # most rows in overflow page chains, each page a serial NFS round trip for readers.
+    f"page_size={KEEPER_PAGE_SIZE}",
+    # Commit by truncating the journal instead of creating and deleting it, saving NFS round
+    # trips per commit. Readers treat an empty journal as absent. Not PERSIST: readers pay
+    # extra round trips when the journal isn't empty.
+    "journal_mode=TRUNCATE",
+    # 64MiB keeps aggregation lookups of written tasks off NFS. With a single writer, the
+    # cache stays valid across transactions.
+    "cache_size=-65536",
+    # A commit waits for in-progress reads to finish, and slow cross-site reads easily exceed
+    # the 5s default, rolling back the whole batch. The waiting writer blocks new readers, so
+    # it can't be starved.
+    "busy_timeout=60000",
+)
+READER_PRAGMAS = ("query_only=1",)
 
 
-def execute_pragmas(engine, use_wal=False):
-    dbapi_connection = engine.raw_connection()
-    try:
+def _execute_pragmas_on_connect(engine, pragmas):
+    # Pragmas are per DBAPI connection, and the engine opens a new one per connect().
+    @event.listens_for(engine, "connect")
+    def _execute_pragmas(dbapi_connection, _connection_record):
         cursor = dbapi_connection.cursor()
-        for pragma in _get_pragmas(use_wal):
-            cmd = "PRAGMA " + pragma
-            logger.debug(f"Executing: {cmd}")
-            cursor.execute(cmd)
+        for pragma in pragmas:
+            cursor.execute(f"PRAGMA {pragma}")
         cursor.close()
-        dbapi_connection.commit()
-    finally:
-        dbapi_connection.close()
 
 
 def _db_connection_str(db_file, read_only, is_run_complete=False):
@@ -90,19 +104,21 @@ def _db_connection_str(db_file, read_only, is_run_complete=False):
 
 
 def connect_db(
-    db_file, read_only=False, metadata_to_create=metadata, is_run_complete=False
+    db_file,
+    read_only=False,
+    metadata_to_create=metadata,
+    is_run_complete=False,
+    pragmas: Sequence[str] = (),
 ):
     engine = create_engine(
         _db_connection_str(db_file, read_only, is_run_complete=is_run_complete),
         json_deserializer=_custom_json_loads,
     )
+    pragmas = (*pragmas, *(READER_PRAGMAS if read_only or is_run_complete else ()))
+    if pragmas:
+        _execute_pragmas_on_connect(engine, pragmas)
 
     if not os.path.exists(db_file):
-        #  WAL should not be used while concurrent read+write NFS access is still possible. Once all reads go through
-        #   keeper process for in-progress runs, WAL is likely preferable for in-progress runs, then after the DB
-        #   should be read-only and therefore safe for direct NFS access.
-        execute_pragmas(engine, use_wal=False)
-
         logger.info(f"Creating schema for {db_file}")
         metadata_to_create.create_all(engine)
         logger.info(f"Schema creation complete for {db_file}")
@@ -163,10 +179,9 @@ def get_db_manager(logs_dir):
 
 
 def _row_to_run_metadata(row):
-    # The first 4 columns from the table make up a FireXRunMetadata.
-    # Need to set firex_requester explicitly since it's not in the db_mode.firex_run_metadata
-    # Can't add the Column now as it won't be backward compatible
-    return FireXRunMetadata(*row[:4], firex_requester=None)
+    # By column name, so fields missing from the table (e.g. firex_requester) are None.
+    row_by_col = row._mapping
+    return FireXRunMetadata(**{f: row_by_col.get(f) for f in FireXRunMetadata._fields})
 
 
 RETRYING_DB_EXCEPTIONS = (OperationalError, SqlLiteOperationalError)
@@ -202,12 +217,14 @@ class FireXRunDbManager:
         self.db_conn = db_conn
 
     def does_task_whereclause_exist(self, whereclause):
-        query = select([firex_tasks.c.uuid]).where(whereclause)
+        query = select(firex_tasks.c.uuid).where(whereclause)
         return self.db_conn.execute(query).scalar() is not None
 
     def wait_before_query(self, whereclause, max_wait, error_on_wait_exceeded):
         if not self._is_keeper_complete():
             start_wait_time = perf_counter()
+            # Each check must be its own read transaction: one held across checks would never see
+            # newly written tasks and would block the writer's commits for the whole wait.
             exists = wait_until(
                 self.does_task_whereclause_exist, max_wait, 0.5, whereclause
             )
@@ -233,7 +250,7 @@ class FireXRunDbManager:
         if isinstance(exp, Select):
             select_stmt = exp
         else:
-            select_stmt = select([firex_tasks]).where(exp)
+            select_stmt = select(firex_tasks).where(exp)
 
         db_result = self.db_conn.execute(select_stmt)
         result_tasks = []
@@ -248,16 +265,14 @@ class FireXRunDbManager:
     @retry(RETRYING_DB_EXCEPTIONS)
     def query_run_metadata(self, firex_id) -> FireXRunMetadata:
         result = self.db_conn.execute(
-            select([firex_run_metadata]).where(
-                firex_run_metadata.c.firex_id == firex_id
-            )
+            select(firex_run_metadata).where(firex_run_metadata.c.firex_id == firex_id)
         )
         if not result:
             raise LookupError(f"Found no run data for {firex_id}")
         return next(_row_to_run_metadata(row) for row in result)
 
     def _query_single_run_metadata_row(self):
-        result = self.db_conn.execute(select([firex_run_metadata]))
+        result = self.db_conn.execute(select(firex_run_metadata))
         rows = [r for r in result]
         if len(rows) != 1:
             raise RuntimeError(

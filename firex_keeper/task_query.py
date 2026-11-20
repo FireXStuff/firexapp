@@ -1,7 +1,9 @@
 import logging
 import os
 import shutil
+import sqlite3
 import subprocess
+from contextlib import closing
 from tempfile import TemporaryDirectory
 
 from sqlalchemy import literal
@@ -94,6 +96,33 @@ def _rsync_keeper_db(rsync_bin: str, src: str, dest: str, cwd: str) -> bool:
     return False
 
 
+def _sqlite_backup_keeper_db(existing_db_file: str, new_tmp_db_file: str) -> bool:
+    """Copy a consistent snapshot of a keeper DB with SQLite's backup API.
+
+    The source must be opened read-only: a read-write open rolls back any journal it
+    believes is hot, and when it can't see the writer's NFS lock, that rollback would
+    corrupt the live keeper DB.
+    """
+    logger.info(
+        "Copying keeper DB for local query using sqlite backup from %s",
+        existing_db_file,
+    )
+    try:
+        with (
+            closing(
+                sqlite3.connect(f"file:{existing_db_file}?mode=ro", uri=True)
+            ) as src,
+            closing(sqlite3.connect(new_tmp_db_file)) as dest,
+        ):
+            src.backup(dest)
+    except sqlite3.Error as e:
+        logger.warning("sqlite backup keeper copy failed: %s", e)
+        _unlink_if_exists(new_tmp_db_file)
+        return False
+    logger.info("Copied keeper DB for local query using sqlite backup")
+    return True
+
+
 def _copy_keeper_db_for_local_query(
     existing_db_file: str,
     new_tmp_db_file: str,
@@ -104,7 +133,7 @@ def _copy_keeper_db_for_local_query(
 
     ``rsync_src_host`` is an SSH host that should read ``existing_db_file``.
     The rsync source is ``host:existing_db_file`` when a host is given, and
-    the local database path otherwise. Then sqlite3 .backup, then shutil.copyfile.
+    the local database path otherwise. Then a read-only sqlite backup, then shutil.copyfile.
     """
     rsync_bin = shutil.which("rsync")
     if rsync_bin:
@@ -120,22 +149,8 @@ def _copy_keeper_db_for_local_query(
         ):
             return
 
-    sqlite_bin = "/bin/sqlite3"
-    if os.path.isfile(sqlite_bin):
-        logger.info(
-            "Copying keeper DB for local query using sqlite3 .backup from %s",
-            existing_db_file,
-        )
-        try:
-            subprocess.check_call(
-                [sqlite_bin, existing_db_file, f".backup {new_tmp_db_file}"],
-                cwd=tmp_cwd,
-            )
-            logger.info("Copied keeper DB for local query using sqlite3 .backup")
-            return
-        except (OSError, subprocess.SubprocessError) as e:
-            logger.warning("sqlite3 .backup keeper copy failed: %s", e)
-        _unlink_if_exists(new_tmp_db_file)
+    if _sqlite_backup_keeper_db(existing_db_file, new_tmp_db_file):
+        return
 
     logger.info(
         "Copying keeper DB for local query using shutil.copyfile from %s",

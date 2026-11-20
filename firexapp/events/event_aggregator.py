@@ -331,8 +331,11 @@ class AbstractFireXEventAggregator:
 
             # If we just created the task, we need to send the auto-initialized fields, as well as data from the event.
             # If this isn't a new event, we only need to send what has changed.
+            # Not every _update_task applies changed_data to existing_task, so a new task includes it explicitly.
             changes_by_task_uuid[task_uuid] = (
-                dict(existing_task) if is_new_task else dict(changed_data)
+                dict(existing_task) | changed_data
+                if is_new_task
+                else dict(changed_data)
             )
 
         return changes_by_task_uuid
