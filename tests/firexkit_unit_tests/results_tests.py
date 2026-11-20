@@ -615,6 +615,41 @@ class TestGetAsCompleted:
 
         assert ars.wait_for_any(max_wait=30, raise_on_failure=False) == failed
 
+    def test_a_result_added_mid_iteration_is_waited_on_too(self, ut_app):
+        first = MockFxAsyncResult(state=SUCCESS, app=ut_app)
+        added = MockFxAsyncResult(state=_completes_in(0.3), app=ut_app)
+        ars = ManyFxAsyncResults.fx_ars_from_single(first)
+
+        yielded = []
+        for key, ar in ars.get_keyed_as_completed(max_wait=30):
+            yielded.append((key, ar))
+            if ar is first:
+                # While handling the last result waited on, which would otherwise
+                # have ended the iteration.
+                ars.add("added", added)
+
+        assert yielded == [(0, first), ("added", added)]
+        assert list(ars) == [first, added]
+
+    def test_adding_a_key_already_used_raises(self, ut_app):
+        kept = MockFxAsyncResult(state=SUCCESS, app=ut_app)
+        ars = ManyFxAsyncResults.fx_ars_from_single(kept)
+
+        with pytest.raises(ValueError):
+            ars.add(0, MockFxAsyncResult(state=SUCCESS, app=ut_app))
+        assert list(ars) == [kept]
+
+    def test_with_raise_on_failure_a_failure_ends_the_iteration(self, ut_app):
+        failed = MockFxAsyncResult(state=FAILURE, result=OSError(), app=ut_app)
+        succeeded = MockFxAsyncResult(state=SUCCESS, app=ut_app)
+        completed = ManyFxAsyncResults.fx_ars_from_list(
+            [failed, succeeded]
+        ).get_as_completed(max_wait=30)
+
+        with pytest.raises(ChainInterruptedException):
+            next(completed)
+        assert list(completed) == []
+
 
 @pytest.mark.usefixtures("no_revoke_updates")
 def test_wait_for_all_gives_up_on_a_zombie(ut_app, always_dead_workers):

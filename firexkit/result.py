@@ -805,6 +805,19 @@ class ManyFxAsyncResults(Generic[K]):
     def as_dict(self) -> dict[K, FxAsyncResult]:
         return dict(self._fx_ars_by_key)
 
+    def add(self, key: K, ar: FxAsyncResult) -> None:
+        """
+        Add a result under a key not already used.
+
+        A get_as_completed iteration over these results waits on it too, unless the
+        iteration has already ended, e.g. when added while handling a result it
+        yielded. Not while iterating over these results themselves, as wait_for_all
+        does, e.g. from one of its callbacks.
+        """
+        if key in self._fx_ars_by_key:
+            raise ValueError(f"Already have a result keyed {key!r}")
+        self._fx_ars_by_key[key] = ar
+
     def revoke_non_ready(self, max_wait: int = 2 * 60) -> ManyFxAsyncResults:
         """
         returns FxAsyncResult that were revoked.
@@ -869,6 +882,8 @@ class ManyFxAsyncResults(Generic[K]):
         an iteration can't raise and then carry on waiting for the rest.
 
         poll_max_wait caps the time between checks for completed results.
+
+        Results added to these while iterating are waited on too (see add()).
         """
         for k, ar, ex in self._get_keyed_outcomes_as_completed(
             max_wait=max_wait,
@@ -894,9 +909,7 @@ class ManyFxAsyncResults(Generic[K]):
         exception that waiting on each result alone would have raised, which is
         None for a result that succeeded.
         """
-        # A copy, so that the caller's results are left intact.
-        remaining_ars: dict[K, FxAsyncResult] = dict(self._fx_ars_by_key)
-        if not remaining_ars:
+        if not self:
             return
 
         logger.debug(
@@ -908,7 +921,12 @@ class ManyFxAsyncResults(Generic[K]):
         start_time = time.monotonic()
         last_callback_time = {c.func: start_time for c in callbacks}
         zombie_check: _ZombieCheck | None = None
-        while remaining_ars:
+        # Kept rather than removing what's yielded, so that the caller's results are
+        # left intact, and so that any the caller adds in the meantime are seen.
+        yielded: set[K] = set()
+        while remaining_ars := {
+            k: ar for k, ar in self._fx_ars_by_key.items() if k not in yielded
+        }:
             # Only the first result still waited on is checked for being a zombie,
             # which is the one wait_for_all would be blocked on at this point. Each
             # check can take minutes, so checking every result doesn't scale.
@@ -948,7 +966,7 @@ class ManyFxAsyncResults(Generic[K]):
                         )
 
             for k, ar, ex in completed:
-                del remaining_ars[k]
+                yielded.add(k)
                 logger.debug(
                     f"--> {ar.fx_logging_name()} completed with state {ar.fx_get_state()}"
                     + (f" ({type(ex).__name__}: {ex})" if ex else "")
