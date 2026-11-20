@@ -114,7 +114,9 @@ def _sqlite_backup_keeper_db(existing_db_file: str, new_tmp_db_file: str) -> boo
             ) as src,
             closing(sqlite3.connect(new_tmp_db_file)) as dest,
         ):
-            src.backup(dest)
+            # Copy in steps, like the sqlite3 CLI's .backup, so the read lock is released
+            # between steps instead of blocking the keeper writer for the whole copy.
+            src.backup(dest, pages=100)
     except sqlite3.Error as e:
         logger.warning("sqlite backup keeper copy failed: %s", e)
         _unlink_if_exists(new_tmp_db_file)
