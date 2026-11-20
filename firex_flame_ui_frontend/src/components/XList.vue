@@ -1,7 +1,7 @@
 <template>
   <div class="flame-top"
        @keydown.ctrl.f.prevent="focusOnFind"
-       @keyup.191.prevent="focusOnFind"
+       @keyup="onFindKey"
        tabindex="0"
   >
     <x-header :title="title"
@@ -67,11 +67,14 @@
 
 <script>
 import _ from 'lodash';
-import { mapState, mapGetters } from 'vuex';
+import { mapState } from 'pinia';
 
 import XNode from './nodes/XTaskNode.vue';
 import XHeader from './XHeader.vue';
 import XTaskNodeSearch from './XTaskNodeSearch.vue';
+import { useTasksStore } from '../store/modules/tasks';
+import { useHeaderStore } from '../store/modules/header';
+import { useFirexRunMetadataStore } from '../store/modules/firexRunMetadata';
 import { containsAll } from '../utils';
 
 export default {
@@ -117,16 +120,14 @@ export default {
     };
   },
   computed: {
-    ...mapState({
-      allTasksByUuid: state => state.tasks.allTasksByUuid,
-      search: state => state.tasks.search,
-    }),
-    ...mapGetters({
-      graphViewHeaderEntry: 'header/graphViewHeaderEntry',
-      runLogsViewHeaderEntry: 'header/runLogsViewHeaderEntry',
-      helpViewHeaderEntry: 'header/helpViewHeaderEntry',
-      timeChartViewHeaderEntry: 'header/timeChartViewHeaderEntry',
-    }),
+    ...mapState(useTasksStore, ['allTasksByUuid', 'search']),
+    ...mapState(useHeaderStore, [
+      'graphViewHeaderEntry',
+      'runLogsViewHeaderEntry',
+      'helpViewHeaderEntry',
+      'timeChartViewHeaderEntry',
+    ]),
+    ...mapState(useFirexRunMetadataStore, { title: 'uid' }),
     // Want to go over results based on selected sort order, not based on task_num.
     orderedSearchResultUuids() {
       return _.intersection(this.sortedTasksUuids, this.search.resultUuids);
@@ -139,9 +140,6 @@ export default {
     },
     hasSearchTerm() {
       return !_.isEmpty(this.search.term);
-    },
-    title() {
-      return this.$store.state.firexRunMetadata.uid;
     },
     headerLinks() {
       return [this.graphViewHeaderEntry, this.timeChartViewHeaderEntry,
@@ -194,7 +192,14 @@ export default {
       this.$router.replace({ query: newQuery });
     },
     focusOnFind() {
-      this.$store.commit('tasks/toggleSearchOpen');
+      useTasksStore().toggleSearchOpen();
+    },
+    onFindKey(event) {
+      // Vue 3 dropped keyCode modifiers; this was @keyup.191 ('/').
+      if (event.key === '/') {
+        event.preventDefault();
+        this.focusOnFind();
+      }
     },
   },
   beforeRouteEnter(to, from, next) {
@@ -210,7 +215,7 @@ export default {
   beforeRouteLeave(to, from, next) {
     // TODO: this should be cleared on FireX UID change or keyed on by FireX UID.
     from.meta.scrollY = this.$refs['task-list'].scrollTop;
-    this.$store.commit('tasks/closeSearch');
+    useTasksStore().closeSearch();
     next();
   },
   watch: {

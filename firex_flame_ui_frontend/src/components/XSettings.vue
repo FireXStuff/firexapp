@@ -33,9 +33,7 @@
       <div style="margin-left: 3em;">
       <button type="button"
               style="margin-bottom: 10px;"
-              v-clipboard:copy="displayConfigsJson"
-              v-clipboard:success="onCopySuccess"
-              v-clipboard:error="onCopyFail"
+              @click="copyDisplayConfigs"
         >Copy Display Configs</button>
 
       <table class="display-config">
@@ -53,7 +51,8 @@
               No display operations have been saved. Create operations below.
             </td>
           </tr>
-          <tr v-else v-for="config in displayConfigs" :key="config.id">
+          <template v-else>
+          <tr v-for="config in displayConfigs" :key="config.id">
             <td>{{ config.relative_to_nodes.value }}</td>
             <td>{{ config.operation }}</td>
             <td>{{ join(config.targets) }}</td>
@@ -62,6 +61,7 @@
                 @click="deleteDisplayConfig(config.id)"></font-awesome-icon>
             </td>
           </tr>
+          </template>
         </tbody>
       </table>
 
@@ -118,8 +118,9 @@
 
 <script>
 import _ from 'lodash';
-import { mapState } from 'vuex';
+import { mapState } from 'pinia';
 
+import { useHeaderStore } from '../store/modules/header';
 import { uuidv4, fetchUiConfig } from '../utils';
 import {
   addLocalStorageData, readValidatedPathFromLocalStorage, loadDisplayConfigs, USER_CONFIGS_KEY,
@@ -143,10 +144,10 @@ export default {
     };
   },
   computed: {
-    ...mapState({
-      centralServerUiPath: state => _.get(state.header.uiConfig, 'central_server_ui_path', null),
-      centralServer: state => _.get(state.header.uiConfig, 'central_server', null),
-      isCentral: state => _.get(state.header.uiConfig, 'is_central', false),
+    ...mapState(useHeaderStore, {
+      centralServerUiPath: store => _.get(store.uiConfig, 'central_server_ui_path', null),
+      centralServer: store => _.get(store.uiConfig, 'central_server', null),
+      isCentral: store => _.get(store.uiConfig, 'is_central', false),
     }),
     displayConfigsJson() {
       return JSON.stringify(this.displayConfigs, null, 2);
@@ -227,6 +228,11 @@ export default {
     join(array) {
       return _.join(array, ', ');
     },
+    copyDisplayConfigs() {
+      navigator.clipboard.writeText(this.displayConfigsJson).then(
+        this.onCopySuccess, this.onCopyFail,
+      );
+    },
     onCopySuccess() {
       this.successDisplayMsg = 'Successfully copied display config to clipboard.';
     },
@@ -236,7 +242,7 @@ export default {
   },
   beforeRouteEnter(to, from, next) {
     fetchUiConfig().then((uiConfig) => {
-      next(vm => vm.$store.commit('header/setFlameUiConfig', uiConfig));
+      next(() => useHeaderStore().setFlameUiConfig(uiConfig));
     });
   },
 };

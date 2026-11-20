@@ -1,11 +1,10 @@
 <template>
   <!-- Need prevent to avoid default browser behaviour of ctrl-f.  -->
-  <!-- 191 is the '/' keycode -->
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
        @keydown.ctrl.f.prevent="focusOnFind"
-       @keyup.191.prevent="focusOnFind"
-       @keyup.u.exact="$store.dispatch('graph/toggleLiveUpdate')"
-       @keyup.d.exact="$store.dispatch('graph/toggleShowTaskDetails')"
+       @keyup="onFindKey"
+       @keyup.u.exact="toggleLiveUpdate"
+       @keyup.d.exact="toggleShowTaskDetails"
        @keyup.r.exact="refreshGraph"
        tabindex="0">
     <x-header :title="headerParams.title"
@@ -24,13 +23,17 @@
 
 <script>
 import _ from 'lodash';
-import { mapGetters } from 'vuex';
+import { mapActions, mapState } from 'pinia';
 
 import XGraph from './XGraph.vue';
 import XHeader from './XHeader.vue';
 import XCollapseButtons from './XCollapseButtons.vue';
 import XTaskNodeSearch from './XTaskNodeSearch.vue';
 
+import { useTasksStore } from '../store/modules/tasks';
+import { useGraphStore } from '../store/modules/graph';
+import { useHeaderStore } from '../store/modules/header';
+import { useFirexRunMetadataStore } from '../store/modules/firexRunMetadata';
 import { eventHub } from '../utils';
 
 export default {
@@ -42,36 +45,37 @@ export default {
     XTaskNodeSearch,
   },
   computed: {
-    ...mapGetters({
+    ...mapState(useTasksStore, {
       // The root UUID to show, not necessarily the root UUID from the runMetadata.
-      rootUuid: 'tasks/selectedRoot',
-      canRevoke: 'tasks/canRevoke',
-      listViewHeaderEntry: 'header/listViewHeaderEntry',
-      runLogsViewHeaderEntry: 'header/runLogsViewHeaderEntry',
-      helpViewHeaderEntry: 'header/helpViewHeaderEntry',
-      timeChartViewHeaderEntry: 'header/timeChartViewHeaderEntry',
-      centerHeaderEntry: 'header/centerHeaderEntry',
-      showTaskDetailsHeaderEntry: 'header/showTaskDetailsHeaderEntry',
-      liveUpdateToggleHeaderEntry: 'header/liveUpdateToggleHeaderEntry',
-      killHeaderEntry: 'header/killHeaderEntry',
-      inputsViewHeaderEntry: 'header/inputsViewHeaderEntry',
+      rootUuid: 'selectedRoot',
+      canRevoke: 'canRevoke',
     }),
+    ...mapState(useHeaderStore, [
+      'listViewHeaderEntry',
+      'runLogsViewHeaderEntry',
+      'helpViewHeaderEntry',
+      'timeChartViewHeaderEntry',
+      'centerHeaderEntry',
+      'showTaskDetailsHeaderEntry',
+      'liveUpdateToggleHeaderEntry',
+      'killHeaderEntry',
+      'inputsViewHeaderEntry',
+    ]),
+    ...mapState(useGraphStore, ['liveUpdate', 'showTaskDetails']),
     toggleStates() {
       return {
-        liveUpdate: this.$store.state.graph.liveUpdate,
-        showTaskDetails: this.$store.state.graph.showTaskDetails,
+        liveUpdate: this.liveUpdate,
+        showTaskDetails: this.showTaskDetails,
       };
     },
     runMetadata() {
-      return this.$store.state.firexRunMetadata;
+      return useFirexRunMetadataStore();
     },
     headerParams() {
       let links = [
-        this.liveUpdateToggleHeaderEntry(() => this.$store.dispatch('graph/toggleLiveUpdate')),
+        this.liveUpdateToggleHeaderEntry(this.toggleLiveUpdate),
         this.centerHeaderEntry,
-        this.showTaskDetailsHeaderEntry(
-          () => this.$store.dispatch('graph/toggleShowTaskDetails'),
-        ),
+        this.showTaskDetailsHeaderEntry(this.toggleShowTaskDetails),
         this.inputsViewHeaderEntry,
         this.listViewHeaderEntry,
         this.timeChartViewHeaderEntry,
@@ -91,8 +95,17 @@ export default {
     },
   },
   methods: {
+    ...mapActions(useGraphStore, ['toggleLiveUpdate', 'toggleShowTaskDetails']),
+    ...mapActions(useTasksStore, ['toggleSearchOpen']),
     focusOnFind() {
-      this.$store.commit('tasks/toggleSearchOpen');
+      this.toggleSearchOpen();
+    },
+    onFindKey(event) {
+      // Vue 3 dropped keyCode modifiers; this was @keyup.191 ('/').
+      if (event.key === '/') {
+        event.preventDefault();
+        this.focusOnFind();
+      }
     },
     refreshGraph() {
       eventHub.$emit('graph-refresh');

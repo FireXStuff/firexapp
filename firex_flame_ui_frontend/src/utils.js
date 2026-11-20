@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import Vue from 'vue';
+import mitt from 'mitt';
 import { flextree } from 'd3-flextree';
 
 const BASE_URL = import.meta.env.BASE_URL;
@@ -545,8 +545,14 @@ function arrayToPath(path) {
   return _.join(path, '/');
 }
 
-// See https://vuejs.org/v2/guide/migration.html#dispatch-and-broadcast-replaced
-const eventHub = new Vue();
+// Vue 3 instances are no longer event emitters, so the app-wide event bus is a mitt
+// emitter wrapped to keep the $on/$off/$emit surface all call sites already use.
+const mittEmitter = mitt();
+const eventHub = {
+  $on: (event, handler) => mittEmitter.on(event, handler),
+  $off: (event, handler) => mittEmitter.off(event, handler),
+  $emit: (event, payload) => mittEmitter.emit(event, payload),
+};
 const isDebug = process.env.NODE_ENV !== 'production';
 
 export {

@@ -88,10 +88,12 @@
 <script>
 
 import _ from 'lodash';
-import { mapGetters } from 'vuex';
+import { mapState } from 'pinia';
 
 import XNode from './nodes/XTaskNode.vue';
 import XHeader from './XHeader.vue';
+import { useTasksStore } from '../store/modules/tasks';
+import { useHeaderStore } from '../store/modules/header';
 
 export default {
   name: 'XHelp',
@@ -119,12 +121,10 @@ export default {
         { state: 'task-failed', exception: 'ChainInterruptedException' }),
       incompleteNode: _.merge({}, this.baseNode, { state: 'task-incomplete' }),
     };
-    this.$store.dispatch('tasks/setTasks', tasksByUuid);
+    useTasksStore().setTasks(tasksByUuid);
   },
   computed: {
-    ...mapGetters({
-      documentationHeaderEntry: 'header/documentationHeaderEntry',
-    }),
+    ...mapState(useHeaderStore, ['documentationHeaderEntry']),
     tasksByUuid() {
       return {
         startedNode: _.merge({}, this.baseNode, { state: 'task-started' }),
@@ -155,7 +155,7 @@ export default {
     $route: {
       immediate: true,
       handler() {
-        this.$store.dispatch('tasks/setTasks', this.tasksByUuid);
+        useTasksStore().setTasks(this.tasksByUuid);
       },
     },
   },

@@ -27,10 +27,12 @@
 
 <script>
 import _ from 'lodash';
-import { mapGetters, mapState } from 'vuex';
+import { mapState } from 'pinia';
 import XKeyValueViewer from './XKeyValueViewer.vue';
 import XHeader from './XHeader.vue';
 import XSection from './XSection.vue';
+import { useHeaderStore } from '../store/modules/header';
+import { useFirexRunMetadataStore } from '../store/modules/firexRunMetadata';
 
 const INFRA_KEYS = [
   'disable_blaze',
@@ -60,16 +62,13 @@ export default {
   components: { XKeyValueViewer, XHeader, XSection },
   props: {},
   computed: {
-    ...mapGetters({
-      graphViewHeaderEntry: 'header/graphViewHeaderEntry',
-      listViewHeaderEntry: 'header/listViewHeaderEntry',
-      timeChartViewHeaderEntry: 'header/timeChartViewHeaderEntry',
-      runLogsViewHeaderEntry: 'header/runLogsViewHeaderEntry',
-    }),
-    ...mapState({
-      logsDir: state => state.firexRunMetadata.logs_dir,
-      uid: state => state.firexRunMetadata.uid,
-    }),
+    ...mapState(useHeaderStore, [
+      'graphViewHeaderEntry',
+      'listViewHeaderEntry',
+      'timeChartViewHeaderEntry',
+      'runLogsViewHeaderEntry',
+    ]),
+    ...mapState(useFirexRunMetadataStore, { logsDir: 'logs_dir', uid: 'uid' }),
     runJsonPath() {
       return `${this.logsDir}/run.json`;
     },

@@ -4,7 +4,8 @@
 
 <script>
 import _ from 'lodash';
-import { mapState } from 'vuex';
+import { mapState } from 'pinia';
+import { useGraphStore } from '../../store/modules/graph';
 import {
   durationString, isTaskStateIncomplete,
 } from '../../utils';
@@ -32,9 +33,7 @@ export default {
     };
   },
   computed: {
-    ...mapState({
-      liveUpdate: state => state.graph.liveUpdate,
-    }),
+    ...mapState(useGraphStore, ['liveUpdate']),
     duration() {
       let runtimeStr;
       if (this.runState === 'task-incomplete' && _.isNil(this.actualRuntime)) {

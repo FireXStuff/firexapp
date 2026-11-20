@@ -1,7 +1,7 @@
 <template>
   <div style="width: 100%; height: 100%; display: flex; flex-direction: column;"
-       @keydown.ctrl.f.prevent="$store.commit('tasks/toggleSearchOpen')"
-       @keyup.191.prevent="$store.commit('tasks/toggleSearchOpen')"
+       @keydown.ctrl.f.prevent="focusOnFind"
+       @keyup="onFindKey"
        tabindex="0"
        ref="time-table"
   >
@@ -70,7 +70,7 @@
                 <!-- Each runstate is represented by a div -->
                 <div v-for="(stateData, uuid) in perStateRectByUuid[task.uuid]"
                      :key="uuid" :style="stateData" class="state-rect">
-                  <popper trigger="hover"
+                  <x-popper trigger="hover"
                           :options="{ placement: 'top' }"
                           style="display: block;">
                     <div class="popper popover-container">
@@ -86,9 +86,11 @@
                             / displayTasksDuration).toFixed(2)}}% of run)
                       </div>
                     </div>
-                    <span slot="reference" style="display: block; height: 0.75em">
-                    </span>
-                  </popper>
+                    <template #reference>
+                      <span style="display: block; height: 0.75em">
+                      </span>
+                    </template>
+                  </x-popper>
                 </div>
                 </div>
                 <div v-if="!isTaskStateIncomplete(task.state)"
@@ -96,7 +98,7 @@
                   <!-- next div is offset -->
                   <div :style="{width: taskRectOffsetStyleByUuid[task.uuid]['padding-left']}"></div>
                   <div :style="fullTaskRectStyleByUuid[task.uuid]" style="height: 0.75em;">
-                    <popper trigger="hover"
+                    <x-popper trigger="hover"
                             :options="{ placement: 'bottom' }">
                       <div class="popper popover-container">
                         <div class="popover-title"><b>{{task.name}}</b></div>
@@ -108,13 +110,14 @@
                           ({{(100 * getTaskRuntime(task) / displayTasksDuration).toFixed(2)}}%)
                         </div>
                       </div>
-                      <span slot="reference"
-                            style="display: block; height: 0.75em">
-                          <router-link :to="getTaskRoute(task.uuid)" class="task"
-                                       style="display: block; height: 100%; display: block;">
-                          </router-link>
-                      </span>
-                    </popper>
+                      <template #reference>
+                        <span style="display: block; height: 0.75em">
+                            <router-link :to="getTaskRoute(task.uuid)" class="task"
+                                         style="display: block; height: 100%; display: block;">
+                            </router-link>
+                        </span>
+                      </template>
+                    </x-popper>
                   </div>
                 </div>
               </div>
@@ -146,13 +149,15 @@
 <script>
 import _ from 'lodash';
 import { DateTime } from 'luxon';
-import { mapState, mapGetters } from 'vuex';
-import Popper from 'vue-popperjs';
-import 'vue-popperjs/dist/vue-popper.css';
+import { mapActions, mapState } from 'pinia';
 
 import XHeader from './XHeader.vue';
 import XTaskNodeSearch from './XTaskNodeSearch.vue';
+import XPopper from './XPopper.vue';
 import * as api from '../api';
+import { useTasksStore } from '../store/modules/tasks';
+import { useHeaderStore } from '../store/modules/header';
+import { useFirexRunMetadataStore } from '../store/modules/firexRunMetadata';
 import {
   durationString, getNodeBackground, isTaskStateIncomplete, getRunstateDisplayName,
   isChainInterrupted,
@@ -160,7 +165,7 @@ import {
 
 export default {
   name: 'XTimeChart',
-  components: { XHeader, XTaskNodeSearch, Popper },
+  components: { XHeader, XTaskNodeSearch, XPopper },
   props: {
     sort: { required: true },
     sortDirection: { required: true },
@@ -179,20 +184,16 @@ export default {
     };
   },
   computed: {
-    ...mapState({
-      title: state => state.firexRunMetadata.uid,
-      search: state => state.tasks.search,
-    }),
-    ...mapGetters({
-      tasksByUuid: 'tasks/tasksByUuid',
-      runEndTime: 'tasks/runEndTime',
-      graphViewHeaderEntry: 'header/graphViewHeaderEntry',
-      listViewHeaderEntry: 'header/listViewHeaderEntry',
-      runLogsViewHeaderEntry: 'header/runLogsViewHeaderEntry',
-      helpViewHeaderEntry: 'header/helpViewHeaderEntry',
-      getTaskRoute: 'header/getTaskRoute',
-      getCustomRootRoute: 'header/getCustomRootRoute',
-    }),
+    ...mapState(useFirexRunMetadataStore, { title: 'uid' }),
+    ...mapState(useTasksStore, ['search', 'tasksByUuid', 'runEndTime']),
+    ...mapState(useHeaderStore, [
+      'graphViewHeaderEntry',
+      'listViewHeaderEntry',
+      'runLogsViewHeaderEntry',
+      'helpViewHeaderEntry',
+      'getTaskRoute',
+      'getCustomRootRoute',
+    ]),
     tasksWithRuntimeByUuid() {
       return _.mapValues(this.tasksByUuid,
         t => Object.assign({ runtime: this.getTaskRuntime(t) }, t));
@@ -299,6 +300,17 @@ export default {
     });
   },
   methods: {
+    ...mapActions(useTasksStore, ['toggleSearchOpen']),
+    focusOnFind() {
+      this.toggleSearchOpen();
+    },
+    onFindKey(event) {
+      // Vue 3 dropped keyCode modifiers; this was @keyup.191 ('/').
+      if (event.key === '/') {
+        event.preventDefault();
+        this.focusOnFind();
+      }
+    },
     getTaskRuntime(task) {
       if (isTaskStateIncomplete(task.state)) {
         return (Date.now() / 1000) - task.first_started;
@@ -340,7 +352,7 @@ export default {
   beforeRouteLeave(to, from, next) {
     // TODO: this should be cleared on FireX UID change or keyed on by FireX UID.
     from.meta.scrollY = this.$refs['time-table'].scrollTop;
-    this.$store.commit('tasks/closeSearch');
+    useTasksStore().closeSearch();
     next();
   },
   beforeRouteEnter(to, from, next) {

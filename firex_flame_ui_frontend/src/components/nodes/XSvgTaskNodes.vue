@@ -21,6 +21,8 @@
 <script>
 import _ from 'lodash';
 import XCollapsableTaskNode from './XCollapsableTaskNode.vue';
+import { useTasksStore } from '../../store/modules/tasks';
+import { useGraphStore } from '../../store/modules/graph';
 
 export default {
   name: 'XTaskSvgNodes',
@@ -32,11 +34,11 @@ export default {
     shouldFadeInNewNodes() {
       // TODO: transition-group fade in causes errant tasks during fast live-update changes.
       // A better fix is likely possible, but for now disable fade-in on incomplete tasks.
-      return !this.$store.getters['tasks/hasIncompleteTasks']
-        && !this.$store.state.graph.isFirstLayout;
+      return !useTasksStore().hasIncompleteTasks
+        && !useGraphStore().isFirstLayout;
     },
     focusedTaskUuid() {
-      return this.$store.state.tasks.focusedTaskUuid;
+      return useTasksStore().focusedTaskUuid;
     },
     hasFocusedTaskUuid() {
       return !_.isNull(this.focusedTaskUuid);
@@ -58,7 +60,7 @@ export default {
     transition: opacity 2s;
   }
 
-  .fade-enter {
+  .fade-enter-from {
     opacity: 0.1;
   }
 

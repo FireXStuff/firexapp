@@ -1,27 +1,14 @@
 import _ from 'lodash';
-import { mount, createLocalVue } from '@vue/test-utils';
-import VueRouter from 'vue-router';
-import Vuex from 'vuex';
-import { sync } from 'vuex-router-sync';
+import { mount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
 
 import router from '/src/router/index';
 import XGraph from '/src/components/XGraph.vue';
 import XCollapseableTaskNode from '/src/components/nodes/XCollapsableTaskNode.vue';
 import XSizeCapturingNodes from '/src/components/nodes/XSizeCapturingNodes.vue';
 import XCoreTaskNode from '/src/components/nodes/XCoreTaskNode.vue';
-import { defaultStoreOptions } from '/src/store';
-
-// Mock for Vue unit tests.
-// eslint-disable-next-line no-global-assign
-window = {
-  URL: {
-    createObjectURL: () => {},
-  },
-};
-
-const localVue = createLocalVue();
-localVue.use(VueRouter);
-localVue.use(Vuex);
+import { useTasksStore } from '/src/store/modules/tasks';
+import { useFirexRunMetadataStore } from '/src/store/modules/firexRunMetadata';
 
 const SIMPLE_TWO_NODE_CHAIN_BY_UUID = {
   1: {
@@ -36,26 +23,8 @@ const SIMPLE_TWO_NODE_CHAIN_BY_UUID = {
   },
 };
 
-function transitionStub() {
-  return {
-    render() {
-      // eslint-disable-next-line no-underscore-dangle
-      return this.$options._renderChildren;
-    },
-  };
-}
-
 function fakeDimensionsByUuid(uuids) {
   return _.mapValues(_.keyBy(uuids), () => ({ width: 1, height: 2 }));
-}
-
-function getCleanFlameStore() {
-  const clonedStoreOptions = _.cloneDeep(defaultStoreOptions());
-  _.each(clonedStoreOptions.modules, (m, name) => {
-    // modules must be deep cloned specifically. They do contain state.
-    clonedStoreOptions[name] = _.cloneDeep(m);
-  });
-  return new Vuex.Store(clonedStoreOptions);
 }
 
 function createCollapseFlameData(uuid, targets) {
@@ -81,41 +50,47 @@ function createCollapseFlameData(uuid, targets) {
   };
 }
 
-function initGraphWrapper(tasksByUuid, store) {
-  const runMetadata = { uid: 'FireX-user-xxxxx', root_uuid: '1' };
-  store.commit('firexRunMetadata/setFlameRunMetadata', runMetadata);
+function initGraphWrapper(tasksByUuid, pinia) {
+  useFirexRunMetadataStore().setFlameRunMetadata(
+    { uid: 'FireX-user-xxxxx', root_uuid: '1' },
+  );
 
-  store.dispatch('tasks/setTasks', tasksByUuid);
+  const tasksStore = useTasksStore();
+  tasksStore.setTasks(tasksByUuid);
   // Need to fake dimensions typically provided via the browser from getBoundingClientRect().
-  store.dispatch('tasks/addTaskNodeSize', fakeDimensionsByUuid(
-    _.keys(tasksByUuid),
-  ));
+  tasksStore.addTaskNodeSize(fakeDimensionsByUuid(_.keys(tasksByUuid)));
 
   return mount(XGraph, {
-    stubs: {
-      'font-awesome-icon': true,
-      transition: transitionStub(),
+    global: {
+      plugins: [router, pinia],
+      stubs: {
+        'font-awesome-icon': true,
+        'font-awesome-layers': true,
+        'font-awesome-layers-text': true,
+      },
     },
-    localVue,
-    router,
-    store,
   });
 }
 
 describe('XGraph.vue', () => {
-  let store;
+  let pinia;
 
-  beforeEach(() => {
-    fetch.resetMocks();
-    fetchMock.mockIf('/flame-ui-config.json', () => {});
-    store = getCleanFlameStore();
-    sync(store, router);
+  beforeEach(async () => {
+    // Nothing under test fetches, but keep an inert fetch so an accidental one can't hit
+    // the network.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({}),
+    })));
+    // A fresh pinia per test replaces the deep-cloning the Vuex store options needed.
+    pinia = createPinia();
+    setActivePinia(pinia);
+    router.push('/');
+    await router.isReady();
   });
 
   it('renders simple tree', async () => {
-    const wrapper = initGraphWrapper(SIMPLE_TWO_NODE_CHAIN_BY_UUID, store);
-
-    // console.log(wrapper.html());
+    const wrapper = initGraphWrapper(SIMPLE_TWO_NODE_CHAIN_BY_UUID, pinia);
 
     // Make sure 2 nodes in visible tree exist
     expect(wrapper.findAllComponents(XCollapseableTaskNode)).toHaveLength(2);
@@ -128,25 +103,27 @@ describe('XGraph.vue', () => {
   });
 
   it('updates a simple tree with a new task', async () => {
-    const wrapper = initGraphWrapper(SIMPLE_TWO_NODE_CHAIN_BY_UUID, store);
+    const wrapper = initGraphWrapper(SIMPLE_TWO_NODE_CHAIN_BY_UUID, pinia);
 
-    store.dispatch('tasks/addTasksData', {
+    const tasksStore = useTasksStore();
+    tasksStore.addTasksData({
       3: {
         uuid: '3',
         name: 'childChildName',
         parent_id: '2',
       },
     });
-    store.dispatch('tasks/addTaskNodeSize', fakeDimensionsByUuid(['3']));
+    tasksStore.addTaskNodeSize(fakeDimensionsByUuid(['3']));
 
     await wrapper.vm.$nextTick();
     expect(wrapper.findAllComponents(XCollapseableTaskNode)).toHaveLength(3);
   });
 
   it('updates a graph with collapsed tasks', async () => {
-    const wrapper = initGraphWrapper(SIMPLE_TWO_NODE_CHAIN_BY_UUID, store);
+    const wrapper = initGraphWrapper(SIMPLE_TWO_NODE_CHAIN_BY_UUID, pinia);
 
-    store.dispatch('tasks/addTasksData', {
+    const tasksStore = useTasksStore();
+    tasksStore.addTasksData({
       3: {
         uuid: '3',
         name: 'childChildName',
@@ -159,14 +136,14 @@ describe('XGraph.vue', () => {
         parent_id: '3',
       },
     });
-    store.dispatch('tasks/addTaskNodeSize', fakeDimensionsByUuid(['3', '4']));
+    tasksStore.addTaskNodeSize(fakeDimensionsByUuid(['3', '4']));
     await wrapper.vm.$nextTick();
 
     // Expecting 2 collapsed nodes, 2 uncollapsed.
     const collapseableTaskNodes = wrapper.findAllComponents(XCollapseableTaskNode);
     expect(collapseableTaskNodes).toHaveLength(2);
-    expect(collapseableTaskNodes.at(1).props().taskUuid).toBe('2');
-    expect(collapseableTaskNodes.at(1).html()).toContain('2 Tasks');
+    expect(collapseableTaskNodes[1].props().taskUuid).toBe('2');
+    expect(collapseableTaskNodes[1].html()).toContain('2 Tasks');
 
     // 4 total size capturing nodes.
     expect(wrapper.findComponent(XSizeCapturingNodes).findAllComponents(XCoreTaskNode))

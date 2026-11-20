@@ -103,8 +103,7 @@
         </div>
         <label class="node-attributes-label">exception:</label>
         <div v-if="displayNode.exception" style="display: inline; color: darkred; margin-left: 1em;"
-          v-html="createLinkedHtml(displayNode.exception.trim())">
-        </div>
+          v-html="createLinkedHtml(displayNode.exception.trim())"></div>
       </x-section>
 
       <x-section v-if="shouldShowSection('arguments')" heading="Arguments">
@@ -137,7 +136,7 @@
 <script>
 import _ from 'lodash';
 import { DateTime } from 'luxon';
-import { mapGetters, mapState } from 'vuex';
+import { mapState } from 'pinia';
 
 import * as api from '../../api';
 import {
@@ -149,6 +148,10 @@ import XExpandableContent from '../XExpandableContent.vue';
 import XExternalCommands from '../XExternalCommands.vue';
 import XSection from '../XSection.vue';
 import XKeyValueViewer from '../XKeyValueViewer.vue';
+import { useTasksStore } from '../../store/modules/tasks';
+import { useGraphStore } from '../../store/modules/graph';
+import { useHeaderStore } from '../../store/modules/header';
+import { useFirexRunMetadataStore } from '../../store/modules/firexRunMetadata';
 
 export default {
   name: 'XNodeAttributes',
@@ -172,33 +175,29 @@ export default {
     };
   },
   computed: {
-    ...mapGetters({
-      runDuration: 'tasks/runDuration',
-      getTaskRoute: 'header/getTaskRoute',
-      taskNameByUuid: 'tasks/taskNameByUuid',
-      createLinkedHtml: 'header/createLinkedHtml',
-      graphViewHeaderEntry: 'header/graphViewHeaderEntry',
+    ...mapState(useTasksStore, ['runDuration', 'taskNameByUuid']),
+    ...mapState(useHeaderStore, {
+      getTaskRoute: 'getTaskRoute',
+      createLinkedHtml: 'createLinkedHtml',
+      graphViewHeaderEntry: 'graphViewHeaderEntry',
+      firexBin: store => _.get(store.uiConfig, 'firex_bin', 'firex'),
     }),
-    ...mapState({
-      logsDir: state => state.firexRunMetadata.logs_dir,
-      firexBin: state => _.get(state.header.uiConfig, 'firex_bin', 'firex'),
-      uid: state => state.firexRunMetadata.uid,
-    }),
+    ...mapState(useFirexRunMetadataStore, { logsDir: 'logs_dir', uid: 'uid' }),
     simpleTask() {
-      return this.$store.getters['tasks/runStateByUuid'][this.uuid];
+      return useTasksStore().runStateByUuid[this.uuid];
     },
     childrenUuids() {
-      return this.$store.getters['graph/childrenAndAdditionalUuidsByUuid'][this.uuid];
+      return useGraphStore().childrenAndAdditionalUuidsByUuid[this.uuid];
     },
     taskChildren() {
       return _.map(this.childrenUuids,
         uuid => ({ uuid, name: this.taskNameByUuid[uuid] }));
     },
     parentWithAdditionals() {
-      return this.$store.getters['graph/parentAndAdditionalUuidsByUuid'][this.uuid];
+      return useGraphStore().parentAndAdditionalUuidsByUuid[this.uuid];
     },
     realParentUuid() {
-      return this.$store.getters['graph/parentUuidByUuid'][this.uuid];
+      return useGraphStore().parentUuidByUuid[this.uuid];
     },
     taskParent() {
       let parent;
@@ -328,7 +327,7 @@ export default {
       };
     },
     minPriorityOp() {
-      return this.$store.getters['graph/resolvedCollapseStateByUuid'][this.uuid].minPriorityOp;
+      return useGraphStore().resolvedCollapseStateByUuid[this.uuid].minPriorityOp;
     },
     hasFailure() {
       return this.detailedTask.exception || this.detailedTask.traceback;

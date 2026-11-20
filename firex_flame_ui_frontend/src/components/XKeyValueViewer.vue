@@ -10,8 +10,7 @@
                               :name="key"
                               :expand="expandAll">
           <pre style="margin: 0 0 0 40px; font-size: 14px;"
-               v-html="createLinkedHtml(prettyPrintedKeyValues[key])">
-          </pre>
+               v-html="createLinkedHtml(prettyPrintedKeyValues[key])"></pre>
         </x-expandable-content>
         <span v-else v-html="createLinkedHtml(formatValue(keyValues[key]))"></span>
       </div>
@@ -21,9 +20,10 @@
 
 <script>
 import _ from 'lodash';
-import { mapGetters } from 'vuex';
+import { mapState } from 'pinia';
 
 import XExpandableContent from './XExpandableContent.vue';
+import { useHeaderStore } from '../store/modules/header';
 
 export default {
   name: 'XKeyValueViewer',
@@ -35,9 +35,7 @@ export default {
     linkKeys: { default: () => [], type: Array },
   },
   computed: {
-    ...mapGetters({
-      createLinkedHtml: 'header/createLinkedHtml',
-    }),
+    ...mapState(useHeaderStore, ['createLinkedHtml']),
     displayOrderedKeys() {
       if (this.orderedKeys) {
         return this.orderedKeys;

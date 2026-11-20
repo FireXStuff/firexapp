@@ -24,6 +24,8 @@
 import _ from 'lodash';
 
 import { containsAll, eventHub } from '../../utils';
+import { useTasksStore } from '../../store/modules/tasks';
+import { useGraphStore } from '../../store/modules/graph';
 import XCoreTaskNode from './XCoreTaskNode.vue';
 
 export default {
@@ -36,10 +38,10 @@ export default {
   },
   computed: {
     dimensionsByUuid() {
-      return this.$store.state.tasks.taskNodeSizeByUuid;
+      return useTasksStore().taskNodeSizeByUuid;
     },
     uncollapsedNodeUuids() {
-      return this.$store.getters['graph/uncollapsedNodeUuids'];
+      return useGraphStore().uncollapsedNodeUuids;
     },
   },
   created() {
@@ -52,12 +54,12 @@ export default {
         Object.assign(this.sizesToCommit, taskSize);
         // Check if this latest size completed the dimensions & should therefore cause commit.
         if (containsAll(_.keys(this.sizesToCommit), this.uncollapsedNodeUuids)) {
-          this.$store.dispatch('tasks/addTaskNodeSize', this.sizesToCommit);
+          useTasksStore().addTaskNodeSize(this.sizesToCommit);
           this.sizesToCommit = {};
         }
       } else {
         // Just send the latest event immediately (live-update).
-        this.$store.dispatch('tasks/addTaskNodeSize', taskSize);
+        useTasksStore().addTaskNodeSize(taskSize);
       }
     },
   },

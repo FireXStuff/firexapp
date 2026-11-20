@@ -1,25 +1,17 @@
-import Vue from 'vue';
-import Vuex from 'vuex';
-import tasks from './modules/tasks';
-import graph from './modules/graph';
-import firexRunMetadata from './modules/firexRunMetadata';
-import header from './modules/header';
-import { isDebug } from '../utils';
+import { createPinia } from 'pinia';
 
-Vue.use(Vuex);
+export { useTasksStore } from './modules/tasks';
+export { useGraphStore } from './modules/graph';
+export { useFirexRunMetadataStore } from './modules/firexRunMetadata';
+export { useHeaderStore } from './modules/header';
+export { useRouteStore } from './modules/route';
 
-function defaultStoreOptions() {
-  return {
-    modules: {
-      tasks,
-      graph,
-      firexRunMetadata,
-      header,
-    },
-    strict: isDebug,
-    devtools: isDebug,
-  };
+/*
+ * Stores are defined by defineStore and registered lazily on first use, so this
+ * only needs to create the pinia instance the app (or a test) will install.
+ */
+export function createFlamePinia() {
+  return createPinia();
 }
 
-const defaultStore = new Vuex.Store(defaultStoreOptions());
-export { defaultStore as default, defaultStoreOptions };
+export default createFlamePinia;

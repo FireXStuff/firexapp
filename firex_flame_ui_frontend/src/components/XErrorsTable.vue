@@ -64,11 +64,14 @@
 
 <script>
 import _ from 'lodash';
-import { mapState, mapGetters } from 'vuex';
+import { mapState } from 'pinia';
 import * as api from '../api';
 
 import XHeader from './XHeader.vue';
 import XExpandableContent from './XExpandableContent.vue';
+import { useGraphStore } from '../store/modules/graph';
+import { useHeaderStore } from '../store/modules/header';
+import { useFirexRunMetadataStore } from '../store/modules/firexRunMetadata';
 import { isChainInterrupted } from '../utils';
 
 
@@ -92,22 +95,19 @@ export default {
     );
   },
   computed: {
-    ...mapState({
-      title: state => state.firexRunMetadata.uid,
+    ...mapState(useFirexRunMetadataStore, { title: 'uid' }),
+    ...mapState(useGraphStore, {
+      tasksByUuid: 'tasksIncludingAdditionalDescendantsByUuid',
+      graphDataByUuid: 'graphDataByUuid',
     }),
-    ...mapGetters({
-      tasksByUuid: 'graph/tasksIncludingAdditionalDescendantsByUuid',
-      graphViewHeaderEntry: 'header/graphViewHeaderEntry',
-      runLogsViewHeaderEntry: 'header/runLogsViewHeaderEntry',
-      helpViewHeaderEntry: 'header/helpViewHeaderEntry',
-      timeChartViewHeaderEntry: 'header/timeChartViewHeaderEntry',
-      getTaskRoute: 'header/getTaskRoute',
-      graphDataByUuid: 'graph/graphDataByUuid',
-      createLinkedHtml: 'header/createLinkedHtml',
-    }),
-    title() {
-      return this.$store.state.firexRunMetadata.uid;
-    },
+    ...mapState(useHeaderStore, [
+      'graphViewHeaderEntry',
+      'runLogsViewHeaderEntry',
+      'helpViewHeaderEntry',
+      'timeChartViewHeaderEntry',
+      'getTaskRoute',
+      'createLinkedHtml',
+    ]),
     headerLinks() {
       return [this.graphViewHeaderEntry, this.timeChartViewHeaderEntry,
         this.runLogsViewHeaderEntry, this.helpViewHeaderEntry];

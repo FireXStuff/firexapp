@@ -30,8 +30,9 @@
 
 <script>
 import _ from 'lodash';
-import { mapState } from 'vuex';
+import { mapState } from 'pinia';
 import XHeader from './XHeader.vue';
+import { useHeaderStore } from '../store/modules/header';
 import {
   templateFireXId, normalizeGoogleBucketItems, arrayToPath, pathStringToArray,
   getParentArray,
@@ -52,9 +53,7 @@ export default {
     },
   },
   computed: {
-    ...mapState({
-      uiConfig: state => state.header.uiConfig,
-    }),
+    ...mapState(useHeaderStore, ['uiConfig']),
     normalizedLogRelPath() {
       if (this.logRelPath.endsWith('/')) {
         return _.trimEnd(this.logRelPath, '/');

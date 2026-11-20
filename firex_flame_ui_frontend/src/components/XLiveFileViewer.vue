@@ -29,9 +29,11 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
+import { mapState } from 'pinia';
 import * as api from '../api';
 import XHeader from './XHeader.vue';
+import { useHeaderStore } from '../store/modules/header';
+import { useFirexRunMetadataStore } from '../store/modules/firexRunMetadata';
 
 export default {
   name: 'XLiveFileViewer',
@@ -54,19 +56,14 @@ export default {
     api.startLiveFileListen(this.host, this.filepath, this.addNewChunk);
     window.addEventListener('beforeunload', api.stopLiveFileListen);
   },
-  destroyed() {
+  unmounted() {
     window.removeEventListener('beforeunload', api.stopLiveFileListen);
   },
   computed: {
-    ...mapGetters({
-      graphViewHeaderEntry: 'header/graphViewHeaderEntry',
-      helpViewHeaderEntry: 'header/helpViewHeaderEntry',
-    }),
+    ...mapState(useHeaderStore, ['graphViewHeaderEntry', 'helpViewHeaderEntry']),
+    ...mapState(useFirexRunMetadataStore, { firexId: 'uid' }),
     title() {
       return `Monitoring ${this.host}:${this.filepath}`;
-    },
-    firexId() {
-      return this.$store.state.firexRunMetadata.uid;
     },
     headerLinks() {
       return [this.graphViewHeaderEntry, this.helpViewHeaderEntry];
@@ -139,7 +136,7 @@ export default {
 .fade-leave-active {
   transition: opacity 1s;
 }
-.fade-enter,
+.fade-enter-from,
 .fade-leave-to
 /* .fade-leave-active in <2.1.8 */
 {

@@ -1,8 +1,9 @@
-import Vue from 'vue'
-import VueRouter from 'vue-router';
+import { config } from '@vue/test-utils';
 import AsyncComputed from 'vue-async-computed';
-import FontAwesomeIcon from '@fortawesome/vue-fontawesome';
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
-Vue.use(VueRouter);
-Vue.use(AsyncComputed);
-Vue.component('font-awesome-icon', FontAwesomeIcon);
+config.global.plugins = [AsyncComputed];
+config.global.components = { 'font-awesome-icon': FontAwesomeIcon };
+
+// jsdom has no scrollTo, which the router's scrollBehavior calls on every navigation.
+window.scrollTo = () => {};

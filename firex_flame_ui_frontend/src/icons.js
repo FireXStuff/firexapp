@@ -1,4 +1,3 @@
-import Vue from 'vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faEye } from '@fortawesome/free-regular-svg-icons/faEye';
 import { faBullseye } from '@fortawesome/free-solid-svg-icons/faBullseye';
@@ -49,6 +48,10 @@ library.add(faBullseye, faEye, faSearch, faListUl, faPlusCircle,
   faCheckCircle, faExclamationTriangle, faTimesCircle, faFolderOpen, faLevelUpAlt,
   faRedo, faBriefcase, faSignInAlt, faBoxOpen);
 
-Vue.component('font-awesome-icon', FontAwesomeIcon);
-Vue.component('font-awesome-layers', FontAwesomeLayers);
-Vue.component('font-awesome-layers-text', FontAwesomeLayersText);
+export function registerIcons(app) {
+  app.component('font-awesome-icon', FontAwesomeIcon);
+  app.component('font-awesome-layers', FontAwesomeLayers);
+  app.component('font-awesome-layers-text', FontAwesomeLayersText);
+}
+
+export default registerIcons;

@@ -106,7 +106,8 @@
 <script>
 import { DateTime } from 'luxon';
 import _ from 'lodash';
-import { mapGetters } from 'vuex';
+import { mapState } from 'pinia';
+import { useHeaderStore } from '../store/modules/header';
 import { durationString, isTaskStateIncomplete } from '../utils';
 import XSection from './XSection.vue';
 import XExternalCommandStatus from './XExternalCommandStatus.vue';
@@ -129,10 +130,7 @@ export default {
     _.each(_.get(this.$refs, 'outputs', []), (o) => { o.scrollTop = o.scrollHeight; });
   },
   computed: {
-    ...mapGetters({
-      getLiveFileRoute: 'header/getLiveFileRoute',
-      createLinkedHtml: 'header/createLinkedHtml',
-    }),
+    ...mapState(useHeaderStore, ['getLiveFileRoute', 'createLinkedHtml']),
     displayExternalCommands() {
       return _.sortBy(
         _.mapValues(this.externalCommands, (c, id) => ({

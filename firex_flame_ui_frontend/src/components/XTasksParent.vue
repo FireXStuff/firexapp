@@ -18,9 +18,13 @@
 
 <script>
 import _ from 'lodash';
-import { mapGetters, mapState } from 'vuex';
+import { mapState } from 'pinia';
 
 import * as api from '../api';
+import { useTasksStore } from '../store/modules/tasks';
+import { useGraphStore } from '../store/modules/graph';
+import { useHeaderStore } from '../store/modules/header';
+import { useFirexRunMetadataStore } from '../store/modules/firexRunMetadata';
 import {
   eventHub, twoDepthAssign, tasksViewKeyRouteChange, fetchRunJson,
 } from '../utils';
@@ -39,23 +43,19 @@ export default {
     };
   },
   computed: {
-    ...mapState({
-      liveUpdate: state => state.graph.liveUpdate,
-      isApiConnected: state => state.tasks.apiConnected,
-      uiConfig: state => state.header.uiConfig,
+    ...mapState(useGraphStore, ['liveUpdate']),
+    ...mapState(useTasksStore, {
+      isApiConnected: 'apiConnected',
+      rootUuid: 'rootUuid',
+      hasTasks: 'hasTasks',
+      hasIncompleteTasks: 'hasIncompleteTasks',
+      canRevoke: 'canRevoke',
     }),
-    ...mapGetters({
-      rootUuid: 'tasks/rootUuid',
-      hasTasks: 'tasks/hasTasks',
-      hasIncompleteTasks: 'tasks/hasIncompleteTasks',
-      canRevoke: 'tasks/canRevoke',
-      // TODO: at one time there is exclusively either a server URL or a firex_id.
-      // It'd be better if the store knew which type of key there was, and this component
-      // reasoned in terms of a general key. This might mean moving some (or all) of the
-      // API accessor config to the store (or wherever handles the different data key types).
-      inputFlameServerUrl: 'header/inputFlameServerUrl',
-      inputFireXId: 'header/inputFireXId',
-    }),
+    // TODO: at one time there is exclusively either a server URL or a firex_id.
+    // It'd be better if the store knew which type of key there was, and this component
+    // reasoned in terms of a general key. This might mean moving some (or all) of the
+    // API accessor config to the store (or wherever handles the different data key types).
+    ...mapState(useHeaderStore, ['uiConfig', 'inputFlameServerUrl', 'inputFireXId']),
     taskDataKey() {
       if (this.inputFireXId) {
         return this.inputFireXId;
@@ -75,12 +75,12 @@ export default {
   methods: {
     setNodesByUuid(newNodesByUuid) {
       this.newTaskDataToDispatch = {};
-      this.$store.dispatch('tasks/setTasks', newNodesByUuid);
+      useTasksStore().setTasks(newNodesByUuid);
     },
     debouncedDispatchTasksUpdate: _.debounce(
       // eslint-disable-next-line
       function () {
-        this.$store.dispatch('tasks/addTasksData', this.newTaskDataToDispatch);
+        useTasksStore().addTasksData(this.newTaskDataToDispatch);
         this.newTaskDataToDispatch = {};
       // Wait at least 500ms of no events before updating tasks, up to a max of 3s.
       }, 500, { maxWait: 3000, leading: true, trailing: true },
@@ -152,12 +152,12 @@ export default {
     setFlameRunMetadata() {
       // TODO: consider adding retries in file accessor since this is the first query per run.
       fetchRunJson(this.inputFireXId, this.uiConfig.model_path_template).then(
-        (runJson) => this.$store.commit('firexRunMetadata/setRunJson', runJson),
+        (runJson) => useFirexRunMetadataStore().setRunJson(runJson),
         () => {},
       );
       return api.getFireXRunMetadata().then(
         (runMetadata) => {
-          this.$store.commit('firexRunMetadata/setFlameRunMetadata', runMetadata);
+          useFirexRunMetadataStore().setFlameRunMetadata(runMetadata);
           return runMetadata;
         },
         (r) => {
@@ -212,8 +212,8 @@ export default {
     setSocketIoApiAccessor(flameServerUrl) {
       // TODO: should probably timeout trying to reconnect after some time.
       api.setAccessor('socketio', flameServerUrl, {
-        onConnect: () => this.$store.commit('tasks/setApiConnected', true),
-        onDisconnect: () => this.$store.commit('tasks/setApiConnected', false),
+        onConnect: () => useTasksStore().setApiConnected(true),
+        onDisconnect: () => useTasksStore().setApiConnected(false),
         onReconectFailed: () => {
           // Fallback from socketio to webserver file and re-fetch tasks.
           this.setWebserverFileApiAccessor();
@@ -223,7 +223,7 @@ export default {
               if (!runMetadata.run_complete) {
                 // Run is not marked complete after failing to reconnect to socketio server.
                 // All in-progress statuses will never be updated, so show them as incomplete.
-                this.$store.dispatch('tasks/setInProgressTasksToIncomplete');
+                useTasksStore().setInProgressTasksToIncomplete();
               }
             });
         },
@@ -235,7 +235,7 @@ export default {
       api.setAccessor('dump-files', this.inputFireXId, { modelPathTemplate });
     },
     commitUiConfig(uiConfig) {
-      this.$store.commit('header/setFlameUiConfig', uiConfig);
+      useHeaderStore().setFlameUiConfig(uiConfig);
     },
   },
   watch: {

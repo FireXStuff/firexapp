@@ -31,6 +31,9 @@ import {
   stackOffset, stackCount,
 } from '../../collapse';
 
+import { useGraphStore } from '../../store/modules/graph';
+import { useTasksStore } from '../../store/modules/tasks';
+
 import XTaskNode from './XTaskNode.vue';
 
 export default {
@@ -48,18 +51,18 @@ export default {
   },
   computed: {
     descendantUuids() {
-      return this.$store.getters['graph/graphDataByUuid'][this.taskUuid].descendantUuids;
+      return useGraphStore().graphDataByUuid[this.taskUuid].descendantUuids;
     },
     collapseDetails() {
       // TODO: figure out how it's possible for uncollapsedGraphByNodeUuid can not have
       // a node that has a layout. uncollapsedGraphByNodeUuid is used by the layout,
       // so everything in the layout must come from uncollapsedGraphByNodeUuid.
 
-      return _.get(this.$store.getters['graph/uncollapsedGraphByNodeUuid'],
+      return _.get(useGraphStore().uncollapsedGraphByNodeUuid,
         this.taskUuid, { collapsedUuids: [] });
     },
     isLeaf() {
-      return this.$store.getters['graph/graphDataByUuid'][this.taskUuid].isLeaf;
+      return useGraphStore().graphDataByUuid[this.taskUuid].isLeaf;
     },
     collapsedUuidsCount() {
       return this.collapseDetails.collapsedUuids.length;
@@ -83,7 +86,7 @@ export default {
       return { width, height };
     },
     chainDepth() {
-      return this.$store.getters['tasks/runStateByUuid'][this.taskUuid].chain_depth;
+      return useTasksStore().runStateByUuid[this.taskUuid].chain_depth;
     },
     frontBoxStyle() {
       return {

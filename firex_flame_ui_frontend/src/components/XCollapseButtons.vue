@@ -2,64 +2,65 @@
   <div style="padding-right: 8px; display: flex; height: 100%; align-items: center;">
     <x-header-button :link="expandAllLink"></x-header-button>
 
-    <popper v-if="anyCollapseOptionsAvailable"
+    <x-popper v-if="anyCollapseOptionsAvailable"
       trigger="hover" :options="{ placement: 'bottom'}"
       :disabled="dropDownDisabled">
       <div class="popper collapse-menu" @click="toggleDropdownDisabled">
         <div v-if="hasCollapsedNodes"
              class="collapse-menu-item"
-             @click="dispatchCollapseAction('graph/expandAll')">
+             @click="dispatchCollapseAction('expandAll')">
           <font-awesome-icon icon="expand-arrows-alt"></font-awesome-icon>
           Expand All
         </div>
         <div v-if="canRestoreDefault"
              class="collapse-menu-item"
-             @click="dispatchCollapseAction('graph/restoreCollapseDefault')">
+             @click="dispatchCollapseAction('restoreCollapseDefault')">
           <font-awesome-icon icon="undo"></font-awesome-icon>
           Restore Default
         </div>
         <div v-if="canShowOnlyFailed"
              class="collapse-menu-item"
-             @click="dispatchCollapseAction('graph/collapseSuccessPaths')">
+             @click="dispatchCollapseAction('collapseSuccessPaths')">
           <font-awesome-icon icon="exclamation-circle" style="color: #900">
           </font-awesome-icon>
           Show only failed
         </div>
       </div>
-      <span slot="reference" class="collapse-button">
-        <font-awesome-icon icon="caret-down"></font-awesome-icon>
-      </span>
-    </popper>
+      <template #reference>
+        <span class="collapse-button">
+          <font-awesome-icon icon="caret-down"></font-awesome-icon>
+        </span>
+      </template>
+    </x-popper>
   </div>
 </template>
 
 <script>
 import _ from 'lodash';
-import { mapGetters, mapState } from 'vuex';
-import Popper from 'vue-popperjs';
-import 'vue-popperjs/dist/vue-popper.css';
+import { mapState } from 'pinia';
 
 import { eventHub } from '../utils';
+import { useGraphStore } from '../store/modules/graph';
+import { useTasksStore } from '../store/modules/tasks';
 import XHeaderButton from './XHeaderButton.vue';
+import XPopper from './XPopper.vue';
 
 export default {
   name: 'XCollapseButtons',
-  components: { XHeaderButton, Popper },
+  components: { XHeaderButton, XPopper },
   data() {
     return {
       dropDownDisabled: false,
     };
   },
   computed: {
-    ...mapState({
-      collapseConfig: state => state.graph.collapseConfig,
-    }),
-    ...mapGetters({
-      collapsedNodeUuids: 'graph/collapsedNodeUuids',
-      userDisplayConfigOperationsByUuid: 'graph/userDisplayConfigOperationsByUuid',
-      flameDataDisplayOperationsByUuid: 'graph/flameDataDisplayOperationsByUuid',
-      runStateByUuid: 'tasks/runStateByUuid',
-    }),
+    ...mapState(useGraphStore, [
+      'collapseConfig',
+      'collapsedNodeUuids',
+      'userDisplayConfigOperationsByUuid',
+      'flameDataDisplayOperationsByUuid',
+    ]),
+    ...mapState(useTasksStore, ['runStateByUuid']),
     hasCollapsedNodes() {
       return this.collapsedNodeUuids.length > 0;
     },
@@ -84,7 +85,7 @@ export default {
     },
     expandAllLink() {
       return {
-        on: () => { this.dispatchCollapseAction('graph/expandAll'); },
+        on: () => { this.dispatchCollapseAction('expandAll'); },
         title: 'Expand All',
         icon: 'expand-arrows-alt',
       };
@@ -92,7 +93,7 @@ export default {
   },
   methods: {
     dispatchCollapseAction(action) {
-      this.$store.dispatch(action);
+      useGraphStore()[action]();
       // TODO: should the event handler operate on nextTick?
       this.$nextTick(() => { eventHub.$emit('center'); });
     },
@@ -130,7 +131,7 @@ export default {
     cursor: pointer;
   }
 
-  /deep/ .flame-link {
+  :deep(.flame-link) {
     padding-right: 0;
   }
 

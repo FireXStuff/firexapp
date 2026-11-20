@@ -1,5 +1,4 @@
-import Vue from 'vue';
-import VueRouter from 'vue-router';
+import { createRouter, createWebHistory } from 'vue-router';
 import XTasksParent from '../components/XTasksParent.vue';
 import XHeaderedGraph from '../components/XHeaderedGraph.vue';
 import XList from '../components/XList.vue';
@@ -17,11 +16,8 @@ import XDirectoryListing from '../components/XDirectoryListing.vue';
 import XRunInputs from '../components/XRunInputs.vue';
 import { BASE_URL } from '/src/utils';
 
-Vue.use(VueRouter);
-
-const router = new VueRouter({
-  mode: 'history',
-  base: BASE_URL,
+const router = createRouter({
+  history: createWebHistory(BASE_URL),
   routes: [
     {
       path: '/find',
@@ -135,17 +131,29 @@ const router = new VueRouter({
       ],
     },
     {
-      path: '*',
+      path: '/:pathMatch(.*)*',
       redirect: '/find',
     },
   ],
   // always scroll to top.
   scrollBehavior() {
-    return { x: 0, y: 0 };
+    return { left: 0, top: 0 };
   },
 });
 
 router.beforeEach((to, from, next) => {
+  /*
+   * vue-router 3 left optional params that didn't match undefined, but vue-router 4
+   * sets them to ''. Drop the empty ones so component prop defaults (e.g.
+   * XNodeAttributes' selectedSection) and isNil checks (isRequiredAccessModeDataPresent)
+   * keep working.
+  */
+  _.each(_.keys(to.params), (key) => {
+    if (to.params[key] === '') {
+      delete to.params[key];
+    }
+  });
+
   /*
    * Support legacy, hash (#) based urls
    * by removing the #/ prefix.

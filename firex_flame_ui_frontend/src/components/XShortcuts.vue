@@ -30,9 +30,10 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
+import { mapState } from 'pinia';
 
 import XHeader from './XHeader.vue';
+import { useHeaderStore } from '../store/modules/header';
 
 export default {
   name: 'XShortcuts',
@@ -45,10 +46,7 @@ export default {
     };
   },
   computed: {
-    ...mapGetters({
-      documentationHeaderEntry: 'header/documentationHeaderEntry',
-      helpViewHeaderEntry: 'header/helpViewHeaderEntry',
-    }),
+    ...mapState(useHeaderStore, ['documentationHeaderEntry', 'helpViewHeaderEntry']),
     links() {
       return [this.documentationHeaderEntry, this.helpViewHeaderEntry];
     },

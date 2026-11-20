@@ -2,12 +2,12 @@
   <!-- Use keyup.stop because search typing shouldn't cause outer keybindings to trigger. -->
   <div style="display: flex; height: 100%;" class="header-entry" @keyup.stop>
     <div v-if="searchOpen" style="height: 100%;"
-         v-on:keydown.esc="$store.commit('tasks/closeSearch')">
+         v-on:keydown.esc="closeSearch">
       <div class="search-pos">
         {{ searchResultCount === 0 ? 0 : selectedIndex + 1 }} / {{ searchResultCount }}
         <input ref='search-input' type="text" :value="searchTerm"
              @keyup.enter.exact="submitSearch($event.target.value.trim())"
-             @keyup.enter.shift="$store.dispatch('tasks/previousSearchResult')"
+             @keyup.enter.shift="previousSearchResult"
              class="search" placeholder="Search">
       </div>
     </div>
@@ -16,8 +16,9 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
+import { mapActions, mapState } from 'pinia';
 import XHeaderButton from './XHeaderButton.vue';
+import { useTasksStore } from '../store/modules/tasks';
 
 export default {
   name: 'XTaskNodeSearch',
@@ -26,15 +27,15 @@ export default {
     findUncollapsedAncestor: { default: true, type: Boolean },
   },
   computed: {
-    ...mapState({
-      selectedIndex: state => state.tasks.search.selectedIndex,
-      searchResultCount: state => state.tasks.search.resultUuids.length,
-      searchOpen: state => state.tasks.search.isOpen,
-      searchTerm: state => state.tasks.search.term,
+    ...mapState(useTasksStore, {
+      selectedIndex: store => store.search.selectedIndex,
+      searchResultCount: store => store.search.resultUuids.length,
+      searchOpen: store => store.search.isOpen,
+      searchTerm: store => store.search.term,
     }),
     buttonLink() {
       return {
-        on: () => { this.$store.commit('tasks/toggleSearchOpen'); },
+        on: () => { this.toggleSearchOpen(); },
         icon: 'search',
         title: 'Search',
         _class: this.searchOpen ? 'active-icon' : null,
@@ -42,9 +43,11 @@ export default {
     },
   },
   methods: {
+    ...mapActions(useTasksStore, ['closeSearch', 'previousSearchResult', 'toggleSearchOpen']),
     submitSearch(term) {
-      this.$store.dispatch('tasks/search',
-        { term, findUncollapsedAncestor: this.findUncollapsedAncestor });
+      useTasksStore().searchTasks(
+        { term, findUncollapsedAncestor: this.findUncollapsedAncestor },
+      );
     },
   },
   watch: {
@@ -83,7 +86,7 @@ export default {
   text-wrap: nowrap;
 }
 
-  /deep/ .flame-link {
+  :deep(.flame-link) {
     border: none;
   }
 

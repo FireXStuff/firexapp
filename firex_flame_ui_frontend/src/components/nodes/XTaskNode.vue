@@ -22,8 +22,9 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
+import { mapState } from 'pinia';
 import XCoreTaskNode from './XCoreTaskNode.vue';
+import { useHeaderStore } from '../../store/modules/header';
 
 
 export default {
@@ -39,10 +40,7 @@ export default {
     showFlameData: { default: true, type: Boolean },
   },
   computed: {
-    ...mapGetters({
-      getTaskRoute: 'header/getTaskRoute',
-      getCustomRootRoute: 'header/getCustomRootRoute',
-    }),
+    ...mapState(useHeaderStore, ['getTaskRoute', 'getCustomRootRoute']),
   },
   methods: {
     routeToAttributes() {

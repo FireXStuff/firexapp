@@ -55,9 +55,12 @@
 <script>
 import _ from 'lodash';
 import { DateTime } from 'luxon';
-import { mapState, mapGetters } from 'vuex';
+import { mapState } from 'pinia';
 
 import XHeaderButton from './XHeaderButton.vue';
+import { useTasksStore } from '../store/modules/tasks';
+import { useHeaderStore } from '../store/modules/header';
+import { useFirexRunMetadataStore } from '../store/modules/firexRunMetadata';
 
 export default {
   name: 'XHeader',
@@ -78,18 +81,17 @@ export default {
     },
   },
   computed: {
-    ...mapState({
-      chain: state => state.firexRunMetadata.chain,
-      logsDir: state => state.firexRunMetadata.logs_dir,
-      isSearchOpen: state => state.tasks.search.isOpen,
-      uiConfig: state => state.header.uiConfig,
+    ...mapState(useFirexRunMetadataStore, {
+      chain: 'chain',
+      logsDir: 'logs_dir',
+      revokeDetails: 'revokeDetails',
     }),
-    ...mapGetters({
-      runRouteFromName: 'header/runRouteFromName',
-      // logsUrl: 'header/logsUrl',
-      hasIncompleteTasks: 'tasks/hasIncompleteTasks',
-      revokeDetails: 'firexRunMetadata/revokeDetails',
+    ...mapState(useTasksStore, {
+      isSearchOpen: store => store.search.isOpen,
+      hasIncompleteTasks: 'hasIncompleteTasks',
     }),
+    // logsUrl also lives on the header store, but is currently unused here.
+    ...mapState(useHeaderStore, ['uiConfig', 'runRouteFromName']),
     formatRevokeTime() {
       const revokeTimestamp = this.revokeDetails.revokeTimestamp;
       if (!revokeTimestamp) {

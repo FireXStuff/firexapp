@@ -27,11 +27,14 @@
 import { zoom as d3zoom, zoomIdentity } from 'd3-zoom';
 import { select as d3select, event as d3event } from 'd3-selection';
 import _ from 'lodash';
-import { mapState, mapGetters } from 'vuex';
+import { mapState } from 'pinia';
 
 import XSvgTaskNodes from './nodes/XSvgTaskNodes.vue';
 import XTaskCapturingNodes from './nodes/XSizeCapturingNodes.vue';
 import XLink from './XLinks.vue';
+import { useTasksStore } from '../store/modules/tasks';
+import { useGraphStore } from '../store/modules/graph';
+import { useFirexRunMetadataStore } from '../store/modules/firexRunMetadata';
 import {
   eventHub, calculateNodesPositionByUuid, getCenteringTransform, containsAll,
 } from '../utils';
@@ -100,43 +103,33 @@ export default {
     };
   },
   computed: {
-    ...mapState({
-      isFirstLayout: state => state.graph.isFirstLayout,
-      collapseConfig: state => state.graph.collapseConfig,
-    }),
-    ...mapGetters({
-      additionalChildrenByUuid: 'tasks/additionalChildrenByUuid',
+    ...mapState(useGraphStore, [
+      'isFirstLayout',
+      'collapseConfig',
+      'parentUuidByUuid',
+      'childrenUuidsByUuid',
+      'graphDataByUuid',
+      /**
+       * Make collapse info available per UUID. Modifies tree structure when a sequence of
+       * collapsed nodes exists.
+       * */
+      'uncollapsedGraphByNodeUuid',
+      'isCollapsedByUuid',
+    ]),
+    ...mapState(useTasksStore, {
+      additionalChildrenByUuid: 'additionalChildrenByUuid',
+      selectedRoot: 'selectedRoot',
+      dimensionsByUuid: 'taskNodeSizeByUuid',
+      focusedNodeUuid: 'focusedTaskUuid',
     }),
     uiCollapseStateByUuid() {
-      return this.$store.state.graph.collapseConfig.uiCollapseStateByUuid;
+      return this.collapseConfig.uiCollapseStateByUuid;
     },
     runMetadata() {
-      return this.$store.state.firexRunMetadata;
+      return useFirexRunMetadataStore();
     },
     firexUid() {
       return this.runMetadata.uid;
-    },
-    parentUuidByUuid() {
-      return this.$store.getters['graph/parentUuidByUuid'];
-    },
-    childrenUuidsByUuid() {
-      return this.$store.getters['graph/childrenUuidsByUuid'];
-    },
-    graphDataByUuid() {
-      return this.$store.getters['graph/graphDataByUuid'];
-    },
-    selectedRoot() {
-      return this.$store.getters['tasks/selectedRoot'];
-    },
-    dimensionsByUuid() {
-      return this.$store.state.tasks.taskNodeSizeByUuid;
-    },
-    /**
-     * Make collapse info available per UUID. Modifies tree structure when a sequence of collapsed
-     * nodes exists.
-     * */
-    uncollapsedGraphByNodeUuid() {
-      return this.$store.getters['graph/uncollapsedGraphByNodeUuid'];
     },
     uncollapsedTaskNodeDimensionsByUuid() {
       // Need to wait for all node dimensions to be loaded before we do any calcs (e.g. layout)
@@ -176,12 +169,6 @@ export default {
     svgGraphTransform() {
       return `translate(${this.transform.x},${this.transform.y})scale(${this.transform.scale})`;
     },
-    isCollapsedByUuid() {
-      return this.$store.getters['graph/isCollapsedByUuid'];
-    },
-    focusedNodeUuid() {
-      return this.$store.state.tasks.focusedTaskUuid;
-    },
   },
   created() {
     // TODO: replace with action listeners.
@@ -190,7 +177,7 @@ export default {
     eventHub.$on('toggle-task-collapse', this.toggleCollapseDescendants);
     eventHub.$on('zoom', this.zoomed);
   },
-  beforeDestroy() {
+  beforeUnmount() {
     eventHub.$off('show-collapsed-tasks');
     eventHub.$off('toggle-task-collapse');
     eventHub.$off('zoom');
@@ -208,7 +195,7 @@ export default {
       // Null source events mean programatic zoom. We don't want to clear for programatic zooms.
       if (d3event.sourceEvent !== null && this.focusedNodeUuid !== null) {
         // Clear focus node on non-programatic pan/zoom.
-        this.$store.commit('tasks/setFocusedTaskUuid', null);
+        useTasksStore().setFocusedTaskUuid(null);
       }
       this.transform = transform;
       // TODO: make transform top-level key per firexUid. This will avoid write slowdowns as other
@@ -405,7 +392,7 @@ export default {
         };
         resultOpsByUuid = Object.assign({}, this.uiCollapseStateByUuid, toAdd);
       }
-      this.$store.dispatch('graph/setUiCollapseStateByUuid', resultOpsByUuid);
+      useGraphStore().setUiCollapseStateByUuid(resultOpsByUuid);
 
       // Since we're changing the nodes being displayed, the layout might drastically change.
       // Maintain the position of the node whose descendants have been added/removed so that
@@ -474,10 +461,10 @@ export default {
   watch: {
     firexUid: {
       handler() {
-        this.$store.commit('graph/setIsFirstLayout', true);
+        useGraphStore().setIsFirstLayout(true);
         this.nodeLayoutsByUuid = {};
         // load collapse config for the newly accessed FireX run.
-        this.$store.commit('graph/setCollapseConfig', getLocalStorageCollapseConfig(this.firexUid));
+        useGraphStore().setCollapseConfig(getLocalStorageCollapseConfig(this.firexUid));
       },
       immediate: true,
     },
@@ -486,7 +473,7 @@ export default {
       if (!_.isEmpty(newNodeLayoutsByUuid) && this.isFirstLayout) {
         // Want first render not to fade, but second render to fade-in new nodes.
         // Without next tick, every render has isFirstLayout false.
-        this.$nextTick(() => this.$store.commit('graph/setIsFirstLayout', false));
+        this.$nextTick(() => useGraphStore().setIsFirstLayout(false));
 
         // TODO: combine localstorage reads, or cache at lower level.
         this.updateTransformViaZoom(this.getLocalStorageTransform(newNodeLayoutsByUuid));

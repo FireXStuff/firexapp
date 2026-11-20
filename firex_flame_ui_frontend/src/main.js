@@ -1,37 +1,34 @@
-// The Vue build version to load with the `import` command
-// (runtime-only or standalone) has been set in webpack.base.conf with an alias.
-import Vue from 'vue';
-import { sync } from 'vuex-router-sync';
+import { createApp, watch } from 'vue';
 import AsyncComputed from 'vue-async-computed';
-import './icons';
-import VueClipboard from 'vue-clipboard2';
+import { registerIcons } from './icons';
 import './assets/bootstrap-firex-custom.min.css';
 
 import router from './router';
 import App from './App.vue';
-import store from './store';
+import { createFlamePinia } from './store';
+import { useFirexRunMetadataStore } from './store/modules/firexRunMetadata';
+import { useRouteStore } from './store/modules/route';
 
 import { isDebug } from './utils';
 
-Vue.config.devtools = isDebug;
-Vue.config.performance = isDebug;
+const app = createApp(App);
+const pinia = createFlamePinia();
 
-Vue.use(AsyncComputed);
-Vue.use(VueClipboard);
+app.config.performance = isDebug;
 
-Vue.config.productionTip = false;
+app.use(pinia);
+app.use(router);
+app.use(AsyncComputed);
+registerIcons(app);
 
-store.watch(state => state.firexRunMetadata.uid, (uid) => { document.title = uid; });
-sync(store, router); // make router data accessible from vuex.
+// make router data accessible from stores (replaces vuex-router-sync).
+const routeStore = useRouteStore(pinia);
+router.afterEach((to) => { routeStore.setRoute(to); });
 
-/* eslint-disable no-new */
-new Vue({
-  el: '#app',
-  router,
-  store,
-  render: h => h(App),
-});
+const firexRunMetadataStore = useFirexRunMetadataStore(pinia);
+watch(() => firexRunMetadataStore.uid, (uid) => { document.title = uid; });
+
+app.mount('#app');
 
 // This can be used by fallback code to see if the flame UI has been fetched from central sources.
 window.flameUiLoadStarted = true;
-

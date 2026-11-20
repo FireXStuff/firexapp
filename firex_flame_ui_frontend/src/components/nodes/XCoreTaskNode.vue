@@ -61,11 +61,14 @@
 
 <script>
 import _ from 'lodash';
-import { mapGetters } from 'vuex';
+import { mapState } from 'pinia';
 
 import {
   getNodeBackground, eventHub, getTaskNodeBorderRadius, isChainInterrupted,
 } from '../../utils';
+import { useTasksStore } from '../../store/modules/tasks';
+import { useGraphStore } from '../../store/modules/graph';
+import { useHeaderStore } from '../../store/modules/header';
 import XDuration from './XDuration.vue';
 
 export default {
@@ -85,14 +88,12 @@ export default {
     };
   },
   computed: {
-    ...mapGetters({
-      getCustomRootRoute: 'header/getCustomRootRoute',
-    }),
+    ...mapState(useHeaderStore, ['getCustomRootRoute']),
     task() {
-      return this.$store.state.tasks.allTasksByUuid[this.taskUuid];
+      return useTasksStore().allTasksByUuid[this.taskUuid];
     },
     showTaskDetails() {
-      return this.$store.state.graph.showTaskDetails;
+      return useGraphStore().showTaskDetails;
     },
     displayHostname() {
       return _.truncate(this.task.hostname, { length: 38 });
@@ -107,10 +108,10 @@ export default {
       return this.task.task_num;
     },
     runState() {
-      return this.$store.getters['tasks/runStateByUuid'][this.taskUuid].state;
+      return useTasksStore().runStateByUuid[this.taskUuid].state;
     },
     exception() {
-      return this.$store.getters['tasks/runStateByUuid'][this.taskUuid].exception;
+      return useTasksStore().runStateByUuid[this.taskUuid].exception;
     },
     actualRuntime() {
       return this.task.actual_runtime;
@@ -141,7 +142,7 @@ export default {
       return s;
     },
     flameDataHtmlContent() {
-      return this.$store.getters['tasks/flameHtmlsByUuid'][this.taskUuid];
+      return useTasksStore().flameHtmlsByUuid[this.taskUuid];
     },
   },
   mounted() {

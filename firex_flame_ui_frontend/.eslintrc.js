@@ -5,7 +5,7 @@ module.exports = {
   },
   extends: [
     'eslint:recommended',
-    'plugin:vue/essential',
+    'plugin:vue/vue3-essential',
   ],
   rules: {
     "no-param-reassign": [
