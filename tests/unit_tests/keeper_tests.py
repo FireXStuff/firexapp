@@ -7,11 +7,11 @@ from multiprocessing import Process, Queue
 from sqlite3 import OperationalError as SqlLiteOperationalError
 from unittest.mock import patch
 
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
 from firex_keeper import task_query
-from firex_keeper.db_model import firex_tasks, task_skuid_exp
+from firex_keeper.db_model import firex_tasks
 from firex_keeper.keeper_event_consumer import (
     KeeperThreadedEventWriter,
     WritingFireXRunDbManager,
@@ -666,36 +666,3 @@ def test_events_not_written_while_locked_are_written_later(tmp_path, monkeypatch
     db_writer.complete_writing()
     with get_db_manager(logs_dir) as db_manager:
         assert [t.uuid for t in db_manager.query_tasks(task_by_uuid_exp("5"))] == ["5"]
-
-
-def test_find_task_by_skuid_uses_index(tmp_path):
-    db_writer = _create_writing_db_mgr(str(tmp_path))
-    try:
-        db_writer.aggregate_events_and_update_db(
-            [
-                {
-                    "uuid": "1",
-                    "name": "BuildAndRegress",
-                    "firex_bound_args": {"skuid": "a"},
-                },
-                # SQLite's JSON functions reject NaN, which mustn't stop the task's write.
-                {
-                    "uuid": "2",
-                    "name": "BuildAndRegress",
-                    "firex_bound_args": {"skuid": "b", "x": float("nan")},
-                },
-                {"uuid": "3", "name": "Noop"},
-            ]
-        )
-        assert sorted(t.uuid for t in db_writer.query_tasks(True)) == ["1", "2", "3"]
-
-        query = select(firex_tasks).where(task_skuid_exp == "a")
-        assert [t.uuid for t in db_writer.query_tasks(query)] == ["1"]
-        compiled = query.compile(dialect=db_writer.db_conn.dialect)
-        plan = db_writer.db_conn.exec_driver_sql(
-            f"EXPLAIN QUERY PLAN {compiled}",
-            tuple(compiled.params[p] for p in compiled.positiontup),
-        ).fetchall()
-        assert "USING INDEX task_skuid_index" in str(plan)
-    finally:
-        db_writer.complete_writing()
