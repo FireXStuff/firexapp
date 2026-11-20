@@ -2,15 +2,16 @@ import shutil
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing, contextmanager
 from multiprocessing import Process, Queue
 from sqlite3 import OperationalError as SqlLiteOperationalError
 from unittest.mock import patch
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.exc import OperationalError
 
 from firex_keeper import task_query
-from firex_keeper.db_model import firex_tasks
+from firex_keeper.db_model import firex_tasks, task_skuid_exp
 from firex_keeper.keeper_event_consumer import (
     KeeperThreadedEventWriter,
     WritingFireXRunDbManager,
@@ -607,3 +608,94 @@ def test_copy_db_leaves_hot_looking_journal(tmp_path, monkeypatch):
 
     assert seen_db.read_bytes() == seen_db_bytes
     assert (tmp_path / "seen.db-journal").exists()
+
+
+@contextmanager
+def _reader_mid_query(db_file):
+    # A reader part way through a query holds its read lock, so the writer can't commit.
+    with closing(sqlite3.connect(f"file:{db_file}?mode=ro", uri=True)) as reader:
+        cursor = reader.execute("SELECT uuid FROM firex_tasks")
+        cursor.fetchone()
+        yield
+        cursor.fetchall()
+
+
+def _new_reader_result(db_file):
+    with closing(sqlite3.connect(f"file:{db_file}?mode=ro", uri=True, timeout=0)) as r:
+        try:
+            return sorted(u for (u,) in r.execute("SELECT uuid FROM firex_tasks"))
+        except sqlite3.OperationalError as e:
+            return str(e)
+
+
+def test_events_not_written_while_locked_are_written_later(tmp_path, monkeypatch):
+    logs_dir = str(tmp_path)
+    db_writer = _create_writing_db_mgr(logs_dir)
+    db_writer.db_conn.execute(text("PRAGMA busy_timeout=0"))  # fail as soon as locked.
+    db_writer.aggregate_events_and_update_db(
+        [{"uuid": "1", "name": "Noop"}, {"uuid": "2", "name": "Noop"}]
+    )
+    db_file = get_db_file(logs_dir)
+    # check new readers while the writer waits to retry COMMIT, instead of sleeping.
+    readers_during_commit_retries = []
+    monkeypatch.setattr(
+        "firex_keeper.keeper_event_consumer.sleep",
+        lambda _: readers_during_commit_retries.append(_new_reader_result(db_file)),
+    )
+
+    with _reader_mid_query(db_file):
+        db_writer.aggregate_events_and_update_db([{"uuid": "3", "name": "Noop"}])
+        # once the writer gives up, it rolls back and stops blocking new readers.
+        assert _new_reader_result(db_file) == ["1", "2"]
+    assert readers_during_commit_retries == ["database is locked"] * (
+        DEFAULT_MAX_RETRY_ATTEMPTS - 1
+    )
+
+    db_writer.aggregate_events_and_update_db([{"uuid": "4", "name": "Noop"}])
+    assert _new_reader_result(db_file) == ["1", "2", "3", "4"]
+    # unwritten events were aggregated again from scratch, so task "3" is fully tracked.
+    assert {e["uuid"] for e in db_writer.generate_incomplete_events()} == {
+        "1",
+        "2",
+        "3",
+        "4",
+    }
+
+    with _reader_mid_query(db_file):
+        db_writer.aggregate_events_and_update_db([{"uuid": "5", "name": "Noop"}])
+    db_writer.complete_writing()
+    with get_db_manager(logs_dir) as db_manager:
+        assert [t.uuid for t in db_manager.query_tasks(task_by_uuid_exp("5"))] == ["5"]
+
+
+def test_find_task_by_skuid_uses_index(tmp_path):
+    db_writer = _create_writing_db_mgr(str(tmp_path))
+    try:
+        db_writer.aggregate_events_and_update_db(
+            [
+                {
+                    "uuid": "1",
+                    "name": "BuildAndRegress",
+                    "firex_bound_args": {"skuid": "a"},
+                },
+                # SQLite's JSON functions reject NaN, which mustn't stop the task's write.
+                {
+                    "uuid": "2",
+                    "name": "BuildAndRegress",
+                    "firex_bound_args": {"skuid": "b", "x": float("nan")},
+                },
+                {"uuid": "3", "name": "Noop"},
+            ]
+        )
+        assert sorted(t.uuid for t in db_writer.query_tasks(True)) == ["1", "2", "3"]
+
+        query = select(firex_tasks).where(task_skuid_exp == "a")
+        assert [t.uuid for t in db_writer.query_tasks(query)] == ["1"]
+        compiled = query.compile(dialect=db_writer.db_conn.dialect)
+        plan = db_writer.db_conn.exec_driver_sql(
+            f"EXPLAIN QUERY PLAN {compiled}",
+            tuple(compiled.params[p] for p in compiled.positiontup),
+        ).fetchall()
+        assert "USING INDEX task_skuid_index" in str(plan)
+    finally:
+        db_writer.complete_writing()

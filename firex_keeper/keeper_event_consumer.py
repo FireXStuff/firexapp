@@ -8,6 +8,7 @@ import threading
 from enum import Enum, auto
 from pathlib import Path
 from sqlite3 import DatabaseError as SqlLiteDatabaseError
+from sqlite3 import OperationalError as SqlLiteOperationalError
 from time import sleep
 from typing import Any
 
@@ -15,6 +16,7 @@ import sqlalchemy.exc
 
 from firex_keeper.db_model import firex_run_metadata, firex_tasks
 from firex_keeper.persist import (
+    DEFAULT_MAX_RETRY_ATTEMPTS,
     KEEPER_WRITER_PRAGMAS,
     RETRYING_DB_EXCEPTIONS,
     FireXRunDbManager,
@@ -38,6 +40,11 @@ from firexapp.events.model import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Events whose write failed after all retries (e.g. a reader held the DB lock throughout) are
+# rolled back and written with the next batch instead of dropped. Bounded so a lock that's
+# never released can't grow memory without limit.
+MAX_UNWRITTEN_CELERY_EVENTS = 50_000
 
 
 class KeeperQueueEntryType(Enum):
@@ -340,10 +347,28 @@ class WritingFireXRunDbManager(FireXRunDbManager, KeeperEventAggregator):
 
         FireXRunDbManager.__init__(self, db_conn)
         KeeperEventAggregator.__init__(self, self, self.firex_id)
+        self._unwritten_celery_events: list = []
 
     def aggregate_events_and_update_db(self, celery_events):
+        # Earlier unwritten events go first to keep event order. Re-aggregating them is safe:
+        # their transaction was rolled back and in-memory tracking only updates on success.
+        celery_events = self._unwritten_celery_events + celery_events
+        self._unwritten_celery_events = []
         try:
             changed_uuids = self._insert_or_update_tasks(celery_events)
+        except RETRYING_DB_EXCEPTIONS:
+            if len(celery_events) > MAX_UNWRITTEN_CELERY_EVENTS:
+                logger.exception(
+                    f"Dropping {len(celery_events)} Celery events that could not be "
+                    "written to the Keeper database"
+                )
+            else:
+                logger.warning(
+                    f"Failed to write {len(celery_events)} Celery events to the Keeper "
+                    "database; will retry with the next batch",
+                    exc_info=True,
+                )
+                self._unwritten_celery_events = celery_events
         except (sqlalchemy.exc.DatabaseError, SqlLiteDatabaseError):
             logger.exception("Failed to update Keeper database from Celery events")
         else:
@@ -368,16 +393,50 @@ class WritingFireXRunDbManager(FireXRunDbManager, KeeperEventAggregator):
             firex_run_metadata.insert().values(**run_metadata_to_insert)
         )
 
-    @retry(RETRYING_DB_EXCEPTIONS)
     def _insert_or_update_tasks(self, celery_events) -> list[str]:
-        with self.db_conn.begin():
-            # Note querying for existing tasks during event aggregation must occur
-            # within same DB transaction as insert/update, otherwise integrety errors
-            # can occur.
-            new_data_by_task_uuid = self.aggregate_events(celery_events)
+        transaction, new_data_by_task_uuid = self._aggregate_in_transaction(
+            celery_events
+        )
+        try:
+            self._commit()
+        except BaseException:
+            # SQLAlchemy doesn't roll back SQLite's transaction when COMMIT fails.
+            transaction.rollback()
+            raise
+        transaction.commit()  # SQLAlchemy's bookkeeping; SQLite has already committed.
         # in memory tracking must only occur after DB transaction success.
         self.update_in_memory_tasks(new_data_by_task_uuid)
         return list(new_data_by_task_uuid.keys())  # updated_task UUIDs.
+
+    @retry(RETRYING_DB_EXCEPTIONS)
+    def _aggregate_in_transaction(self, celery_events):
+        transaction = self.db_conn.begin()
+        try:
+            # Note querying for existing tasks during event aggregation must occur
+            # within same DB transaction as insert/update, otherwise integrety errors
+            # can occur.
+            return transaction, self.aggregate_events(celery_events)
+        except BaseException:
+            transaction.rollback()
+            raise
+
+    def _commit(self) -> None:
+        # Retry COMMIT without rolling back: a busy COMMIT keeps SQLite's transaction open,
+        # along with the lock that stops new readers starting, so the writer only waits for
+        # reads already in progress. SQLAlchemy's commit can't be retried, so use the DBAPI's.
+        dbapi_connection = self.db_conn.connection
+        for attempt in range(1, DEFAULT_MAX_RETRY_ATTEMPTS + 1):
+            try:
+                dbapi_connection.commit()
+                return
+            except SqlLiteOperationalError:
+                # Some errors make SQLite roll back, leaving nothing to retry.
+                if (
+                    attempt == DEFAULT_MAX_RETRY_ATTEMPTS
+                    or not dbapi_connection.in_transaction
+                ):
+                    raise
+                sleep(1)
 
     def insert_task(self, task) -> dict[str, Any]:
         modelled_task = get_task_data(task)
@@ -401,9 +460,18 @@ class WritingFireXRunDbManager(FireXRunDbManager, KeeperEventAggregator):
         self.db_conn.execute(firex_run_metadata.update().values(keeper_complete=True))
 
     def complete_writing(self):
-        # set all incomplete tasks to a terminal state since we'll never
-        # get any more celery events.
-        self.aggregate_events_and_update_db(self.generate_incomplete_events())
+        if self._unwritten_celery_events:
+            # write these first so their tasks are included in incomplete events below.
+            self.aggregate_events_and_update_db([])
+        if not self._unwritten_celery_events:
+            # set all incomplete tasks to a terminal state since we'll never
+            # get any more celery events.
+            self.aggregate_events_and_update_db(self.generate_incomplete_events())
+        if self._unwritten_celery_events:
+            logger.error(
+                f"Dropping {len(self._unwritten_celery_events)} Celery events that could "
+                "not be written to the Keeper database"
+            )
 
         try:
             self._set_keeper_complete()
