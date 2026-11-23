@@ -153,6 +153,52 @@ def measuring_subprocesses(data_dir: str, config_file: str):
                 os.environ[name] = value
 
 
+@contextlib.contextmanager
+def measuring_in_process(data_dir: str, config_file: str):
+    """Measure this process itself, for the duration of the block.
+
+    Starts a Coverage object in the current process and saves it on exit.
+    Used when this process runs tests directly (pytest.main) rather than
+    spawning subprocesses to do so. The Coverage object measures application
+    code run by pytest.main in this process.
+
+    If pytest-cov's plugin is active (via .pth), it will also measure the
+    process. We detect this and log a warning, but proceed anyway -- both
+    Coverage objects write to the same data directory (with distinct filenames
+    via pid/random suffix), so they merge correctly.
+
+    This is meant to be paired with measuring_subprocesses around any
+    subprocesses spawned by the test code, so both the in-process pytest
+    execution and any spawned runs/workers are measured.
+    """
+    # Deferred: only imported when measuring is active.
+    from coverage import Coverage
+
+    data_file = os.path.join(data_dir, COVERAGE_DATA_FILE_BASE_NAME)
+    cov = Coverage(
+        source="",  # Empty: use config_file for source specification
+        config_file=config_file,
+        branch=True,
+        data_file=data_file,
+        data_suffix=True,
+    )
+
+    # Warn if pytest-cov is already active, but proceed anyway.
+    if is_measured():
+        print(
+            "WARNING: pytest-cov plugin is active (from .pth); measuring with"
+            " both the plugin and this Coverage object. Both write to the same"
+            " data directory and merge correctly, but this uses extra CPU.",
+            file=sys.stderr,
+        )
+
+    cov.start()
+    try:
+        yield data_dir
+    finally:
+        cov.save()
+
+
 def coverage_data_files(coverage_data_dir: str) -> list[str]:
     """The per-process data files waiting to be combined, newest name last."""
     return sorted(

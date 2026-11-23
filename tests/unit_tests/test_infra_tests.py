@@ -393,3 +393,39 @@ def test_an_older_subclass_that_branches_on_coverage_still_works():
     assert interpreter.is_coverage_enabled(_UtFlowTestConfig()), (
         "the run is still measured, just not by wrapping the command"
     )
+
+
+def test_measuring_in_process_creates_coverage_data(tmp_path):
+    """measuring_in_process starts a Coverage object in the current process and
+    saves coverage data for the code run in the with block."""
+    with subprocess_coverage.measuring_in_process(
+        str(tmp_path), config_file=get_packaged_coveragerc_path()
+    ):
+        # Run some code that will be measured.
+        x = 1 + 1
+        assert x == 2
+
+    # Coverage data should have been written.
+    files = os.listdir(str(tmp_path))
+    assert any(f.startswith(".coverage.") for f in files), (
+        f"expected coverage data files, got {files}"
+    )
+
+
+def test_measuring_in_process_restores_on_exception(tmp_path):
+    """When an exception is raised in the block, coverage still saves."""
+    with (
+        contextlib.suppress(RuntimeError),
+        subprocess_coverage.measuring_in_process(
+            str(tmp_path), config_file=get_packaged_coveragerc_path()
+        ),
+    ):
+        x = 1 + 1
+        assert x
+        raise RuntimeError("test exception")
+
+    # Coverage data should still have been written, despite the exception.
+    files = os.listdir(str(tmp_path))
+    assert any(f.startswith(".coverage.") for f in files), (
+        f"expected coverage data despite exception, got {files}"
+    )
