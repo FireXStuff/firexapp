@@ -247,24 +247,28 @@ def _wait_for_coverage_data_to_settle(coverage_data_dir: str) -> None:
     )
 
 
-def _run_coverage(*args: str, cwd: str) -> None:
+def _run_coverage(*args: str, cwd: str, data_file: str | None = None) -> None:
     """Run coverage's command line as this interpreter's coverage package.
 
     Never whatever 'coverage' is first on PATH. A worker that StartMaster
     starts over ssh has the login shell's PATH, on which that can be an
     unrelated install: /router/bin/coverage is a Python 2.7 coverage 4.x. It
     can't read these data files, so it skips every one, writes an empty
-    combined file, and then fails with 'No data to report'.
+    combined file, and then fails with 'No data to report'. Isolated (-I) so
+    that running in a workspace can't shadow the coverage package either.
 
     The coverage variables are dropped so that, when this process is itself
     measured, the tool doesn't add data files of its own to the directory it
-    is combining.
+    is combining. 'data_file' is for running anywhere but beside the data.
     """
+    env = {k: v for k, v in os.environ.items() if k not in COVERAGE_ENV_VARS}
+    if data_file:
+        env["COVERAGE_FILE"] = data_file
     result = subprocess.run(
-        [sys.executable, "-m", "coverage", *args],
+        [sys.executable, "-I", "-m", "coverage", *args],
         check=False,
         cwd=cwd,
-        env={k: v for k, v in os.environ.items() if k not in COVERAGE_ENV_VARS},
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -285,12 +289,21 @@ def combine_coverage_data(
     html_report_dir: str | None = None,
     xml_report_file: str | None = None,
     keep_data_files: bool = False,
+    xml_report_root: str | None = None,
 ) -> bool:
     """Merge the per-process data files in a directory. False if there were none.
 
     What is kept is the merged '.coverage' and the reports: combining deletes
     each per-process file once it has been merged in, unless keep_data_files
     -- for when what an individual process measured is the question.
+
+    xml_report_root makes the XML report's paths relative to that directory,
+    and leaves out what is outside it. The cflow chain's CTC++ tooling needs
+    this to read Python coverage: genctcreport runs in the workspace, and its
+    lang_integration_tools/xml2lang_json.py only takes XML whose <source> is
+    that workspace, as pytest-cov's '--cov <ws>' writes it for the 'pytest'
+    framework. Written anywhere else the report gets an empty <source>, which
+    crashes xml2lang_json.py into an empty CTC++ report.
 
     The per-host counts printed here are the thing to read when a producer
     stops working: a test path that was never measured doesn't fail anything,
@@ -331,7 +344,23 @@ def combine_coverage_data(
         _run_coverage("combine", "--append", *keep, *stragglers, cwd=coverage_data_dir)
 
     if xml_report_file:
-        _run_coverage("xml", "-o", xml_report_file, cwd=coverage_data_dir)
+        if xml_report_root:
+            # Canonical, as the measured file names are.
+            root = os.path.realpath(xml_report_root)
+            _run_coverage(
+                "xml",
+                # Not whatever .coveragerc, setup.cfg etc. the root has.
+                f"--rcfile={get_packaged_coveragerc_path()}",
+                f"--include={root}/*",
+                "-o",
+                os.path.abspath(xml_report_file),
+                cwd=root,
+                data_file=os.path.abspath(
+                    os.path.join(coverage_data_dir, COVERAGE_DATA_FILE_BASE_NAME)
+                ),
+            )
+        else:
+            _run_coverage("xml", "-o", xml_report_file, cwd=coverage_data_dir)
         print(f"Coverage XML: {xml_report_file}")
     if html_report_dir:
         print("Generating Coverage Report...")

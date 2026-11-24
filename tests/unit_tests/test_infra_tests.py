@@ -1,5 +1,6 @@
 import contextlib
 import datetime
+import fnmatch
 import glob
 import inspect
 import io
@@ -356,6 +357,47 @@ def test_a_failed_combine_says_why(tmp_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="No usable data files"):
         subprocess_coverage.combine_coverage_data(str(data_dir))
+
+
+def test_the_xml_report_is_relative_to_the_workspace_ctc_reads_it_in(
+    tmp_path, monkeypatch
+):
+    """The cflow chain's CTC++ genctcreport runs in the workspace, and its
+    xml2lang_json.py reads Python coverage only from XML whose <source> is
+    that workspace -- the shape pytest-cov's '--cov <ws>' gives the 'pytest'
+    framework. An empty <source> crashed it into an empty report."""
+    _ut_settle_immediately(monkeypatch)
+    ws = tmp_path / "ws"
+    in_ws = ws / "src" / "pkg" / "mod.py"
+    outside_ws = tmp_path / "elsewhere" / "other.py"
+    for source in (in_ws, outside_ws):
+        source.parent.mkdir(parents=True)
+        source.write_text("a = 1\nb = 2\n")
+    data_dir = tmp_path / "coverage_data"
+    data_dir.mkdir()
+    _ut_write_coverage_data(
+        data_dir, "uthost.100.1", {str(in_ws): [1, 2], str(outside_ws): [1]}
+    )
+    xml_report = data_dir / "coverage.xml"
+
+    subprocess_coverage.combine_coverage_data(
+        str(data_dir), xml_report_file=str(xml_report), xml_report_root=str(ws)
+    )
+
+    report = etree.parse(str(xml_report))
+    assert report.xpath("/coverage/sources/source/text()") == [os.path.realpath(ws)]
+    assert report.xpath("//class/@filename") == ["src/pkg/mod.py"], (
+        "paths have to be relative to the workspace, and only what is in it"
+    )
+
+
+def test_firex_installed_into_site_packages_is_measured():
+    """CI's staging venvs install FireX into lib/python3.x/site-packages, so
+    an omit pattern like '*/lib/*' measures nothing there."""
+    config = coverage.Coverage(config_file=get_packaged_coveragerc_path()).config
+    installed = "/staging/venv/lib/python3.10/site-packages/microservices/tasks.py"
+
+    assert not [p for p in config.run_omit if fnmatch.fnmatch(installed, p)]
 
 
 def test_measuring_subprocesses_measures_what_the_block_starts(tmp_path):

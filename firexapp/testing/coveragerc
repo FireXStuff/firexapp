@@ -24,8 +24,10 @@ source_pkgs =
     microservices
     services
 
+# Not */lib/*: source_pkgs already keeps measurement to FireX's own packages,
+# and where FireX isn't an editable install -- CI's staging venvs -- all of it
+# is under lib/python3.x/site-packages.
 omit =
-    */lib/*
     */tests/integration_tests/*
 
 # Most processes measure only part of what they run: pool children and
