@@ -201,6 +201,13 @@ def main(default_results_dir, default_test_dir):
         "merged afterwards.",
     )
     parser.add_argument(
+        "--keep_coverage_data_files",
+        action="store_true",
+        help="Keep every process's own coverage data file after combining, "
+        "rather than only the combined .coverage and the report. Used in "
+        "combination with --coverage",
+    )
+    parser.add_argument(
         "--public_runs",
         action="store_true",
         default=False,
@@ -220,6 +227,8 @@ def main(default_results_dir, default_test_dir):
 
     if args.no_html and not (args.coverage or args.coverage_data_dir):
         parser.error("--no_html cannot be used without --coverage")
+    if args.keep_coverage_data_files and not (args.coverage or args.coverage_data_dir):
+        parser.error("--keep_coverage_data_files cannot be used without --coverage")
 
     # prepare logging directory
     results_directory = os.path.realpath(args.logs)
@@ -294,6 +303,7 @@ def main(default_results_dir, default_test_dir):
         combine_coverage_data(
             coverage_settings.data_dir,
             html_report_dir=coverage_settings.html_report_dir,
+            keep_data_files=args.keep_coverage_data_files,
         )
 
     sys.exit(not success)

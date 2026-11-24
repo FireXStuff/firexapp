@@ -153,49 +153,57 @@ def measuring_subprocesses(data_dir: str, config_file: str):
                 os.environ[name] = value
 
 
-@contextlib.contextmanager
-def measuring_in_process(data_dir: str, config_file: str):
-    """Measure this process itself, for the duration of the block.
+def _new_coverage(data_file: str, config_file: str):
+    """A Coverage that writes its own suffixed file beside 'data_file'.
 
-    Starts a Coverage object in the current process and saves it on exit.
-    Used when this process runs tests directly (pytest.main) rather than
-    spawning subprocesses to do so. The Coverage object measures application
-    code run by pytest.main in this process.
-
-    If pytest-cov's plugin is active (via .pth), it will also measure the
-    process. We detect this and log a warning, but proceed anyway -- both
-    Coverage objects write to the same data directory (with distinct filenames
-    via pid/random suffix), so they merge correctly.
-
-    This is meant to be paired with measuring_subprocesses around any
-    subprocesses spawned by the test code, so both the in-process pytest
-    execution and any spawned runs/workers are measured.
+    The same measurement pytest_cov.embed.init() starts from the coverage
+    variables, for the places that start measuring part way through a process
+    rather than at interpreter startup.
     """
     # Deferred: only imported when measuring is active.
     from coverage import Coverage
 
-    data_file = os.path.join(data_dir, COVERAGE_DATA_FILE_BASE_NAME)
-    cov = Coverage(
-        source="",  # Empty: use config_file for source specification
+    return Coverage(
         config_file=config_file,
         branch=True,
         data_file=data_file,
         data_suffix=True,
     )
 
-    # Warn if pytest-cov is already active, but proceed anyway.
-    if is_measured():
-        print(
-            "WARNING: pytest-cov plugin is active (from .pth); measuring with"
-            " both the plugin and this Coverage object. Both write to the same"
-            " data directory and merge correctly, but this uses extra CPU.",
-            file=sys.stderr,
-        )
 
+@contextlib.contextmanager
+def measuring_in_process(data_dir: str, config_file: str):
+    """Measure this process itself, for the duration of the block.
+
+    For a process that runs tests itself -- pytest.main() in a celery pool
+    child -- rather than only through the processes it starts, which is what
+    measuring_subprocesses covers. Pair the two.
+
+    A process that is already measuring into this directory -- a pool child
+    of a measured worker, say -- covers the block as it is, so nothing more is
+    started. Measurement going anywhere else is paused for the block, since
+    the block's data belongs in this directory's report.
+    """
+    # Deferred: only imported when measuring is active.
+    from coverage import Coverage
+
+    data_file = os.path.join(data_dir, COVERAGE_DATA_FILE_BASE_NAME)
+    current = Coverage.current()
+    if current is not None and os.path.abspath(
+        current.config.data_file
+    ) == os.path.abspath(data_file):
+        yield data_dir
+        return
+
+    cov = _new_coverage(data_file, config_file)
     cov.start()
     try:
         yield data_dir
     finally:
+        # Stopped, not just saved: this process goes on to run other tasks,
+        # which nothing would save, and whatever was paused for the block
+        # resumes.
+        cov.stop()
         cov.save()
 
 
@@ -239,12 +247,50 @@ def _wait_for_coverage_data_to_settle(coverage_data_dir: str) -> None:
     )
 
 
+def _run_coverage(*args: str, cwd: str) -> None:
+    """Run coverage's command line as this interpreter's coverage package.
+
+    Never whatever 'coverage' is first on PATH. A worker that StartMaster
+    starts over ssh has the login shell's PATH, on which that can be an
+    unrelated install: /router/bin/coverage is a Python 2.7 coverage 4.x. It
+    can't read these data files, so it skips every one, writes an empty
+    combined file, and then fails with 'No data to report'.
+
+    The coverage variables are dropped so that, when this process is itself
+    measured, the tool doesn't add data files of its own to the directory it
+    is combining.
+    """
+    result = subprocess.run(
+        [sys.executable, "-m", "coverage", *args],
+        check=False,
+        cwd=cwd,
+        env={k: v for k, v in os.environ.items() if k not in COVERAGE_ENV_VARS},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    # Printed either way: on success it is the warnings, e.g. a data file that
+    # couldn't be read and was left out.
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.returncode:
+        raise RuntimeError(
+            f"'coverage {args[0]}' failed with exit status {result.returncode}"
+            f" in {cwd!r}:\n{result.stdout}"
+        )
+
+
 def combine_coverage_data(
     coverage_data_dir: str,
     html_report_dir: str | None = None,
     xml_report_file: str | None = None,
+    keep_data_files: bool = False,
 ) -> bool:
     """Merge the per-process data files in a directory. False if there were none.
+
+    What is kept is the merged '.coverage' and the reports: combining deletes
+    each per-process file once it has been merged in, unless keep_data_files
+    -- for when what an individual process measured is the question.
 
     The per-host counts printed here are the thing to read when a producer
     stops working: a test path that was never measured doesn't fail anything,
@@ -270,52 +316,62 @@ def combine_coverage_data(
     hosts = ", ".join(f"{host} ({count})" for host, count in files_per_host.items())
     print(f"Combining {len(data_files)} coverage data files from: {hosts}")
 
-    subprocess.check_output(["coverage", "combine", *data_files], cwd=coverage_data_dir)
+    keep = ["--keep"] if keep_data_files else []
+    _run_coverage("combine", *keep, *data_files, cwd=coverage_data_dir)
 
     # Combining is itself slow enough for a straggler to land during it, which
     # the settle wait can't rule out. '--append' so this adds to what was just
-    # combined rather than starting clean and discarding it.
-    stragglers = coverage_data_files(coverage_data_dir)
+    # combined rather than starting clean and discarding it. Only names not
+    # listed before count: what was kept, or couldn't be read, is still there.
+    stragglers = sorted(
+        set(coverage_data_files(coverage_data_dir)).difference(data_files)
+    )
     if stragglers:
         print(f"Combining {len(stragglers)} further data files that arrived late")
-        subprocess.check_output(
-            ["coverage", "combine", "--append", *stragglers], cwd=coverage_data_dir
-        )
+        _run_coverage("combine", "--append", *keep, *stragglers, cwd=coverage_data_dir)
 
     if xml_report_file:
-        subprocess.check_output(
-            ["coverage", "xml", "-o", xml_report_file], cwd=coverage_data_dir
-        )
+        _run_coverage("xml", "-o", xml_report_file, cwd=coverage_data_dir)
         print(f"Coverage XML: {xml_report_file}")
     if html_report_dir:
         print("Generating Coverage Report...")
-        subprocess.check_output(
-            ["coverage", "html", "-d", html_report_dir], cwd=coverage_data_dir
-        )
+        _run_coverage("html", "-d", html_report_dir, cwd=coverage_data_dir)
         print(html_report_dir)
     return True
+
+
+# The Coverage a pool child measures itself with; see start_pool_child_coverage.
+_pool_child_coverage = None
 
 
 def start_pool_child_coverage() -> None:
     """Begin measuring a freshly forked celery pool child.
 
-    A child inherits the worker's in-progress measurement across the fork, but
-    leaves through os._exit() (billiard.pool.Worker._do_exit), which runs no
-    atexit handlers -- so what it inherited would never be written, and
-    everything a task actually did in a pool child would be missing from the
-    report. Starting again here gives the child a Coverage of its own, under
-    its own data suffix, that it can save on the way out.
+    The measurement a child inherits across the fork is the worker's: its
+    imports and startup, which the worker writes out itself when it exits.
+    The child leaves through os._exit() (billiard.pool.Worker._do_exit), which
+    runs no atexit handlers, so to get what its tasks run into the report it
+    needs a Coverage of its own that it saves on the way out.
+
+    That Coverage starts empty. pytest_cov.embed.init() would instead first
+    save the inherited measurement under the child's pid: a ~1MB copy of the
+    worker's startup per pool child, which was ~85% of a run's coverage data.
+    Starting this one pauses the inherited one, so the child isn't traced
+    twice.
 
     This is what lets the worker keep --pool=prefork. The alternative the old
     coverage_plugin took was forcing --pool=eventlet, which measured a
     concurrency model that no production run uses.
     """
+    global _pool_child_coverage
     if not is_measured():
         return
 
-    from pytest_cov.embed import init
-
-    init()
+    _pool_child_coverage = _new_coverage(
+        os.environ[COV_DATAFILE_ENV],
+        os.environ[COV_CONFIG_ENV],
+    )
+    _pool_child_coverage.start()
 
 
 def save_pool_child_coverage() -> None:
@@ -324,9 +380,10 @@ def save_pool_child_coverage() -> None:
     Celery sends worker_process_shutdown from billiard's _do_exit, just before
     the os._exit() that ends the child. That is the only window there is.
     """
-    if not is_measured():
+    global _pool_child_coverage
+    if _pool_child_coverage is None:
         return
 
-    from pytest_cov.embed import cleanup
-
-    cleanup()
+    _pool_child_coverage.stop()
+    _pool_child_coverage.save()
+    _pool_child_coverage = None

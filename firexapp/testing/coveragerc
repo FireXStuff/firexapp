@@ -27,3 +27,13 @@ source_pkgs =
 omit =
     */lib/*
     */tests/integration_tests/*
+
+# Most processes measure only part of what they run: pool children and
+# in-process measurement start after the FireX packages were imported, and a
+# process needn't import every package at all. So these warnings are expected
+# rather than a sign of trouble. pytest_cov.embed turns the same ones off for
+# the processes the coverage variables start.
+disable_warnings =
+    module-not-measured
+    module-not-imported
+    no-data-collected

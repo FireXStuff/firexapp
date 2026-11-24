@@ -1,6 +1,7 @@
 import contextlib
 import datetime
 import glob
+import inspect
 import io
 import os
 import socket
@@ -12,6 +13,7 @@ import time
 import unittest
 
 import coverage
+import pytest
 from lxml import etree
 from xmlrunner.runner import XMLTestRunner
 
@@ -293,6 +295,69 @@ def test_combining_an_empty_run_says_so_rather_than_failing(
     assert "No coverage data was collected" in capsys.readouterr().err
 
 
+def _ut_settle_immediately(monkeypatch) -> None:
+    monkeypatch.setattr(subprocess_coverage, "_COVERAGE_SETTLE_QUIET_SECS", 0)
+    monkeypatch.setattr(subprocess_coverage, "_COVERAGE_SETTLE_TIMEOUT_SECS", 2)
+
+
+def test_combining_uses_this_interpreters_coverage_not_the_one_on_path(
+    tmp_path, monkeypatch
+):
+    """A worker StartMaster starts over ssh has the login shell's PATH, on
+    which 'coverage' can be another Python's: /router/bin's is a Python 2.7
+    coverage 4.x, which skipped every data file and then failed to report."""
+    _ut_settle_immediately(monkeypatch)
+    wrong_bin = tmp_path / "bin"
+    wrong_bin.mkdir()
+    wrong_coverage = wrong_bin / "coverage"
+    wrong_coverage.write_text("#!/bin/sh\nexit 1\n")
+    wrong_coverage.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{wrong_bin}{os.pathsep}{os.environ['PATH']}")
+    source = tmp_path / "ut_measured.py"
+    source.write_text("a = 1\nb = 2\n")
+    data_dir = tmp_path / "coverage_data"
+    data_dir.mkdir()
+    _ut_write_coverage_data(data_dir, "uthost.100.1", {str(source): [1, 2]})
+
+    subprocess_coverage.combine_coverage_data(
+        str(data_dir), xml_report_file=str(data_dir / "coverage.xml")
+    )
+
+    assert _ut_combined_lines(data_dir) == {(str(source), 1), (str(source), 2)}
+    assert (data_dir / "coverage.xml").is_file()
+
+
+def test_combining_can_keep_every_processes_own_data(tmp_path, monkeypatch, capsys):
+    _ut_settle_immediately(monkeypatch)
+    data_dir = tmp_path / "coverage_data"
+    data_dir.mkdir()
+    _ut_write_coverage_data(data_dir, "uthost.100.1", {"/ut/submit.py": [1]})
+    _ut_write_coverage_data(data_dir, "uthost.200.2", {"/ut/worker.py": [7]})
+
+    subprocess_coverage.combine_coverage_data(str(data_dir), keep_data_files=True)
+
+    assert _ut_combined_lines(data_dir) == {("/ut/submit.py", 1), ("/ut/worker.py", 7)}
+    assert sorted(f.name for f in data_dir.glob(".coverage.*")) == [
+        ".coverage.uthost.100.1",
+        ".coverage.uthost.200.2",
+    ]
+    assert "arrived late" not in capsys.readouterr().out, (
+        "files kept on purpose were taken for stragglers"
+    )
+
+
+def test_a_failed_combine_says_why(tmp_path, monkeypatch):
+    """The report is all there is to go on afterwards: a bare exit status left
+    the PATH problem above to be reproduced by hand."""
+    _ut_settle_immediately(monkeypatch)
+    data_dir = tmp_path / "coverage_data"
+    data_dir.mkdir()
+    (data_dir / ".coverage.uthost.100.1").write_text("not a coverage data file")
+
+    with pytest.raises(RuntimeError, match="No usable data files"):
+        subprocess_coverage.combine_coverage_data(str(data_dir))
+
+
 def test_measuring_subprocesses_measures_what_the_block_starts(tmp_path):
     """How a pyflowtest gets measured: pytest runs in this process, and the
     runs it submits inherit os.environ, so the block's environment is the
@@ -398,6 +463,7 @@ def test_an_older_subclass_that_branches_on_coverage_still_works():
 def test_measuring_in_process_creates_coverage_data(tmp_path):
     """measuring_in_process starts a Coverage object in the current process and
     saves coverage data for the code run in the with block."""
+    measuring_before = coverage.Coverage.current()
     with subprocess_coverage.measuring_in_process(
         str(tmp_path), config_file=get_packaged_coveragerc_path()
     ):
@@ -410,6 +476,8 @@ def test_measuring_in_process_creates_coverage_data(tmp_path):
     assert any(f.startswith(".coverage.") for f in files), (
         f"expected coverage data files, got {files}"
     )
+    # The pool child goes on to run other tasks, which nothing would save.
+    assert coverage.Coverage.current() is measuring_before, "still measuring"
 
 
 def test_measuring_in_process_restores_on_exception(tmp_path):
@@ -429,3 +497,90 @@ def test_measuring_in_process_restores_on_exception(tmp_path):
     assert any(f.startswith(".coverage.") for f in files), (
         f"expected coverage data despite exception, got {files}"
     )
+
+
+def test_measuring_in_process_leaves_a_process_measuring_there_alone(tmp_path):
+    """A pool child of a measured worker already measures into the run's
+    directory. A second Coverage would only pause that one for the block."""
+    already = coverage.Coverage(
+        data_file=str(tmp_path / ".coverage"),
+        data_suffix=True,
+        config_file=get_packaged_coveragerc_path(),
+    )
+    already.start()
+    try:
+        with subprocess_coverage.measuring_in_process(
+            str(tmp_path), config_file=get_packaged_coveragerc_path()
+        ):
+            assert coverage.Coverage.current() is already
+    finally:
+        already.stop()
+
+    assert not list(tmp_path.glob(".coverage.*")), "the block wrote data of its own"
+
+
+# A prefork pool child as billiard runs one: forked from a measured worker
+# after its imports, starting and saving its own measurement through the
+# worker_process_init/shutdown handlers, and leaving through os._exit().
+_UT_POOL_CHILD_SCRIPT = """
+import os
+from firexapp import subprocess_coverage
+
+pid = os.fork()
+if pid == 0:
+    subprocess_coverage.start_pool_child_coverage()
+    subprocess_coverage.coverage_env_from_os_environ()
+    subprocess_coverage.save_pool_child_coverage()
+    os._exit(0)
+os.waitpid(pid, 0)
+print(pid)
+"""
+
+
+def _ut_measured_subprocess_coverage_lines(data_file) -> set[int]:
+    data = coverage.CoverageData(basename=str(data_file))
+    data.read()
+    [measured] = [
+        f
+        for f in data.measured_files()
+        if f.endswith(os.path.join("firexapp", "subprocess_coverage.py"))
+    ] or [None]
+    return set(data.lines(measured) or []) if measured else set()
+
+
+def test_a_pool_child_writes_only_what_it_ran(tmp_path):
+    """The worker's imports and startup are the worker's to write out.
+
+    A pool child that also wrote the copy it inherits across the fork made
+    ~85% of a run's coverage data: ~1MB of the same startup per pool child.
+    """
+    data_dir = tmp_path / "coverage_data"
+    data_dir.mkdir()
+    source_lines, _ = inspect.findsource(subprocess_coverage)
+    module_level_line = 1 + next(
+        i for i, line in enumerate(source_lines) if line.startswith("COV_SOURCE_ENV =")
+    )
+    body, first_line = inspect.getsourcelines(
+        subprocess_coverage.coverage_env_from_os_environ
+    )
+    child_ran_line = first_line + next(
+        i for i, line in enumerate(body) if "not in os.environ" in line
+    )
+
+    child_pid = subprocess.run(
+        [sys.executable, "-c", _UT_POOL_CHILD_SCRIPT],
+        env=os.environ | _ut_coverage_env(tmp_path),
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    [child_file] = data_dir.glob(f".coverage.*.{child_pid}.*")
+    child_lines = _ut_measured_subprocess_coverage_lines(child_file)
+    assert child_ran_line in child_lines, "what the child ran is missing"
+    assert module_level_line not in child_lines, "the child wrote the worker's startup"
+    assert any(
+        module_level_line in _ut_measured_subprocess_coverage_lines(f)
+        for f in data_dir.glob(".coverage.*")
+        if f != child_file
+    ), "nothing wrote the worker's startup"
