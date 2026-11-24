@@ -506,7 +506,6 @@ class FireXTask(Task):
 
         self.undecorated = undecorate(self)
         self.sig: inspect.Signature = _get_signature_with_resolved_annotations(self.run)
-        log_unvalidatable_annotations(self.name, self.sig)
 
         _task_return_keys = self._get_task_return_keys()
         _decorated_return_keys = getattr(
@@ -547,6 +546,13 @@ class FireXTask(Task):
         # or None when the current task is not an override.
         self.orig: FireXTask | None = None
         self.backend: RedisBackend
+
+        # Only a task that validates ever consults its annotations, so don't pay for
+        # classifying the rest. An override that inherits validation from the task it
+        # overrides can't know that yet (orig is set later), so its annotations are
+        # classified on first use instead.
+        if self.get_pydantic_validate() != ValidateArgs.DISABLED:
+            log_unvalidatable_annotations(self.name, self.sig)
 
     @property
     def return_keys(self) -> tuple[str, ...]:

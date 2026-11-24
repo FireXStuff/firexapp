@@ -859,13 +859,11 @@ def _build_annotation_validator(annotation) -> _AnnotationValidator:
         logger.debug(f"Pydantic cannot model annotation {annotation}: {e!r}")
         return _UNVALIDATABLE_ANNOTATION
 
-    is_instance_only = _schema_is_instance_only(adapter.core_schema)
-    if is_instance_only:
-        logger.debug(
-            f"Pydantic can only isinstance() check annotation {annotation};"
-            " it will not be converted."
-        )
-    return _AnnotationValidator(adapter=adapter, is_instance_only=is_instance_only)
+    # Not logged when only an isinstance() check: that's what pydantic makes of every
+    # annotation naming a plain class, and there's nothing to do about it.
+    return _AnnotationValidator(
+        adapter=adapter, is_instance_only=_schema_is_instance_only(adapter.core_schema)
+    )
 
 
 def _annotation_has_own_pydantic_config(annotation) -> bool:
@@ -909,8 +907,8 @@ def _schema_is_instance_only(schema) -> bool:
 def log_unvalidatable_annotations(task_name: str, sig: inspect.Signature) -> None:
     """
     Classify (and therefore cache) every annotation of a task's signature so that
-    annotations pydantic can't do anything with are reported once, at registration,
-    instead of from inside a running service.
+    annotations pydantic can't model are reported once, at registration, instead
+    of from inside a running service.
     """
     for param in sig.parameters.values():
         if param.annotation and param.annotation is not param.empty:

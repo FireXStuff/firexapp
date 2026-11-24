@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
+import logging
 from typing import Annotated
 
 import pydantic
@@ -19,7 +20,8 @@ from firexkit.bag_of_goodies import (
     ValidateArgs,
     _get_annotation_validator,
 )
-from firexkit.task import _get_signature_with_resolved_annotations
+from firexkit.firex_celery import FireXCelery
+from firexkit.task import FireXTask, _get_signature_with_resolved_annotations
 
 # NOTE: this module deliberately uses 'from __future__ import annotations' so that
 # every annotation below is a string at runtime, reproducing the PEP 563 modules
@@ -150,6 +152,47 @@ class TestAnnotationClassification:
         # the cache can't hold it, but classifying it must still work.
         assert _get_annotation_validator(annotation).is_instance_only
         assert len(_ANNOTATION_VALIDATORS) == cached_count
+
+    def test_only_unmodellable_annotations_are_reported(self, caplog):
+        class Plain:
+            pass
+
+        class BrokenHook:
+            @classmethod
+            def __get_pydantic_core_schema__(cls, source, handler):
+                raise KeyError("boom")
+
+        with caplog.at_level(logging.DEBUG, logger="firexkit.bag_of_goodies"):
+            assert _get_annotation_validator(list[Plain]).is_instance_only
+            assert _get_annotation_validator(BrokenHook).adapter is None
+
+        # an isinstance() check is what pydantic makes of any plain class, so
+        # reporting it is just noise.
+        messages = [r.getMessage() for r in caplog.records]
+        assert not any("Plain" in m for m in messages)
+        assert any("cannot model" in m and "BrokenHook" in m for m in messages)
+
+    @pytest.mark.parametrize(
+        "task_options, expect_classified",
+        [
+            ({}, False),
+            ({"pydantic_validate": ValidateArgs.DISABLED}, False),
+            ({"pydantic_validate": ValidateArgs.ATTEMPT}, True),
+            ({"pydantic_validate": ValidateArgs.REQUIRE}, True),
+        ],
+    )
+    def test_only_validating_tasks_classify_at_registration(
+        self, ut_app: FireXCelery, task_options, expect_classified
+    ):
+        _ANNOTATION_VALIDATORS.pop(list[ADataclass], None)
+
+        @ut_app.task(base=FireXTask, **task_options)
+        def a_task(x: list[ADataclass]):
+            pass  # pragma: no cover
+
+        # touching the task registers it.
+        assert a_task.sig.parameters["x"].annotation == list[ADataclass]
+        assert (list[ADataclass] in _ANNOTATION_VALIDATORS) == expect_classified
 
 
 class TestValidation:
