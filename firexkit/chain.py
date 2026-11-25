@@ -365,7 +365,9 @@ class SignatureX(Signature):
         if soft_time_limit:
             self.set_soft_time_limit(soft_time_limit)
 
-        result_promise: FxAsyncResult = self.delay()
+        # Keep Celery's generated chain ID off the reusable caller's signature.
+        execution_sig = self.clone() if self.subtask_type == "chain" else self
+        result_promise: FxAsyncResult = execution_sig.delay()
         if block:
             result_promise.fx_wait(
                 raise_on_failure=raise_exception_on_failure,
@@ -428,8 +430,11 @@ class SignatureX(Signature):
 
         self.verify_args()
 
-        # args & kwargs are expected to be set by prior kludges
-        fx_r: FxAsyncResult = self.apply_async()
+        # Celery 5.7 writes the generated terminal task ID back onto the chain.
+        # Dispatch a copy so reuse cannot read a previous execution's result.
+        # Cloning retains deliberately assigned IDs, including frozen chains.
+        execution_sig = self.clone() if self.subtask_type == "chain" else self
+        fx_r: FxAsyncResult = execution_sig.apply_async()
         return fx_r
 
     def enqueue_and_extract(

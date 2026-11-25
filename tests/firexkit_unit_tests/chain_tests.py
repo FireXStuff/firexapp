@@ -1,9 +1,11 @@
 import unittest
 from collections import namedtuple
 from functools import wraps
+from unittest.mock import patch
 
 from celery.app.task import Task
 from celery.canvas import chain
+from celery.states import PENDING, SUCCESS
 
 from firexkit.chain import InjectArgs, InvalidChainArgsException, returns
 from firexkit.result import RETURN_KEYS_KEY, ReturnsCodingException
@@ -308,6 +310,63 @@ class ReturnsTests(unittest.TestCase):
                 self.assertEqual(1, ret["named_t"].thing1)
                 # noinspection PyTypeChecker
                 self.assertEqual("two", ret["named_t"].thing2)
+
+
+class ChainDispatchTests(unittest.TestCase):
+    _DISPATCH_OPTIONS = (
+        ("apply_async_x", {"auto_inject_reg": None}),
+        ("enqueue", {}),
+    )
+
+    def setUp(self):
+        self.app = ut_celery_app()
+        self.addCleanup(self.app.close)
+        self.app.conf.broker_url = "memory://"
+        self.app.conf.result_backend = "cache+memory://"
+
+        @self.app.task(shared=False)
+        def a_task():
+            pass  # pragma: no cover
+
+        self.a_task = a_task
+        publisher = patch.object(self.app.amqp, "send_task_message")
+        publisher.start()
+        self.addCleanup(publisher.stop)
+
+    def test_reusing_chain_does_not_reuse_a_completed_result(self):
+        for method, options in self._DISPATCH_OPTIONS:
+            with self.subTest(method=method):
+                reusable_chain = self.a_task.s() | self.a_task.s()
+                dispatch = getattr(reusable_chain, method)
+                first_result = dispatch(**options)
+                # Complete only the first dispatch, without running any workers.
+                self.app.backend.store_result(
+                    first_result.id, result=None, state=SUCCESS
+                )
+                second_result = dispatch(**options)
+
+                self.assertNotEqual(first_result.id, second_result.id)
+                self.assertEqual(second_result.state, PENDING)
+
+    def test_dispatch_preserves_explicit_and_frozen_ids(self):
+        for method, options in self._DISPATCH_OPTIONS:
+            for freeze in (False, True):
+                with self.subTest(method=method, freeze=freeze):
+                    c = self.a_task.s() | self.a_task.s()
+                    if freeze:
+                        frozen_result = c.freeze("preassigned-chain-id")
+                    else:
+                        c.set(task_id="preassigned-chain-id")
+                        frozen_result = None
+
+                    result = getattr(c, method)(**options)
+
+                    self.assertEqual(result.id, "preassigned-chain-id")
+                    if frozen_result is not None:
+                        self.assertEqual(
+                            [r.id for r in result.get_chain_ancestors()],
+                            [r.id for r in frozen_result.get_chain_ancestors()],
+                        )
 
 
 class ChainVerificationTests(unittest.TestCase):
