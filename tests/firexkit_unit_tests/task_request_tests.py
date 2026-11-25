@@ -5,7 +5,7 @@ process records that it has stopped running, and tells event listeners, instead.
 
 import signal
 from time import monotonic
-from unittest import mock
+from unittest import TestCase, mock
 
 import pytest
 from billiard.einfo import ExceptionInfo
@@ -13,13 +13,13 @@ from billiard.pool import ApplyResult, TimeoutHandler
 from billiard.pool import Pool as BilliardPool
 from celery.contrib.testing.mocks import TaskMessage
 from celery.exceptions import WorkerLostError
-from celery.states import FAILURE, REVOKED
+from celery.states import FAILURE, REVOKED, SUCCESS
 from kombu.utils.imports import symbol_by_name
 
 from firexapp.events.model import TASK_REVOKE_REASON_KEY, RevokeDetails, RunStates
 from firexkit.firex_celery import FireXCelery, _update_task_name
 from firexkit.task import FireXTask, FireXTaskRequest
-from firexkit.testing import UtClient
+from firexkit.testing import UtClient, ut_backed_celery_app
 
 # The pool process the task is handed to.
 _PID = 4242
@@ -147,28 +147,6 @@ def test_a_task_killed_by_revoke_stops_running_once_its_process_exits(
     assert not _is_running(ut_app, request)
 
 
-def test_a_task_whose_process_dies_stops_running(ut_app, task, pool):
-    request, job = _start(ut_app, task, pool)
-
-    pool.mark_as_worker_lost(job, -signal.SIGKILL)
-
-    assert not _is_running(ut_app, request)
-    assert _stored_state(ut_app, request) == FAILURE
-
-
-def test_listeners_hear_a_task_whose_process_dies_is_complete(
-    ut_app, task, pool, eventer
-):
-    request, job = _start(ut_app, task, pool, eventer)
-
-    pool.mark_as_worker_lost(job, -signal.SIGKILL)
-
-    [completed] = eventer.completion_events()
-    assert completed["type"] == "task-completed"
-    assert completed["uuid"] == request.id
-    assert completed["actual_runtime"] >= 0
-
-
 def test_listeners_hear_a_task_killed_by_revoke_is_revoke_complete(
     ut_app, tmp_path, task, pool, eventer
 ):
@@ -259,3 +237,52 @@ def test_the_worker_carries_on_when_it_cant_record_it(
         request.on_failure(_raised(WorkerLostError("Worker exited prematurely")))
 
     assert _stored_state(ut_app, request) == FAILURE
+
+
+class WorkerLostTests(TestCase):
+    def setUp(self):
+        self.app = ut_backed_celery_app()
+        self.addCleanup(self.app.close)
+
+        @self.app.task(base=FireXTask, shared=False)
+        def a_task():
+            pass
+
+        self.task = a_task
+
+    def test_a_task_whose_process_dies_records_failure_and_completion(self):
+        pool, eventer = _Pool(), _Eventer()
+        request, job = _start(self.app, self.task, pool, eventer)
+
+        pool.mark_as_worker_lost(job, -signal.SIGKILL)
+
+        self.assertEqual(FAILURE, _stored_state(self.app, request))
+        self.assertFalse(_is_running(self.app, request))
+        self.assertIn("task-failed", [event["type"] for event in eventer.sent])
+        [completed] = eventer.completion_events()
+        self.assertEqual("task-completed", completed["type"])
+        self.assertEqual(request.id, completed["uuid"])
+        self.assertGreaterEqual(completed["actual_runtime"], 0)
+
+    def test_success_stored_before_worker_loss_is_preserved(self):
+        for postrun_ran in (False, True):
+            with self.subTest(postrun_ran=postrun_ran):
+                pool, eventer = _Pool(), _Eventer()
+                request, job = _start(self.app, self.task, pool, eventer)
+                # The child stored SUCCESS, then died in a hook or cleanup.
+                self.app.backend.set(
+                    self.app.backend.get_key_for_task(request.id), SUCCESS
+                )
+                if postrun_ran:
+                    self.app.mark_task_postrun(request.id)
+
+                pool.mark_as_worker_lost(job, -signal.SIGKILL)
+
+                self.assertEqual(SUCCESS, _stored_state(self.app, request))
+                self.assertFalse(_is_running(self.app, request))
+                event_types = [event["type"] for event in eventer.sent]
+                self.assertIn("task-succeeded", event_types)
+                self.assertNotIn("task-failed", event_types)
+                self.assertEqual(
+                    0 if postrun_ran else 1, len(eventer.completion_events())
+                )

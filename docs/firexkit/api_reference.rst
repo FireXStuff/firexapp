@@ -33,14 +33,6 @@ firexkit.result module
     :undoc-members:
     :show-inheritance:
 
-firexkit.revoke module
-----------------------
-
-.. automodule:: firexkit.revoke
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 firexkit.task module
 --------------------
 

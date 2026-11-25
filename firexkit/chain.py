@@ -289,8 +289,7 @@ class SignatureX(Signature):
     def injectArgs(self, **kwargs):
         task_sig = self.get_first_sig()
 
-        # Don't update kwargs in-place, because that may change the kwargs in the original object
-        # even where the object was cloned in __or__ above (kwargs isn't copied and is still the same object)
+        # Inject defaults without overriding arguments already set on the signature.
         task_sig.kwargs = kwargs | task_sig.kwargs
 
     def get_first_sig(self) -> "SignatureX":

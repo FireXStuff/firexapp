@@ -309,6 +309,7 @@ class UtBackend:
     client: UtClient
 
     thread_safe: bool = True
+    max_retries: int = 0
 
     READY_STATES: ClassVar[frozenset[str]] = celery.states.READY_STATES
     task_keyprefix: ClassVar[str] = "celery-task-meta-"
@@ -331,6 +332,38 @@ class UtBackend:
 
     def get_key_for_task(self, task_id: str) -> str:
         return self.task_keyprefix + task_id
+
+    def _get_task_meta_for(self, task_id: str) -> dict[str, Any]:
+        """Expose the state-only store as Celery's result metadata.
+
+        Celery checks this before recording a lost worker as a failure, since
+        the task may already have stored SUCCESS. Missing entries are PENDING,
+        just as they are in RedisBackend. This stand-in does not store results.
+        """
+        state = self.client.get(self.get_key_for_task(task_id))
+        return {
+            "task_id": task_id,
+            "status": state.decode() if state is not None else celery.states.PENDING,
+            "result": None,
+        }
+
+    def _ensure_retryable(
+        self,
+        func,
+        *args,
+        fallback_exc=None,
+        fallback_msg=None,
+        max_retries=None,
+        **kwargs,
+    ):
+        """Run a backend operation, without retrying in-memory store failures.
+
+        Consume Celery's retry-policy options rather than passing them to the
+        operation. Like a real backend with retries disabled, return its result
+        or propagate its original exception; an error must not look like a
+        successful lookup of a missing result.
+        """
+        return func(*args, **kwargs)
 
     # Mirror celery.backends.base.Backend's, through which a worker's controlling
     # process records how a task ended when the task's own process couldn't (e.g.

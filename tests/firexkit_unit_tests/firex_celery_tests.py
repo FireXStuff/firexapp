@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 import pytest
 import pytz
 from kombu.asynchronous.timer import Timer
+from kombu.message import Message
 
 from firexapp.engine.default_celery_config import FxEnvVars
 from firexapp.submit.uid import firex_id_str
@@ -27,6 +28,7 @@ from firexkit.firex_celery import (
     _request_run_time_reserve,
 )
 from firexkit.run_time import RunTimeReserve
+from firexkit.task import FireXTask, FireXTaskRequest
 from firexkit.testing import ut_backed_celery_app
 
 _RUN_START = datetime.datetime(2026, 9, 14, 12, 0, 0, tzinfo=pytz.utc)
@@ -696,8 +698,7 @@ class ResolveRunRelativeTimeLimitTests(unittest.TestCase):
 _SEVEN_HUNDRED_HOURS = 700 * 60 * 60
 
 
-@pytest.fixture
-def run_app() -> FireXCelery:
+def _create_run_app() -> FireXCelery:
     """
     A ut_app for a run that started at _RUN_START, with a budget of _TEN_HOURS
     seeded the way submit seeds it.
@@ -718,6 +719,11 @@ def run_app() -> FireXCelery:
 
 
 @pytest.fixture
+def run_app() -> FireXCelery:
+    return _create_run_app()
+
+
+@pytest.fixture
 def seeded_pool(run_app: FireXCelery) -> FireXTaskPool:
     """A pool started on run_app's budget, by a worker whose default is that budget."""
     task_pool = _create_task_pool(run_app, soft_timeout=_TEN_HOURS)
@@ -728,6 +734,98 @@ def seeded_pool(run_app: FireXCelery) -> FireXTaskPool:
 def _raise_budget_elsewhere(app: FireXCelery, run_soft_time_limit: float):
     """What a task on another worker raising the budget leaves in the broker."""
     app.backend.set(FX_RUN_SOFT_TIME_LIMIT_KEY, run_soft_time_limit)
+
+
+def _publish_bound_task_request(task):
+    """Capture real bound-task options, then run FireX's publish hook.
+
+    Handwritten headers would miss Celery copying app defaults onto tasks.
+    """
+    app = task.app
+    with patch.object(app, "send_task") as send_task:
+        task.s().apply_async()
+    name, args, kwargs = send_task.call_args.args
+    options = send_task.call_args.kwargs.copy()
+    task_id = options.pop("task_id") or "published-limit-task"
+    message = app.amqp.create_task_message(task_id, name, args, kwargs, **options)
+    app._populate_task_info(name, declare=[], headers=message.headers)
+    return FireXTaskRequest(
+        Message(
+            body=message.body,
+            headers=message.headers,
+            properties=message.properties,
+        ),
+        app=app,
+        task=task,
+        decoded=True,
+    )
+
+
+class BoundTaskTimeLimitTests(unittest.TestCase):
+    """Cover the FireX/Celery binding boundary in pytest and CI's unittest."""
+
+    def setUp(self):
+        self.app = _create_run_app()
+        self.addCleanup(self.app.close)
+
+    def test_default_limits_stay_on_the_worker_run_budget(self):
+        self.app.conf.task_time_limit = 7200
+        self.app.conf.task_soft_time_limit = 4320
+
+        @self.app.task(shared=False)
+        def follows_worker_default():
+            pass
+
+        request = _publish_bound_task_request(follows_worker_default)
+
+        self.assertEqual([None, None], request.time_limits)
+        self.assertEqual(0, _request_run_time_reserve(request))
+        self.assertNotIn(FX_TIME_RESERVE_HEADER, request.request_dict)
+
+    def test_declared_reserve_uses_the_current_budget_at_publish(self):
+        @self.app.task(shared=False, run_time_limit_reserve=60 * 60)
+        def leaves_cleanup_time():
+            pass
+
+        # Binding/caching must not freeze the default or the run's old budget.
+        leaves_cleanup_time._get_exec_options()
+        _raise_budget_elsewhere(self.app, 20 * 60 * 60)
+        self.app.refresh_run_soft_time_limit()
+
+        with _at_run_elapsed(60 * 60):
+            request = _publish_bound_task_request(leaves_cleanup_time)
+
+        self.assertEqual([None, 18 * 60 * 60], request.time_limits)
+        self.assertEqual(60 * 60, request.request_dict[FX_TIME_RESERVE_HEADER])
+        self.assertEqual(60 * 60, _request_run_time_reserve(request))
+
+    def test_explicit_decorator_and_base_limits_survive_app_defaults(self):
+        self.app.conf.task_time_limit = 7200
+        self.app.conf.task_soft_time_limit = 4320
+
+        class LimitedTask(FireXTask):
+            time_limit = 300
+            soft_time_limit = 200
+
+        for limit_source in ("decorator", "base"):
+            with self.subTest(limit_source=limit_source):
+                task_options = (
+                    {"time_limit": 300, "soft_time_limit": 200}
+                    if limit_source == "decorator"
+                    else {"base": LimitedTask}
+                )
+
+                @self.app.task(
+                    shared=False, name=f"explicit_limit_{limit_source}", **task_options
+                )
+                def explicitly_limited():
+                    pass
+
+                request = _publish_bound_task_request(explicitly_limited)
+
+                self.assertEqual([300, 200], request.time_limits)
+                self.assertIsNone(_request_run_time_reserve(request))
+                self.assertNotIn(FX_TIME_RESERVE_HEADER, request.request_dict)
 
 
 @contextmanager

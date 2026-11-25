@@ -3,10 +3,16 @@ import os
 import signal
 from time import monotonic, sleep
 
+from celery.states import REVOKED
+
 from firex_keeper import task_query
 from firexapp.engine.celery import app
 from firexapp.testing.config_base import FlowTestConfiguration, assert_is_bad_run
-from firexkit.result import FxAsyncResult, ManyFxAsyncResults
+from firexkit.result import (
+    ChainRevokedPreRunException,
+    FxAsyncResult,
+    ManyFxAsyncResults,
+)
 
 
 @app.task()
@@ -57,6 +63,34 @@ class RevokeOnShutdown(FlowTestConfiguration):
 @app.task()
 def sleep_until_killed():
     sleep(120)
+
+
+@app.task(bind=True)
+def revoke_child_without_a_queue_consumer(self):
+    # No worker can dequeue this task and record its revoke on execution.
+    # The control command itself must make the backend state authoritative.
+    child = self.enqueue_child(
+        sleep_until_killed.s(),
+        queue=f"unconsumed-{self.request.id}",
+        add_to_enqueued_children=False,
+    )
+    self.app.control.revoke(child.id, reply=True, timeout=5)
+    try:
+        child.fx_wait(max_wait=15)
+    except ChainRevokedPreRunException:
+        pass
+    else:
+        raise AssertionError("Waiting on a queued revoked child did not raise.")
+    assert child.fx_get_state() == REVOKED
+    assert child.fx_is_ready() and child.fx_is_revoked()
+    assert not self.app.task_id_has_prerun(child.id)
+
+
+class RevokeWithoutQueueConsumer(FlowTestConfiguration):
+    no_coverage = True
+
+    def initial_firex_options(self) -> list:
+        return ["submit", "--chain", "revoke_child_without_a_queue_consumer"]
 
 
 @app.task()

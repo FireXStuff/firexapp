@@ -270,6 +270,7 @@ class TestAForgottenResultIsReady:
 
         assert forgotten.fx_is_ready()
         assert forgotten.fx_get_state() == FORGOTTEN
+        assert not forgotten.fx_is_revoked()
         # there is nothing left to say how it ended either way.
         assert not forgotten.fx_is_successful()
         assert not forgotten.fx_is_failed()

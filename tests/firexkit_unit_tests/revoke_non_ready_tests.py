@@ -5,31 +5,18 @@ how it ended, which a revoke's SIGTERM can make visible in either order.
 
 import threading
 import time
-from collections.abc import Callable, Generator
-from unittest import mock
+from collections.abc import Callable
+from unittest import TestCase, mock
 
-import pytest
 from celery.states import PENDING, REVOKED, STARTED
 
 from firexkit.firex_celery import _TASK_PRE_RUN_KEY, FireXCelery
-from firexkit.result import FxAsyncResult, ManyFxAsyncResults
-from firexkit.revoke import RevokedRequests
-from firexkit.testing import MockFxAsyncResult
+from firexkit.result import ChainRevokedException, FxAsyncResult, ManyFxAsyncResults
+from firexkit.testing import MockFxAsyncResult, ut_backed_celery_app
 
 # Long enough that the revoke has to be waited out, short enough not to slow the suite.
 _WORKER_DELAY = 0.2
 _MAX_WAIT = 30
-
-
-@pytest.fixture(autouse=True)
-def _revokes_known_only_from_the_backend() -> Generator[None]:
-    # A stale RevokedRequests would ask the workers, of which there are none.
-    prev_instance = RevokedRequests._instance
-    RevokedRequests._instance = RevokedRequests(timer_expiry_secs=_MAX_WAIT * 100)
-    try:
-        yield
-    finally:
-        RevokedRequests._instance = prev_instance
 
 
 class _Task:
@@ -61,19 +48,6 @@ class _Task:
             timer.join()
 
 
-@pytest.fixture
-def task(ut_app: FireXCelery) -> Generator[_Task]:
-    task = _Task(ut_app)
-    yield task
-    task.join()
-
-
-@pytest.fixture
-def started(task: _Task) -> _Task:
-    task.start()
-    return task
-
-
 def _revoke_non_ready(
     task: _Task,
     worker_on_revoke: Callable[[], None],
@@ -89,44 +63,66 @@ def _revoke_non_ready(
     return list(revoked), time.monotonic() - start
 
 
-def test_waits_for_revoked_to_be_stored_after_the_task_is_postrun(started: _Task):
-    def worker_on_revoke():
-        # The SIGTERM lands first: the task's process gets through its postrun
-        # before its worker gets as far as storing REVOKED.
-        started.postrun()
-        started.later(started.store_revoked)
+class RevokeNonReadyTests(TestCase):
+    def setUp(self):
+        self.task = _Task(ut_backed_celery_app())
+        self.addCleanup(self.task.join)
 
-    revoked, _ = _revoke_non_ready(started, worker_on_revoke)
+    def test_waits_for_revoked_to_be_stored_after_the_task_is_postrun(self):
+        self.task.start()
 
-    assert revoked == [started.result]
-    assert revoked[0].fx_is_revoked()
+        def worker_on_revoke():
+            # The task finishes cleanup before its worker stores REVOKED.
+            self.task.postrun()
+            self.task.later(self.task.store_revoked)
 
+        revoked, waited = _revoke_non_ready(self.task, worker_on_revoke)
 
-def test_waits_for_the_task_to_be_postrun_after_revoked_is_stored(started: _Task):
-    def worker_on_revoke():
-        # The usual order: the worker stores REVOKED as soon as it has sent the
-        # SIGTERM, while the task's process is still on its way out.
-        started.store_revoked()
-        started.later(started.postrun)
+        self.assertEqual(revoked, [self.task.result])
+        self.assertTrue(revoked[0].fx_is_revoked())
+        self.assertGreaterEqual(waited, _WORKER_DELAY)
 
-    revoked, _ = _revoke_non_ready(started, worker_on_revoke)
+    def test_waits_for_the_task_to_be_postrun_after_revoked_is_stored(self):
+        self.task.start()
 
-    assert revoked == [started.result]
-    assert not revoked[0].fx_is_running()
-    assert revoked[0].fx_is_revoked()
+        def worker_on_revoke():
+            # Sending SIGTERM stores REVOKED before the process finishes cleanup.
+            self.task.store_revoked()
+            self.task.later(self.task.postrun)
 
+        revoked, waited = _revoke_non_ready(self.task, worker_on_revoke)
 
-def test_does_not_wait_on_a_task_that_never_started(task: _Task):
-    # Its worker only stores REVOKED once it dequeues the task, if it ever does.
-    revoked, waited = _revoke_non_ready(task, lambda: None)
+        self.assertEqual(revoked, [self.task.result])
+        self.assertFalse(revoked[0].fx_is_running())
+        self.assertTrue(revoked[0].fx_is_revoked())
+        self.assertGreaterEqual(waited, _WORKER_DELAY)
 
-    assert revoked == [task.result]
-    assert waited < _WORKER_DELAY
+    def test_does_not_wait_on_a_task_that_never_started(self):
+        # No process needs to stop; publishing a revoke need not wait for its reply.
+        revoked, waited = _revoke_non_ready(self.task, lambda: None)
 
+        self.assertEqual(revoked, [self.task.result])
+        self.assertLess(waited, _WORKER_DELAY)
+        self.assertFalse(self.task.result.fx_is_ready())
 
-def test_gives_up_on_a_task_that_never_stores_how_it_ended(started: _Task):
-    revoked, waited = _revoke_non_ready(started, started.postrun, max_wait=0.1)
+    def test_gives_up_on_a_task_that_never_stores_how_it_ended(self):
+        self.task.start()
 
-    assert revoked == [started.result]
-    assert waited >= 0.1
-    assert not revoked[0].fx_is_ready()
+        revoked, waited = _revoke_non_ready(self.task, self.task.postrun, max_wait=0.1)
+
+        self.assertEqual(revoked, [self.task.result])
+        self.assertGreaterEqual(waited, 0.1)
+        self.assertFalse(revoked[0].fx_is_ready())
+
+    def test_waiting_on_a_revoked_result_still_waits_for_running_cleanup(self):
+        self.task.start()
+        self.task.store_revoked()
+        self.task.later(self.task.postrun)
+        start = time.monotonic()
+
+        with self.assertRaises(ChainRevokedException) as raised:
+            self.task.result.fx_wait_no_state_update(max_wait=1)
+
+        self.assertIs(type(raised.exception), ChainRevokedException)
+        self.assertGreaterEqual(time.monotonic() - start, _WORKER_DELAY)
+        self.assertFalse(self.task.result.fx_is_running())

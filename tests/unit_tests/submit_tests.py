@@ -1,6 +1,9 @@
 import os
 import shutil
 import unittest
+from unittest.mock import patch
+
+from celery.states import REVOKED
 
 from firexapp.application import JSON_ARGS_PATH_ARG_NAME, FireXBaseApp
 from firexapp.submit.arguments import (
@@ -16,8 +19,9 @@ from firexkit.argument_conversion import (
     ConverterRegistrationException,
     SingleArgDecorator,
 )
+from firexkit.firex_celery import _TASK_PRE_RUN_KEY
 from firexkit.task import FireXTask
-from firexkit.testing import ut_celery_app
+from firexkit.testing import MockFxAsyncResult, ut_backed_celery_app, ut_celery_app
 
 
 class SubmitArgsTests(unittest.TestCase):
@@ -77,6 +81,31 @@ class SubmitArgsTests(unittest.TestCase):
             main.arg_parser.print_usage = lambda _: _
             with self.assertRaises(ValueError):
                 main.run(sys_argv=[JSON_ARGS_PATH_ARG_NAME])
+
+
+class SyncRevocationTests(unittest.TestCase):
+    def test_backend_revoked_root_is_cleaned_up_only_if_it_never_started(self):
+        for started in (False, True):
+            with self.subTest(started=started):
+                app = ut_backed_celery_app()
+                self.addCleanup(app.close)
+                root = MockFxAsyncResult(state=REVOKED, app=app)
+                if started:
+                    app.backend_hset_task_attr(root.id, _TASK_PRE_RUN_KEY, "True")
+                    app.mark_task_postrun(root.id)
+                submit = FireXBaseApp().submit_app
+
+                with (
+                    patch.object(submit, "main_error_exit_handler") as shutdown,
+                    patch.object(submit, "copy_submission_log"),
+                    self.assertRaises(SystemExit) as exited,
+                ):
+                    submit.process_sync(root, {})
+
+                self.assertEqual(-1, exited.exception.code)
+                # A started root's postrun handles cleanup. A queued root will
+                # never reach postrun, so the submit process must handle it.
+                self.assertEqual(0 if started else 1, shutdown.call_count)
 
 
 class InputConversionTests(unittest.TestCase):

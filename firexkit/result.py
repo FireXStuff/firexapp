@@ -1,4 +1,3 @@
-# hack Celery AsyncResult generics e.g.AsyncResult[Optional[str]]
 from __future__ import annotations
 
 import contextlib
@@ -26,7 +25,6 @@ from celery.utils.log import get_task_logger
 import firexkit.broker
 from firexkit import inspect as fx_inspect
 from firexkit.firex_worker import FxWorkerHostName
-from firexkit.revoke import RevokedRequests
 from firexkit.run_time import (
     RunTimeReserve,
     describe_wait,
@@ -365,13 +363,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         )
 
     def fx_is_revoked(self) -> bool:
-        # FIXME: some REVOKED checks did this before, is it still necessary?
-        # Celery 5.0.1 has bugs where revoked tasks end up in RETRY state. This should be safe here
-        # since FindFailureTest should never be re-tried.
-        #   or async_result.state == RETRY
-        return bool(
-            self.fx_get_state() == REVOKED or RevokedRequests.is_revoked_uuid(self.id)
-        )
+        return self.fx_get_state() == REVOKED
 
     def fx_is_ready(
         self,
@@ -380,11 +372,7 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
         if self._fx_terminal_state is not None:
             return True
         state = self.fx_get_state(timeout=timeout)
-        if state and (
-            state in self.backend.READY_STATES
-            or RevokedRequests.is_revoked_uuid(self.id)
-        ):
-            # nuts but this means PENDING can be terminal, sometimes!!
+        if state in self.backend.READY_STATES:
             self._fx_terminal_state = state
             return True
         # Forgetting deletes the entry the state is read back from, so a forgotten
@@ -523,13 +511,18 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             ManyFxAsyncResults.fx_ars_from_single(self).wait_for_running(
                 max_wait=5 * 60
             )
-            raise ChainRevokedException(
+            # A root revoked before it ran has no postrun handler to shut down
+            # a synchronous submission. Preserve that distinction using the
+            # execution marker, not a PENDING state inferred from inspection.
+            revoked_exception = (
+                ChainRevokedException
+                if self.app.task_id_has_prerun(self.id)
+                else ChainRevokedPreRunException
+            )
+            raise revoked_exception(
                 task_id=self.id,
                 task_name=self.fx_get_name(),
             )
-        if result_state == PENDING:
-            # Pending tasks can be in revoke list. State will still be PENDING.
-            raise ChainRevokedPreRunException(self.id, self.fx_get_name())
         if result_state == FAILURE:
             raise _chain_interrupted_ex(self)
         return result_state
@@ -1130,10 +1123,7 @@ def _check_for_failure_in_parents(result: FxAsyncResult):
                 # continue in case we find a failed ancestor higher
                 # in the chain, since that's what we want to report.
 
-            if failed_ancestor is None and (
-                ancestor_state == REVOKED
-                or RevokedRequests.is_revoked_uuid(ancestor.id)
-            ):
+            if failed_ancestor is None and ancestor_state == REVOKED:
                 raise ChainRevokedException(
                     task_id=ancestor.id,
                     task_name=ancestor.fx_backend_get_name(),

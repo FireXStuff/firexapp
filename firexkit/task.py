@@ -434,7 +434,7 @@ class FireXTaskRequest(Request):
             app.send_task_completion_events(
                 self.id,
                 self.send_event,
-                # Not AsyncResult.fx_is_revoked(), which can wait on every worker.
+                # Use this request's local revoke flags after its process exits.
                 revoked=self._already_revoked or self.id in worker_state.revoked,
                 actual_runtime=self.task.duration(
                     self.id, timeout=self._BACKEND_TIMEOUT
@@ -465,6 +465,16 @@ class FireXTask(Task):
     AUTO_QUEUE = AUTO_QUEUE
 
     Request = FireXTaskRequest
+
+    # Celery 5.7 binds app time-limit defaults onto each task. Keep them as worker
+    # defaults instead: FireX uses None to distinguish those from explicit limits
+    # when resolving run-relative reserves and extending a run's time budget.
+    # Otherwise the inherited number also overrides --soft_time_limit at dispatch.
+    from_config = tuple(
+        (attr, setting)
+        for attr, setting in Task.from_config
+        if attr not in {"time_limit", "soft_time_limit"}
+    )
 
     # prevent clients from needing to know about bag_of_goodes module.
     AutoInject = AutoInject

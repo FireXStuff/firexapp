@@ -1,3 +1,4 @@
+import glob
 import os
 from time import monotonic, sleep
 
@@ -47,6 +48,36 @@ def _wait_for_child_prerun(task, child_id, max_wait=90):
             return
         sleep(1)
     raise AssertionError(f"Child task {child_id} never started running.")
+
+
+class DefaultTaskSoftTimeLimitFromRunBudget(FlowTestConfiguration):
+    """An undeclared task limit must not override the worker's CLI default."""
+
+    no_coverage = True
+
+    def initial_firex_options(self) -> list:
+        return [
+            "submit",
+            "--chain",
+            "sleep",
+            "--sleep",
+            "5",
+            "--soft_time_limit",
+            "2",
+        ]
+
+    def assert_expected_firex_output(self, cmd_output, cmd_err):
+        worker_logs = glob.glob(
+            os.path.join(self.run_data.logs_path, "microservice_logs", "*.html")
+        )
+        for worker_log in worker_logs:
+            with open(worker_log) as log:
+                if "SoftTimeLimitExceeded" in log.read():
+                    return
+        raise AssertionError("Expected the run's default soft time limit to fire.")
+
+    def assert_expected_return_code(self, ret_value):
+        assert_is_bad_run(ret_value)
 
 
 @app.task(bind=True, soft_time_limit=ORIGINAL_SOFT_TIME_LIMIT)
