@@ -359,6 +359,90 @@ def test_a_failed_combine_says_why(tmp_path, monkeypatch):
         subprocess_coverage.combine_coverage_data(str(data_dir))
 
 
+def test_combining_and_reporting_work_on_local_copies_of_the_data(
+    tmp_path, monkeypatch
+):
+    """coverage's data files are SQLite, a network round trip per query over
+    NFS: from hosts far from the logs' file server, combining took ~5s a data
+    file and the XML report ~20 minutes. Locally both take seconds, so only
+    the combined data and the reports are written to the data dir."""
+    _ut_settle_immediately(monkeypatch)
+    ws = tmp_path / "ws"
+    source = ws / "pkg" / "mod.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("a = 1\nb = 2\n")
+    data_dir = tmp_path / "coverage_data"
+    data_dir.mkdir()
+    _ut_write_coverage_data(data_dir, "uthost.100.1", {str(source): [1]})
+    _ut_write_coverage_data(data_dir, "uthost.200.2", {str(source): [2]})
+    data_read = {}
+    run_coverage = subprocess_coverage._run_coverage
+
+    def _recording_run_coverage(*args, cwd, data_file=None):
+        data_read[args[0]] = data_file or os.path.join(cwd, ".coverage")
+        run_coverage(*args, cwd=cwd, data_file=data_file)
+
+    monkeypatch.setattr(subprocess_coverage, "_run_coverage", _recording_run_coverage)
+
+    subprocess_coverage.combine_coverage_data(
+        str(data_dir),
+        html_report_dir=str(tmp_path / "html"),
+        xml_report_file=str(data_dir / "coverage.xml"),
+        xml_report_root=str(ws),
+    )
+
+    assert sorted(data_read) == ["combine", "html", "xml"]
+    for command, data_file in data_read.items():
+        assert not data_file.startswith(str(data_dir)), f"{command} read in place"
+        assert not os.path.exists(data_file), "the local copies were left behind"
+    assert _ut_combined_lines(data_dir) == {(str(source), 1), (str(source), 2)}
+    assert not list(data_dir.glob(".coverage.*"))
+    assert (data_dir / "coverage.xml").is_file()
+    assert (tmp_path / "html" / "index.html").is_file()
+
+
+def test_a_data_file_combine_cannot_read_is_left_where_it_is(tmp_path, monkeypatch):
+    """Combining deletes what it merged in and nothing else, as 'coverage
+    combine' does to the files it is given."""
+    _ut_settle_immediately(monkeypatch)
+    data_dir = tmp_path / "coverage_data"
+    data_dir.mkdir()
+    _ut_write_coverage_data(data_dir, "uthost.100.1", {"/ut/submit.py": [1]})
+    (data_dir / ".coverage.uthost.200.2").write_text("not a coverage data file")
+
+    subprocess_coverage.combine_coverage_data(str(data_dir))
+
+    assert _ut_combined_lines(data_dir) == {("/ut/submit.py", 1)}
+    assert [f.name for f in data_dir.glob(".coverage.*")] == [".coverage.uthost.200.2"]
+
+
+def test_data_landing_while_combining_is_appended(tmp_path, monkeypatch, capsys):
+    """The settle wait can't rule out a straggler landing while combine runs.
+    It is combined in afterwards, and then deleted like the rest."""
+    _ut_settle_immediately(monkeypatch)
+    data_dir = tmp_path / "coverage_data"
+    data_dir.mkdir()
+    _ut_write_coverage_data(data_dir, "uthost.100.1", {"/ut/submit.py": [1]})
+    run_coverage = subprocess_coverage._run_coverage
+    straggled = []
+
+    def _run_coverage_as_a_straggler_lands(*args, cwd, data_file=None):
+        run_coverage(*args, cwd=cwd, data_file=data_file)
+        if not straggled:
+            _ut_write_coverage_data(data_dir, "uthost.200.2", {"/ut/worker.py": [7]})
+            straggled.append(True)
+
+    monkeypatch.setattr(
+        subprocess_coverage, "_run_coverage", _run_coverage_as_a_straggler_lands
+    )
+
+    subprocess_coverage.combine_coverage_data(str(data_dir))
+
+    assert "Combining 1 further data files that arrived late" in capsys.readouterr().out
+    assert _ut_combined_lines(data_dir) == {("/ut/submit.py", 1), ("/ut/worker.py", 7)}
+    assert not list(data_dir.glob(".coverage.*"))
+
+
 def test_the_xml_report_is_relative_to_the_workspace_ctc_reads_it_in(
     tmp_path, monkeypatch
 ):

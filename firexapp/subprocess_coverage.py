@@ -22,8 +22,10 @@ being measured.
 import contextlib
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 # What pytest_cov.embed.init() reads. 'pytest-cov.pth' calls init() when
@@ -329,44 +331,90 @@ def combine_coverage_data(
     hosts = ", ".join(f"{host} ({count})" for host, count in files_per_host.items())
     print(f"Combining {len(data_files)} coverage data files from: {hosts}")
 
-    keep = ["--keep"] if keep_data_files else []
-    _run_coverage("combine", *keep, *data_files, cwd=coverage_data_dir)
+    # coverage's data files are SQLite databases, which cost a network round
+    # trip per query to read over NFS. From a host far from the file server
+    # that dominates: from RTP, against a logs dir in OTT, combining took ~5s a
+    # data file and the XML report 17-23 minutes, where both take seconds
+    # locally. So it all works on local copies, and only the combined data
+    # file and the reports are written back.
+    with tempfile.TemporaryDirectory(prefix="firex-coverage-") as local_dir:
+        _combine_local_copies(data_files, coverage_data_dir, local_dir, keep_data_files)
 
-    # Combining is itself slow enough for a straggler to land during it, which
-    # the settle wait can't rule out. '--append' so this adds to what was just
-    # combined rather than starting clean and discarding it. Only names not
-    # listed before count: what was kept, or couldn't be read, is still there.
-    stragglers = sorted(
-        set(coverage_data_files(coverage_data_dir)).difference(data_files)
-    )
-    if stragglers:
-        print(f"Combining {len(stragglers)} further data files that arrived late")
-        _run_coverage("combine", "--append", *keep, *stragglers, cwd=coverage_data_dir)
-
-    if xml_report_file:
-        if xml_report_root:
-            # Canonical, as the measured file names are.
-            root = os.path.realpath(xml_report_root)
-            _run_coverage(
-                "xml",
-                # Not whatever .coveragerc, setup.cfg etc. the root has.
-                f"--rcfile={get_packaged_coveragerc_path()}",
-                f"--include={root}/*",
-                "-o",
-                os.path.abspath(xml_report_file),
-                cwd=root,
-                data_file=os.path.abspath(
-                    os.path.join(coverage_data_dir, COVERAGE_DATA_FILE_BASE_NAME)
-                ),
+        # Combining is itself slow enough for a straggler to land during it,
+        # which the settle wait can't rule out. Appended, so this adds to what
+        # was just combined rather than starting clean and discarding it. Only
+        # names not listed before count: what was kept, or couldn't be read, is
+        # still there.
+        stragglers = sorted(
+            set(coverage_data_files(coverage_data_dir)).difference(data_files)
+        )
+        if stragglers:
+            print(f"Combining {len(stragglers)} further data files that arrived late")
+            _combine_local_copies(
+                stragglers, coverage_data_dir, local_dir, keep_data_files, append=True
             )
-        else:
-            _run_coverage("xml", "-o", xml_report_file, cwd=coverage_data_dir)
-        print(f"Coverage XML: {xml_report_file}")
-    if html_report_dir:
-        print("Generating Coverage Report...")
-        _run_coverage("html", "-d", html_report_dir, cwd=coverage_data_dir)
-        print(html_report_dir)
+
+        combined = os.path.join(local_dir, COVERAGE_DATA_FILE_BASE_NAME)
+        shutil.copyfile(
+            combined, os.path.join(coverage_data_dir, COVERAGE_DATA_FILE_BASE_NAME)
+        )
+
+        if xml_report_file:
+            if xml_report_root:
+                # Canonical, as the measured file names are.
+                root = os.path.realpath(xml_report_root)
+                _run_coverage(
+                    "xml",
+                    # Not whatever .coveragerc, setup.cfg etc. the root has.
+                    f"--rcfile={get_packaged_coveragerc_path()}",
+                    f"--include={root}/*",
+                    "-o",
+                    os.path.abspath(xml_report_file),
+                    cwd=root,
+                    data_file=combined,
+                )
+            else:
+                _run_coverage(
+                    "xml",
+                    "-o",
+                    xml_report_file,
+                    cwd=coverage_data_dir,
+                    data_file=combined,
+                )
+            print(f"Coverage XML: {xml_report_file}")
+        if html_report_dir:
+            print("Generating Coverage Report...")
+            _run_coverage(
+                "html", "-d", html_report_dir, cwd=coverage_data_dir, data_file=combined
+            )
+            print(html_report_dir)
     return True
+
+
+def _combine_local_copies(
+    names: list[str],
+    coverage_data_dir: str,
+    local_dir: str,
+    keep_data_files: bool,
+    append: bool = False,
+) -> None:
+    """'coverage combine' copies of the named data files into local_dir's '.coverage'.
+
+    The originals then go the way combining them in place would have taken
+    them: each one merged in is deleted, unless keep_data_files. One combine
+    couldn't read stays, and so does its copy, which is what tells the two
+    apart.
+    """
+    for name in names:
+        shutil.copyfile(
+            os.path.join(coverage_data_dir, name), os.path.join(local_dir, name)
+        )
+    _run_coverage("combine", *(["--append"] if append else []), *names, cwd=local_dir)
+    if keep_data_files:
+        return
+    for name in names:
+        if not os.path.exists(os.path.join(local_dir, name)):
+            os.remove(os.path.join(coverage_data_dir, name))
 
 
 # The Coverage a pool child measures itself with; see start_pool_child_coverage.
