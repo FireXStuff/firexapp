@@ -5,6 +5,8 @@ variables:
   firex_base_logging_dir: "$CI_PROJECT_DIR/flow_test_results"
 
 cache:
+  # Start a fresh cache namespace after the CI image/user change.
+  key: firexapp-py312-debian-v1
   paths:
     - .cache/uv/
     - .cache/npm/
