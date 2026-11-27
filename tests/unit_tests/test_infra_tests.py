@@ -12,6 +12,7 @@ import tempfile
 import threading
 import time
 import unittest
+from pathlib import Path
 
 import coverage
 import pytest
@@ -482,6 +483,63 @@ def test_firex_installed_into_site_packages_is_measured():
     installed = "/staging/venv/lib/python3.10/site-packages/microservices/tasks.py"
 
     assert not [p for p in config.run_omit if fnmatch.fnmatch(installed, p)]
+
+
+def test_legacy_firex_cisco_import_names_are_measured(tmp_path):
+    """Legacy top-level imports resolve inside firex_cisco in deployed venvs."""
+    aliases = (
+        "bootstrap",
+        "ci_plugins",
+        "client",
+        "infra",
+        "testsuites",
+        "utils",
+    )
+    package_root = tmp_path / "packages"
+    firex_cisco = package_root / "firex_cisco"
+    firex_cisco.mkdir(parents=True)
+    (firex_cisco / "__init__.py").touch()
+    for alias in aliases:
+        package = firex_cisco / alias
+        package.mkdir()
+        (package / "__init__.py").touch()
+        (package / "probe.py").write_text("def run():\n    return 42\n")
+
+    data_file = tmp_path / ".coverage"
+    script = """
+import importlib
+import sys
+from coverage import Coverage
+
+cov = Coverage(config_file=sys.argv[1], data_file=sys.argv[2])
+cov.start()
+for name in sys.argv[3:]:
+    importlib.import_module(f"{name}.probe").run()
+cov.stop()
+cov.save()
+"""
+    env = {k: v for k, v in os.environ.items() if k not in COVERAGE_ENV_VARS}
+    env["PYTHONPATH"] = os.pathsep.join((str(package_root), str(firex_cisco)))
+    config_file = Path(__file__).resolve().parents[2] / "firexapp/testing/coveragerc"
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(config_file),
+            str(data_file),
+            *aliases,
+        ],
+        env=env,
+        check=True,
+    )
+
+    [saved_data_file] = tmp_path.glob(".coverage.*")
+    data = coverage.CoverageData(basename=str(saved_data_file))
+    data.read()
+    for alias in aliases:
+        source_file = str(firex_cisco / alias / "probe.py")
+        assert 2 in (data.lines(source_file) or []), alias
 
 
 def test_measuring_subprocesses_measures_what_the_block_starts(tmp_path):

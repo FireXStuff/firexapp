@@ -14,13 +14,19 @@ branch = True
 parallel = True
 
 # By package rather than by directory: a worker on another host resolves
-# FireX through its own path, and source_pkgs matches wherever the package
-# turned out to be imported from. Add to this when a new top-level FireX
-# package should be measured.
+# FireX through its own path. Coverage selects by import name, so include the
+# legacy top-level names used to import modules inside firex_cisco as well as
+# firex_cisco itself. The same file is still recorded under its physical path.
 source_pkgs =
     firexapp
     firexkit
     firex_cisco
+    bootstrap
+    ci_plugins
+    client
+    infra
+    testsuites
+    utils
     microservices
     services
 
