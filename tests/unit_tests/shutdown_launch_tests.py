@@ -8,12 +8,15 @@ workers and tracking services.
 import errno
 import logging
 import os
+from types import SimpleNamespace
 
 import psutil
 import pytest
 
 from firexapp.submit import shutdown
 from firexapp.submit.shutdown import launch_background_shutdown
+from firexkit import result
+from firexkit.testing import ut_backed_celery_app
 
 
 class _FlakyFork:
@@ -111,3 +114,49 @@ def test_shutdown_launch_does_not_retry_errors_that_wont_go_away(
         launch_background_shutdown(str(tmp_path), reason=None)
 
     assert fork.calls == 1
+
+
+def test_shutdown_launch_skips_a_run_with_an_active_shutdown(tmp_path, flaky_fork):
+    fork = flaky_fork(failures=0)
+    (tmp_path / shutdown.Uid.debug_dirname).mkdir()
+    logs_dir = str(tmp_path)
+
+    with shutdown._run_shutdown_lock(logs_dir):
+        assert launch_background_shutdown(logs_dir, reason="Root postrun") is None
+
+    assert fork.calls == 0
+
+
+@pytest.mark.parametrize("already_revoked", [False, True])
+def test_shutdown_waits_for_revoke_cleanup(monkeypatch, already_revoked):
+    app = ut_backed_celery_app()
+    task_id = "cleaning-up"
+    worker = "master:g1@host"
+    app.mark_task_prerun(task_id, worker)
+    revokes = []
+
+    def revoke(task_id, terminate):
+        assert terminate
+        revokes.append(task_id)
+        app.backend.mark_as_revoked(task_id)
+
+    if already_revoked:
+        app.backend.mark_as_revoked(task_id)
+
+    def inspect_active(*_):
+        # Celery removes the task from its active list when it revokes it.
+        tasks = [] if already_revoked or revokes else [{"id": task_id, "name": "test"}]
+        return {worker: tasks}
+
+    def finish_cleanup(*_):
+        app.mark_task_postrun(task_id)
+        return 0
+
+    monkeypatch.setattr(shutdown, "get_active_broker_safe", inspect_active)
+    monkeypatch.setitem(app.__dict__, "control", SimpleNamespace(revoke=revoke))
+    monkeypatch.setattr(result, "_sleep_exponential_backoff", finish_cleanup)
+
+    shutdown.revoke_active_tasks(None, app)
+
+    assert app.task_id_has_postrun(task_id)
+    assert revokes == ([] if already_revoked else [task_id])

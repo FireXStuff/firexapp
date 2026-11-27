@@ -334,10 +334,10 @@ class FxAsyncResult(AsyncResult, Generic[ARR]):
             )
         return self._fx_parent
 
-    def fx_is_running(self) -> bool:
+    def fx_is_running(self, timeout: float = _DEFAULT_AR_QUERY_TIMEOUT) -> bool:
         return self.app.task_id_has_prerun(
-            self.id
-        ) and not self.app.task_id_has_postrun(self.id)
+            self.id, timeout=timeout
+        ) and not self.app.task_id_has_postrun(self.id, timeout=timeout)
 
     def _fx_has_settled(self) -> bool:
         # A revoked task's postrun can come before or after the worker stores
@@ -1030,8 +1030,18 @@ class ManyFxAsyncResults(Generic[K]):
 
         return self
 
-    def wait_for_running(self, max_wait: int = 2 * 60) -> bool:
-        return self._wait_while_any(FxAsyncResult.fx_is_running, "running", max_wait)
+    def wait_for_running(
+        self,
+        max_wait: float = 2 * 60,
+        *,
+        query_timeout: float = _DEFAULT_AR_QUERY_TIMEOUT,
+    ) -> bool:
+        """Wait for postrun without loading task results."""
+        return self._wait_while_any(
+            lambda ar: ar.fx_is_running(timeout=query_timeout),
+            "running",
+            max_wait,
+        )
 
     def wait_for_settled(self, max_wait: int = 2 * 60) -> bool:
         """Waits until every task that started has stopped running and stored how it ended."""
@@ -1043,7 +1053,7 @@ class ManyFxAsyncResults(Generic[K]):
         self,
         is_waited_on: Callable[[FxAsyncResult], bool],
         description: str,
-        max_wait: int,
+        max_wait: float,
     ) -> bool:
         sleep_between_iterations = _SLEEP_BETWEEN_ITERATIONS
         max_sleep = _SLEEP_BETWEEN_ITERATIONS * 60  # Somewhat arbitrary

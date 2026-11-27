@@ -430,16 +430,18 @@ class FireXTaskRequest(Request):
         try:
             if app.task_id_has_postrun(self.id, timeout=self._BACKEND_TIMEOUT):
                 return
-            app.mark_task_postrun(self.id, timeout=self._BACKEND_TIMEOUT)
-            app.send_task_completion_events(
-                self.id,
-                self.send_event,
-                # Use this request's local revoke flags after its process exits.
-                revoked=self._already_revoked or self.id in worker_state.revoked,
-                actual_runtime=self.task.duration(
-                    self.id, timeout=self._BACKEND_TIMEOUT
-                ),
-            )
+            try:
+                app.send_task_completion_events(
+                    self.id,
+                    self.send_event,
+                    # Use this request's local revoke flags after its process exits.
+                    revoked=self._already_revoked or self.id in worker_state.revoked,
+                    actual_runtime=self.task.duration(
+                        self.id, timeout=self._BACKEND_TIMEOUT
+                    ),
+                )
+            finally:
+                app.mark_task_postrun(self.id, timeout=self._BACKEND_TIMEOUT)
         # Best effort; there's nothing more the controlling process can do.
         except Exception as e:  # noqa: BLE001
             logger.warning(f"Failed to stand in for postrun of task {self.id}: {e}")

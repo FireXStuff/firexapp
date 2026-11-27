@@ -2,7 +2,7 @@ import gc
 import importlib
 import logging
 import os
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Collection, Generator
 from contextlib import contextmanager
 from time import monotonic
 from typing import Any, ClassVar
@@ -53,6 +53,7 @@ logger = get_task_logger(__name__)
 
 _TASK_PRE_RUN_KEY = "TASK_PRE_RUN"
 _TASK_POST_RUN_KEY = "TASK_POST_RUN"
+_RUNNING_TASKS_KEY = "FX_RUNNING_TASKS"
 
 # Worker remote control command backing FireXCelery.set_task_soft_time_limit.
 FX_SET_TASK_SOFT_TIME_LIMIT_CMD = "fx_set_task_soft_time_limit"
@@ -801,10 +802,32 @@ class FireXCelery(Celery):
             )
         return True
 
+    def mark_task_prerun(self, task_id: str, worker: str | None) -> None:
+        # Celery retries use the same task ID.
+        firexkit.broker.handle_broker_timeout(
+            self.backend.client.hdel, args=(task_id, _TASK_POST_RUN_KEY)
+        )
+        self.backend_hset_task_attr(task_id, _TASK_PRE_RUN_KEY, "True")
+        self.backend_hset_task_attr(_RUNNING_TASKS_KEY, task_id, worker or "")
+
+    def get_running_task_ids(self, workers: Collection[str] | None = None) -> set[str]:
+        """Find tasks still doing work, including those Celery has already revoked."""
+        running = self.backend.client.hgetall(_RUNNING_TASKS_KEY) or {}
+        return {
+            task_id.decode()
+            for task_id, worker in running.items()
+            if workers is None or worker.decode() in workers
+        }
+
     def mark_task_postrun(self, task_id: str, timeout=15 * 60) -> None:
         """Records that task_id is no longer running, forgetting it if it asked to be."""
         self.backend_hset_task_attr(
             task_id, _TASK_POST_RUN_KEY, "True", timeout=timeout
+        )
+        firexkit.broker.handle_broker_timeout(
+            self.backend.client.hdel,
+            args=(_RUNNING_TASKS_KEY, task_id),
+            timeout=timeout,
         )
         if self.backend_hget_task_attr(task_id, "_fx_forget", timeout=timeout):
             self.AsyncResult(task_id).fx_forget()
@@ -1535,16 +1558,9 @@ class RunSoftTimeLimitSyncStep(bootsteps.StartStopStep):
     shutdown = stop
 
 
-@celery.signals.task_postrun.connect
-def _mark_task_postrun(task: FireXTask, task_id: str, **_kwargs):
-    # A task whose process dies without running Python cleanup (e.g. SIGKILL) never
-    # gets here; FireXTaskRequest marks those.
-    task.app.mark_task_postrun(task_id)
-
-
 @celery.signals.task_prerun.connect
 def _update_task_name(sender: FireXTask, task_id: str, *_args, **_kwargs):
-    sender.app.backend_hset_task_attr(task_id, _TASK_PRE_RUN_KEY, "True")
+    sender.app.mark_task_prerun(task_id, sender.request.hostname)
     sender.set_backend_task_start_time(task_id)
     # Although the name was populated in _populate_task_info before_task_publish, the name
     # can be inaccurate if it was a plugin. We can only over-write it with the accurate name
@@ -1588,16 +1604,25 @@ def statsd_task_postrun(
 ):
     # A task whose process dies without running Python cleanup (e.g. SIGKILL) never
     # gets here; FireXTaskRequest sends these for those.
-    sender.app.send_task_completion_events(
-        task_id,
-        task.send_event,
-        revoked=task.AsyncResult(task_id).fx_is_revoked(),
-        actual_runtime=task.duration(),
-    )
+    try:
+        sender.app.send_task_completion_events(
+            task_id,
+            task.send_event,
+            revoked=task.AsyncResult(task_id).fx_is_revoked(),
+            actual_runtime=task.duration(),
+        )
+    finally:
+        # Shutdown can proceed as soon as this marker is visible.
+        sender.app.mark_task_postrun(task_id)
 
 
 @celery.signals.task_revoked.connect()
-def statsd_task_revoked(sender: FireXTask, request=None, *_args, **_kwargs):
+def statsd_task_revoked(
+    sender: FireXTask, request=None, *_args, terminated=False, **_kwargs
+):
+    # The process may continue running its cleanup after a termination request.
+    if terminated:
+        return
     # sender.request doesn't necessarily refer to this task: task_revoked is sent
     # from the worker's controlling process (not the process that ran the task),
     # so push the actual revoked task's context to get its correct id/duration.

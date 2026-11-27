@@ -282,6 +282,13 @@ class UtClient:
         self._store[self._encode(key)][self._encode(member)] = self._encode(val)
         return True
 
+    def hdel(self, key, *members):
+        self._inc_count("hdel")
+        fields = self._store.get(self._encode(key), {})
+        return sum(
+            fields.pop(self._encode(member), None) is not None for member in members
+        )
+
     def delete(self, key):
         self._inc_count("delete")
         encoded_key = self._encode(key)

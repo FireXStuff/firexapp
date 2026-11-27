@@ -6,10 +6,11 @@ import subprocess
 import tempfile
 import time
 from collections import namedtuple
+from datetime import datetime
 
 import kombu.exceptions
 import redis.exceptions
-from celery import Celery
+from flufl.lock import Lock, TimeOutError
 from psutil import Process, TimeoutExpired
 
 from firexapp.broker_manager.broker_factory import BrokerFactory
@@ -17,12 +18,15 @@ from firexapp.celery_manager import CeleryManager
 from firexapp.common import qualify_firex_bin
 from firexapp.engine.default_celery_config import FxEnvVars
 from firexapp.submit.uid import Uid
+from firexkit.firex_celery import FireXCelery
 from firexkit.inspect import get_active, ping
+from firexkit.result import ManyFxAsyncResults
 
 logger = logging.getLogger(__name__)
 
 
 DEFAULT_CELERY_SHUTDOWN_TIMEOUT = 5 * 60
+_DEFAULT_REVOKE_CLEANUP_TIMEOUT = 2 * 60
 MaybeCeleryActiveTasks = namedtuple(
     "MaybeCeleryActiveTasks",
     ["celery_read_success", "active_tasks"],
@@ -76,11 +80,26 @@ def _launch_shutdown_subprocess_with_retries(
     return _launch_shutdown_subprocess(shutdown_cmd, logs_dir)
 
 
+def _run_shutdown_lock(logs_dir: str, *, lifetime: int | None = None) -> Lock:
+    return Lock(
+        os.path.join(logs_dir, Uid.debug_dirname, "shutdown.lock"), lifetime=lifetime
+    )
+
+
 def launch_background_shutdown(
     logs_dir: str,
     reason,
     celery_shutdown_timeout=DEFAULT_CELERY_SHUTDOWN_TIMEOUT,
 ) -> int | None:
+    # The submit process may already have started shutdown (for example, on
+    # SIGINT) and directly caused the root to enter its revoke postrun.
+    try:
+        if _run_shutdown_lock(logs_dir).expiration > datetime.now():
+            logger.debug("Run shutdown already has an owner. Skipping launch.")
+            return None
+    except FileNotFoundError:
+        pass
+
     try:
         shutdown_cmd = [
             qualify_firex_bin("firex_shutdown"),
@@ -134,7 +153,11 @@ def _inspect_broker_safe(inspect_fn, broker, celery_app, **kwargs):
         return None
     try:
         return inspect_fn(inspect_retry_timeout=4, celery_app=celery_app, **kwargs)
-    except (redis.exceptions.ConnectionError, kombu.exceptions.DecodeError) as ex:
+    except (
+        redis.exceptions.ConnectionError,
+        kombu.exceptions.DecodeError,
+        kombu.exceptions.OperationalError,
+    ) as ex:
         logger.warning(ex)
         return None
 
@@ -170,63 +193,65 @@ def _tasks_from_active(active, task_predicate) -> MaybeCeleryActiveTasks:
 
 def revoke_active_tasks(
     broker,
-    celery_app,
+    celery_app: FireXCelery,
     max_revoke_retries=5,
-    task_predicate=lambda task: True,
+    task_predicate=None,
+    *,
+    cleanup_timeout: float = _DEFAULT_REVOKE_CLEANUP_TIMEOUT,
 ):
     logger.debug("Querying Celery to find any remaining active tasks.")
-    maybe_active_tasks = _tasks_from_active(
-        get_active_broker_safe(broker, celery_app), task_predicate
-    )
-    revoke_retries = 0
-    # Revoke retry loop
-    while (
-        maybe_active_tasks.celery_read_success
-        and maybe_active_tasks.active_tasks
-        and revoke_retries < max_revoke_retries
-    ):
-        if revoke_retries:
-            logger.warning(
-                f"Found {len(maybe_active_tasks.active_tasks)} active tasks after revoke. Revoking active tasks again."
+    matches = task_predicate or (lambda task: True)
+    deadline = time.monotonic() + cleanup_timeout
+    for attempt in range(max_revoke_retries + 1):
+        maybe_active_tasks = _tasks_from_active(
+            get_active_broker_safe(broker, celery_app), matches
+        )
+        if not maybe_active_tasks.celery_read_success:
+            logger.info(
+                "Failed to read active tasks from celery. May shutdown with unrevoked tasks."
             )
+            return
+        active_tasks = maybe_active_tasks.active_tasks
 
+        # Already revoked tasks can be absent from inspect.active() while their
+        # cleanup still needs workers and Redis. A targeted revoke only waits for
+        # the tasks it selects.
+        try:
+            wait_on = (
+                celery_app.get_running_task_ids() if task_predicate is None else set()
+            )
+        except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError):
+            logger.warning("Lost the result backend while finding tasks to revoke.")
+            return
+        if not active_tasks and not wait_on:
+            logger.info("Confirmed no active tasks or pending revoke cleanup.")
+            return
+        if attempt == max_revoke_retries:
+            logger.warning("Exceeded max revoke retry attempts with unfinished tasks.")
+            return
         # Revoke tasks in order they were started. This avoids ChainRevokedException errors when children are revoked
         # before their parents.
         for task in sorted(
-            maybe_active_tasks.active_tasks,
-            key=lambda t: t.get("time_start", float("inf")),
+            active_tasks, key=lambda t: t.get("time_start", float("inf"))
         ):
             logger.info(f"Revoking {task['name']}[{task['id']}]")
             celery_app.control.revoke(task_id=task["id"], terminate=True)
+            wait_on.add(task["id"])
 
-        # wait for confirmation of revoke
-        maybe_active_tasks = _tasks_from_active(
-            get_active_broker_safe(broker, celery_app), task_predicate
+        results = ManyFxAsyncResults.fx_ars_from_list(
+            celery_app.AsyncResult(task_id) for task_id in sorted(wait_on)
         )
-        wait_for_task_revoke_start = time.monotonic()
-        while (
-            maybe_active_tasks.celery_read_success
-            and maybe_active_tasks.active_tasks
-            and time.monotonic() - wait_for_task_revoke_start < 3
-        ):
-            time.sleep(0.25)
-            maybe_active_tasks = _tasks_from_active(
-                get_active_broker_safe(broker, celery_app), task_predicate
-            )
-
-        revoke_retries += 1
-
-    if not maybe_active_tasks.celery_read_success:
-        logger.info(
-            "Failed to read active tasks from celery. May shutdown with unrevoked tasks."
-        )
-    elif len(maybe_active_tasks.active_tasks) == 0:
-        logger.info("Confirmed no active tasks after revoke.")
-    elif revoke_retries >= max_revoke_retries:
-        t_count = len(maybe_active_tasks.active_tasks)
-        logger.warning(
-            f"Exceeded max revoke retry attempts, {t_count} active tasks may not be revoked."
-        )
+        try:
+            # Postrun follows event publication. Checking result state here
+            # would also deserialize results from plugins this process hasn't loaded.
+            if not results.wait_for_running(
+                max_wait=max(0, deadline - time.monotonic()), query_timeout=2
+            ):
+                logger.warning("Continuing shutdown with unfinished task cleanup.")
+                return
+        except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError):
+            logger.warning("Lost the result backend while waiting for task cleanup.")
+            return
 
 
 def init():
@@ -276,13 +301,22 @@ def _shutdown_run(
         logs_dir=logs_dir,
         fx_env=FxEnvVars.load_firex_env_vars_from_env(),
     )
-    celery_app = Celery(
-        broker=broker.broker_url,
+    celery_app = FireXCelery(
+        fx_env=FxEnvVars.load_firex_env_vars_from_logs_dir(
+            logs_dir, plugins="", broker_mgr=broker
+        ),
+        fx_expect_tasks=False,
         accept_content=["pickle", "json"],
     )
     try:
         if is_celery_responsive(broker, celery_app):
-            revoke_active_tasks(broker, celery_app)
+            revoke_active_tasks(
+                broker,
+                celery_app,
+                cleanup_timeout=min(
+                    celery_shutdown_timeout, _DEFAULT_REVOKE_CLEANUP_TIMEOUT
+                ),
+            )
 
             if is_celery_responsive(broker, celery_app):
                 # double check celery responsiveness since control.shutdown()
@@ -324,7 +358,22 @@ def _shutdown_run(
 def main() -> None:
     logs_dir, reason, celery_shutdown_timeout = init()
     try:
-        _shutdown_run(logs_dir, celery_shutdown_timeout, reason)
+        # Two launchers may both start before either subprocess takes ownership.
+        lock = _run_shutdown_lock(
+            logs_dir,
+            # The log directory is on NFS. Leave time for the revoke wait,
+            # graceful worker shutdown, and forced cleanup if needed.
+            lifetime=2 * celery_shutdown_timeout + 10 * 60,
+        )
+        try:
+            lock.lock(timeout=1)
+        except TimeOutError:
+            logger.info("Run shutdown is already in progress.")
+            return
+        try:
+            _shutdown_run(logs_dir, celery_shutdown_timeout, reason)
+        finally:
+            lock.unlock()
     except BaseException:
         logger.exception("Shutdown failed.")
         raise
