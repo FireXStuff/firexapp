@@ -759,7 +759,12 @@ def test_a_pool_child_writes_only_what_it_ran(tmp_path):
         text=True,
     ).stdout.strip()
 
-    [child_file] = data_dir.glob(f".coverage.*.{child_pid}.*")
+    [child_file] = [
+        path
+        for path in data_dir.glob(".coverage.*")
+        if (match := subprocess_coverage._COVERAGE_DATA_FILE_RE.fullmatch(path.name))
+        and match.group("pid") == child_pid
+    ]
     child_lines = _ut_measured_subprocess_coverage_lines(child_file)
     assert child_ran_line in child_lines, "what the child ran is missing"
     assert module_level_line not in child_lines, "the child wrote the worker's startup"

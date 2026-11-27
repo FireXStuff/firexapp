@@ -44,11 +44,14 @@ COVERAGE_ENV_VARS = (
 )
 
 # The base name every measured process suffixes, and the pattern that reads a
-# suffixed name back: '.coverage.<hostname>.<pid>.<random>'. The pid and random
-# parts are digits, which is what makes the hostname -- which can contain dots
-# itself -- unambiguous to pick out.
+# suffixed name back: '.coverage.<hostname>.<pid>.<random>'. The pid is
+# numeric (optionally prefixed with 'pid' in newer coverage releases),
+# while newer random suffixes are alphanumeric and may have a content hash.
+# Match old numeric names too, including hostnames containing dots.
 COVERAGE_DATA_FILE_BASE_NAME = ".coverage"
-_COVERAGE_DATA_FILE_RE = re.compile(r"^\.coverage\.(?P<host>.+)\.\d+\.\d+$")
+_COVERAGE_DATA_FILE_RE = re.compile(
+    r"^\.coverage\.(?P<host>.+)\.(?:pid)?(?P<pid>\d+)\.\w+(?:\.H\w+)?$"
+)
 
 # How long the coverage data directory has to stop changing before the
 # processes still writing into it are taken to be done, and how long to give

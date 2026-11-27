@@ -19,6 +19,16 @@ DEFAULT_FLAME_TIMEOUT = 60 * 60 * 24 * 2
 REVOKE_REASON_KEY = "revoke_reason"
 
 
+def str_to_bool(value: str) -> bool:
+    """Parse the boolean spellings accepted by the former distutils helper."""
+    value = value.lower()
+    if value in ("y", "yes", "t", "true", "on", "1"):
+        return True
+    if value in ("n", "no", "f", "false", "off", "0"):
+        return False
+    raise ValueError(f"invalid truth value {value!r}")
+
+
 @dataclass(frozen=True)
 class FlameServerConfig:
     webapp_port: int

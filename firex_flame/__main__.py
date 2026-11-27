@@ -11,7 +11,6 @@ from gevent import monkey
 monkey.patch_all()
 
 import argparse
-import distutils.util
 import logging
 import os
 from pathlib import Path
@@ -27,6 +26,7 @@ from firex_flame.flame_helper import (
     get_flame_debug_dir,
     get_flame_pid_file_path,
     get_flame_url_from_port,
+    str_to_bool,
     wait_until,
 )
 from firex_flame.main_app import start_flame
@@ -125,12 +125,12 @@ def _parse_args():
         "--serve_logs_dir",
         help="Whether or not the Flame web server should make the logs_dir of the run available via "
         "HTTP(S).",
-        type=lambda x: bool(distutils.util.strtobool(x)),
+        type=str_to_bool,
         default=True,
     )
     parser.add_argument(
         "--wait_for_webserver",
-        type=lambda x: bool(distutils.util.strtobool(x)),
+        type=str_to_bool,
         default=True,
     )
 
