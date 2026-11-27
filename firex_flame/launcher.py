@@ -1,4 +1,3 @@
-import distutils.util
 import os
 import socket
 import time
@@ -9,6 +8,7 @@ from firex_flame.flame_helper import (
     get_flame_redirect_file_path,
     get_rec_file,
     is_json_file,
+    str_to_bool,
 )
 from firex_flame.model_dumper import (
     get_run_metadata_file,
@@ -149,7 +149,7 @@ class FlameLauncher(TrackingService):
         arg_parser.add_argument(
             "--flame_serve_logs_dir",
             help="Control if the Flame server makes the run's logs_dir available via HTTP(S).",
-            type=lambda x: bool(distutils.util.strtobool(x)),
+            type=str_to_bool,
             default=None,
         )
 

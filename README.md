@@ -5,6 +5,11 @@ Core FireX application and task libraries. The `firexkit`, `firex_blaze`,
 included in the `firexapp` distribution, along with the `firex_flame_ui`
 frontend resource package.
 
+## Development Python
+
+Python 3.12 is the default local development interpreter, configured in
+`.python-version`.
+
 ## Releases
 
 The version is stored in `pyproject.toml`; tags trigger publication but do

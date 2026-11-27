@@ -16,11 +16,11 @@ stages:
   - update-docs
 
 default:
-  image: firexstuff/firex-alpine-build:3.10.20-uv0.11.19
+  image: "${CI_REGISTRY}/firexstuff/firexapp:latest"
   before_script:
     - git config --global --add safe.directory "$CI_PROJECT_DIR"
     - uv --version
-    - export PATH="/redis-6.2.3/src:$PATH"
+    - python --version
 
 build:
   stage: build
